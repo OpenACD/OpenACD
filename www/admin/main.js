@@ -381,6 +381,7 @@ dojo.addOnLoad(function(){
 									releaseOpts.init();
 									dojo.byId("loginerrspan").innerHTML = '';
 									dojo.byId('loginerrp').style.display = 'none';
+									agents.getModules(dijit.byId('editAgentModuleForm'));
 								} else {
 									dojo.byId("loginerrp").style.display = "block";
 									dojo.byId("loginerrspan").innerHTML = response2.message;

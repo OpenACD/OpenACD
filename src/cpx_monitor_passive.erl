@@ -314,9 +314,9 @@ handle_info({cpx_monitor_event, Event}, State) ->
 			{noreply, State};
 		{Old, New} ->
 			Update = case Event of
-				{drop, {T, _}} ->
+				{drop, _Time, {T, _}} ->
 					T;
-				{set, {{T, _}, _, _, _}} ->
+				{set, _Time, {{T, _}, _, _}} ->
 					T
 			end,
 			case Update of
@@ -725,7 +725,7 @@ transform_event({set, {Megasec, Sec, Micorsec}, {{media, _Id}, Details, _Node}},
 			Midrec = OldRec#cached_media{state = NewState, statedata = NewStateData, endstate = Endstate, history = History},
 			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
 	end;
-transform_event({drop, {media, _Id}, _Timestamp}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
+transform_event({drop, Timestamp, {media, _Id}}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
 	% if dropping we were:
 	% queue
 	% ivr
@@ -742,7 +742,7 @@ transform_event({drop, {media, _Id}, _Timestamp}, [#cached_media{state = OldStat
 	end,
 	Midrec = OldRec#cached_media{state = ended, statedata = EndState, endstate = EndState, history = History},
 	Midrec#cached_media{time = util:now(), json = media_to_json(Midrec)};
-transform_event({set, {{agent, Id}, _Hp, Details, {Megasec, Sec, _Microsec}}}, _, _QueueCache, _AgentCache) ->
+transform_event({set, {Megasec, Sec, _Microsec}, {{agent, Id}, Details, _Node}}, _, _QueueCache, _AgentCache) ->
 	Time = (Megasec * 1000000) + Sec,
 	State = proplists:get_value(state, Details),
 	StateData = proplists:get_value(statedata, Details),

@@ -37,6 +37,10 @@
 -behaviour(gen_leader).
 
 -ifdef(TEST).
+-define(STANDARD_TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+-ifdef(PROFILE).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include("log.hrl").
@@ -1072,6 +1076,7 @@ multinode_test_d() ->
 			?assertMatch({ok, _Pid}, Srez)
 		end}
 	end]}.
+-endif.
 
 -ifdef(PROFILE).
 
@@ -1079,12 +1084,11 @@ avg(Acc) ->
 	Sum = lists:foldl(fun(X, S) -> S + X end, 0, Acc),
 	Sum / length(Acc).
 
-tdiff({InMeg, InSec, InMic}, {GotMeg, GotSec, GotMic}) ->
-	InTime = InMeg * 1000000 + InSec + InMic / 1000000,
-	GotTime = GotMeg * 1000000 + GotSec + GotMic / 1000000,
-	GotTime - InTime.
+record_res(File, Group, Name, Avg) ->
+	io:format(File, "~p	~s	~s	~f~n", [os:timestamp(), Group, Name, Avg]).
 
-profile_test_() ->
+profile_tc_test_() ->
+	Group = profile_tc,
 	{foreach,
 	fun() ->
 		case whereis(cpx_monitor) of
@@ -1094,24 +1098,28 @@ profile_test_() ->
 				unregister(cpx_monitor),
 				exit(Pid, kill)
 		end,
-		{ok, Mon} = cpx_monitor:start([{nodes, node()}]),
-		Mon
+		{ok, _Mon} = cpx_monitor:start([{nodes, node()}]),
+		{ok, File} = file:open("cpx_monitor-profile.txt", [append]),
+		File
 	end,
-	fun(_Mon) ->
+	fun(File) ->
+		file:close(File),
 		cpx_monitor:stop()
 	end,
-	[fun(_Mon) -> {timeout, 60, {"info message with little data", fun() ->
+	[fun(File) -> Name = "info message with little data", {timeout, 60, {Name, fun() ->
 		cpx_monitor:subscribe(),
 		Acc = [begin
 			cpx_monitor:info([{"info", X}]),
 			receive
 				{cpx_monitor_event, {info, InTime, [{"info", X}]}} ->
-					tdiff(InTime, os:timestamp())
+					timer:now_diff(os:timestamp(), InTime)
 			end
 		end || X <- lists:seq(1, 1000)],
-		?INFO("Average time:  ~f", [avg(Acc)])
+		Avg = avg(Acc),
+		?INFO("Average time:  ~f", [Avg]),
+		record_res(File, Group, Name, Avg)
 	end}} end,
-	fun(_Mon) -> {timeout, 60, {"info message with lots of data", fun() ->
+	fun(File) -> Name = "info message with lots of data", {timeout, 60, {Name, fun() ->
 		AtoZ = "abcdefghijklmnopqrstuvwxyz",
 		MakeData = fun() ->
 			[{make_ref(), X} || X <- AtoZ]
@@ -1122,12 +1130,14 @@ profile_test_() ->
 			cpx_monitor:info(Data),
 			receive
 				{cpx_monitor_event, {info, InTime, _Data}} ->
-					tdiff(InTime, os:timestamp())
+					timer:now_diff(os:timestamp(), InTime)
 			end
 		end || X <- lists:seq(1, 1000)],
-		?INFO("Average time:  ~f", [avg(Acc)])
+		Avg = avg(Acc),
+		?INFO("Average time:  ~f", [avg(Acc)]),
+		record_res(File, Group, Name, Avg)
 	end}} end,
-	fun(_Mon) -> {timeout, 60, {"alternating sets and drops, no data", fun() ->
+	fun(File) -> Name = "alternating sets and drops, no data", {timeout, 60, {Name, fun() ->
 		cpx_monitor:subscribe(),
 		Acc = [begin
 			case X rem 2 of
@@ -1138,13 +1148,13 @@ profile_test_() ->
 			end,
 			receive
 				{cpx_monitor_event, {_, InTime, _Data}} ->
-					tdiff(InTime, os:timestamp())
+					timer:now_diff(os:timestamp(), InTime)
 			end
 		end || X <- lists:seq(1, 1000)],
-		?INFO("Average time:  ~f", [avg(Acc)])
+		Avg = avg(Acc),
+		?INFO("Average time:  ~f", [Avg]),
+		record_res(File, Group, Name, Avg)
 	end}} end]}.
 
--endif.
-	
 -endif.
 

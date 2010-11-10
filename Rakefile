@@ -267,6 +267,17 @@ namespace :test do
 	desc "run eunit tests and output coverage reports"
 	task :all => [:compile, :eunit, :report_coverage]
 
+	desc "run test for profiling"
+	task :profile => [:clean]  do
+		SRC.each do |t|
+			sh "erlc +debug_info -D PROFILE -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t} "
+		end
+		SRC.each do |t|
+			mod = File.basename(t, '.erl')
+			test_output = `erl -noshell -pa debug_ebin -sname testpx -eval "try eunit:test(#{mod}, [verbose]) of _Any -> ok catch _:_ -> io:format(\\"This module does not provide a test() function~n\\"), ok end." -s init stop`
+		end
+	end
+
 	desc "run only the eunit tests"
 	task :eunit =>  [:compile, 'coverage'] + COVERAGE
 

@@ -36,6 +36,10 @@
 -behaviour(gen_leader).
 
 -ifdef(TEST).
+-define(STANDARD_TEST, true).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+-ifdef(PROFILE).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -630,7 +634,7 @@ build_tables() ->
 		{type, bag}
 	]).
 
--ifdef('TEST').
+-ifdef(STANDARD_TEST).
 
 handle_call_start_test() ->
 	?assertMatch({ok, _Pid}, start([node()])),
@@ -962,6 +966,88 @@ multi_node_test_() ->
 			end
 		]
 	}.
+-endif.
+
+-ifdef(PROFILE).
+
+avg(Times) ->
+	Sum = lists:foldl(fun(E, S) -> E + S end, 0, Times),
+	Sum / length(Times).
+
+adding_agents_tc_test_() ->
+	{foreach,
+	fun() ->
+		{ok, File} = file:open(?MODULE_STRING ++ "-profile.txt", [append]),
+		{ok, AM} = agent_manager:start([node()]),
+		File
+	end,
+	fun(File) ->
+		file:close(File),
+		agent_manager:stop()
+	end,
+	[fun(File) -> Name = "agents with same length skills", {timeout, 60, {Name, fun() ->
+		Agents = [#agent{
+			login = integer_to_list(X),
+			skills = [X rem 5]
+		} || X <- lists:seq(1, 1000)],
+		Times = [begin
+			{T, _} = timer:tc(agent_manager, start_agent, [A]),
+			T
+		end || A <- Agents],
+		[case agent_manager:query_agent(A#agent.login) of
+			{true, Pid} ->
+				exit(Pid, kill);
+			false ->
+				ok
+		end || A <- Agents],
+		?INFO("Average for ~s:  ~f", [Name, avg(Times)]),
+		?assert(true),
+		io:format(File, "~p	~s:~s(~s)	~f~n", [os:timestamp(), ?MODULE, adding_agents_tc_test, Name, avg(Times)])
+	end}} end,
+	fun(File) -> Name = "agents with variable length skills", {timeout, 60, {Name, fun() ->
+		Agents = [#agent{
+			login = integer_to_list(X),
+			skills = [S || S <- lists:seq(0, X rem 10)]
+		} || X <- lists:seq(1, 1000)],
+		Times = [begin
+			{T, _} = timer:tc(agent_manager, start_agent, [A]),
+			T
+		end || A <- Agents],
+		[case agent_manager:query_agent(A#agent.login) of
+			{true, Pid} ->
+				exit(Pid, kill);
+			false ->
+				ok
+		end || A <- Agents],
+		?INFO("Average:  ~f", [avg(Times)]),
+		io:format(File, "~p	~s:~s(~s)	~f~n", [os:timestamp(), ?MODULE, adding_agent_tc_test, Name, avg(Times)]),
+		?assert(true)
+	end}} end,
+	fun(File) -> Name = "agent skill list shoved in the middle", {timeout, 60, {Name, fun() ->
+		LowAgents = [#agent{
+			login = integer_to_list(X),
+			skills = []
+		} || X <- lists:seq(1, 499)],
+		HighAgents = [#agent{
+			login = integer_to_list(X),
+			skills = [english, german]
+		} || X <- lists:seq(501, 1000)],
+		AllAgents = LowAgents ++ HighAgents,
+		[agent_manager:start_agent(A) || A <- AllAgents],
+		Times = [begin
+			{T, {_, Pid}} = timer:tc(agent_manager, start_agent, [#agent{
+				login = "500",
+				skills = [english]
+			}]),
+			exit(Pid, kill),
+			% give it a moment to clear it
+			timer:sleep(10),
+			T
+		end || _X <- lists:seq(1, 1000)],
+		?INFO("Average:  ~f", [avg(Times)]),
+		io:format(File, "~p	~s:~s(~s)	~f~n", [os:timestamp(), ?MODULE, adding_agent_tc_test, Name, avg(Times)]),
+		?assert(true)
+	end}} end]}.
 
 -endif.
 

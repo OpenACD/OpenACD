@@ -963,5 +963,69 @@ multi_node_test_() ->
 		]
 	}.
 
+-ifdef(PROFILE).
+
+avg(Times) ->
+	Sum = lists:foldl(fun(E, S) -> E + S end, 0, Times),
+	Sum / length(Times).
+
+tdiff({InMeg, InSec, InMic}, {GotMeg, GotSec, GotMic}) ->
+	In = InMeg * 1000000 + InSec + InMic / 1000000,
+	Got = GotMeg * 1000000 + GotSec + GotMic / 1000000,
+	Got - In.
+
+adding_agents_test_() ->
+	{foreach,
+	fun() ->
+		{ok, AM} = agent_manager:start([node()]),
+		AM
+	end,
+	fun(_AM) ->
+		agent_manager:stop()
+	end,
+	[fun(_) -> {timeout, 60, {"agents with same length skills", fun() ->
+		Agents = [#agent{
+			login = integer_to_list(X),
+			skills = [X rem 5]
+		} || X <- lists:seq(1, 1000)],
+		Times = [begin
+			Start = os:timestamp(),
+			agent_manager:start_agent(A),
+			End = os:timestamp(),
+			tdiff(Start, End)
+		end || A <- Agents],
+		[case agent_manager:query_agent(A#agent.login) of
+			{true, Pid} ->
+				exit(Pid, kill);
+			false ->
+				ok
+		end || A <- Agents],
+		?INFO("Average:  ~f", [avg(Times)]),
+		?assert(true)
+	end}} end,
+	fun(_) -> {timeout, 60, {"agents with variable length skills", fun() ->
+		Agents = [#agent{
+			login = integer_to_list(X),
+			skills = [S || S <- lists:seq(0, X rem 10)]
+		} || X <- lists:seq(1, 1000)],
+		Times = [begin
+			Start = os:timestamp(),
+			agent_manager:start_agent(A),
+			End = os:timestamp(),
+			tdiff(Start, End)
+		end || A <- Agents],
+		[case agent_manager:query_agent(A#agent.login) of
+			{true, Pid} ->
+				exit(Pid, kill);
+			false ->
+				ok
+		end || A <- Agents],
+		?INFO("Average:  ~f", [avg(Times)]),
+		?assert(true)
+	end}} end]}.
+		
+
+-endif.
+
 -endif.
 

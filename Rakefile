@@ -268,7 +268,7 @@ namespace :test do
 	task :all => [:compile, :eunit, :report_coverage]
 
 	desc "run test for profiling"
-	task :profile => [:clean]  do
+	task :profile => [:clean, :contrib]  do
 		SRC.each do |t|
 			sh "erlc +debug_info -D PROFILE -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t} "
 		end

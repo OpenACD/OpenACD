@@ -354,6 +354,25 @@ json_api(freesiwtch_media_manager, monitor_client, [Client, SpyString]) ->
 			?INFO("freeswitch_media_manager:monitor_client of ~s by ~s failed due to ~p", [Client, SpyString, Other]),
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
 	end;
+% TODO This is a nasty hack to a problem that shouldn't exist.  No-one but
+% certain people (you know who you are) should use this, and should stop
+% using this asap.
+json_api(agent, set_state, [Login, State]) ->
+	case agent_manager:query_agent(binary_to_list(Login)) of
+		false ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
+		{true, Pid} ->
+			try agent:set_state(Pid, agent:list_to_state(binary_to_list(State))) of
+				invalid ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid state change">>}, {<<"errcode">>, <<"DISALLOWED">>}]})};
+				ok ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})}
+			catch
+				What:Why ->
+					?NOTICE("Trying to change state of agent ~s (~p) got ~s due to ~p", [Login, Pid, What, Why]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"error occured trying to change state">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+			end
+	end;
 json_api(_, _, _) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 

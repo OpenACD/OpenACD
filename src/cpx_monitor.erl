@@ -160,7 +160,7 @@ stop() ->
 %% entry key of `node', `{node, node()}' is prepended to it.
 -spec(set/2 :: (Key :: data_key(), Params :: proplist()) -> 'ok').
 set({_Type, _Name} = Key, Params) ->
-	set(Key, Params, none).
+	set(Key, Params, ignore).
 
 %% @doc Same as above, but sets up monitoring of the passed pid or node so 
 %% if it dies, a `drop' event is automcatically generated and sent out for 
@@ -487,6 +487,16 @@ handle_leader_cast({drop, Time, Key} = Msg, State, Election) ->
 handle_leader_cast({info, Time, Params} = Msg, State, _Election) ->
 	tell_subs(Msg, State#state.subscribers),
 	%% no ets need updating, so not telling cands.
+	{noreply, State};
+handle_leader_cast({set, Time, {Key, Details, Node} = Event, ignore}, State, Election) ->
+	NewElements = [
+		{2, Details},
+		{3, Node},
+		{4, Time}
+	],
+	ets:update_element(?MODULE, Key, NewElements),
+	tell_cands({set, Time, Event}, Election),
+	tell_subs({set, Time, Event}, State#state.subscribers),
 	{noreply, State};
 handle_leader_cast({set, Time, {Key, Details, Node} = Event, Watchwhat}, State, Election) ->
 	case qlc:e(qlc:q([X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
@@ -1151,6 +1161,28 @@ profile_tc_test_() ->
 					timer:now_diff(os:timestamp(), InTime)
 			end
 		end || X <- lists:seq(1, 1000)],
+		Avg = avg(Acc),
+		?INFO("Average time:  ~f", [Avg]),
+		record_res(File, Group, Name, Avg)
+	end}} end,
+	fun(File) -> Name = "set, set, set, drop", {timeout, 60, {Name, fun() ->
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			case X rem 4 of
+				1 ->
+					cpx_monitor:set({agent, "1"}, [], none);
+				2 ->
+					cpx_monitor:set({agent, "1"}, [{module, ?MODULE}], ignore);
+				3 ->
+					cpx_monitor:set({agent, "1"}, [{module, none}], ignore);
+				0 ->
+					cpx_monitor:drop({agent, "1"})
+			end,
+			receive
+				{cpx_monitor_event, {_, InTime, Data}} ->
+					timer:now_diff(os:timestamp(), InTime)
+			end
+		end || X <- lists:seq(1, 1024)],
 		Avg = avg(Acc),
 		?INFO("Average time:  ~f", [Avg]),
 		record_res(File, Group, Name, Avg)

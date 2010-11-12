@@ -3,6 +3,12 @@
 	dojo.require("dijit.form.NumberSpinner");
 </script>
 <p>
+	These are application wide settings.  They can often be set using the
+	config file.  Settings in the config file override these, even if
+	these are changed.  None of them are in the config file by default.
+</p>
+
+<p>
 	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
 	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
 	<button dojoType="dijit.form.Button" label="SAVE">

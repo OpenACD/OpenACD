@@ -120,6 +120,7 @@ start(_Type, StartArgs) ->
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
+	merge_env(),
 	try cpx_supervisor:start_link(Nodes) of
 		{ok, Pid} ->
 			application:set_env(cpx, uptime, util:now()),
@@ -167,7 +168,7 @@ get_key(Key) ->
 
 -spec(get_key/2 :: (Key :: any(), Default :: any()) -> {'ok', any()}).
 get_key(Key, Default) ->
-	case application:get_env(cpx, Key) of
+	case application:get_key(cpx, Key) of
 		undefined ->
 			{ok, Default};
 		Out ->
@@ -177,6 +178,30 @@ get_key(Key, Default) ->
 %% =====
 %% helper funcs
 %% =====
+
+%% @doc Takes the env gotten from the config file and merges it with
+%% the vars found int he database. The env file wins in case of both being
+%% defined.
+-spec(merge_env/0 :: () -> 'ok').
+merge_env() ->
+	Fun = fun() ->
+		qlc:e(qlc:q([{Key, Value} || #cpx_value{key = Key, value = Value} = _X <- mnesia:table(cpx_value)]))
+	end,
+	{atomic, Cpxdb} = mnesia:transaction(Fun),
+	Locked = [uptime | [Key || {Key, _} <- application:get_all_env(cpx)]],
+	application:set_env(cpx, locked_env, Locked),
+	merge_env(Cpxdb, Locked).
+
+merge_env([], LockedKeys) ->
+	ok;
+merge_env([{Key, Val} | T], Locked) ->
+	case application:get_env(cpx, Key) of
+		undefined ->
+			application:set_env(cpx, Key, Val),
+			merge_env(T, Locked);
+		_ ->
+			merge_env(T, Locked)
+	end.
 
 %% @doc Backups the mnesia database for use with the restore functions.  Does a
 %% full backup, so the mnesia restore funtions could be used directly to restore

@@ -221,9 +221,19 @@ set_value(Key, Value) ->
 	F = fun() ->
 		mnesia:write(#cpx_value{key = Key, value = Value})
 	end,
+	{ok, Locked} = application:get_env(cpx, locked_env),
+	case lists:member(Key, Locked) of
+		true ->
+			?WARNING("Env ~s only changed in database due to being in static config file.", [Key]),
+			ok;
+		false ->
+			application:set_env(cpx, Key, Value)
+	end,
 	mnesia:transaction(F).
 
-%% @doc Get the value for node data `Key'.
+%% @doc Get the value for node data `Key'.  Note that this is specifically
+%% for getting it from the database.  Usual code should just go got for
+%% cpx:get_env/1, /2.
 -spec(get_value/1 :: (Key :: any()) -> 'none' | {'ok', any()}).
 get_value(Key) ->
 	F = fun() ->
@@ -245,6 +255,14 @@ get_value(Key) ->
 drop_value(Key) ->
 	F = fun() ->
 		mnesia:delete({cpx_value, Key})
+	end,
+	{ok, Locked} = application:get_env(cpx, locked_env),
+	case lists:member(Key, Locked) of
+		true ->
+			?WARNING("Setting ~s only removed from database since it also exists in static config.", [Key]),
+			ok;
+		false ->
+			application:unset_env(cpx, Key)
 	end,
 	mnesia:transaction(F).
 	

@@ -16,6 +16,7 @@
 
 -export([send/2, api/3, api/2, bgapi/3, bgapi/4, event/2, session_event/2,
 		nixevent/2, session_nixevent/2, noevents/1, session_noevents/1, close/1,
+		setevent/2, session_setevent/2,
 		get_event_header/2, get_event_body/1,
 		get_event_name/1, getpid/1, sendmsg/3,
 		sendevent/3, sendevent_custom/3, handlecall/2, handlecall/3, start_fetch_handler/5,
@@ -206,6 +207,29 @@ session_nixevent(Node, Events) when is_list(Events) ->
 	end;
 session_nixevent(Node, Event) when is_atom(Event) ->
 	session_nixevent(Node, [Event]).
+
+%% @doc Receive only listed events from `Node'.
+setevent(Node, Events) when is_list(Events) ->
+	{setevent, Node} ! list_to_tuple(lists:append([setevent], Events)),
+	receive
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
+	after ?TIMEOUT ->
+		timeout
+	end;
+setevent(Node, Event) when is_atom(Event) ->
+	setevent(Node, [Event]).
+
+session_setevent(Node, Events) when is_list(Events) ->
+	{session_setevent, Node} ! list_to_tuple([session_setevent | Events]),
+	receive
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
+	after ?TIMEOUT ->
+		timeout
+	end;
+session_setevent(Node, Event) when is_atom(Event) ->
+	session_setevent(Node, [Event]).
 
 %% @doc Stop receiving any events from `Node'.
 noevents(Node) ->

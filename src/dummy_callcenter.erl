@@ -113,35 +113,45 @@
 -type(start_options() :: [start_option()] | {'file', string()}).
 
 %% @doc Start the simulator with the given options.
-%% * call_frequency: {30, 900}
-%%		how many seconds to wait before putting another call into queue.
-%% * call_max_life: {60, 9000}
-%%		How many seconds before the call hangs up.
-%% * agents: 10
-%%		How many agents to have running at any given time.  If an agent 
+%% <dl>
+%% <dt>call_frequency: {30, 900}</dt>
+%%		<dd>how many seconds to wait before putting another call into 
+%%		queue.</dd>
+%% <dt>call_max_life: {60, 9000}</dt>
+%%		<dd>How many seconds before the call hangs up.</dd>
+%% <dt>agents: 10</dt>
+%%		<dd>How many agents to have running at any given time.  If an agent 
 %%		reaches it's max calls, a new one it automatically started.  Initial
-%%		number of calls will be 80% of this.
-%% * agent_max_calls: {20, 40}
-%%		How many calls on average an agent will take before dying.
-%% * simullation_life: infinity
-%%		How many minutes the the simulation will run.
-%% * queues: any
-%%		The queues to place calls in.
-%% * additional_queues: [{QName::string(), QueueOptions::list()}]
-%%		Additional queues to start, and thier config options.
-%%		@see queue_manager:add_queue/2
-%% * agent_opts:  The agent options used to start dummy agents.  A scale of 1000
-%%		is automatically added, overriding whatever is set.  Defaults to [].
+%%		number of calls will be 80% of this.</dd>
+%% <dt>agent_max_calls: {20, 40}</dt>
+%%		<dd>How many calls on average an agent will take before dying.</dd>
+%% <dt>simullation_life: infinity</dt>
+%%		<dd>How many minutes the the simulation will run.</dd>
+%% <dt>queues: any</dt>
+%%		<dd>The queues to place calls in.</dd>
+%% <dt>additional_queues: `[{QName::string(), QueueOptions::list()}]'</dt>
+%%		<dd>Additional queues to start, and thier config options.
+%%		{@link queue_manager:add_queue/2. See `queue_manager:add_queue/2'}
+%%		</dd>
+%% <dt>agent_opts: []</dt>
+%% 		<dd>The agent options used to start dummy agents.  A scale of 1000
+%%		is automatically added, overriding whatever is set.</dd>
+%% </dl>
 %%
 %% The following agent options are overridden:
-%% * scale: replaced by 1000, so all agent durations are in seconds.
+%% <dl>
+%% <dt>scale</dt>
+%%		<dd>replaced by 1000, so all agent durations are in seconds.</dd>
+%% </dl>
 %%
 %% The defaults for a dummy_agent are:
-%% * ringing: {5, 30}
-%% * oncall: {30, 900}
-%% * wrapup: {5, 120}
-%% * release_frequency: {3600, 10800}
-%% * release_percent: 1
+%% <ul>
+%% <li>ringing: {5, 30}</li>
+%% <li>oncall: {30, 900}</li>
+%% <li>wrapup: {5, 120}</li>
+%% <li>release_frequency: {3600, 10800}</li>
+%% <li>release_percent: 1</li>
+%% </ul>
 %%
 %% You can put the options list in a file and call start with 
 %% `{file, Filename::string()}'.  Erlang will file:consult/1 the passed

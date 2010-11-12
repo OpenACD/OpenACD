@@ -646,7 +646,7 @@ oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #
 				_ ->
 					ok
 			end,
-			{reply, ok, wrapup, State#state{agent_rec = Agent}};
+			{reply, ok, wrapup, State#state{agent_rec = Newagent}};
 		_Else ->
 			{reply, invalid, oncall, State}
 	end;

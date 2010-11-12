@@ -76,7 +76,7 @@
 %% another dumper.  Best if used in a spawn, and when the dets dumper is not running.
 -spec(load_to_mnesia/1 :: (File :: string()) -> 'ok').
 load_to_mnesia(File) ->
-	{ok, Detsref} = dets:open_file(File),
+	{ok, Detsref} = dets:open_file(File, [{keypos, 2}]),
 	dets:safe_fixtable(Detsref, true),
 	Objs = load_loop(Detsref),
 	F = fun() ->

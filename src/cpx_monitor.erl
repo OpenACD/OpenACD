@@ -1002,6 +1002,25 @@ profile_test_() ->
 		end || X <- lists:seq(1, 1000)],
 		?INFO("Average time:  ~f", [avg(Acc)]),
 		write_result(File, profile, Name, avg(Acc))
+	end}} end,
+	fun(File) -> Name = "set, set, set, drop", {timeout, 60, {Name, fun() ->
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			InTime = os:timestamp(),
+			case X rem 4 of
+				0 -> cpx_monitor:drop({agent, "1"});
+				1 -> cpx_monitor:set({agent, "1"}, [], []);
+				2 -> cpx_monitor:set({agent, "1"}, [], [{module, ?MODULE}]);
+				3 -> cpx_monitor:set({agent, "1"}, [], [{module, none}])
+			end,
+			receive
+				{cpx_monitor_event, _} ->
+					timer:now_diff(os:timestamp(), InTime)
+			end
+		end || X <- lists:seq(1, 1024)],
+		Avg = avg(Acc),
+		?INFO("Average time:`~f", [Avg]),
+		write_result(File, profile, Name, avg(Acc))
 	end}} end]}.
 
 -endif.

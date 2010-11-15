@@ -1186,6 +1186,22 @@ profile_tc_test_() ->
 		Avg = avg(Acc),
 		?INFO("Average time:  ~f", [Avg]),
 		record_res(File, Group, Name, Avg)
+	end}} end,
+	fun(File) -> Name = "dumb sets", {timeout, 60, {Name, fun() ->
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			case X rem 2 of
+				1 -> cpx_monitor:set({agent, "1"}, [{module, ?MODULE}], ignore);
+				0 -> cpx_monitor:set({agent, "1"}, [], ignore)
+			end,
+			receive
+				{cpx_monitor_event, {_, InTime, _Data}} ->
+					timer:now_diff(os:timestamp(), InTime)
+			end
+		end || X <- lists:seq(1, 1000)],
+		Avg = avg(Acc),
+		?INFO("Average time:  ~f", [Avg]),
+		record_res(File, Group, Name, Avg)
 	end}} end]}.
 
 -endif.

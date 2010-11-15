@@ -267,7 +267,7 @@ add_set({Key, Params, Watch}) ->
 				_ ->
 					Watch = InWatch
 			end,
-			lists:all(fun(E) -> lists:member(E, InParams) end, Params),
+			true = lists:all(fun(E) -> lists:member(E, InParams) end, Params),
 			ok
 		end
 	);

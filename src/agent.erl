@@ -398,6 +398,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		_Orelse ->
 			Agent2
 	end,
+	cpx_monitor:set({agent, Agent3#agent.id}, [], self()),
 	set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}]),
 	{ok, Agent#agent.state, #state{agent_rec = Agent3#agent{start_opts = Options}}}.
 	
@@ -1303,7 +1304,7 @@ set_cpx_monitor(State, Otherdeatils)->
 		{lastchange, {timestamp, State#agent.lastchange}}, 
 		{skills, State#agent.skills}], 
 	Otherdeatils),
-	cpx_monitor:set({agent, State#agent.id}, Deatils, self()).
+	cpx_monitor:set({agent, State#agent.id}, Deatils, ignore).
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
@@ -1458,7 +1459,7 @@ from_idle_test_() ->
 				Self = Aself,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], Aself}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, Inclient}, _State) -> 
 				Inclient = Client,
 				ok
@@ -1480,7 +1481,7 @@ from_idle_test_() ->
 				id = "testcall",
 				source = Self
 			},
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) -> 
 				Call = Incall,
 				ok
@@ -1521,7 +1522,7 @@ from_idle_test_() ->
 				Self = Apid,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], Self}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -1542,7 +1543,7 @@ from_idle_test_() ->
 				Self = Apid,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], Self}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "just 'cause", 0}}, _State) ->
 				ok
 			end),
@@ -1595,8 +1596,6 @@ from_ringing_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = cpx_monitor:make_mock(),
-		cpx_monitor:add_set({{media, "testcall"}, [], ignore}),
 		%gen_leader_mock:expect_leader_cast(Monmock, fun({set, _}, _, _) -> ok end),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
@@ -1607,6 +1606,7 @@ from_ringing_test_() ->
 		{ok, Mediamock} = gen_server_mock:new(),
 		Callrec = ProtoCallrec#call{source = Mediamock},
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, statedata = Callrec, state = ringing, log_pid = Logpid},
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			%gen_leader_mock:assert_expectations(Monmock),
@@ -1632,7 +1632,7 @@ from_ringing_test_() ->
 		{"to idle",
 		fun() ->
 			%Aself = self(),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1648,7 +1648,7 @@ from_ringing_test_() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle with a ring lock between rings",
 		fun() ->
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1690,7 +1690,7 @@ from_ringing_test_() ->
 			Callrec = Agent#agent.statedata, 
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Aglogin}, _State, _Elec) -> ok end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
 				Inrec = Agent#agent.statedata,
 				ok
@@ -1726,7 +1726,7 @@ from_ringing_test_() ->
 				Inrec = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", State)),
 			Assertmocks()
@@ -1757,7 +1757,7 @@ from_ringing_test_() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
@@ -1779,7 +1779,7 @@ from_ringing_test_() ->
 		fun() ->
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "res_reason", 0}}, _State) ->
 				ok
 			end),
@@ -1820,7 +1820,7 @@ from_ringing_test_() ->
 		{"gets a ring_failed message with < 3 ring fails",
 		fun() ->
 			Aself = self(),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1846,7 +1846,7 @@ from_ringing_test_() ->
 			State = Seedstate#state{ring_fails = 3},
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?RING_FAIL_REL}, _State) ->
 				ok
 			end),
@@ -1902,7 +1902,7 @@ from_precall_test_() ->
 				Apid = Pid,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], Apid}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1942,7 +1942,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Data}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, precall, _}, _State) -> ok end),
 			?assertMatch({reply, ok, outgoing, _State}, precall({outgoing, #call{id = "testcall", source = spawn(fun() -> ok end)} }, "from", State)),
 			Assertmocks()
@@ -1958,7 +1958,7 @@ from_precall_test_() ->
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released with default",
 		fun() ->
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -1970,7 +1970,7 @@ from_precall_test_() ->
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
 				ok
 			end),
@@ -2127,7 +2127,7 @@ from_oncall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, _Callrec, calling, "transferto"}}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
 				fun({"testagent", warmtransfer, oncall, {onhold, Call, calling, "transferto"}}, _State) -> 
 					Call = Agent#agent.statedata,
@@ -2147,7 +2147,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2169,7 +2169,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2204,7 +2204,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
 			Assertmocks()
@@ -2228,7 +2228,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
@@ -2253,7 +2253,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall(wrapup, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
@@ -2389,7 +2389,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, #call{id = "testcall"}, calling, "transferto"}}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
 				fun({"testagent", warmtransfer, outgoing, {onhold, Call, calling, "transferto"}}, _State) ->
 					Call = Agent#agent.statedata,
@@ -2405,7 +2405,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
 				Call = Agent#agent.statedata, 
 				ok
@@ -2433,7 +2433,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
 				Call = Agent#agent.statedata, 
 				ok
@@ -2493,7 +2493,7 @@ from_released_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, released, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, released(idle, "from", State)),
 			Assertmocks()
@@ -2505,7 +2505,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, "callrec"}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", State)),
 			Assertmocks()
@@ -2517,7 +2517,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, "client"}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, released, "client"}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, released({precall, "client"}, "from", State)),
 			Assertmocks()
@@ -2645,7 +2645,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, warmtransfer({oncall, Callrec}, "from", State)),
 			Assertmocks()
@@ -2665,7 +2665,7 @@ from_warmtransfer_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Inrec}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, warmtransfer, Callrec}, _State) ->
 				Callrec = element(2, Agent#agent.statedata),
 				ok
@@ -2682,7 +2682,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, wrapup, _State}, warmtransfer({wrapup, Callrec}, "from", State)),
 			Assertmocks()
@@ -2746,7 +2746,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, wrapup(idle, "from", State)),
 			Assertmocks()
@@ -2759,7 +2759,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", State#state{agent_rec = Agent})),
 			Assertmocks()
@@ -3174,7 +3174,7 @@ handle_info_test_() ->
 			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], Self}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
 			?assertMatch({next_state, idle, _State}, handle_info(end_wrapup, wrapup, State)),
 			Assertmocks()
@@ -3187,7 +3187,7 @@ handle_info_test_() ->
 			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({next_state, released, _State}, handle_info(end_wrapup, wrapup, State#state{agent_rec = Agent})),
 			Assertmocks()

@@ -362,6 +362,7 @@ init([Name, Opts]) ->
 		weight = proplists:get_value(weight, Opts, ?DEFAULT_WEIGHT),
 		call_skills = proplists:get_value(skills, Opts, [])
 	},
+	cpx_monitor:set({queue, State#state.name}, [], self()),
 	set_cpx_mon(State),
 	{ok, State}.
 
@@ -646,7 +647,7 @@ set_cpx_mon(State) ->
 	Hp = [
 		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
 	],
-	cpx_monitor:set(Key, Details, self()).
+	cpx_monitor:set(Key, Details, none).
 
 %% @private
 -spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').

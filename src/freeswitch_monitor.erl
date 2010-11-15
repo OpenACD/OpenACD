@@ -63,7 +63,7 @@ monitor_agent(Agent, Dialstring, Node) ->
 	case agent_auth:get_agent(Agent) of
 		{'atomic', [AgentAuth]} ->
 			ID = AgentAuth#agent_auth.id,
-			Filter = fun({set, {{agent, AID}, _Health, _Details, _Timestamp}}) when AID == ID ->
+			Filter = fun({set, _Timestamp, {{agent, AID}, _Details, _Node}}) when AID == ID ->
 					true;
 				(_Msg) ->
 					false
@@ -78,7 +78,7 @@ monitor_client(Client, Dialstring, Node) ->
 		none ->
 			{error, no_client};
 		ClientRec ->
-			Filter = fun({set, {_, _Health, Details, Timestamp}}) ->
+			Filter = fun({set, Timestamp, {_, Details, Node}}) ->
 					case proplists:get_value(statedata, Details) of
 						Res when is_record(Res, call) ->
 							case Res#call.client of

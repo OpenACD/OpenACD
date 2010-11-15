@@ -218,10 +218,12 @@ init(Options) ->
 	process_flag(trap_exit, true),
 	Subtest = fun(Message) ->
 		Type = case Message of
-			{set, {{T, _}, _, _, _}} ->
+			{set, _Time, {{T, _}, _, _}} ->
 				T;
-			{drop, {T, _}} ->
-				T
+			{drop, _Time, {T, _}} ->
+				T;
+			_ ->
+				false
 		end,
 		case Type of
 			media ->
@@ -250,10 +252,10 @@ init(Options) ->
 			ets:insert(cached_media, Row)
 		end || Row <- dets:table(?DETS)])),
 	cpx_monitor:subscribe(Subtest),
-	{ok, Amons} = cpx_monitor:get_health(agent),
-	{ok, MMons} = cpx_monitor:get_health(media),
+	Amons = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	MMons = qlc:e(qlc:q([X || {{media, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
 	Cpxstuff = Amons ++ MMons,
-	[handle_info({cpx_monitor_event, {set, {Key, Hp, Details, os:timestamp()}}}, #state{queue_group_cache = QueueRecsCache, agent_profile_cache = AgentProfsCache}) || {Key, Hp, Details} <- Cpxstuff],
+	[handle_info({cpx_monitor_event, {set, Time, {Key, Details, Node}}}, #state{queue_group_cache = QueueRecsCache, agent_profile_cache = AgentProfsCache}) || {Key, Details, Node, Time, _, _} <- Cpxstuff],
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
 	{ok, #state{
@@ -312,9 +314,9 @@ handle_info({cpx_monitor_event, Event}, State) ->
 			{noreply, State};
 		{Old, New} ->
 			Update = case Event of
-				{drop, {T, _}} ->
+				{drop, _Time, {T, _}} ->
 					T;
-				{set, {{T, _}, _, _, _}} ->
+				{set, _Time, {{T, _}, _, _}} ->
 					T
 			end,
 			case Update of
@@ -365,14 +367,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-cache_event({set, {{media, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
+cache_event({set, _Time, {{media, Id}, _, _}} = Event, QueueCache, AgentCache) ->
 	Old = ets:lookup(cached_media, Id),
 	New = transform_event(Event, Old, QueueCache, AgentCache),
 	dets:insert(?DETS, New),
 	ets:insert(cached_media, New),
 	Fixedold = case Old of [] -> null; [O] -> O end,
 	{Fixedold, New};
-cache_event({drop, {media, Id}, _Timestamp} = Event, QueueCache, AgentCache) ->
+cache_event({drop, _Time, {media, Id}} = Event, QueueCache, AgentCache) ->
 	case ets:lookup(cached_media, Id) of
 		[] ->
 			nochange;
@@ -382,7 +384,7 @@ cache_event({drop, {media, Id}, _Timestamp} = Event, QueueCache, AgentCache) ->
 			ets:insert(cached_media, New),
 			{Realold, New}
 	end;
-cache_event({drop, {agent, Id}, _Timestamp}, _QueueCache, _AgentCache) ->
+cache_event({drop, _Time, {agent, Id}}, _QueueCache, _AgentCache) ->
 	case ets:lookup(cached_agent, Id) of
 		[] ->
 			nochange;
@@ -390,7 +392,7 @@ cache_event({drop, {agent, Id}, _Timestamp}, _QueueCache, _AgentCache) ->
 			ets:delete(cached_agent, Id),
 			{Rold, null}
 	end;
-cache_event({set, {{agent, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
+cache_event({set, _Time, {{agent, Id}, _, _}} = Event, QueueCache, AgentCache) ->
 	New = transform_event(Event, [], QueueCache, AgentCache),
 	Old = case ets:lookup(cached_agent, Id) of
 		[] ->
@@ -657,7 +659,7 @@ update_agent_profiles_up(New, Mid) ->
 			Mid#agent_stats{oncall = Mid#agent_stats.oncall + 1}
 	end.
 
-transform_event({set, {{media, Id}, _Hp, Details, {Megasec, Sec, Micorsec}}}, [], QueueCache, AgentCache) ->
+transform_event({set, {Megasec, Sec, Micorsec}, {{media, Id}, Details, _Node}}, [], QueueCache, AgentCache) ->
 	Time = (Megasec * 1000000) + Sec,
 	{State, Statedata} = case proplists:get_value(queue, Details) of
 		undefined ->
@@ -686,7 +688,7 @@ transform_event({set, {{media, Id}, _Hp, Details, {Megasec, Sec, Micorsec}}}, []
 		history = History
 	},
 	RecInit#cached_media{json = media_to_json(RecInit)};
-transform_event({set, {{media, _Id}, _Hp, Details, {Megasec, Sec, Micorsec}}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
+transform_event({set, {Megasec, Sec, Micorsec}, {{media, _Id}, Details, _Node}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
 	% movements:
 	% ivr -> queue
 	% ivr -> drop (though with a set, that's impossible)
@@ -723,7 +725,7 @@ transform_event({set, {{media, _Id}, _Hp, Details, {Megasec, Sec, Micorsec}}}, [
 			Midrec = OldRec#cached_media{state = NewState, statedata = NewStateData, endstate = Endstate, history = History},
 			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
 	end;
-transform_event({drop, {media, _Id}, _Timestamp}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
+transform_event({drop, Timestamp, {media, _Id}}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
 	% if dropping we were:
 	% queue
 	% ivr
@@ -740,7 +742,7 @@ transform_event({drop, {media, _Id}, _Timestamp}, [#cached_media{state = OldStat
 	end,
 	Midrec = OldRec#cached_media{state = ended, statedata = EndState, endstate = EndState, history = History},
 	Midrec#cached_media{time = util:now(), json = media_to_json(Midrec)};
-transform_event({set, {{agent, Id}, _Hp, Details, {Megasec, Sec, _Microsec}}}, _, _QueueCache, _AgentCache) ->
+transform_event({set, {Megasec, Sec, _Microsec}, {{agent, Id}, Details, _Node}}, _, _QueueCache, _AgentCache) ->
 	Time = (Megasec * 1000000) + Sec,
 	State = proplists:get_value(state, Details),
 	StateData = proplists:get_value(statedata, Details),

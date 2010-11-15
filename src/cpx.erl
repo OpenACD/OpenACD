@@ -277,8 +277,8 @@ get_queue_status() ->
 	ok.
 
 get_agent_status() ->
-	{ok, Agents} = cpx_monitor:get_health(agent),
-	{I, O, W, R} = lists:foldl(fun({_, _, Info}, {Idle, Oncall, Wrapup, Released}) ->
+	Agents = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	{I, O, W, R} = lists:foldl(fun({_, Info, _, _, _, _}, {Idle, Oncall, Wrapup, Released}) ->
 				case proplists:get_value(state, Info) of
 					X when X == ringing; X == idle ->
 					{Idle + 1, Oncall, Wrapup, Released};

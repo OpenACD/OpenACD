@@ -37,7 +37,7 @@
 -behaviour(gen_leader).
 
 -ifdef(TEST).
--define(STANDARD_TEST).
+-define(STANDARD_TEST, true).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -ifdef(PROFILE).
@@ -345,8 +345,9 @@ elected(State, Election, Node) ->
 		({_N, _T}, Time) ->
 			Time
 	end,
-	Event = {{node, node()}, [is_leader], node()},
-	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Event, os:timestamp()), none), undefined),
+	Time = os:timestamp(),
+	Event = {set, Time, {{node, node()}, [is_leader], node()}},
+	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Event, Time), none), undefined),
 	ets:insert(?MODULE, Cached),
 	tell_subs(Event, State#state.subscribers),
 	tell_cands(Event, Election),
@@ -605,11 +606,11 @@ handle_info({leader_event, report}, State) ->
 handle_info({leader_event, Message}, State) ->
 	?DEBUG("Got message leader_event ~p", [Message]),
 	case Message of
-		{drop, Key, _Time} ->
+		{drop, _Time, Key} ->
 			ets:delete(?MODULE, Key),
 			{noreply, State};
-		{set, Entry} ->
-			ets:insert(?MODULE, Entry),
+		{set, Time, {Key, Data, Node}} ->
+			ets:insert(?MODULE, {Key, Data, Node, Time, none, undefined}),
 			{noreply, State}
 	end;
 handle_info({merge_complete, Mod, _Recs}, #state{merge_status = none, status = Status}= State) when Status == stable; Status == split ->
@@ -1000,14 +1001,14 @@ ets_test_() ->
 		cpx_monitor:stop()
 	end,
 	[fun(ok) -> {"simple set", fun() ->
-		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}]),
+		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
 		timer:sleep(10),
 		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
 		Node = node(),
 		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)
 	end} end,
 	fun(ok) -> {"set, reset", fun() ->
-		cpx_monitor:set({media, "hi"}, []),
+		cpx_monitor:set({media, "hi"}, [], none),
 		timer:sleep(10),
 		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
 		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}]),
@@ -1018,7 +1019,7 @@ ets_test_() ->
 		?assertNot(NewTime =:= Time)
 	end} end,
 	fun(ok) -> {"set, drop", fun() ->
-		cpx_monitor:set({media, "hi"}, []),
+		cpx_monitor:set({media, "hi"}, [], none),
 		cpx_monitor:drop({media, "hi"}),
 		timer:sleep(10),
 		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
@@ -1026,7 +1027,7 @@ ets_test_() ->
 	end} end,
 	fun(ok) -> {"set, reset, die", fun() ->
 		{ok, Mock} = gen_server_mock:new(),
-		cpx_monitor:set({media, "hi"}, []),
+		cpx_monitor:set({media, "hi"}, [], none),
 		timer:sleep(10),
 		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
 		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),

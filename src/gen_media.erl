@@ -566,14 +566,12 @@ init([Callback, Args]) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
-			cpx_monitor:set({media, Callrec#call.id}, [], self()),
-			set_cpx_mon(#state{callrec = Callrec}, []),
+			set_cpx_mon(#state{callrec = Callrec}, [], self()),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
-			cpx_monitor:set({media, PCallrec#call.id}, [], self()),
-			set_cpx_mon(#state{callrec = Callrec}, []),
+			set_cpx_mon(#state{callrec = Callrec}, [], self()),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
 		{stop, Reason} = O ->
 			?WARNING("init aborted due to ~p", [Reason]),
@@ -1390,7 +1388,10 @@ correct_client_sub(Id) ->
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
-set_cpx_mon(#state{callrec = Call} = _State, Details) ->
+set_cpx_mon(#state{callrec = Call} = State, Details) ->
+	set_cpx_mon(State, Details, ignore).
+
+set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
 	Client = Call#call.client,
 	MidBasedet = [
 		{type, Call#call.type},
@@ -1410,7 +1411,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, {timestamp, util:now()}}, {priority, Call#call.priority} | MidBasedet]}
 	end,
 	Fulldet = lists:append([Basedet, Details]),
-	cpx_monitor:set({media, Call#call.id}, Fulldet, ignore).
+	cpx_monitor:set({media, Call#call.id}, Fulldet, Watch).
 
 priv_queue(Queue, Callrec, Failover) ->
 	case queue_manager:get_queue(Queue) of

@@ -362,8 +362,7 @@ init([Name, Opts]) ->
 		weight = proplists:get_value(weight, Opts, ?DEFAULT_WEIGHT),
 		call_skills = proplists:get_value(skills, Opts, [])
 	},
-	cpx_monitor:set({queue, State#state.name}, [], self()),
-	set_cpx_mon(State),
+	set_cpx_mon(State, self()),
 	{ok, State}.
 
 %% =====
@@ -631,6 +630,13 @@ queue_call(Cookpid, Callrec, Key, State) ->
 %% @private
 -spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').
 set_cpx_mon(State) ->
+	set_cpx_mon(State, ignore).
+
+%% @private
+-spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').
+set_cpx_mon(State, delete) ->
+	cpx_monitor:drop({queue, State#state.name});
+set_cpx_mon(State, Watch) ->
 	Key = {queue, State#state.name},
 	MidDetails = [
 		{weight, State#state.weight},
@@ -647,12 +653,7 @@ set_cpx_mon(State) ->
 	Hp = [
 		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
 	],
-	cpx_monitor:set(Key, Details, none).
-
-%% @private
--spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').
-set_cpx_mon(State, delete) ->
-	cpx_monitor:drop({queue, State#state.name}).
+	cpx_monitor:set(Key, Details, Watch).
 
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.

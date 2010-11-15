@@ -398,8 +398,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		_Orelse ->
 			Agent2
 	end,
-	cpx_monitor:set({agent, Agent3#agent.id}, [], self()),
-	set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}]),
+	set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
 	{ok, Agent#agent.state, #state{agent_rec = Agent3#agent{start_opts = Options}}}.
 	
 %% @doc The various state changes available when an agent is idle. <ul>
@@ -1067,38 +1066,17 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			NewAgentSkills = util:subtract_skill_lists(Agent#agent.skills, expand_magic_skills(Agent, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(Agent#agent{profile = Profile}, Skills2), ['_queue', '_brand']),
 			Newagent = Agent#agent{skills = NewAgentSkills2, profile = Profile},
-			Deatils = [{profile, Newagent#agent.profile}, {state, Newagent#agent.state}, {statedata, Newagent#agent.statedata}, {login, Newagent#agent.login}, {lastchange, {timestamp, Newagent#agent.lastchange}}, {skills, Newagent#agent.skills}],
-			{S, {T1, T2, T3, {time, _Now}}} = case StateName of
-				idle ->
-					?IDLE_LIMITS;
-				released ->
-					[Rel1, _] = ?RELEASED_LIMITS(0),
-					Rel1;
-				precall -> 
-					?PRECALL_LIMITS;
-				outgoing -> 
-					?OUTGOING_LIMITS;
-				oncall ->
-					?ONCALL_LIMITS;
-				wrapup -> 
-					?WRAPUP_LIMITS;
-				ringing -> 
-					?RINGING_LIMITS;
-				warmtransfer ->
-					?WARMTRANSFER_LIMITS
-			end,
+			Deatils = [
+				{profile, Newagent#agent.profile}, 
+				{state, Newagent#agent.state}, 
+				{statedata, Newagent#agent.statedata}, 
+				{login, Newagent#agent.login}, 
+				{lastchange, {timestamp, Newagent#agent.lastchange}}, 
+				{skills, Newagent#agent.skills}
+			],
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			Agent#agent.log_pid ! {change_profile, Profile, StateName},
-			Time = Newagent#agent.lastchange,
-			Fixedhp = case StateName of
-				released ->
-					{_, _, Bias} = Agent#agent.statedata,
-					[_, Biashp] = ?RELEASED_LIMITS(Bias),
-					[{S, {T1, T2, T3, {time, Time}}}, Biashp];
-				_ ->
-					[{S, {T1, T2, T3, {time, Time}}}]
-			end,
-			cpx_monitor:set({agent, Agent#agent.id}, Fixedhp, Deatils),
+			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -1295,6 +1273,9 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
 %% =====
 
 set_cpx_monitor(State, Otherdeatils)->
+	set_cpx_monitor(State, Otherdeatils, ignore).
+
+set_cpx_monitor(State, Otherdeatils, Watch) ->
 	log_change(State),
 	Deatils = lists:append([
 		{profile, State#agent.profile}, 
@@ -1304,7 +1285,7 @@ set_cpx_monitor(State, Otherdeatils)->
 		{lastchange, {timestamp, State#agent.lastchange}}, 
 		{skills, State#agent.skills}], 
 	Otherdeatils),
-	cpx_monitor:set({agent, State#agent.id}, Deatils, ignore).
+	cpx_monitor:set({agent, State#agent.id}, Deatils, Watch).
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;

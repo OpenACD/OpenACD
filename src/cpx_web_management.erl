@@ -294,7 +294,7 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 				case proplists:get_value(value, Props) of
 					undefined ->
 						proplists:get_value(atom, Props);
-					Val when is_binary ->
+					Val when is_binary(Val) ->
 						{proplists:get_value(atom, Props), binary_to_list(Val)};
 					Val ->
 						{proplists:get_value(atom, Props), Val}

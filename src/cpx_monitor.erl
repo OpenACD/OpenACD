@@ -37,7 +37,7 @@
 -behaviour(gen_leader).
 
 -ifdef(TEST).
--define(STANDARD_TEST).
+-define(STANDARD_TEST, true).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -ifdef(PROFILE).

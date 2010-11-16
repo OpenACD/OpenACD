@@ -29,13 +29,10 @@
 
 %% @doc Some common helper funtions for implementing web_api in modules.
 
--export([web_api/2]).
-
 -type(http_response_code() :: pos_integer()).
 -type(http_headers() :: [string()]).
 -type(http_body() :: string()).
--spec(web_api/2 :: (Path :: string(), Post :: [{string(), string()}]) -> {http_response_code(), http_headers(), http_body()}).
 
 -define(json(Struct), mochiweb2:json_encode(Struct)).
--define(reply_err(Message), {200, [], ?json({struct, [{success, false}, {message, Message}]})}).
+-define(reply_err(Message, Code), {200, [], ?json({struct, [{success, false}, {message, Message}, {errcode, Code}]})}).
 -define(reply_success(Struct), {200, [], ?json({struct, [{success, true}, {result, Struct}]})}).

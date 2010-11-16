@@ -45,6 +45,7 @@
 -include("call.hrl").
 -include("queue.hrl").
 -include("agent.hrl").
+-include("web.hrl").
 
 -ifdef(TEST).
 -define(PORT, 55050).
@@ -60,15 +61,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
-
--ifndef(NOWEB).
--include("web.hrl").
--webconf([
-	{label, "AGENTWEBCONNECTION"},
-	{file, "agent_web_listener.html"},
-	{callback, web_api}
-]).
--endif.
 
 -type(salt() :: string() | 'undefined').
 -type(connection_handler() :: pid() | 'undefined').
@@ -291,6 +283,63 @@ keep_alive({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 keep_alive(_) ->
 	ok.
 
+send_to_connection(badcookie, Function, Args) ->
+	api(checkcookie, badcookie, []);
+send_to_connection({_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
+	api(checkcookie, Cookie, []);
+send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
+	case is_process_alive(Conn) of
+		false ->
+			ets:delete(web_connections, Ref),
+			api(checkcookie, badcookie, []);
+		true ->
+			try list_to_existing_atom(binary_to_list(Function)) of
+				FunctionAtom ->
+					FixedArgs = if
+						is_list(Args) -> Args;
+						true -> [Args]
+					end,
+					case erlang:function_exported(agent_web_connection, FunctionAtom, length(FixedArgs)) of
+						false ->
+							?reply_err(<<"function you called doesn't exist">>, <<"FUNCTION_NOEXISTS">>);
+						true ->
+							erlang:apply(agent_web_connection, FunctionAtom, FixedArgs)
+					end
+			catch
+				error:badarg ->
+					?reply_err(<<"function you called doesn't exist">>, <<"FUNCTION_NOEXISTS">>)
+			end
+	end.
+
+api(api, Cookie, Post) ->
+	OutJson = case mochijson2:decode(proplists:get_value("request", Post)) of
+		undefined ->
+			?reply_err(<<"no request field to read">>, <<"NO_REQUEST">>);
+		Json ->
+			{struct, Props} = mochijson2:decode(Json),
+			case {proplists:get_value(<<"function">>, Props), proplists:get_value("args", Props)} of
+				{undefined, _} ->
+					?reply_err(<<"no function to call">>, <<"NO_FUNCTION">>);
+				{Function, Args} ->
+					case Function of
+						<<"check_cookie">> ->
+							api(checkcookie, Cookie, Post);
+						<<"get_salt">> ->
+							api(getsalt, Cookie, Post);
+						<<"login">> ->
+							api(login, Cookie, Post);
+						<<"get_brand_list">> ->
+							api(brandlist, Cookie, Post);
+						<<"get_queue_list">> ->
+							api(queuelist, Cookie, Post);
+						<<"get_release_opts">> ->
+							api(releaseopts, Cookie, Post);
+						_ ->
+							send_to_connection(Cookie, Function, Args)
+					end
+			end
+	end,
+	{200, [], ?json(OutJson)};						
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
@@ -538,6 +587,8 @@ parse_path(Path) ->
 	case Path of
 		"/" ->
 			{file, {"index.html", "www/agent/"}};
+		"/api" ->
+			{api, api};
 		"/poll" ->
 			{api, poll};
 		"/logout" ->

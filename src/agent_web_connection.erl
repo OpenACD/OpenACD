@@ -45,6 +45,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("queue.hrl").
+-include("web.hrl").
 
 -include_lib("stdlib/include/qlc.hrl").
 
@@ -63,6 +64,26 @@
 	dump_state/1,
 	format_status/2
 ]).
+
+%% Web api exports.
+%% to make documenting a web api easier, the listener will directly
+%% calls these functions.
+-define(WEB_API_FUNCTIONS, [
+	set_state/2,
+	set_state/3,
+	dial/2,
+	get_avail_agents/1,
+	agent_transfer/2,
+	agent_transfer/3,
+	media/1,
+	warm_transfer/2,
+	warm_transfer_complete/1,
+	warm_transfer_cancel/1,
+	queue_transfer/2,
+	init_outbound/3
+]).
+-export(?WEB_API_FUNCTIONS).
+
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -89,6 +110,47 @@
 -include("gen_spec.hrl").
 
 -type(json_simple() :: {'struct', [{binary(), binary()}]}).
+
+%%====================================================================
+%% WEB API
+%%====================================================================
+
+set_state(Conn, Statename) ->
+	ok.
+
+set_state(Conn, Statename, Statedata) ->
+	ok.
+
+dial(Conn, Number) ->
+	ok.
+
+get_avail_agents(Conn) ->
+	ok.
+
+agent_transfer(Conn, Agent) ->
+	ok.
+
+agent_transfer(Conn, Agent, Caseid) ->
+	ok.
+
+media(Conn) ->
+	ok.
+
+warm_transfer(Conn, Number) ->
+	ok.
+
+warm_transfer_complete(Conn) ->
+	ok.
+
+warm_transfer_cancel(Conn) ->
+	ok.
+
+queue_transfer(Conn, Queue) ->
+	ok.
+
+init_outbound(Conn, Client, Number) ->
+	ok.
+
 
 %%====================================================================
 %% API

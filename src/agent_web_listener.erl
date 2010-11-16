@@ -453,7 +453,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 			catch
 				error:{badmatch, _} ->
 					?NOTICE("authentication failure for ~p using salt ~p (expected ~p)", [Username, string:substr(Decrypted, 1, length(Salt)), Salt]),
-					?reply_err(<<"invalid salt">>, <<"NO_SALT">>)
+					?reply_err(<<"Invalid salt">>, <<"NO_SALT">>)
 			end
 	catch
 		error:decrypt_failed ->
@@ -464,7 +464,8 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 
 api(api, Cookie, Post) ->
 	Request = proplists:get_value("request", Post),
-	{struct, Props} = mochijson:decode(Request),
+	{struct, Props} = mochijson2:decode(Request),
+	?DEBUG("The request:  ~p", [Props]),
 	case {proplists:get_value(<<"function">>, Props), proplists:get_value("args", Props)} of
 		{undefined, _} ->
 			?reply_err(<<"no function to call">>, <<"NO_FUNCTION">>);
@@ -998,9 +999,28 @@ web_connection_login_test_() ->
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(true, proplists:get_value(<<"success">>, Json))
 				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login proper with refined api",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()],
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(), "pass")), Key, rsa_pkcs1_padding),
+					BodyJson = mochijson2:encode({struct, [
+						{<<"function">>, <<"login">>},
+						{<<"args">>, [
+							<<"testagent">>,
+ 							list_to_binary(util:bin_to_hexstr(Salted))
+						]}
+					]}),
+					{ok, {_, _, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", binary_to_list(list_to_binary(lists:flatten(["request=", BodyJson])))}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(true, proplists:get_value(<<"success">>, Json))
+				end}
 			end
 		]
 	}.
+
 
 
 % TODO add tests for interaction w/ agent, agent_manager

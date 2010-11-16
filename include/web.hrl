@@ -33,6 +33,6 @@
 -type(http_headers() :: [string()]).
 -type(http_body() :: string()).
 
--define(json(Struct), mochiweb2:json_encode(Struct)).
+-define(json(Struct), mochijson2:encode(Struct)).
 -define(reply_err(Message, Code), {200, [], ?json({struct, [{success, false}, {message, Message}, {errcode, Code}]})}).
 -define(reply_success(Struct), {200, [], ?json({struct, [{success, true}, {result, Struct}]})}).

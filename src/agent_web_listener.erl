@@ -114,11 +114,6 @@ linkto(Pid) ->
 linkto(Ref, Salt, Pid) ->
 	gen_server:cast(?MODULE, {linkto, Ref, Salt, Pid}).
 
--ifndef(NOWEB).
-web_api(_Message, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
--endif.
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -197,13 +192,16 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @doc listens for a new connection.
 %% Based on the path, the loop can take several paths.
-%% if the path is "/login" and there is post data, an attempt is made to start a new {@link agent_web_connection}.
-%% On a successful start, a cookie is set that the key reference used by this module to link new connections
+%% if the path is "/login" and there is post data, an attempt is made to 
+%% start a new {@link agent_web_connection}.
+%% On a successful start, a cookie is set that the key reference used by 
+%% this module to link new connections
 %% to the just started agent_web_connection.
 %% 
-%% On any other path, the cookie is checked.  The value of the cookie is looked up on an internal table to see 
-%% if there is an active agent_web_connection.  If there is, further processing is done there, 
-%% otherwise the request is denied.
+%% On any other path, the cookie is checked.  The value of the cookie is 
+%% looked up on an internal table to see 
+%% if there is an active agent_web_connection.  If there is, further 
+%% processing is done there, otherwise the request is denied.
 loop(Req, Table) ->
 	Path = Req:get(path),
 	Post = case Req:get_primary_header_value("content-type") of
@@ -238,7 +236,7 @@ loop(Req, Table) ->
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
-			Cookie = check_cookie(Req:parse_cookie()),
+			Cookie = cookie_good(Req:parse_cookie()),
 			keep_alive(Cookie),
 			Out = api(Api, Cookie, Post),
 			Req:respond(Out)
@@ -283,103 +281,80 @@ keep_alive({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 keep_alive(_) ->
 	ok.
 
-send_to_connection(badcookie, Function, Args) ->
-	api(checkcookie, badcookie, []);
+send_to_connection(badcookie, _Function, _Args) ->
+	check_cookie(badcookie);
 send_to_connection({_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
-	api(checkcookie, Cookie, []);
+	check_cookie(Cookie);
+send_to_connection(Cookie, Func, Args) when is_binary(Func) ->
+	try list_to_existing_atom(binary_to_list(Func)) of
+		Atom ->
+			send_to_connection(Cookie, Atom, Args)
+	catch
+		error:badarg ->
+			?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>)
+	end;
+send_to_connection(Cookie, Func, Arg) when is_binary(Arg) ->
+	send_to_connection(Cookie, Func, [Arg]);
 send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
 	case is_process_alive(Conn) of
 		false ->
 			ets:delete(web_connections, Ref),
 			api(checkcookie, badcookie, []);
 		true ->
-			try list_to_existing_atom(binary_to_list(Function)) of
-				FunctionAtom ->
-					FixedArgs = if
-						is_list(Args) -> Args;
-						true -> [Args]
-					end,
-					case erlang:function_exported(agent_web_connection, FunctionAtom, length(FixedArgs)) of
-						false ->
-							?reply_err(<<"function you called doesn't exist">>, <<"FUNCTION_NOEXISTS">>);
-						true ->
-							erlang:apply(agent_web_connection, FunctionAtom, FixedArgs)
-					end
-			catch
-				error:badarg ->
-					?reply_err(<<"function you called doesn't exist">>, <<"FUNCTION_NOEXISTS">>)
+			case agent_web_connection:is_web_api(Function, length(Args) + 1) of
+				false ->
+					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+				true ->
+					erlang:apply(agent_web_connection, Function, [Conn | Args])
 			end
 	end.
 
-api(api, Cookie, Post) ->
-	OutJson = case mochijson2:decode(proplists:get_value("request", Post)) of
-		undefined ->
-			?reply_err(<<"no request field to read">>, <<"NO_REQUEST">>);
-		Json ->
-			{struct, Props} = mochijson2:decode(Json),
-			case {proplists:get_value(<<"function">>, Props), proplists:get_value("args", Props)} of
-				{undefined, _} ->
-					?reply_err(<<"no function to call">>, <<"NO_FUNCTION">>);
-				{Function, Args} ->
-					case Function of
-						<<"check_cookie">> ->
-							api(checkcookie, Cookie, Post);
-						<<"get_salt">> ->
-							api(getsalt, Cookie, Post);
-						<<"login">> ->
-							api(login, Cookie, Post);
-						<<"get_brand_list">> ->
-							api(brandlist, Cookie, Post);
-						<<"get_queue_list">> ->
-							api(queuelist, Cookie, Post);
-						<<"get_release_opts">> ->
-							api(releaseopts, Cookie, Post);
-						_ ->
-							send_to_connection(Cookie, Function, Args)
-					end
-			end
+check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
+	%?DEBUG("Found agent_connection pid ~p", [Conn]),
+	Agentrec = agent_web_connection:dump_agent(Conn),
+	Basejson = [
+		{<<"success">>, true},
+		{<<"login">>, list_to_binary(Agentrec#agent.login)},
+		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
+		{<<"state">>, Agentrec#agent.state},
+		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
+		{<<"statetime">>, Agentrec#agent.lastchange},
+		{<<"timestamp">>, util:now()}
+	],
+	Fulljson = case Agentrec#agent.state of
+		oncall ->
+			case agent_web_connection:mediaload(Conn) of
+				undefined ->
+					Basejson;
+				MediaLoad ->
+					[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
+			end;
+		_ ->
+			Basejson
 	end,
-	{200, [], ?json(OutJson)};						
-api(checkcookie, Cookie, _Post) ->
-	case Cookie of
-		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
-			%?DEBUG("Found agent_connection pid ~p", [Conn]),
-			Agentrec = agent_web_connection:dump_agent(Conn),
-			Basejson = [
-				{<<"success">>, true},
-				{<<"login">>, list_to_binary(Agentrec#agent.login)},
-				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
-				{<<"state">>, Agentrec#agent.state},
-				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-				{<<"statetime">>, Agentrec#agent.lastchange},
-				{<<"timestamp">>, util:now()}
-			],
-			Fulljson = case Agentrec#agent.state of
-				oncall ->
-					case agent_web_connection:mediaload(Conn) of
-						undefined ->
-							Basejson;
-						MediaLoad ->
-							[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
-					end;
-				_ ->
-					Basejson
-			end,
-			Json = {struct, Fulljson},
-			{200, [], mochijson2:encode(Json)};
-		badcookie ->
-			?INFO("cookie not in ets", []),
-			Reflist = erlang:ref_to_list(make_ref()),
-			NewCookie = make_cookie(Reflist),
-			ets:insert(web_connections, {Reflist, undefined, undefined}),
-			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"Your cookie was expired, issueing you a new one">>}]},
-			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
-		{_Reflist, _Salt, undefined} ->
-			?INFO("cookie found, no agent", []),
-			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"have cookie, but no agent">>}]},
-			{200, [], mochijson2:encode(Json)}
-	end;
-api(getsalt, badcookie, _Post) -> %% badcookie when getting a salt
+	Json = {struct, Fulljson},
+	{200, [], mochijson2:encode(Json)};
+check_cookie(badcookie) ->
+	?INFO("cookie not in ets", []),
+	Reflist = erlang:ref_to_list(make_ref()),
+	NewCookie = make_cookie(Reflist),
+	ets:insert(web_connections, {Reflist, undefined, undefined}),
+	Json = {struct, [
+		{<<"success">>, false}, 
+		{<<"message">>, <<"Your cookie was expired, issueing you a new one">>}, 
+		{<<"errcode">>, <<"BAD_COOKIE">>}
+	]},
+	{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
+check_cookie({_Reflist, _Salt, undefined}) ->
+	?INFO("cookie found, no agent", []),
+	Json = {struct, [
+		{<<"success">>, false}, 
+		{<<"message">>, <<"have cookie, but no agent">>},
+		{<<"errcode">>, <<"NO_AGENT">>}
+	]},
+	{200, [], mochijson2:encode(Json)}.
+
+get_salt(badcookie) ->
 	Conn = undefined,
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = make_cookie(Reflist),
@@ -387,8 +362,168 @@ api(getsalt, badcookie, _Post) -> %% badcookie when getting a salt
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
 	?DEBUG("created and sent salt for ~p", [Reflist]),
 	[E, N] = get_pubkey(),
-	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
-	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
+	PubKey = {struct, [
+		{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, 
+		{<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}
+	]},
+	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [
+		{success, true}, 
+		{message, <<"Salt created, check salt property">>}, 
+		{salt, list_to_binary(Newsalt)}, 
+		{pubkey, PubKey}
+	]})};
+get_salt({Reflist, _Salt, Conn}) ->
+	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+	agent_web_connection:set_salt(Conn, Newsalt),
+	?DEBUG("created and sent salt for ~p", [Reflist]),
+	[E, N] = get_pubkey(),
+	PubKey = {struct, [
+		{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, 
+		{<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}
+	]},
+	{200, [], mochijson2:encode({struct, [
+		{success, true}, 
+		{message, <<"Salt created, check salt property">>}, 
+		{salt, list_to_binary(Newsalt)}, 
+		{pubkey, PubKey}
+	]})}.
+	
+login(badcookie, _, _, _) ->
+	check_cookie(badcookie);
+login({Ref, undefined, _Conn}, _, _, _) ->
+	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
+login({Ref, Salt, _Conn}, Username, Password, Opts) ->
+	Endpointdata = proplists:get_value(voipendpointdata, Opts),
+	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata} of
+		{undefined, _} ->
+			{sip_registration, Username};
+		{sip_registration, undefined} ->
+			{sip_registation, Username};
+		{EndpointType, _} ->
+			{EndpointType, Endpointdata}
+	end,
+	Bandedness = case proplists:get_value(use_outband_ring, Opts) of
+		true ->
+			outband;
+		_ ->
+			inband
+	end,
+	try decrypt_password(Password) of
+		Decrypted ->
+			try
+				Salt = string:substr(Decrypted, 1, length(Salt)),
+				string:substr(Decrypted, length(Salt) + 1)
+			of
+				DecryptedPassword ->
+					case agent_auth:auth(Username, DecryptedPassword) of
+						deny ->
+							?reply_err(<<"Authentication failed">>, <<"AUTH_FAILED">>);
+						{allow, Id, Skills, Security, Profile} ->
+							Agent = #agent{
+								id = Id, 
+								defaultringpath = Bandedness, 
+								login = Username, 
+								skills = Skills, 
+								profile=Profile, 
+								password=DecryptedPassword
+							},
+							case agent_web_connection:start(Agent, Security) of
+								{ok, Pid} ->
+									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
+									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									linkto(Pid),
+									#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
+									ets:insert(web_connections, {Ref, Salt, Pid}),
+									?DEBUG("connection started for ~p ~p", [Ref, Username]),
+									{200, [], mochijson2:encode({struct, [
+										{success, true},
+										{<<"result">>, {struct, [
+											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"statetime">>, StateTime},
+											{<<"timestamp">>, util:now()}]}}]})};
+								ignore ->
+									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
+									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);
+								{error, Error} ->
+									?ERROR("Error ~p trying to start connection for ~p ~p", [Error, Ref, Username]),
+									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
+							end
+					end
+			catch
+				error:{badmatch, _} ->
+					?NOTICE("authentication failure for ~p using salt ~p (expected ~p)", [Username, string:substr(Decrypted, 1, length(Salt)), Salt]),
+					?reply_err(<<"invalid salt">>, <<"NO_SALT">>)
+			end
+	catch
+		error:decrypt_failed ->
+			?reply_err(<<"Password decryption failed">>, <<"DECRYPT_FAILED">>)
+	end.
+	
+	
+
+api(api, Cookie, Post) ->
+	Request = proplists:get_value("request", Post),
+	{struct, Props} = mochijson:decode(Request),
+	case {proplists:get_value(<<"function">>, Props), proplists:get_value("args", Props)} of
+		{undefined, _} ->
+			?reply_err(<<"no function to call">>, <<"NO_FUNCTION">>);
+		{<<"check_cookie">>, _} ->
+			check_cookie(Cookie);
+		{<<"get_salt">>, _} ->
+			get_salt(Cookie);
+		{<<"login">>, [Username, Password]} ->
+			login(Cookie, binary_to_list(Username), binary_to_list(Password), []);
+		{<<"login">>, [Username, Password, {struct, Props}]} ->
+			LoginOpts = lists:flatten([case X of
+				{<<"voipendpointdata">>, <<>>} ->
+					{voipendpointdata, undefined};
+				{<<"voipendpointdata">>, Bin} ->
+					{voipendpointdata, binary_to_list(Bin)};
+				{<<"voipendpoint">>, <<"sip_registration">>} ->
+					{voipendpoint, sip_registration};
+				{<<"voipendpoint">>, <<"sip">>} ->
+					{voipendpoint, sip};
+				{<<"voipendpoint">>, <<"iax2">>} ->
+					{voipendpoint, iax2};
+				{<<"voipendpoint">>, <<"h323">>} -> 
+					{voipendpoint, h323};
+				{<<"voipendpoint">>, <<"pstn">>} ->
+					{voipendpoint, pstn};
+				{<<"useoutbandring">>, true} ->
+					use_outband_ring;
+				{_, _} ->
+					[]
+			end || X <- Props]),
+			login(Cookie, binary_to_list(Username), binary_to_list(Password), LoginOpts);
+		{<<"get_brand_list">>, _} ->
+			Brands = call_queue_config:get_clients(),
+			BrandsEncoded = [{struct, [
+				{<<"label">>, list_to_binary(C#client.label)},
+				{<<"id">>, list_to_binary(C#client.id)}
+			]} || C <- Brands, C#client.label =/= undefined],
+			?reply_success(BrandsEncoded);
+		{<<"get_queue_list">>, _} ->
+			Queues = call_queue_config:get_queues(),
+			QueuesEncoded = [{struct, [
+				{<<"name">>, list_to_binary(Q#call_queue.name)}
+			]} || Q <- Queues],
+			?reply_success(QueuesEncoded);
+		{<<"get_release_opts">>, _} ->
+			Opts = agent_auth:get_releases(),
+			Encoded = [{struct, [
+				{<<"label">>, list_to_binary(R#release_opt.label)},
+				{<<"id">>, R#release_opt.id},
+				{<<"bias">>, R#release_opt.bias}
+			]} || R <- Opts],
+			?reply_success(Encoded);
+		{Function, Args} ->
+			send_to_connection(Cookie, Function, Args)
+	end;
+api(checkcookie, Cookie, _Post) ->
+	check_cookie(Cookie);
+api(getsalt, badcookie, _Post) -> %% badcookie when getting a salt
+	get_salt(badcookie);
 api(Apirequest, badcookie, _Post) ->
 	?INFO("bad cookie for request ~p", [Apirequest]),
 	Reflist = erlang:ref_to_list(make_ref()),
@@ -402,98 +537,41 @@ api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Your client is requesting a login without first requesting a salt.">>}]})};
-api(login, {Reflist, Salt, _Conn}, Post) ->
+api(login, {Reflist, Salt, _Conn} = Cookie, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
-	Endpointdata = case proplists:get_value("voipendpointdata", Post) of
+	Opts = [],
+	Opts2 = case proplists:get_value("voipendpointdata", Post) of
 		undefined ->
-			error;
+			Opts;
 		[] ->
-			error;
+			Opts;
 		Other ->
-			Other
+			[{voipendpointdata, Other} | Opts]
 	end,
-	Endpoint = case proplists:get_value("voipendpoint", Post) of
+	Opts3 = case proplists:get_value("voipendpoint", Post) of
 		"SIP Registration" ->
-			case Endpointdata of
-				error ->
-					{sip_registration, Username};
-				_Other ->
-					{sip_registration, Endpointdata}
-			end;
+			[{voipendpoint, sip_registration} | Opts2];
 		"SIP URI" ->
-			{sip, Endpointdata};
+			[{voipendpoint, sip} | Opts2];
 		"IAX2 URI" ->
-			{iax2, Endpointdata};
+			[{voipendpoint, iax2} | Opts2];
 		"H323 URI" ->
-			{h323, Endpointdata};
+			[{voipendpoint, h323} | Opts2];
 		"PSTN Number" ->
-			{pstn, Endpointdata}
+			[{voipendpoint, pstn} | Opts2];
+		_ ->
+			Opts2
 	end,
-	Bandedness = case proplists:get_value("useoutbandring", Post) of
+	Opts4 = case proplists:get_value("useoutbandring", Post) of
 		"useoutbandring" ->
-			outband;
+			[use_outband_ring | Opts3];
 		_ ->
-			inband
+			Opts3
 	end,
-	case Endpoint of
-		{_, error} ->
-			?WARNING("~s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid endpoint">>}]})};
-		_ ->
-			try decrypt_password(Password) of
-				Decrypted ->
-					try
-						Salt = string:substr(Decrypted, 1, length(Salt)),
-						string:substr(Decrypted, length(Salt) + 1)
-						of
-						DecryptedPassword ->
-							case agent_auth:auth(Username, DecryptedPassword) of
-								deny ->
-									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-								{allow, Id, Skills, Security, Profile} ->
-									Agent = #agent{id = Id, defaultringpath = Bandedness, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
-									case agent_web_connection:start(Agent, Security) of
-										{ok, Pid} ->
-											?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
-											gen_server:call(Pid, {set_endpoint, Endpoint}),
-											linkto(Pid),
-											#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
-											ets:insert(web_connections, {Reflist, Salt, Pid}),
-											?DEBUG("connection started for ~p ~p", [Reflist, Username]),
-											{200, [], mochijson2:encode({struct, [
-												{success, true},
-												{message, <<"logged in">>},
-												{<<"profile">>, list_to_binary(EffectiveProfile)},
-												{<<"statetime">>, StateTime},
-												{<<"timestamp">>, util:now()}]})};
-										ignore ->
-											?WARNING("Ignore message trying to start connection for ~p ~p", [Reflist, Username]),
-											{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-										{error, Error} ->
-											?ERROR("Error ~p trying to start connection for ~p ~p", [Error, Reflist, Username]),
-											{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
-									end
-							end
-					catch
-						error:{badmatch, _} ->
-							?NOTICE("authentication failure for ~p using salt ~p (expected ~p)", [Username, string:substr(Decrypted, 1, length(Salt)), Salt]),
-							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid salt">>}]})}
-					end
-			catch
-				error:decrypt_failed ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
-			end
-	end;
-api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
-	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
-	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-	agent_web_connection:set_salt(Conn, Newsalt),
-	?DEBUG("created and sent salt for ~p", [Reflist]),
-	[E, N] = get_pubkey(),
-	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
-	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
-
+	login(Cookie, Username, Password, Opts4);
+api(getsalt, {Reflist, Salt, Conn}, _Post) ->
+	get_salt({Reflist, Salt, Conn});
 api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
 	{403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no connection">>}]})};
 	
@@ -564,10 +642,10 @@ api(Api, Whatever, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})}.
 
 %% @doc determine if hte given cookie data is valid
--spec(check_cookie/1 :: ([{string(), string()}]) -> 'badcookie' | web_connection()).
-check_cookie([]) ->
+-spec(cookie_good/1 :: ([{string(), string()}]) -> 'badcookie' | web_connection()).
+cookie_good([]) ->
 	badcookie;
-check_cookie(Allothers) ->
+cookie_good(Allothers) ->
 	case proplists:get_value("cpx_id", Allothers) of
 		undefined ->
 			badcookie;
@@ -964,21 +1042,21 @@ path_parse_test_() ->
 		lists:map(Test, ?PATH_TEST_SET)
 	end}.
 
-cookie_check_test_() ->
+cookie_good_test_() ->
 	[
 		{"A blanke cookie",
 		fun() ->
-			?assertEqual(badcookie, check_cookie([]))
+			?assertEqual(badcookie, cookie_good([]))
 		end},
 		{"An invalid cookie",
 		fun() ->
-			?assertEqual(badcookie, check_cookie([{"cookiekey", "cookievalue"}]))
+			?assertEqual(badcookie, cookie_good([{"cookiekey", "cookievalue"}]))
 		end},
 		{"A well formed cookie, but not in ets",
 		fun() ->
 			ets:new(web_connections, [set, public, named_table]),
 			Reflist = erlang:ref_to_list(make_ref()),
-			?assertEqual(badcookie, check_cookie([{"cpx_id", Reflist}])),
+			?assertEqual(badcookie, cookie_good([{"cpx_id", Reflist}])),
 			ets:delete(web_connections)
 		end},
 		{"A well formed cookie in the ets",
@@ -986,7 +1064,7 @@ cookie_check_test_() ->
 			ets:new(web_connections, [set, public, named_table]),
 			Reflist = erlang:ref_to_list(make_ref()),
 			ets:insert(web_connections, {Reflist, undefined, undefined}),
-			?assertEqual({Reflist, undefined, undefined}, check_cookie([{"cpx_id", Reflist}])),
+			?assertEqual({Reflist, undefined, undefined}, cookie_good([{"cpx_id", Reflist}])),
 			ets:delete(web_connections)
 		end}
 	].

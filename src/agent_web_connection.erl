@@ -62,13 +62,14 @@
 	keep_alive/1,
 	mediaload/1,
 	dump_state/1,
-	format_status/2
+	format_status/2,
+	is_web_api/2
 ]).
 
 %% Web api exports.
 %% to make documenting a web api easier, the listener will directly
 %% calls these functions.
--define(WEB_API_FUNCTIONS, [
+-export([
 	set_state/2,
 	set_state/3,
 	dial/2,
@@ -82,7 +83,33 @@
 	queue_transfer/2,
 	init_outbound/3
 ]).
--export(?WEB_API_FUNCTIONS).
+
+-web_api_functions([
+	{set_state, 2},
+	{set_state, 3},
+	{dial, 2},
+	{get_avail_agents, 1},
+	{agent_transfer, 2},
+	{agent_transfer, 3},
+	{media, 1},
+	{warm_transfer, 2},
+	{warm_transfer_complete, 1},
+	{warm_transfer_cancel, 1},
+	{queue_transfer, 2},
+	{init_outbound, 3},
+	{set_state, 3},
+	{dial, 2},
+	{get_avail_agents, 1},
+	{agent_transfer, 2},
+	{agent_transfer, 3},
+	{media, 1},
+	{warm_transfer, 2},
+	{warm_transfer_complete, 1},
+	{warm_transfer_cancel, 1},
+	{queue_transfer, 2},
+	{init_outbound, 3}
+]).
+
 
 
 %% gen_server callbacks
@@ -158,6 +185,16 @@ init_outbound(Conn, Client, Number) ->
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+%% @doc Get the list of funcions/arities exposed for web use.
+-spec(get_web_api/0 :: () -> [{atom(), non_neg_integer()}]).
+get_web_api() ->
+	Attrs = ?MODULE:module_info(attributes),
+	proplists:get_value(web_api_functions, Attrs).
+
+is_web_api(Func, Arity) ->
+	Api = get_web_api(),
+	lists:member({Func, Arity}, Api).
 
 %% @doc Starts the passed agent at the given security level.
 -spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).

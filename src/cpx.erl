@@ -187,10 +187,15 @@ merge_env() ->
 	Fun = fun() ->
 		qlc:e(qlc:q([{Key, Value} || #cpx_value{key = Key, value = Value} = _X <- mnesia:table(cpx_value)]))
 	end,
-	{atomic, Cpxdb} = mnesia:transaction(Fun),
-	Locked = [uptime | [Key || {Key, _} <- application:get_all_env(cpx)]],
-	application:set_env(cpx, locked_env, Locked),
-	merge_env(Cpxdb, Locked).
+	case mnesia:transaction(Fun) of
+		{aborted, {no_exists, {cpx_value, index}}} ->
+			application:set_env(cpx, locked_env, [uptime]),
+			ok;
+		{atomic, Cpxdb} ->
+			Locked = [uptime | [Key || {Key, _} <- application:get_all_env(cpx)]],
+			application:set_env(cpx, locked_env, Locked),
+			merge_env(Cpxdb, Locked)
+	end.
 
 merge_env([], LockedKeys) ->
 	ok;

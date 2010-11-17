@@ -952,12 +952,57 @@ web_connection_login_test_() ->
 					?assertEqual(<<"Your client is requesting a login without first requesting a salt.">>, proplists:get_value(<<"message">>, Json))
 				end}
 			end,
+			fun({_Httpc, Cookie, _Salt}) ->
+				{"Trying to login before salt request, refined api",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("123345", "badpass")), Key, rsa_pkcs1_padding),
+					Request = mochijson2:encode({struct, [
+						{<<"function">>, <<"login">>},
+						{<<"args">>, [
+							<<"badun">>,
+							list_to_binary(util:bin_to_hexstr(Salted))
+						]}
+					]}),
+					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, 
+						{?url("/api"), 
+						Cookie, 
+						"application/x-www-form-urlencoded",
+						RequestBody},
+					[], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Your client is requesting a login without first requesting a salt.">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
 			fun({_Httpc, Cookie, Salt}) ->
 				{"Login with a bad pw",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"badpass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Authentication failed">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with a bad pw refined api",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"badpass")), Key, rsa_pkcs1_padding),
+					RequestJson = mochijson2:encode({struct, [
+						{<<"function">>, <<"login">>},
+						{<<"args">>, [
+							<<"testagent">>,
+							list_to_binary(util:bin_to_hexstr(Salted))
+						]}
+					]}),
+					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", RequestJson]))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -977,6 +1022,26 @@ web_connection_login_test_() ->
 				end}
 			end,
 			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with bad un refined api",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
+					Request = mochijson2:encode({struct, [
+						{<<"function">>, <<"login">>},
+						{<<"args">>, [
+							<<"badun">>,
+							list_to_binary(util:bin_to_hexstr(Salted))
+						]}
+					]}),
+					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Authentication failed">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
 				{"Login with bad salt",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
@@ -989,6 +1054,32 @@ web_connection_login_test_() ->
 					?assertEqual(<<"Invalid salt">>, proplists:get_value(<<"message">>, Json))
 				end}
 			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with bad salt refined api",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salt(),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("345678","pass")), Key, rsa_pkcs1_padding),
+					Request = mochijson2:encode({struct, [
+						{<<"function">>, <<"login">>},
+						{<<"args">>, [
+							<<"testagent">>,
+							list_to_binary(util:bin_to_hexstr(Salted))
+						]}
+					]}),
+					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Invalid salt">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+
+
+
+
+
 			fun({_Httpc, Cookie, Salt}) ->
 				{"Login properly",
 				fun() ->

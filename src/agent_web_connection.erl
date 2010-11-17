@@ -76,11 +76,16 @@
 	get_avail_agents/1,
 	agent_transfer/2,
 	agent_transfer/3,
-	media/1,
+	media_command/4,
+	media_hangup/1,
+	load_media/1,
+	ring_test/1,
+	get_agent_profiles/1,
+	get_queue_transfer_options/1,
 	warm_transfer/2,
 	warm_transfer_complete/1,
 	warm_transfer_cancel/1,
-	queue_transfer/2,
+	queue_transfer/3,
 	init_outbound/3
 ]).
 
@@ -91,26 +96,18 @@
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
 	{agent_transfer, 3},
-	{media, 1},
+	{media_command, 4},
+	{media_hangup, 1},
+	{load_media, 1},
+	{ring_test, 1},
+	{get_agent_profiles, 1},
+	{get_queue_transfer_options, 1},
 	{warm_transfer, 2},
 	{warm_transfer_complete, 1},
 	{warm_transfer_cancel, 1},
-	{queue_transfer, 2},
-	{init_outbound, 3},
-	{set_state, 3},
-	{dial, 2},
-	{get_avail_agents, 1},
-	{agent_transfer, 2},
-	{agent_transfer, 3},
-	{media, 1},
-	{warm_transfer, 2},
-	{warm_transfer_complete, 1},
-	{warm_transfer_cancel, 1},
-	{queue_transfer, 2},
+	{queue_transfer, 3},
 	{init_outbound, 3}
 ]).
-
-
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -142,42 +139,168 @@
 %% WEB API
 %%====================================================================
 
+-type(bin_string() :: binary()). % defined to indicate a string in binary
+%% @doc Set the agent to the given `Statename' with default state data.
+%% No result property as it either worked or didn't.
+-spec(set_state/2 :: (Conn :: pid(), Statename :: bin_string()) -> any()).
 set_state(Conn, Statename) ->
-	ok.
+	gen_server:call(Conn, {set_state, binary_to_list(Statename)}).
 
+%% @doc Set the agent to the given `Statename' with the given `Statedata'.
+%% No result property as it either worked or it didn't.  State data will
+%% vary based on state.  For released, it can be either be the string 
+%% `"Default"' or a string of `"Id:Name:Bias"'.
+-spec(set_state/3 :: (Conn :: pid(), Statename :: bin_string(), Statedata :: any()) -> any()).
 set_state(Conn, Statename, Statedata) ->
-	ok.
+	gen_server:call(Conn, {set_state, binary_to_list(Statename), binary_to_list(Statedata)}).
 
+%% @doc Attempt to dial the passed number.  Implicitly sets the agent from
+%% precall to outbound.  No results property as it either worked or didn't.
+-spec(dial/2 :: (Conn :: pid(), Number :: bin_string()) -> any()).
 dial(Conn, Number) ->
-	ok.
+	gen_server:call(Conn, {dial, binary_to_list(Number)}).
 
+%% @doc Get a list of the agents that are currently available.  Result is:
+%% <pre>[{
+%% 	"name":  string(),
+%% 	"profile":  string(),
+%% 	"state":  "idle" | "released"
+%% }]</pre>
+-spec(get_avail_agents/1 :: (Conn :: pid()) -> any()).
 get_avail_agents(Conn) ->
-	ok.
+	gen_server:call(Conn, get_avail_agents).
 
+%% @doc Get a list of the profiles that are in the system.  Result is:
+%% <pre>[{
+%% 	"name":  string(),
+%% 	"order":  number()
+%% }]</pre>
+-spec(get_agent_profiles/1 :: (Conn :: pid()) -> any()).
+get_agent_profiles(Conn) ->
+	gen_server:call(Conn, {undefined, "/profilelist"}).
+
+%% @doc Transfer the call to the given `Agent' login name.  No result is
+%% sent back as it's a simple success or failure.
+-spec(agent_transfer/2 :: (Conn :: pid(), Agent :: bin_string()) -> any()).
 agent_transfer(Conn, Agent) ->
-	ok.
+	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent)}).
 
+%% @doc Transfer the call to the given `Agent' and associate the media with
+%% the given `Caseid'.  No result is sent back as it's a simple success of
+%% failure.
+-spec(agent_transfer/3 :: (Conn :: pid(), Agent :: bin_string(), Caseid :: bin_string()) -> any()).
 agent_transfer(Conn, Agent, Caseid) ->
-	ok.
+	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent), binary_to_list(Caseid)}).
 
-media(Conn) ->
-	ok.
+%% @doc Forward a command or request to the media associated with an oncall
+%% agent.  `Command' is the name of the request to make.  `Mode' is either 
+%% `"call"' or `"cast"'.  `"call"' indicates an indepth reply is expected
+%% from the media.  `"cast"' indicates no meaningful reply is expected, so
+%% as long as the command was sent, success is returned.  `Args' is any 
+%% arguments to sent with the `Command'.  In the case of `"cast"' mode, 
+%% there is no result as it's a simple succcess.  Check the documentation
+%% of the media modules to see what possible returns there are.
+-spec(media_command/4 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string(), Args :: [any()]) -> any()).
+media_command(Conn, Command, Mode, Args) ->
+	Post = [
+		{"command", Command},
+		{"mode", binary_to_list(Mode)},
+		{"args", Args}
+	],
+	gen_server:call(Conn, {media, Post}).
 
+%% @doc Start a warmtransfer of the media associated with the oncall agent
+%% to `Number'.  No result is sent back as it's simply success or failure.
+-spec(warm_transfer/2 :: (Conn :: pid(), Number :: bin_string()) -> any()).
 warm_transfer(Conn, Number) ->
-	ok.
+	gen_server:call(Conn, {warm_transfer, binary_to_list(Number)}).
 
+%% @doc Complete a started transfer; implicitly moves the agent to wrapup.
+%% No result is set as it's a simple success or failure.
+-spec(warm_transfer_complete/1 :: (Conn :: pid()) -> any()).
 warm_transfer_complete(Conn) ->
-	ok.
+	gen_server:call(Conn, warm_transfer_complete).
 
+%% @doc Cancel a started transfer, implicitly putting the agent oncall.
+%% No result is set as it's a simple success or failure.
+-spec(warm_transfer_cancel/1 :: (Conn :: pid()) -> any()).
 warm_transfer_cancel(Conn) ->
-	ok.
+	gen_server:call(Conn, warm_transfer_cancel).
 
-queue_transfer(Conn, Queue) ->
-	ok.
+%% @doc Get the fields and skills an agent can assign to a media before 
+%% transfering it back into queue.  Result:
+%% <pre>{
+%% 	"curentVars":  [{
+%% 		string():  string()
+%%	}],
+%%	"prompts":  [{
+%% 		"name":  string(),
+%% 		"label":  string(),
+%% 		"regex":  regex_string()
+%% 	}],
+%% 	"skills":[
+%%		string() | {"atom":  string(),  "value":  string()}
+%% 	]
+%% }</pre>
+-spec(get_queue_transfer_options/1 :: (Conn :: pid()) -> any()).
+get_queue_transfer_options(Conn) ->
+	gen_server:call(Conn, {undefined, "/get_queue_transfer_options"}).
 
-init_outbound(Conn, Client, Number) ->
-	ok.
+%% @doc Force the agent to disconnect the media; usually through a brutal
+%% kill of the media pid.  Best used as an emergency escape hatch, and not
+%% under normal call flow.  No result set as it's merely success or 
+%% failure.
+-spec(media_hangup/1 :: (Conn :: pid()) -> any()).
+media_hangup(Conn) ->
+	gen_server:call(Conn, {undefined, "/call_hangup"}).
 
+%% @doc Test if freeswitch can ring an agent's softphone.  No result set as
+%% it's either a success or false.  The true success is if the agent's 
+%% phone rings.
+-spec(ring_test/1 :: (Conn :: pid()) -> any()).
+ring_test(Conn) ->
+	gen_server:call(Conn, {undefined, "/ringtest"}).
+
+%% @doc Transfer the call the agent is in into `Queue' with the given
+%% `Opts'.  The options is a json object with any number of properties
+%% that are passed to the media.  If there is a property `"skills"' with
+%% a list, the list is interpreted as a set of skills to apply to the 
+%% media.  No result is set as it is merely success or failure.
+-spec(queue_transfer/3 :: (Conn :: pid(), Queue :: bin_string(), {struct, Opts :: [{bin_string(), any()}]}) -> any()).
+queue_transfer(Conn, Queue, {struct, Opts}) ->
+	FixedOpts1 = [case Key of
+		<<"skills">> ->
+			{"skills", Val};
+		_ ->
+			{binary_to_list(Key), binary_to_list(Val)}
+	end || {Key, Val} <- Opts],
+	RawSkills = proplists:get_value("skills", FixedOpts1),
+	FixedOpts2 = proplists:delete("skills", FixedOpts1),
+	FixedSkills = [case S of
+		{struct, ExpandProp} ->
+			Atom = binary_to_list(proplists:get_value(<<"atom">>, ExpandProp)),
+			Expanded = binary_to_list(proplists:get_value(<<"expanded">>,ExpandProp)),
+			{"skills", "{" ++ Atom ++ "," ++ Expanded ++ "}"};
+		Atom when is_binary(Atom) ->
+			{"skills", binary_to_list(Atom)}
+	end || S <- RawSkills],
+	FixedOpts = FixedOpts2 ++ FixedSkills ++ [{"queue", binary_to_list(Queue)}],
+	gen_server:call(Conn, {undefined, "/queue_transfer", FixedOpts}).
+
+%% @doc Set and agent to precall for a new media for `Client' calling to
+%% `Type'.  Currently only `Type' of `"freeswitch"' is allowed.  There is
+%% no result set as it's only a success or failure message.
+-spec(init_outbound/3 :: (Conn :: pid(), Client :: bin_string(), Type :: bin_string()) -> any()).
+init_outbound(Conn, Client, Type) ->
+	gen_server:call(Conn, {init_outbound, binary_to_list(Client), binary_to_list(Type)}).
+
+%% @doc If the media set anything to be loaded at call start, retreive it.
+%% This is useful if the client (such as web browser) needs to refresh the
+%% page or crashes, but is able to recover before the automatic logout
+%% occurs.  Results will vary from media to media.
+-spec(load_media/1 :: (Conn :: pid()) -> any()).
+load_media(Conn) ->
+	gen_server:call(Conn, mediaload).
 
 %%====================================================================
 %% API
@@ -356,13 +479,13 @@ handle_call(get_avail_agents, _From, State) ->
 		AgState#agent.state == idle orelse AgState#agent.state == released],
 
 	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}, {<<"state">>, Rec#agent.state}]} || Rec <- Agents],
-	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}]})}, State};
+	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}, {<<"result">>, Noms}]})}, State};
 handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent:set_state(Apid, agent:list_to_state(Statename)) of
 		ok ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, ok}]})}, State};
 		invalid ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State}
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}, {<<"message">>, <<"invalid state change">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
 	end;
 handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid} = State) ->
 	Statedata = case Statename of
@@ -379,11 +502,11 @@ handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid}
 	end,
 	case agent:set_state(Apid, agent:list_to_state(Statename), Statedata) of
 		invalid ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State};
-		Status ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
-	end;
-handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}, {<<"message">>, <<"invalid state change">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}; 
+		Status -> 
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State} 
+	end; 
+handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
 	{reply, agent:set_endpoint(Apid, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	AgentRec = agent:dump_state(AgentPid),
@@ -397,13 +520,13 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 						{error, Error} ->
 							?NOTICE("Outbound call error ~p", [Error]),
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(lists:flatten(io_lib:format("~p, Check your phone configuration", [Error])))}]})}, State}
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(lists:flatten(io_lib:format("~p, Check your phone configuration", [Error])))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}, State}
 					end;
 				_ ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}]})}, State}
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
 			end;
 		_ ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not in pre-call">>}]})}, State}
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not in pre-call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
 	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
@@ -418,19 +541,19 @@ handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State
 				ok ->
 					{200, [], mochijson2:encode({struct, [{success, true}]})};
 				invalid ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}
 			end,
 			{reply, Reply, State};
 		false ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})}, State}
-	end;
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})}, State}
+	 end;
 handle_call({warm_transfer, Number}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	?NOTICE("warm transfer to ~p", [Number]),
 	Reply = case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}, {<<"errcode">>, <<"INVALID_MEDIA_CALL">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call(warm_transfer_cancel, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
@@ -439,7 +562,7 @@ handle_call(warm_transfer_cancel, _From, #state{current_call = Call} = State) wh
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not cancel transfer">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not cancel transfer">>}, {<<"errcode">>, <<"INVALID_MEDIA_CALL">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
@@ -448,7 +571,7 @@ handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) 
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}, {<<"errcode">>, <<"INVALID_MEDIA_CALL">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
@@ -466,20 +589,20 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 									agent:set_state(Apid, precall, Call),
 									{200, [], mochijson2:encode({struct, [{success, true}]})};
 								{error, Reason} ->
-									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing outbound call failed (~p)", [Reason]))}]})}
+									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing outbound call failed (~p)", [Reason]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})} 
 							end;
-						_ ->
-							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}
+						 _ ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
 					end;
 				% TODO - more outbound types go here :)
 				_ ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}]})}
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
 			catch
 				_:_ ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}]})}
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
 			end;
 		_ ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent must be released or idle">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent must be released or idle">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
@@ -893,20 +1016,20 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_r
 			{Heads, Data} = try gen_media:call(Call#call.source, {Commande, Post}) of
 				invalid ->
 					?DEBUG("agent:media_call returned invalid", []),
-					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
-				Response ->
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}, {<<"errcode">>, <<"INVALID_MEDIA_CALL">>}]})}; 
+				Response -> 
 					parse_media_call(Call, {Commande, Post}, Response)
 			catch
 				exit:{noproc, _} ->
 					?DEBUG("Media no longer exists.", []),
-					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"media no longer exists">>}]})}
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"media no longer exists">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
 			end,
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
 			gen_media:cast(Call#call.source, {Commande, Post}),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		undefined ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}, {<<"errcode">>, <<"BAD_REQUEST">>}]})}, State}
 	end;
 handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),
@@ -933,14 +1056,19 @@ handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_ca
 		{<<"success">>, true},
 		{<<"currentVars">>, {struct, Varslist}},
 		{<<"prompts">>, Encodedprompts},
-		{<<"skills">>, Encodedskills}
+		{<<"skills">>, Encodedskills},
+		{<<"result">>, {struct, [
+			{<<"currentVars">>, {struct, Varslist}},
+			{<<"prompts">>, Encodedprompts},
+			{<<"skills">>, Encodedskills}
+		]}}
 	]},
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
 		invalid ->
-			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}]};
+			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]};
 		ok ->
 			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
 	end,
@@ -954,15 +1082,15 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->
-					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}]}
+					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
 			end;
 		undefined ->
-			{struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]};
+			{struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]};
 		_ ->
-			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}]}
-	end,
+			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}, {<<"errcode">>, <<"INVALID_STATE">>}]} 
+	end, 
 	{reply, {200, [], mochijson2:encode(Json)}, State};
-handle_call({undefined, "/queue_transfer", Opts}, From, #state{current_call = Call, agent_fsm = Apid} = State) when is_record(Call, call) ->
+handle_call({undefined, "/queue_transfer", Opts}, _From, #state{current_call = Call, agent_fsm = Apid} = State) when is_record(Call, call) ->
 	Queue = proplists:get_value("queue", Opts),
 	MidSkills = proplists:get_all_values("skills", Opts),
 	Midopts = proplists:delete("skills", proplists:delete("queue", Opts)),
@@ -975,7 +1103,7 @@ handle_call({undefined, "/queue_transfer", Opts}, From, #state{current_call = Ca
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call({undefined, "/report_issue", Post}, _From, State) ->
@@ -1010,7 +1138,7 @@ handle_call({undefined, "/profilelist"}, _From, State) ->
 		{struct, [{<<"name">>, list_to_binary(Name)}, {<<"order">>, Order}]} ||
 		#agent_profile{name = Name, order = Order} <- Profiles
 	],
-	R = {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, Jsons}]})},
+	R = {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, Jsons}, {<<"result">>, Jsons}]})},
 	{reply, R, State};	
 handle_call({undefined, [$/ | Path]}, From, State) ->
 	handle_call({undefined, [$/ | Path], []}, From, State);
@@ -1042,7 +1170,7 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 			{reply, {200, Heads, Encoded}, State};
 		Else ->
 			?INFO("Not a mime tuple ~p", [Else]),
-			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
+			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}, {<<"errcode">>, <<"BAD_MEDIA_RESPONSE">>}]})}, State}
 	catch
 		exit:{noproc, _} ->
 			?ERROR("request to fetch ~p from ~p ~p by ~p", [Path, Call#call.id, Call#call.source, State#state.agent_fsm]),
@@ -1068,7 +1196,7 @@ handle_cast({poll, Frompid}, State) ->
 		undefined -> 
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}]})}
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}, {<<"errcode">>, <<"POLL_PID_REPLACED">>}]})}
 	end,
 	case State#state.poll_queue of
 		[] ->
@@ -1078,7 +1206,7 @@ handle_cast({poll, Frompid}, State) ->
 		Pollq ->
 			%?DEBUG("Poll queue length: ~p", [length(Pollq)]),
 			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
-			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
+			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}, {<<"result">>, lists:reverse(Pollq)}]},
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
@@ -1752,7 +1880,7 @@ encode_stats(Stats) ->
 
 encode_stats([], Count, Acc) ->
 	{Count - 1, Acc};
-encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = Head | Tail], Count, Acc) ->
+encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = _Head | Tail], Count, Acc) ->
 	Display = case {ProtoName, Type} of
 		{_Name, agent} ->
 			Login = proplists:get_value(login, Protodetails),
@@ -1900,7 +2028,7 @@ extract_groups(Stats) ->
 
 extract_groups([], Acc) ->
 	Acc;
-extract_groups([{{Type, _Id}, Details, _Node, _Time, _Watched, _Monref} = Head | Tail], Acc) ->
+extract_groups([{{Type, _Id}, Details, _Node, _Time, _Watched, _Monref} = _Head | Tail], Acc) ->
 	case Type of
 		queue ->
 			Display = proplists:get_value(group, Details),
@@ -2062,11 +2190,17 @@ set_state_test_() ->
 				{"Set state invalid",
 				fun() ->
 					Reply = gen_server:call(Connpid, {set_state, "wrapup"}),
-					?CONSOLE("~p", [Reply]),
-					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"false">>, 44, [34,<<"status">>, 34], 58, [34,"invalid", 34], 125]}, Reply),
+					ExpectedJson = mochijson2:encode({struct, [
+						{success, false},
+						{<<"status">>, invalid},
+						{<<"message">>, <<"invalid state change">>},
+						{<<"errcode">>, <<"INVALID_STATE_CHANGE">>}
+					]}),
+					?CONSOLE("Reply:  ~p;~nExpected:  ~p", [Reply, ExpectedJson]),
+					?assertEqual({200, [], ExpectedJson}, Reply),
 					Reply2 = gen_server:call(Connpid, {set_state, "wrapup", "garbage"}),
 					?CONSOLE("~p", [Reply2]),
-					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"false">>, 44, [34,<<"status">>, 34], 58, [34,"invalid", 34], 125]}, Reply2)
+					?assertEqual({200, [], ExpectedJson}, Reply2)
 				end}
 			end
 		]

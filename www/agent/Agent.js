@@ -89,7 +89,7 @@ function Agent(username, statetime, timestamp){
 		for(var i = 2; i < arguments.length; i++){
 			args.push(arguments[i]);
 		}
-		dojo.xhrPost({
+		var xhrOverrides = {
 			url:"/api",
 			content:{
 				request:dojo.toJson({
@@ -107,7 +107,10 @@ function Agent(username, statetime, timestamp){
 				}
 				return trueOpts.failure(res.errcode, res.message);
 			}
-		});
+		};
+		var xhrOpts = dojo.mixin(trueOpts, xhrOverrides);
+		
+		return dojo.xhrPost(xhrOpts);
 	}
 
 	this.poll = function(){

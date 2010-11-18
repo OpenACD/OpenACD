@@ -417,6 +417,13 @@ stop(Pid) ->
 %% 		<th>Description</th>
 %% 	</tr>
 %% 	<tr>
+%% 		<td>pong</td>
+%% 		<td>"timestamp":  integer()</td>
+%% 		<td>Nothing has happened in the last 20 seconds, but we don't want
+%% 		the conneciton to just die.  Sync up clocks based on what that
+%% 		timestamp from the server said if needed.  Start a new poll.</td>
+%% 	</tr>
+%% 	<tr>
 %% 		<td>astate</td>
 %% 		<td><ul>
 %% 			<li>"state":  string()</li>

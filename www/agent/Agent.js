@@ -78,13 +78,19 @@ function Agent(username, statetime, timestamp){
 		var defaultOpts = {
 			"success":function(){ return true; },
 			"failure":function(errcode, msg){
-				console.warning("failure for " + func, errcode, msg);
+				console.warn("failure for " + func, errcode, msg);
 			},
 			"error":function(res){
 				console.error("error for ", func, res);
 			}
 		}
 		var trueOpts = dojo.mixin(defaultOpts, opts);
+		var loadFunc = function(res){
+			if(res.success === true){
+				return trueOpts.success(res.result);
+			}
+			return trueOpts.failure(res.errcode, res.message);
+		};
 		var args = [];
 		for(var i = 2; i < arguments.length; i++){
 			args.push(arguments[i]);
@@ -98,15 +104,7 @@ function Agent(username, statetime, timestamp){
 				})
 			},
 			handleAs:"json",
-			error:function(res){
-				trueOpts.error(res);
-			},
-			load:function(res){
-				if(res.success === true){
-					return trueOpts.success(res.result);
-				}
-				return trueOpts.failure(res.errcode, res.message);
-			}
+			load:loadFunc
 		};
 		var xhrOpts = dojo.mixin(trueOpts, xhrOverrides);
 		
@@ -114,11 +112,8 @@ function Agent(username, statetime, timestamp){
 	}
 
 	this.poll = function(){
-		this._pollHandle = dojo.xhrGet({
-			url:"/poll",
-			handleAs:"json",
+		var options = {
 			timeout: 30000,
-			/*failOK: true,*/
 			error:function(response, ioargs){
 				if (response.dojoType == "timeout") {
 					/*console.log("repolling");*/
@@ -146,22 +141,21 @@ function Agent(username, statetime, timestamp){
 					warning("NOT re-polling");
 				}
 			},
-			load:function(response, ioargs){
+			success:function(response){
 				debug([response]);
 				//EventLog.log("Poll success, handling data");
-				if(response.success === false){
-					errMessage(["poll failed", response.message]);
-					//agentref.poller.stop();
-					dojo.publish("agent/logout", [response.message]);
-					//agentref.poll();
-				}
-				else{
-					agentref.pollfailures = 0;
-					agentref.poll();
-					agentref.handleData(response.data);
-				}
+				agentref.pollfailures = 0;
+				agentref.poll();
+				agentref.handleData(response);
+			},
+			failure:function(errcode, msg){
+				errMessage(["poll failed", response.message]);
+				//agentref.poller.stop();
+				dojo.publish("agent/logout", [response.message]);
+				//agentref.poll();
 			}
-		});
+		};
+		this.webApi("poll", options);
 	};
 	
 	this.poll();

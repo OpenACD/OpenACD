@@ -118,7 +118,7 @@ function Agent(username, statetime, timestamp){
 				//agentref.poll();
 			}
 		};
-		Agent.webApi("poll", options);
+		this._pollHandle = Agent.webApi("poll", options);
 	};
 	
 	this.poll();

@@ -1025,7 +1025,7 @@ dojo.addOnLoad(function(){
 					data: {
 						'label': 'label',
 						'identifier':'id',
-						'items': response.brands
+						'items': response
 					}
 				});
 				widget.store = store;

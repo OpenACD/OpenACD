@@ -73,43 +73,6 @@ function Agent(username, statetime, timestamp){
 			 }
 		}
 	};
-	
-	this.webApi = function(func, opts){
-		var defaultOpts = {
-			"success":function(){ return true; },
-			"failure":function(errcode, msg){
-				console.warn("failure for " + func, errcode, msg);
-			},
-			"error":function(res){
-				console.error("error for ", func, res);
-			}
-		}
-		var trueOpts = dojo.mixin(defaultOpts, opts);
-		var loadFunc = function(res){
-			if(res.success === true){
-				return trueOpts.success(res.result);
-			}
-			return trueOpts.failure(res.errcode, res.message);
-		};
-		var args = [];
-		for(var i = 2; i < arguments.length; i++){
-			args.push(arguments[i]);
-		}
-		var xhrOverrides = {
-			url:"/api",
-			content:{
-				request:dojo.toJson({
-					"function":func,
-					"args":args
-				})
-			},
-			handleAs:"json",
-			load:loadFunc
-		};
-		var xhrOpts = dojo.mixin(trueOpts, xhrOverrides);
-		
-		return dojo.xhrPost(xhrOpts);
-	}
 
 	this.poll = function(){
 		var options = {
@@ -155,7 +118,7 @@ function Agent(username, statetime, timestamp){
 				//agentref.poll();
 			}
 		};
-		this.webApi("poll", options);
+		Agent.webApi("poll", options);
 	};
 	
 	this.poll();
@@ -163,111 +126,126 @@ function Agent(username, statetime, timestamp){
 
 Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
+Agent.webApi = function(func, opts){
+	var defaultOpts = {
+		"success":function(){ return true; },
+		"failure":function(errcode, msg){
+			console.warn("failure for " + func, errcode, msg);
+		},
+		"error":function(res){
+			console.error("error for ", func, res);
+		}
+	}
+	var trueOpts = dojo.mixin(defaultOpts, opts);
+	var loadFunc = function(res){
+		if(res.success === true){
+			return trueOpts.success(res.result);
+		}
+		return trueOpts.failure(res.errcode, res.message);
+	};
+	var args = [];
+	for(var i = 2; i < arguments.length; i++){
+		args.push(arguments[i]);
+	}
+	var xhrOverrides = {
+		url:"/api",
+		content:{
+			request:dojo.toJson({
+				"function":func,
+				"args":args
+			})
+		},
+		handleAs:"json",
+		load:loadFunc
+	};
+	var xhrOpts = dojo.mixin(trueOpts, xhrOverrides);
+	
+	return dojo.xhrPost(xhrOpts);
+};
+
 Agent.prototype.setState = function(state){
 	//build the request
 	var statedata = arguments[1];
-	
-	var requesturl = '';
-	if(statedata){
-		requesturl = "/state/" + state + "/" + arguments[1];
-	} else {
-		requesturl = "/state/" + state;
-	}
-	
+
 	var agentref = this;
-	
-	dojo.xhrGet({
-		url:requesturl,
-		handleAs:"json",
-		error:function(response, ioargs){
-			errMessage(["error for set data", response]);
-			//EventLog.log("state change failed:  " + response.responseText);
-			//dojo.publish("agent/state", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
-		},
-		load:function(response, ioargs){
+
+	var options = {
+		success:function(resut){
 			EventLog.log("state change success:  " + state);
 			agentref.state = state;
 			agentref.statedata = statedata;
 			agentref.stopwatch.reset();
 			agentref.stopwatch.start();
-			//dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
-	});
+	};
+
+	if(statedata){
+		Agent.webApi("set_state", options, statedata);
+	} else {
+		Agent.webApi("set_state", options);
+	}
 };
 
 Agent.prototype.initOutbound = function(Client, Type) {
-	dojo.xhrGet({
-		url: "/init_outbound/" + Client + '/' + Type,
-		handleAs: 'json',
+	var options = {
 		error: function(response, ioargs){
 			errMessage(["error for init outbound", response]);
 		},
-		load: function(response, ioargs){
-			if (response.success){
-				EventLog.log("init outbound success");
-			} else {
-				errMessage(response.message);
-			}
+		success: function(){
+			EventLog.log("init outbound success");
 		}
-	});
+	};
+	Agent.webApi("init_outbound", Options, Client, Type);
 };
 
 Agent.prototype.logout = function(/*callback*/){
 	// cancel this up front so
 	this._pollHandle.cancel();
 	// this should always succeed, so send the agent/logout in all cases
-	dojo.xhrGet({
-		url:"/logout",
-		handleAs:"json",
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error logging out", response]);
 			dojo.publish("agent/logout", [true]);
 		},
-		load:function(response, ioargs){
+		success:function(){
 			dojo.publish("agent/logout", [true]);
 		}
-	});
+	};
+	Agent.webApi("logout", options);
 };
 
 Agent.prototype.dial = function() {
 	if (dijit.byId("dialbox").isValid()) {
 		EventLog.log("dialing outbound to "+dijit.byId("dialbox").getValue());
-		dojo.xhrGet({
-			url:"/dial/"+dijit.byId("dialbox").getValue(),
-			handleAs:"json",
+		var options = {
 			error:function(response, ioargs){
 				errMessage(["error for dial", response]);
 			},
-			load:function(response, ioargs){
-				if (response.success) {
-					debug(["success for dial", response]);
-				} else {
-					errMessage(["failure for dial", response.message]);
-				}
+			success:function(response, ioargs){
+				debug(["success for dial", response]);
+			},
+			failure:function(code, message){
+				errMessage(["failure for dial", message]);
 			}
-		});
+		};
+		Agent.webApi("dial", options, dijit.byId("dialbox").getValue());
 	}
 };
 
 Agent.prototype.mediaPush = function(data){
 	if(this.state == "oncall"){
-		dojo.xhrPost({
-			url:"/mediapush",
-			handleAs:"json",
+		var options = {
 			error:function(response, ioargs){
 				errMessage(["media push request failure", response]);
 			},
-			load:function(response, ioargs){
-				if(response.success){
-					info(["media push success", response]);
-				} else{
-					errMessage(["media push failed", response.message]);
-				}
+			success:function(response, ioargs){
+				info(["media push success", response]);
 			},
-			content:{
-				"data":data
+			failure:function(errcode, message){
+				errMessage(["media push failed", message]);
 			}
-		});
+		};
+		Agent.webApi("mediapush", options, data);
 		return true;
 	}
 	
@@ -296,123 +274,100 @@ Agent.transfer = function(aname) {
 	var caseid = dijit.byId('caseid');
 	caseid.setAttribute("value", "");
 	dialog.attr('execute', function(){
-			if (caseid.isValid()) {
-				dialog.hide();
-				var url = "/agent_transfer/"+aname;
-				if (caseid.attr("value") != "") {
-					url += "/" + caseid.attr("value");
+		if (caseid.isValid()) {
+			dialog.hide();
+			var options = {
+				error:function(response){
+					errMessage(["error on transfer", response]);
+				},
+				success:function(result){
+					dojo.publish("agent/transfer", [true]);
+				},
+				failure:function(errcode, message){
+					errMessage(["failed to ring to 2nd agent", message]);
 				}
-				dojo.xhrGet({
-					url: url,
-					handleAs:"json",
-					error:function(response, ioargs){
-						errMessage(["error on transfer", response]);
-					},
-					load:function(response, ioargs){
-						if(response.success){
-							dojo.publish("agent/transfer", [response.success]);
-						}
-						else{
-							errMessage(["failed to ring to 2nd agent", response.message]);
-						}
-					}
-				});
-			} else {
-				dialog.show();
-			}
+			};
+			Agent.webApi("agent_transfer", options, aname, caseid.attr("value"));
+		} else {
+			dialog.show();
+		}
 	});
 	dialog.show();
 };
 
 Agent.warmtransfer = function(num) {
-	dojo.xhrGet({
-		url:"/warm_transfer/" + num,
-		handleAs:"json",
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error on transfer", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/warmtransfer", [response.success]);
-			}
-			else{
-				errMessage(["failed to initiate warm transfer", response.message]);
-			}
+		success:function(){
+			dojo.publish("agent/warmtransfer", [response.success]);
+		},
+		failure:function(errode, message){
+			errMessage(["failed to initiate warm transfer", message]);
 		}
-	});
+	};
+	Agent.webApi("warm_transfer", options, num);
 };
 
 Agent.warmtransfercancel = function() {
-	dojo.xhrGet({
-		url:"/warm_transfer_cancel",
-		handleAs:"json",
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error cancelling transfer", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/warmtransfer_cancel", [response.success]);
-			}
-			else{
-				errMessage(["failed to cancel warm transfer", response.message]);
-			}
+		success:function(){
+			dojo.publish("agent/warmtransfer_cancel", [true]);
+		},
+		failure:function(errcode, message){
+			errMessage(["failed to cancel warm transfer", message]);
 		}
-	});
+	};
+	Agent.webApi("warm_transfer_cancel", options);
 };
 
 Agent.warmtransfercomplete = function() {
-	dojo.xhrGet({
-		url:"/warm_transfer_complete",
-		handleAs:"json",
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error completing transfer", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/warmtransfer_complete", [response.success]);
-			}
-			else{
-				errMessage(["failed to complete warm transfer", response.message]);
-			}
+		success:function(){
+			dojo.publish("agent/warmtransfer_complete", [true]);
+		},
+		failure:function(errcode, message){
+			errMessage(["failed to complete warm transfer", message]);
 		}
-	});
+	};
+	Agent.webApi("warm_transfer_complete", options);
 };
 
 Agent.queuetransfer = function(queue, skills, urlopts) {
 	urlopts.skills = skills;
-	urlopts.queue = queue;
-	dojo.xhrPost({
-		url:'/queue_transfer',
-		content:urlopts,
-		handleAs:'json',
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error on transfer", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/queuetransfer", [response.success]);
-			} else {
-				errMessage(["failed to initiate queue transfer", response.message]);
-			}
+		success:function(){
+			dojo.publish("agent/queuetransfer", [true]);
+		},
+		failure:function(errcode, message){
+			errMessage(["failed to initiate queue transfer", message]);
 		}
-	});
+	};
+	Agent.webApi("queue_transfer", options, queue, urlopts);
 };
 
 
 Agent.getAvailAgents = function() {
-	dojo.xhrGet({
-		url:"/get_avail_agents",
-		handleAs:"json",
+	var options = {
 		error:function(response, ioargs){
 			errMessage(["error getting available agents", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/available", [response.agents]);
-			}
-			else{
-				errMessage(["Failed to get agents due to", response]);
-			}
+		success:function(result){
+			dojo.publish("agent/available", [result]);
+		},
+		failure:function(errcode, message){
+			errMessage(["Failed to get agents due to", message]);
 		}
-	});
+	};
+	Agent.webApi("get_avail_agents", options);
 };

@@ -1,0 +1,8 @@
+** The overview page for OpenACD documentation
+@version 0.9
+@title OpenACD
+@doc Openace ACD is an open source automated contact distributer.  It is 
+Designed to be media and agent endpoint agnostic.  Paired with 
+<a href="http://www.freeswitch.org/">FreeSWITCH</a>, OpenACD is a powerful call
+delivery system.  It has email capability built in.  It has a complete web 
+based agent UI as well as web based management.

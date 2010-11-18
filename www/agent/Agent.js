@@ -180,9 +180,9 @@ Agent.prototype.setState = function(state){
 	};
 
 	if(statedata){
-		Agent.webApi("set_state", options, statedata);
+		Agent.webApi("set_state", options, state, statedata);
 	} else {
-		Agent.webApi("set_state", options);
+		Agent.webApi("set_state", options, state);
 	}
 };
 

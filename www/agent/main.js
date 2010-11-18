@@ -125,9 +125,7 @@ function queueTransferDialog(queueNom){
 		});
 		dialog.show();
 	}
-	dojo.xhrGet({
-		url:'/get_queue_transfer_options',
-		handleAs:'json',
+	var qtoOptions = { // Options for getting the queue transfer options
 		error:function(res){
 			confirmDialog({
 				'yesLabel':'Queue anyway',
@@ -137,20 +135,20 @@ function queueTransferDialog(queueNom){
 				'title':'Queue Transfer Options Errored'
 			});
 		},
-		load:function(res){
-			if(res.success){
-				createDialog(res);
-			} else {
-				confirmDialog({
-					'yesLabel':'Queue anyway',
-					'noLabel':'Don\'t queue',
-					'question':'Could not load queue transfer options (' + res.message + ').  Queue to ' + queueNom + ' anyway?',
-					'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
-					'title':'Queue Transfer Options Failed'
-				});
-			}
+		success:function(res){
+			createDialog(res);
+		},
+		failure:function(errcode, message){
+			confirmDialog({
+				'yesLabel':'Queue anyway',
+				'noLabel':'Don\'t queue',
+				'question':'Could not load queue transfer options (' + message + ').  Queue to ' + queueNom + ' anyway?',
+				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'title':'Queue Transfer Options Failed'
+			});
 		}
-	});
+	};
+	Agent.webApi("get_queue_transfer_options", qtoOptions);
 }
 
 function getTheme() {
@@ -432,7 +430,8 @@ function reportIssue(humanReport){
 	}
 	
 	humanReport.uistate = dojo.toJson(forJson);
-	
+
+	// TODO convert this and backend this to refined api.	
 	dojo.xhrPost({
 		url:'/report_issue',
 		handleAs:'json',
@@ -552,26 +551,23 @@ dojo.addOnLoad(function(){
 		dojo.cookie('agentui-settings', dojo.toJson(settings));
 	}
 	
-	dojo.xhrGet({
-		url:"/checkcookie",
-		handleAs:"json",
+	var checkCookieOpts = {
 		error:function(response, ioargs){
 			error(["checkcookie failed!", response]);
 		},
-		load:function(response, ioargs){
-			if(response.success){
-				var seedConf = dojo.clone(response);
-				seedConf.username = seedConf.login;
-				seedConf.elapsed = parseInt(response.statetime, 10);
-				seedConf.skew = response.timestamp;
-				seedUI(seedConf);
-			}
-			else{
-				dijit.byId("loginpane").show();
-				dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
-			}
+		success:function(result){
+			var seedConf = dojo.clone(result);
+			seedConf.username = seedConf.login;
+			seedConf.elapsed = parseInt(result.statetime, 10);
+			seedConf.skew = result.timestamp;
+			seedUI(seedConf);
+		},
+		failure: function(errcode, message){
+			dijit.byId("loginpane").show();
+			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		}
-	});
+	};
+	Agent.webApi("check_cookie", checkCookieOpts);
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
@@ -900,9 +896,7 @@ dojo.addOnLoad(function(){
 	dojo.connect(loginform, "onSubmit", function(e){
 		e.preventDefault();
 		if (loginform.isValid()){
-			dojo.xhrGet({
-				url:"/getsalt",
-				handleAs:"json",
+			var getSaltOpts = {
 				error:function(response, ioargs){
 					dojo.byId("loginerrp").style.display = "block";
 					if (response.status){
@@ -913,7 +907,7 @@ dojo.addOnLoad(function(){
 						alert(response);
 					}
 				},
-				load:function(response, ioargs){
+				success:function(response){
 					EventLog.log("Recieved salt");
 					var salt = response.salt;
 					var e = response.pubkey.E;
@@ -926,35 +920,31 @@ dojo.addOnLoad(function(){
 					debug("n: " + n);
 					debug("password: " + attrs.password);
 					values.password = rsa.encrypt(salt + attrs.password);
-					dojo.xhrPost({
-						url:"/login",
-						handleAs:"json",
-						content:values,
-						load:function(response2, ioargs2){
-							if(response2.success){
-								EventLog.log("Logged in");
-								dijit.byId("loginpane").hide();
-								var seedSettings = dojo.clone(attrs);
-								seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
-								seedSettings.profile = response2.profile;
-								seedSettings.timestamp = response2.timestamp;
-								seedUI(seedSettings);
-							} else{
-								dojo.byId("loginerrp").style.display = "block";
-								dojo.byId("loginerrspan").innerHTML = response2.message;
-							}
+					var loginOpts = {
+						success:function(response2){
+							EventLog.log("Logged in");
+							dijit.byId("loginpane").hide();
+							var seedSettings = dojo.clone(attrs);
+							seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
+							seedSettings.profile = response2.profile;
+							seedSettings.timestamp = response2.timestamp;
+							seedUI(seedSettings);
+						},
+						failure:function(errcode, message){
+							dojo.byId("loginerrp").style.display = "block";
+							dojo.byId("loginerrspan").innerHTML = message;
 						}
-					});
+					};
+					Agent.webApi("login", loginOpts, values.username, values.password, values);
 				}
-			});
+			};
+			Agent.webApi("get_salt", getSaltOpts);
 		}
 	});
 
 	buildReleaseMenu = function(agent){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		dojo.xhrGet({
-			url:"/releaseopts",
-			handleAs:"json",
+		var opts = {
 			error:function(response, ioargs){
 				warning(["getting release codes errored", response]);
 				var menu = dijit.byId("releasedmenu");
@@ -964,33 +954,34 @@ dojo.addOnLoad(function(){
 				});
 				menu.addChild(item);
 			},
-			load:function(response, ioargs){
+			success:function(response, ioargs){
 				var menu = dijit.byId("releasedmenu");
 				var item = '';
-				if(response.success){
-					dojo.forEach(response.options, function(obj){
-						item = new dijit.MenuItem({
-							label: obj.label,
-							onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
-						});
-						menu.addChild(item);
-					});
+				dojo.forEach(response.options, function(obj){
 					item = new dijit.MenuItem({
-						label: nlsStrings.DEFAULT,
-						onClick:function(){agent.setState("released", "Default"); }
+						label: obj.label,
+						onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
 					});
 					menu.addChild(item);
-				}
-				else{
-					warning(["getting release codes failed", response.message]);
-					item = new dijit.MenuItem({
-						label: nlsStrings.DEFAULT,
-						onClick:function(){agent.setState("released", "Default"); }
-					});
-					menu.addChild(item);
-				}
+				});
+				item = new dijit.MenuItem({
+					label: nlsStrings.DEFAULT,
+					onClick:function(){agent.setState("released", "Default"); }
+				});
+				menu.addChild(item);
+			},
+			failure:function(errcode, message){
+				var menu = dijit.byId("releasedmenu");
+				var item = '';
+				warning(["getting release codes failed", response.message]);
+				item = new dijit.MenuItem({
+					label: nlsStrings.DEFAULT,
+					onClick:function(){agent.setState("released", "Default"); }
+				});
+				menu.addChild(item);
 			}
-		});
+		};
+		Agent.webApi("get_release_opts", opts);
 	};
 
 	buildOutboundMenu = function(agent){
@@ -1024,26 +1015,23 @@ dojo.addOnLoad(function(){
 			});
 		}
 
-		dojo.xhrGet({
-			url:"/brandlist",
-			handleAs:"json",
+		var brandListOpts = {
 			error:function(response, ioargs){
 				warning(response);
 			},
-			load:function(response, ioargs){
+			success:function(response, ioargs){
 				debug(["buildOutboundMenu", response]);
-				if(response.success){
-					store = new dojo.data.ItemFileReadStore({
-						data: {
-							'label': 'label',
-							'identifier':'id',
-							'items': response.brands
-						}
-					});
-					widget.store = store;
-				}
+				store = new dojo.data.ItemFileReadStore({
+					data: {
+						'label': 'label',
+						'identifier':'id',
+						'items': response.brands
+					}
+				});
+				widget.store = store;
 			}
-		});
+		};
+		Agent.webApi("get_brand_list", brandListOpts);
 		widget.stateChanger = dojo.subscribe("agent/state", function(data){
 				debug(["boutboundcall", data, data.state]);
 				switch(data.state){
@@ -1060,9 +1048,7 @@ dojo.addOnLoad(function(){
 
 	buildQueueMenu = function(agent){
 		var menu = dijit.byId("transferToQueueMenu");
-		dojo.xhrGet({
-			url: "/queuelist",
-			handleAs: "json",
+		var qListOpts = {
 			error:function(response, ioargs){
 				debug(response);
 				var item = new dijit.MenuItem({
@@ -1071,27 +1057,26 @@ dojo.addOnLoad(function(){
 				});
 				menu.addChild(item);
 			},
-			load:function(response, ioargs){
+			success:function(response, ioargs){
 				debug(["buildQueueMenu", response]);
 				var item = '';
-				if(response.success){
-					for(var i = 0; i < response.queues.length; i++) {
-						item = new dijit.MenuItem({
-							label: response.queues[i].name,
-							onClick: function(){ queueTransferDialog(this.label); }
-						});
-						menu.addChild(item);
-					}
-				}
-				else{
+				for(var i = 0; i < response.length; i++) {
 					item = new dijit.MenuItem({
-						label:"Failed to get queuelist",
-						disabled: true
+						label: response[i].name,
+						onClick: function(){ queueTransferDialog(this.label); }
 					});
 					menu.addChild(item);
 				}
+			},
+			failure:function(errcode, message){
+				item = new dijit.MenuItem({
+					label:"Failed to get queuelist",
+					disabled: true
+				});
+				menu.addChild(item);
 			}
-		});
+		};
+		Agent.webApi("get_queue_list", qListOpts);
 	};
 
 	dojo.byId("loginerrp").logout = dojo.subscribe("agent/logout", function(data){

@@ -382,18 +382,15 @@
 			<div dojoType="dijit.Menu" id="Filemenu">
 				<div dojoType="dijit.MenuItem" label="RINGTEST" id="miRingtest">
 					<script type="dojo/connect" event="onClick">
-						dojo.xhrGet({
-							url: "/ringtest",
-							handleAs:"json",
-							load:function(res){
-								if (!res.success && res.message)
-									errMessage(res.message);
-								return true;
+						var ringOpts = {
+							failure:function(errcode, message){
+								errMessage(res.message);
 							},
 							error:function(res){
 								warning(["call_hangup erred", res]);
 							}
-						});
+						};
+						Agent.webApi("ring_test", ringOpts);
 					</script>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
@@ -403,18 +400,15 @@
 				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=agent.setState("wrapup");>
 					<script type="dojo/connect" event="onClick">
 						if(this.brutal_kill){
-							dojo.xhrGet({
-								url: "/call_hangup",
-								handleAs:"json",
-								load:function(res){
-									if (!res.success && res.message)
-										errMessage(res.message);
-									return true;
+							var hangupOpts = {
+								failure:function(errcode, message){
+									errMessage(message);
 								},
 								error:function(res){
 									warning(["call_hangup erred", res]);
 								}
-							});
+							};
+							Agent.webApi("call_hangup", hangupOpts);
 						} else {
 							agent.setState("wrapup");
 						}

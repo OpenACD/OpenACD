@@ -27,9 +27,69 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Handles the internal (cpx interaction) part of an agent web connection.
-%% (2008 12 09 : marking this for a refactoring.  Micah)
+%% @doc Handles the internal (cpx interaction) part of an
+%%  agent web connection.
+%% 
+%% {@web}
+%%
+%% The listener and connection are designed to be able to function with
+%% any ui that adheres to the api.  The api is broken up between the two
+%% modules.  {@module} holds the functions that require communication with
+%% a specific agent.  For login, logout, and utility functions,
+%% {@link agent_web_listener}.  
+%% 
+%% The functions in this documentation will have {@web} in front of their 
+%% description.  You should not call these functions in the shell as they
+%% likely won't work.  They are exported only to aid documentation.  
+%% To call a function is very similar to using the json_api
+%% in {@link cpx_web_management}.  A request is a json object with a 
+%% `"function"' property and an `"args"' property.  Note unlike the 
+%% json api there is no need to define a `"module"' property.  In the 
+%% documentation of specific functions, references to a proplist should
+%% be sent as a json object.  The response is a json object with a 
+%% `"success"' property.  If the `"success"' property is set to true, 
+%% there may be a `"result"' property holding more data (defined in the 
+%% functions below).  If something went wrong, there will be a `"message"' 
+%% and `"errcode"' property.  Usually the `"message"' will have a human 
+%% readable message, while `"errcode"' could be used for translation.
+%% 
+%% The first argument in the web api functions MUST NOT be in the json
+%% request.  The {@link agent_web_listener} will be able to figure out
+%% which agent the request is meant for (assuming you logged in properly).
+%% So, the args list in your ajax request will be one shorter then the 
+%% functions below.  If a function below has only `Conn' as it's arugment
+%% the `"args"' property can be omitted completely.
+%% 
+%% To make a web api call, make a post request to path "/api" with one
+%% field named `"request"'.  The value of the request field should be a 
+%% a json object:
+%% <pre> {
+%% 	"function":  string(),
+%% 	"args":      [any()]
+%% }</pre>
+%% See a functions documentation for what `"args"' should be.
+%% 
+%% A response will have 3 major forms.  Note that due to legacy reasons 
+%% there may be more properties then listed.  They should be ignored, as
+%% they will be phased out in favor of the more refined api.
+%% 
+%% A very simple success:
+%% <pre> {
+%% 	"success":  true
+%% }</pre>
+%% A success with a result:
+%% <pre> {
+%% 	"success":  true,
+%% 	"result":   any()
+%% }</pre>
+%% A failure:
+%% <pre> {
+%% 	"success":  false,
+%% 	"message":  string(),
+%% 	"errcode":  string()
+%% }</pre>
 %% @see agent_web_listener
+%% @see cpx_web_management
 -module(agent_web_connection).
 -author("Micah").
 
@@ -106,7 +166,8 @@
 	{warm_transfer_complete, 1},
 	{warm_transfer_cancel, 1},
 	{queue_transfer, 3},
-	{init_outbound, 3}
+	{init_outbound, 3},
+	{poll, 2}
 ]).
 
 %% gen_server callbacks
@@ -140,27 +201,29 @@
 %%====================================================================
 
 -type(bin_string() :: binary()). % defined to indicate a string in binary
-%% @doc Set the agent to the given `Statename' with default state data.
-%% No result property as it either worked or didn't.
+%% @doc {@web} Set the agent to the given `Statename' with default state 
+%% data.  No result property as it either worked or didn't.
 -spec(set_state/2 :: (Conn :: pid(), Statename :: bin_string()) -> any()).
 set_state(Conn, Statename) ->
 	gen_server:call(Conn, {set_state, binary_to_list(Statename)}).
 
-%% @doc Set the agent to the given `Statename' with the given `Statedata'.
-%% No result property as it either worked or it didn't.  State data will
-%% vary based on state.  For released, it can be either be the string 
-%% `"Default"' or a string of `"Id:Name:Bias"'.
+%% @doc {@web} Set the agent to the given `Statename' with the given 
+%% `Statedata'.  No result property as it either worked or it didn't.  
+%% State data will vary based on state.  For released, it can be either 
+%% the string `"Default"' or a string of `"Id:Name:Bias"'.
 -spec(set_state/3 :: (Conn :: pid(), Statename :: bin_string(), Statedata :: any()) -> any()).
 set_state(Conn, Statename, Statedata) ->
 	gen_server:call(Conn, {set_state, binary_to_list(Statename), binary_to_list(Statedata)}).
 
-%% @doc Attempt to dial the passed number.  Implicitly sets the agent from
-%% precall to outbound.  No results property as it either worked or didn't.
+%% @doc {@web} Attempt to dial the passed number.  Implicitly sets the 
+%% agent from precall to outbound.  No results property as it either 
+%% worked or didn't.
 -spec(dial/2 :: (Conn :: pid(), Number :: bin_string()) -> any()).
 dial(Conn, Number) ->
 	gen_server:call(Conn, {dial, binary_to_list(Number)}).
 
-%% @doc Get a list of the agents that are currently available.  Result is:
+%% @doc {@web} Get a list of the agents that are currently available.  
+%% Result is:
 %% <pre>[{
 %% 	"name":  string(),
 %% 	"profile":  string(),
@@ -170,7 +233,8 @@ dial(Conn, Number) ->
 get_avail_agents(Conn) ->
 	gen_server:call(Conn, get_avail_agents).
 
-%% @doc Get a list of the profiles that are in the system.  Result is:
+%% @doc {@web} Get a list of the profiles that are in the system.  Result 
+%% is:
 %% <pre>[{
 %% 	"name":  string(),
 %% 	"order":  number()
@@ -179,27 +243,28 @@ get_avail_agents(Conn) ->
 get_agent_profiles(Conn) ->
 	gen_server:call(Conn, {undefined, "/profilelist"}).
 
-%% @doc Transfer the call to the given `Agent' login name.  No result is
-%% sent back as it's a simple success or failure.
+%% @doc {@web} Transfer the call to the given `Agent' login name.  No 
+%% result is sent back as it's a simple success or failure.
 -spec(agent_transfer/2 :: (Conn :: pid(), Agent :: bin_string()) -> any()).
 agent_transfer(Conn, Agent) ->
 	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent)}).
 
-%% @doc Transfer the call to the given `Agent' and associate the media with
-%% the given `Caseid'.  No result is sent back as it's a simple success of
-%% failure.
+%% @doc {@web} Transfer the call to the given `Agent' and associate the 
+%% media with the given `Caseid'.  No result is sent back as it's a simple 
+%% success or failure.
 -spec(agent_transfer/3 :: (Conn :: pid(), Agent :: bin_string(), Caseid :: bin_string()) -> any()).
 agent_transfer(Conn, Agent, Caseid) ->
 	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent), binary_to_list(Caseid)}).
 
-%% @doc Forward a command or request to the media associated with an oncall
-%% agent.  `Command' is the name of the request to make.  `Mode' is either 
-%% `"call"' or `"cast"'.  `"call"' indicates an indepth reply is expected
-%% from the media.  `"cast"' indicates no meaningful reply is expected, so
-%% as long as the command was sent, success is returned.  `Args' is any 
-%% arguments to sent with the `Command'.  In the case of `"cast"' mode, 
-%% there is no result as it's a simple succcess.  Check the documentation
-%% of the media modules to see what possible returns there are.
+%% @doc {@web} Forward a command or request to the media associated with 
+%% an oncall agent.  `Command' is the name of the request to make.  `Mode' 
+%% is either `"call"' or `"cast"'.  `"call"' indicates an indepth reply is 
+%% expected from the media.  `"cast"' indicates no meaningful reply is 
+%% expected, so as long as the command was sent, success is returned.  
+%% `Args' is any arguments to sent with the `Command'.  In the case of 
+%% `"cast"' mode, there is no result as it's a simple succcess.  Check the 
+%% documentation of the media modules to see what possible returns there 
+%% are.
 -spec(media_command/4 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string(), Args :: [any()]) -> any()).
 media_command(Conn, Command, Mode, Args) ->
 	Post = [
@@ -209,26 +274,27 @@ media_command(Conn, Command, Mode, Args) ->
 	],
 	gen_server:call(Conn, {media, Post}).
 
-%% @doc Start a warmtransfer of the media associated with the oncall agent
-%% to `Number'.  No result is sent back as it's simply success or failure.
+%% @doc {@web} Start a warmtransfer of the media associated with the 
+%% oncall agent to `Number'.  No result is sent back as it's simply 
+%% success or failure.
 -spec(warm_transfer/2 :: (Conn :: pid(), Number :: bin_string()) -> any()).
 warm_transfer(Conn, Number) ->
 	gen_server:call(Conn, {warm_transfer, binary_to_list(Number)}).
 
-%% @doc Complete a started transfer; implicitly moves the agent to wrapup.
-%% No result is set as it's a simple success or failure.
+%% @doc {@web} Complete a started transfer; implicitly moves the agent to 
+%% wrapup.  No result is set as it's a simple success or failure.
 -spec(warm_transfer_complete/1 :: (Conn :: pid()) -> any()).
 warm_transfer_complete(Conn) ->
 	gen_server:call(Conn, warm_transfer_complete).
 
-%% @doc Cancel a started transfer, implicitly putting the agent oncall.
-%% No result is set as it's a simple success or failure.
+%% @doc {@web} Cancel a started transfer, implicitly putting the agent 
+%% oncall.  No result is set as it's a simple success or failure.
 -spec(warm_transfer_cancel/1 :: (Conn :: pid()) -> any()).
 warm_transfer_cancel(Conn) ->
 	gen_server:call(Conn, warm_transfer_cancel).
 
-%% @doc Get the fields and skills an agent can assign to a media before 
-%% transfering it back into queue.  Result:
+%% @doc {@web} Get the fields and skills an agent can assign to a media 
+%% before transfering it back into queue.  Result:
 %% <pre>{
 %% 	"curentVars":  [{
 %% 		string():  string()
@@ -246,26 +312,27 @@ warm_transfer_cancel(Conn) ->
 get_queue_transfer_options(Conn) ->
 	gen_server:call(Conn, {undefined, "/get_queue_transfer_options"}).
 
-%% @doc Force the agent to disconnect the media; usually through a brutal
-%% kill of the media pid.  Best used as an emergency escape hatch, and not
-%% under normal call flow.  No result set as it's merely success or 
-%% failure.
+%% @doc {@web} Force the agent to disconnect the media; usually through a 
+%% brutal %% kill of the media pid.  Best used as an emergency escape 
+%% hatch, and not under normal call flow.  No result set as it's merely 
+%% success or failure.
 -spec(media_hangup/1 :: (Conn :: pid()) -> any()).
 media_hangup(Conn) ->
 	gen_server:call(Conn, {undefined, "/call_hangup"}).
 
-%% @doc Test if freeswitch can ring an agent's softphone.  No result set as
-%% it's either a success or false.  The true success is if the agent's 
-%% phone rings.
+%% @doc {@web} Test if freeswitch can ring an agent's softphone.  No 
+%% result set as it's either a success or false.  The true success is if 
+%% the agent's phone rings.
 -spec(ring_test/1 :: (Conn :: pid()) -> any()).
 ring_test(Conn) ->
 	gen_server:call(Conn, {undefined, "/ringtest"}).
 
-%% @doc Transfer the call the agent is in into `Queue' with the given
-%% `Opts'.  The options is a json object with any number of properties
-%% that are passed to the media.  If there is a property `"skills"' with
-%% a list, the list is interpreted as a set of skills to apply to the 
-%% media.  No result is set as it is merely success or failure.
+%% @doc {@web} Transfer the call the agent is in into `Queue' with the 
+%% given `Opts'.  The options is a json object with any number of 
+%% properties that are passed to the media.  If there is a property 
+%% `"skills"' with a list, the list is interpreted as a set of skills to 
+%% apply to the media.  No result is set as it is merely success or 
+%% failure.
 -spec(queue_transfer/3 :: (Conn :: pid(), Queue :: bin_string(), {struct, Opts :: [{bin_string(), any()}]}) -> any()).
 queue_transfer(Conn, Queue, {struct, Opts}) ->
 	FixedOpts1 = [case Key of
@@ -287,17 +354,17 @@ queue_transfer(Conn, Queue, {struct, Opts}) ->
 	FixedOpts = FixedOpts2 ++ FixedSkills ++ [{"queue", binary_to_list(Queue)}],
 	gen_server:call(Conn, {undefined, "/queue_transfer", FixedOpts}).
 
-%% @doc Set and agent to precall for a new media for `Client' calling to
-%% `Type'.  Currently only `Type' of `"freeswitch"' is allowed.  There is
-%% no result set as it's only a success or failure message.
+%% @doc {@web} Set and agent to precall for a new media for `Client' 
+%% calling to `Type'.  Currently only `Type' of `"freeswitch"' is allowed.
+%% There is no result set as it's only a success or failure message.
 -spec(init_outbound/3 :: (Conn :: pid(), Client :: bin_string(), Type :: bin_string()) -> any()).
 init_outbound(Conn, Client, Type) ->
 	gen_server:call(Conn, {init_outbound, binary_to_list(Client), binary_to_list(Type)}).
 
-%% @doc If the media set anything to be loaded at call start, retreive it.
-%% This is useful if the client (such as web browser) needs to refresh the
-%% page or crashes, but is able to recover before the automatic logout
-%% occurs.  Results will vary from media to media.
+%% @doc {@web} If the media set anything to be loaded at call start, 
+%% retreive it.  This is useful if the client (such as web browser) needs 
+%% to refresh the page or crashes, but is able to recover before the 
+%% automatic logout occurs.  Results will vary from media to media.
 -spec(load_media/1 :: (Conn :: pid()) -> any()).
 load_media(Conn) ->
 	gen_server:call(Conn, mediaload).
@@ -334,7 +401,79 @@ start(Agent, Security) ->
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
-%% @doc Register Frompid as the poll_pid.
+%% @doc {@web} Register Frompid as the poll_pid; or in the case of the web
+%% api, establish a connection to await events.  As soon as a 
+%% {@link agent_web_connection:login/4} completes successfully, the client
+%% should make a call to the path `"/poll"', or a standard api call with
+%% a function of `"poll"'.  No args needed.  If the status code is 408, it
+%% means a new poll was started without finishing the current one.
+%%
+%% A result is a list of json object with at least one property `"command"'.
+%% Common commands are:
+%% <table>
+%% 	<tr>
+%% 		<th>Command</th>
+%% 		<th>Other Properties</th>
+%% 		<th>Description</th>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>astate</td>
+%% 		<td><ul>
+%% 			<li>"state":  string()</li>
+%% 			<li>"statedata":  object(); optional</li>
+%% 		</ul></td>
+%% 		<td>The agent fsm has changed state, and so should the agent ui.
+%% 		The statedata will vary wildly based on the state.  Released will
+%% 		have the reason and bias; oncall, wrapup, and ringing will have
+%% 		a mass of call data; idle will have no state data.</td>
+%%	</tr>
+%% 	<tr>
+%% 		<td>aprofile</td>
+%% 		<td><ul>
+%% 			<li>"profile":  string()</li>
+%% 		</ul></td>
+%% 		<td>The agent has been moved to a new profile.</td>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>urlpop</td>
+%% 		<td><ul>
+%% 			<li>"url":  string()</li>
+%% 			<li>"name":  string()</li>
+%% 		</ul></td>
+%% 		<td>Open the url in the named view.  If the view exists, re-use 
+%% 		ditching what is there.</td>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>blab</td>
+%% 		<td><ul>
+%% 			<li>"text":  string()</li>
+%% 		</ul></td>
+%% 		<td>A supervisor has sent a message to the agent.  Text is the 
+%% 		message.  A simple dialog box will suffice.</td>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>mediaload</td>
+%%		<td><ul>
+%% 			<li>"media":  string()</li>
+%% 			<li>"fullpane":  boolean()</li>
+%% 		</ul></td>
+%% 		<td>Allows the media to have the client attempt to load extra 
+%% 		Information from the media.  `"fullpane"' indicates if the window
+%% 		Or information panel the media is requesting be opened is to be
+%% 		as large as possible or simply a smaller window.  Defaults to 
+%% 		`true'.</td>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>mediaevent</td>
+%% 		<td><ul>
+%% 			<li>"media":  string()</li>
+%% 			<li>"event":  string()</li>
+%% 		</ul></td>
+%% 		<td>A media is able to send generic events to an agent interface,
+%% 		and this is the final result.  The media will likely add more 
+%% 		properties.  No response is expected from the client.</td>
+%% 	</tr>
+%% </table>
 -spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
 poll(Pid, Frompid) ->
 	gen_server:cast(Pid, {poll, Frompid}).

@@ -27,9 +27,68 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Listens for new web connections, then spawns an {@link agent_web_connection} to handle the details.
-%% Uses Mochiweb for the heavy lifting.
+%% @doc Listens for new web connections, then spawns an 
+%% {@link agent_web_connection} to handle the details.  Uses Mochiweb for 
+%% the heavy lifting.
+%% 
+%% {@web}
+%%
+%% The listener and connection are designed to be able to function with
+%% any ui that adheres to the api.  The api is broken up between the two
+%% modules.  {@module} holds the functions that either doe not require a
+%% speecific agent, or handle the login and logout procedures.  For 
+%% functions dealing with a specific agent, {@link agent_web_connection}.
+%% 
+%% Some functions in this documentation will have {@web} in front of their 
+%% description.  These functions should not be called in the shell, as they
+%% likely won't work; they are exported only to aid in documentation.
+%% To call a function is very similar to using the json_api
+%% in {@link cpx_web_management}.  A request is a json object with a 
+%% `"function"' property and an `"args"' property.  Note unlike the 
+%% json api there is no need to define a `"module"' property.  In the 
+%% documentation of specific functions, references to a proplist should
+%% be sent as a json object.  The response is a json object with a 
+%% `"success"' property.  If the `"success"' property is set to true, 
+%% there may be a `"result"' property holding more data (defined in the 
+%% functions below).  If something went wrong, there will be a `"message"' 
+%% and `"errcode"' property.  Usually the `"message"' will have a human 
+%% readable message, while `"errcode"' could be used for translation.
+%%
+%% The specifics of the args property will be described in the 
+%% documentation.  The number of arguments for the web api call will likely
+%% differ.
+%% 
+%% To make a web api call, make a post request to path "/api" with one
+%% field named `"request"'.  The value of the request field should be a 
+%% a json object:
+%% <pre> {
+%% 	"function":  string(),
+%% 	"args":      [any()]
+%% }</pre>
+%% See a functions documentation for what `"args"' should be.
+%% 
+%% A response will have 3 major forms.  Note that due to legacy reasons 
+%% there may be more properties then listed.  They should be ignored, as
+%% they will be phased out in favor of the more refined api.
+%% 
+%% A very simple success:
+%% <pre> {
+%% 	"success":  true
+%% }</pre>
+%% A success with a result:
+%% <pre> {
+%% 	"success":  true,
+%% 	"result":   any()
+%% }</pre>
+%% A failure:
+%% <pre> {
+%% 	"success":  false,
+%% 	"message":  string(),
+%% 	"errcode":  string()
+%% }</pre>
 %% @see agent_web_connection
+%% @see cpx_web_management
+
 -module(agent_web_listener).
 -author("Micah").
 
@@ -57,7 +116,15 @@
 
 %% API
 -export([start_link/1, start/1, start/0, start_link/0, stop/0, linkto/1, linkto/3]).
-
+%% Web api
+-export([
+	check_cookie/1,
+	get_salt/1,
+	login/4,
+	get_brand_list/0,
+	get_queue_list/0,
+	get_release_opts/0
+]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
@@ -309,11 +376,32 @@ send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
 			end
 	end.
 
+%% @doc {@web} Determine if the cookie the client sent can be associated
+%% with a logged in agent.  This should be the first step of a login 
+%% process.  If it replies true, then the client can skip the 
+%% {@link get_salt/1} and {@link login/4} steps to immediately start a
+%% poll.  All other times, the client should set the given cookie with all
+%% subsequent web calls.  The next call after this is usually
+%% {@link get_salt/1}.
+%%
+%% There are no arguments as anything important happens in the http
+%% headers.  If the cookie is invalid, the reply will have a set-cookie
+%% directive in its headers.
+%% 
+%% The result json is:
+%% <pre> {
+%% 	"login":     string(),
+%% 	"profile":   string(),
+%% 	"state":     string(),
+%% 	"statedata": any(),
+%% 	"statetime": timestamp(),
+%% 	"timestamp": timestamp()
+%%  "mediaload": any(); optional
+%% }</pre>
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
 	Agentrec = agent_web_connection:dump_agent(Conn),
 	Basejson = [
-		{<<"success">>, true},
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 		{<<"state">>, Agentrec#agent.state},
@@ -332,7 +420,11 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 		_ ->
 			Basejson
 	end,
-	Json = {struct, Fulljson},
+	Json = {struct, [
+		{<<"success">>, true},
+		{<<"result">>, Fulljson} |
+		Fulljson
+	]},
 	{200, [], mochijson2:encode(Json)};
 check_cookie(badcookie) ->
 	?INFO("cookie not in ets", []),
@@ -354,6 +446,27 @@ check_cookie({_Reflist, _Salt, undefined}) ->
 	]},
 	{200, [], mochijson2:encode(Json)}.
 
+%% @doc {@web} Get the salt and public key information to encrypt the 
+%% password.  Should be the second step in logging in.  Remember the client
+%% must be able to send the same cookie it got in the check cookie step.
+%% If the cookie does not pass inspection, a salt and public key info will
+%% still be sent, but there will be a new cookie header sent as well.  This
+%% means this function does not allow for state recovery like 
+%% {@link check_cookie/1} does.
+%%
+%% After getting a successful response from this web api call, move on to
+%% {@link login/4}.
+%%
+%% There are no arguments for this request.
+%% 
+%% A result is:
+%% <pre> {
+%% 	"salt":   string(),
+%% 	"pubkey": {
+%% 		"E":   string(),
+%% 		"N":   string()
+%% 	}
+%% }</pre>
 get_salt(badcookie) ->
 	Conn = undefined,
 	Reflist = erlang:ref_to_list(make_ref()),
@@ -370,7 +483,11 @@ get_salt(badcookie) ->
 		{success, true}, 
 		{message, <<"Salt created, check salt property">>}, 
 		{salt, list_to_binary(Newsalt)}, 
-		{pubkey, PubKey}
+		{pubkey, PubKey},
+		{<<"result">>, {struct, [
+			{salt, list_to_binary(Newsalt)},
+			{pubkey, PubKey}
+		]}}
 	]})};
 get_salt({Reflist, _Salt, Conn}) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
@@ -386,9 +503,53 @@ get_salt({Reflist, _Salt, Conn}) ->
 		{success, true}, 
 		{message, <<"Salt created, check salt property">>}, 
 		{salt, list_to_binary(Newsalt)}, 
-		{pubkey, PubKey}
+		{pubkey, PubKey},
+		{<<"result">>, {struct, [
+			{salt, list_to_binary(Newsalt)},
+			{pubkey, PubKey}
+		]}}
 	]})}.
-	
+
+%% @doc {@web} Login and start an {@link agent_web_connection}.  This is
+%% the second to last step in logging in a web client (the final one 
+%% starting a poll).  Using the salt and public key information recieved in
+%% {@link get_salt/1}, encrypt the password.  Using the built-in gui as an
+%% example, the password is encrypted by via the javascript library jsbn:
+%% `
+%% var getSaltPubKey = 	getSaltResult.pubkey;
+%% var rsa = new RSAKey();
+%% rsa.setPublic(getSaltPubKey.N, getSaltPubKey.E);
+%% rsa.encrypt(getSaltResult.salt + password);
+%% '
+%% Order of the salt and password is important.
+%%
+%% If voipdata is not defined, then it is assumed the agent will register a
+%% phone via sip using thier login name.
+%% 
+%% The web api for this actually only takes 3 arguments in the `"args"' 
+%% property of the request:
+%%
+%% `[username, password, options]'
+%%
+%% `username' and `password' are both string().  `options' is a json
+%% object:
+%% <pre> {
+%% 	"voipendpointdata":  string(),
+%% 	"voipendpoint":  "sip_registration" | "sip" | "iax2" | "h323" | "pstn",
+%% 	"useoutbandring":  boolean(); optional
+%% }</pre>
+%% 
+%% If `"voipendpoint"' is defined but `"voipendpointdata"' is not,
+%% `"username"' is used.
+%%
+%% Note an agent starts out in a relased state with reason of default.
+%%  
+%% A result is:
+%% `{
+%% 	"profile":   string(),
+%% 	"statetime": timestamp(),
+%% 	"timestamp": timestamp()
+%% }'
 login(badcookie, _, _, _) ->
 	check_cookie(badcookie);
 login({Ref, undefined, _Conn}, _, _, _) ->
@@ -459,8 +620,51 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 		error:decrypt_failed ->
 			?reply_err(<<"Password decryption failed">>, <<"DECRYPT_FAILED">>)
 	end.
-	
-	
+
+%% @doc {@web} Returns a list of queues configured in the system.  Useful
+%% if you want agents to be able to place media into a queue.
+%% Result:
+%% `[{
+%% 	"name": string()
+%% }]'
+get_queue_list() ->
+	Queues = call_queue_config:get_queues(),
+	QueuesEncoded = [{struct, [
+		{<<"name">>, list_to_binary(Q#call_queue.name)}
+	]} || Q <- Queues],
+	?reply_success(QueuesEncoded).
+
+%% @doc {@web} Returns a list of clients confured in the system.  Useful
+%% to allow agents to make outbound media.
+%% Result:
+%% `[{
+%% 	"label":  string(),
+%% 	"id":     string()
+%% }]'
+get_brand_list() ->
+	Brands = call_queue_config:get_clients(),
+	BrandsEncoded = [{struct, [
+		{<<"label">>, list_to_binary(C#client.label)},
+		{<<"id">>, list_to_binary(C#client.id)}
+	]} || C <- Brands, C#client.label =/= undefined],
+	?reply_success(BrandsEncoded).
+
+%% @doc {@web} Returns a list of options for use when an agents wants to
+%% go released.
+%% Result:
+%% `[{
+%% 	"label":  string(),
+%% 	"id":     string(),
+%% 	"bias":   -1 | 0 | 1
+%% }]'
+get_release_opts() ->
+	Opts = agent_auth:get_releases(),
+	Encoded = [{struct, [
+		{<<"label">>, list_to_binary(R#release_opt.label)},
+		{<<"id">>, R#release_opt.id},
+		{<<"bias">>, R#release_opt.bias}
+	]} || R <- Opts],
+	?reply_success(Encoded).
 
 api(api, Cookie, Post) ->
 	Request = proplists:get_value("request", Post),
@@ -498,26 +702,11 @@ api(api, Cookie, Post) ->
 			end || X <- Props]),
 			login(Cookie, binary_to_list(Username), binary_to_list(Password), LoginOpts);
 		{<<"get_brand_list">>, _} ->
-			Brands = call_queue_config:get_clients(),
-			BrandsEncoded = [{struct, [
-				{<<"label">>, list_to_binary(C#client.label)},
-				{<<"id">>, list_to_binary(C#client.id)}
-			]} || C <- Brands, C#client.label =/= undefined],
-			?reply_success(BrandsEncoded);
+			get_brand_list();
 		{<<"get_queue_list">>, _} ->
-			Queues = call_queue_config:get_queues(),
-			QueuesEncoded = [{struct, [
-				{<<"name">>, list_to_binary(Q#call_queue.name)}
-			]} || Q <- Queues],
-			?reply_success(QueuesEncoded);
+			get_queue_list();
 		{<<"get_release_opts">>, _} ->
-			Opts = agent_auth:get_releases(),
-			Encoded = [{struct, [
-				{<<"label">>, list_to_binary(R#release_opt.label)},
-				{<<"id">>, R#release_opt.id},
-				{<<"bias">>, R#release_opt.bias}
-			]} || R <- Opts],
-			?reply_success(Encoded);
+			get_release_opts();
 		{Function, Args} ->
 			send_to_connection(Cookie, Function, Args)
 	end;

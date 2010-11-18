@@ -205,7 +205,7 @@ task :test => "test:all"
 desc "Generate Documentation"
 task :doc do
 	sh('mkdir doc') unless File.directory? 'doc'
-	sh("rm -rf doc/*.html && cd doc && erl -noshell -run edoc files ../#{SRC.join(" ../")} -run init stop")
+	sh("rm -rf doc/*.html && erl -noshell -run edoc_run files '[\"#{SRC.join("\", \"")}\"]' '[{def,{web,\"<b>Web Api </b>\"}}, {dir, \"doc\"}]'")
 end
 
 desc "Generate a RSA key to encrypt HTTP passwords"

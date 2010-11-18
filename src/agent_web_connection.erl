@@ -35,7 +35,7 @@
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
 %% modules.  {@module} holds the functions that require communication with
-%% a specific agent.  For login, logout, and utility functions,
+%% a specific agent.  For login and utility functions,
 %% {@link agent_web_listener}.  
 %% 
 %% The functions in this documentation will have {@web} in front of their 
@@ -146,7 +146,8 @@
 	warm_transfer_complete/1,
 	warm_transfer_cancel/1,
 	queue_transfer/3,
-	init_outbound/3
+	init_outbound/3,
+	logout/1
 ]).
 
 -web_api_functions([
@@ -167,7 +168,8 @@
 	{warm_transfer_cancel, 1},
 	{queue_transfer, 3},
 	{init_outbound, 3},
-	{poll, 2}
+	{poll, 2},
+	{logout, 1}
 ]).
 
 %% gen_server callbacks
@@ -201,6 +203,12 @@
 %%====================================================================
 
 -type(bin_string() :: binary()). % defined to indicate a string in binary
+
+%% @doc {@web} Logs the agent out.  The result is a simple success.
+-spec(logout/1 :: (Conn :: pid()) -> any()).
+logout(Conn) ->
+	gen_server:call(Conn, logout).
+
 %% @doc {@web} Set the agent to the given `Statename' with default state 
 %% data.  No result property as it either worked or didn't.
 -spec(set_state/2 :: (Conn :: pid(), Statename :: bin_string()) -> any()).

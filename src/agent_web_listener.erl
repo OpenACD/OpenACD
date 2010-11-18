@@ -36,7 +36,7 @@
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
 %% modules.  {@module} holds the functions that either doe not require a
-%% speecific agent, or handle the login and logout procedures.  For 
+%% speecific agent, or handle the login procedures.  For 
 %% functions dealing with a specific agent, {@link agent_web_connection}.
 %% 
 %% Some functions in this documentation will have {@web} in front of their 

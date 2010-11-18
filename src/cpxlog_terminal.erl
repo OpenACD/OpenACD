@@ -65,7 +65,8 @@ init([LogLevel]) ->
 			{'EXIT', "bad loglevel"}
 	end.
 
-handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
+handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Args}, State) ->
+	Time = calendar:now_to_local_time(NowTime),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
 			io:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]);
@@ -74,10 +75,11 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	end,
 	case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) orelse lists:member(Module, State#state.debugmodules)) of
 		true ->
-			io:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
+			io:format("~w:~s:~s.~s [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+					integer_to_list(MicroSec),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
 					io_lib:format(Message, Args)]);
@@ -85,7 +87,8 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 			ok
 	end,
 	{ok, State#state{lasttime = Time}};
-handle_event({Level, Time, Pid, Message, Args}, State) ->
+handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
+	Time = calendar:now_to_local_time(NowTime),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
 			io:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]);
@@ -94,10 +97,11 @@ handle_event({Level, Time, Pid, Message, Args}, State) ->
 	end,
 	case (lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) of
 		true ->
-			io:format("~w:~s:~s [~s] ~w ~s~n", [
+			io:format("~w:~s:~s.~s [~s] ~w ~s~n", [
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+					integer_to_list(MicroSec),
 					string:to_upper(atom_to_list(Level)),
 					Pid,
 					io_lib:format(Message, Args)]);

@@ -76,7 +76,8 @@ open_files([{Filename, LogLevel} | Tail], State) ->
 			{'EXIT', "unable to open logfile " ++ Filename}
 	end.
 
-handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
+handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Args}, State) ->
+	Time = calendar:now_to_local_time(NowTime),
 	Filehandles = check_filehandles(State#state.filehandles),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
@@ -93,17 +94,19 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
+			Output = io_lib:format("~w:~s:~s.~s [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+					integer_to_list(MicroSec),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
 					io_lib:format(Message, Args)]),
 			[file:write(FH, Output) || {_, FH, _, _} <- List]
 	end,
 	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
-handle_event({Level, Time, Pid, Message, Args}, State) ->
+handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
+	Time = calendar:now_to_local_time(NowTime),
 	Filehandles = check_filehandles(State#state.filehandles),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
@@ -120,10 +123,11 @@ handle_event({Level, Time, Pid, Message, Args}, State) ->
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~w:~s:~s [~s] ~w ~s~n", [
+			Output = io_lib:format("~w:~s:~s.~s [~s] ~w ~s~n", [
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+					integer_to_list(MicroSec),
 					string:to_upper(atom_to_list(Level)),
 					Pid,
 					io_lib:format(Message, Args)]),

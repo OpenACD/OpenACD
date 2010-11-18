@@ -682,7 +682,7 @@ get_release_opts() ->
 api(api, Cookie, Post) ->
 	Request = proplists:get_value("request", Post),
 	{struct, Props} = mochijson2:decode(Request),
-	?DEBUG("The request:  ~p", [Props]),
+	%?DEBUG("The request:  ~p", [Props]),
 	case {proplists:get_value(<<"function">>, Props), proplists:get_value(<<"args">>, Props)} of
 		{undefined, _} ->
 			?reply_err(<<"no function to call">>, <<"NO_FUNCTION">>);

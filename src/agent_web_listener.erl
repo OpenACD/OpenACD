@@ -352,6 +352,16 @@ send_to_connection(badcookie, _Function, _Args) ->
 	check_cookie(badcookie);
 send_to_connection({_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
 	check_cookie(Cookie);
+send_to_connection({_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
+	agent_web_connection:poll(Conn, self()),
+	receive
+		{poll, Return} ->
+			%?DEBUG("Got poll message, spitting back ~p", [Return]),
+			 Return; 
+		{kill, Headers, Body} -> 
+			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
+			{408, Headers, Body}
+	end;
 send_to_connection(Cookie, Func, Args) when is_binary(Func) ->
 	try list_to_existing_atom(binary_to_list(Func)) of
 		Atom ->

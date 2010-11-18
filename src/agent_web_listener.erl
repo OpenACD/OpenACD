@@ -349,8 +349,10 @@ keep_alive(_) ->
 	ok.
 
 send_to_connection(badcookie, _Function, _Args) ->
+	?DEBUG("sent to connection with bad cookie", []),
 	check_cookie(badcookie);
 send_to_connection({_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
+	?DEBUG("sent to connection with no connection pid", []),
 	check_cookie(Cookie);
 send_to_connection({_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
 	agent_web_connection:poll(Conn, self()),
@@ -561,6 +563,7 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"timestamp": timestamp()
 %% }'
 login(badcookie, _, _, _) ->
+	?DEBUG("bad cookie", []),
 	check_cookie(badcookie);
 login({Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
@@ -689,7 +692,7 @@ api(api, Cookie, Post) ->
 			get_salt(Cookie);
 		{<<"login">>, [Username, Password]} ->
 			login(Cookie, binary_to_list(Username), binary_to_list(Password), []);
-		{<<"login">>, [Username, Password, {struct, Props}]} ->
+		{<<"login">>, [Username, Password, {struct, LoginProps}]} ->
 			LoginOpts = lists:flatten([case X of
 				{<<"voipendpointdata">>, <<>>} ->
 					{voipendpointdata, undefined};
@@ -709,7 +712,7 @@ api(api, Cookie, Post) ->
 					use_outband_ring;
 				{_, _} ->
 					[]
-			end || X <- Props]),
+			end || X <- LoginProps]),
 			login(Cookie, binary_to_list(Username), binary_to_list(Password), LoginOpts);
 		{<<"get_brand_list">>, _} ->
 			get_brand_list();

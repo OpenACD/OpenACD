@@ -1210,6 +1210,8 @@ handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_ca
 		]}}
 	]},
 	{reply, {200, [], mochijson2:encode(Json)}, State};
+handle_call({undefined, "/get_queue_transfer_options"}, _From, State) ->
+	{reply, ?reply_err(<<"Not in a call">>, <<"INVALID_STATE_CHANGE">>), State};
 handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of

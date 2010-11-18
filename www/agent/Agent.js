@@ -74,6 +74,42 @@ function Agent(username, statetime, timestamp){
 		}
 	};
 	
+	this.webApi = function(func, opts){
+		var defaultOpts = {
+			"success":function(){ return true; },
+			"failure":function(errcode, msg){
+				console.warning("failure for " + func, errcode, msg);
+			},
+			"error":function(res){
+				console.error("error for ", func, res);
+			}
+		}
+		var trueOpts = dojo.mixin(defaultOpts, opts);
+		var args = [];
+		for(var i = 2; i < arguments.length; i++){
+			args.push(arguments[i]);
+		}
+		dojo.xhrPost({
+			url:"/api",
+			content:{
+				request:dojo.toJson({
+					"function":func,
+					"args":args
+				})
+			},
+			handleAs:"json",
+			error:function(res){
+				trueOpts.error(res);
+			},
+			load:function(res){
+				if(res.success === true){
+					return trueOpts.success(res.result);
+				}
+				return trueOpts.failure(res.errcode, res.message);
+			}
+		});
+	}
+
 	this.poll = function(){
 		this._pollHandle = dojo.xhrGet({
 			url:"/poll",

@@ -1344,7 +1344,7 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(keep_alive, #state{poll_pid = undefined} = State) ->
-	?DEBUG("keep alive", []),
+	%?DEBUG("keep alive", []),
 	{noreply, State#state{poll_pid_established = util:now()}};
 handle_cast({poll, Frompid}, State) ->
 	%?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),

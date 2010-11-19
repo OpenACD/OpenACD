@@ -323,7 +323,7 @@ balance_test_() ->
 				end
 			},
 			{
-				"Agent died, so a dipatcher ends",
+				"Agent died, but dispatchers don't die automatically",
 				fun() ->
 					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 					agent:set_state(Apid, idle),
@@ -341,7 +341,7 @@ balance_test_() ->
 					end,
 					State2 = dump(),
 					?assertEqual([], State2#state.agents),
-					?assertEqual([], State2#state.dispatchers)
+					?assertEqual(1, length(State2#state.dispatchers))
 				end
 			},
 			{
@@ -419,7 +419,7 @@ balance_test_() ->
 					?DEBUG("Expected:  ~p", [Expectedagents]),
 					?DEBUG("New agents:  ~p", [Newagents]),
 					?assertEqual(length(Expectedagents), length(Newagents)),
-					?assertEqual(length(Unexpecteddispatchers), length(Newdispathers)),
+					?assertEqual(5, length(Newdispathers)),
 					lists:foreach(fun(I) ->
 						?assertNot(lists:member(I, Unexpecteddispatchers))
 					end, Newdispathers),

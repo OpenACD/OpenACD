@@ -1,0 +1,47 @@
+Summary: OpenACD Call Center
+Name: @PACKAGE_NAME@
+Version: @PACKAGE_VERSION@
+Release: 1
+BuildRoot: %{_builddir}/%{name}-root
+Source0: %{name}-%{version}.tar.gz
+Group: Applications/Communications
+Vendor: Fused Solutions Inc.
+Packager: SIPfoundry
+License: GPL
+AutoReqProv: no
+URL: http://github.com/Vagabond/OpenACD/wiki
+
+%define prefix /opt
+%define homedir %{prefix}/openacd
+
+%description
+OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in erlang.
+
+# unclear how to express >= R13B04 or >= R13B-04 ?
+Requires: erlang
+BuildRequires: automake
+BuildRequires: gcc-c++
+BuildRequires: erlang
+BuildRequires: rubygem-rake
+
+%prep
+%setup
+
+%build
+rake
+
+%install
+mkdir -p -m 755 $RPM_BUILD_ROOT%{prefix}
+cp -r . $RPM_BUILD_ROOT%{homedir}
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%pre
+
+%post
+
+%files
+%dir %{homedir}
+%{homedir}/*
+

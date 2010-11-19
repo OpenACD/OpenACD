@@ -79,7 +79,7 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Arg
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
-					integer_to_list(MicroSec),
+					string:right(integer_to_list(MicroSec), 2, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
 					io_lib:format(Message, Args)]);
@@ -101,7 +101,7 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
-					integer_to_list(MicroSec),
+					string:right(integer_to_list(MicroSec), 6, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid,
 					io_lib:format(Message, Args)]);

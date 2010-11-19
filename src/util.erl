@@ -69,7 +69,9 @@
 	distribution/1,
 	get_number/1,
 	find_first_arc/2,
-	floor/1
+	floor/1,
+	priv_dir/0,
+	priv_dir/1
 ]).
 %% time tracking util functions
 -export([
@@ -514,6 +516,29 @@ timemark_clear(Markname) ->
 	io:format("*** timemark ~p cleared~n", [Markname]),
 	erase({timemark, Markname}),
 	ok.
+
+-spec(priv_dir/0 :: () -> string() | {'error', 'enoent'}).
+priv_dir() ->
+	case code:priv_dir('OpenACD') of
+		{error, _} ->
+			case filelib:is_dir("priv") of
+				true ->
+					"priv";
+				false ->
+					{error, enoent}
+			end;
+		Dir ->
+			Dir
+	end.
+
+-spec(priv_dir/1 :: (Suffix :: string()) -> string() | {'error', 'enoent'}).
+priv_dir(Suffix) ->
+	case priv_dir() of
+		{error, _} = Error ->
+			Error;
+		Dir ->
+			filename:join(Dir, Suffix)
+	end.
 
 -ifdef(TEST).
 

@@ -822,7 +822,7 @@ get_nodes() ->
 	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
-multi_node_test_() -> 
+multi_node_test_d() -> 
 		{
 		foreach,
 		fun() ->

@@ -2112,8 +2112,14 @@ check_cookie(Allothers) ->
 	end.
 
 get_pubkey() ->
+	Key = case os:getenv("RUNNER_ETC_DIR") of
+		false ->
+			"./key";
+		Val ->
+			filename:join(Val, "key")
+	end,
 	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der("./key") of
+	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
 			Ent;
 		[Ent] ->
@@ -2153,8 +2159,14 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
+	Key = case os:getenv("RUNNER_ETC_DIR") of
+		false ->
+			"./key";
+		Val ->
+			filename:join(Val, "key")
+	end,
 	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der("./key") of
+	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
 			Ent;
 		[Ent] ->

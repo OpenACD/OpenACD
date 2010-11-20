@@ -908,7 +908,7 @@ write_output(Interval, _QueueCache, _AgentCache) ->
 		{<<"rawData">>, Raws},
 		{<<"ivrAlerts">>, get_ivr_alerts()}
 	]},
-	Dynamic = case application:get_env(cpx, webdir_dynamic) of
+	Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 		undefined ->
 			"www/dynamic";
 		{ok, WebDirDyn} ->

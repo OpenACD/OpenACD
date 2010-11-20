@@ -837,7 +837,7 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 			end,
 			{reply, {200, [], Json}, State};
 		["motd"] ->
-			{ok, Appnodes} = application:get_env(cpx, nodes),
+			{ok, Appnodes} = application:get_env('OpenACD', nodes),
 			Nodes = case proplists:get_value("node", Post) of
 				"system" ->
 					Appnodes;

@@ -380,13 +380,13 @@ determine_language([]) ->
 	"";
 determine_language([Head | Tail]) ->
 	[Lang |_Junk] = util:string_split(Head, ";"),
-	case filelib:is_regular(string:concat(string:concat("priv/www/admin/lang/nls/", Lang), "/labels.js")) of
+	case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/admin/lang/nls/"), Lang), "/labels.js")) of
 		true ->
 			Lang;
 		false ->
 			% try the "super language" (eg en vs en-us) in case it's not in the list itself
 			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
-			case filelib:is_regular(string:concat(string:concat("priv/www/admin/lang/nls/", SuperLang), "/labels.js")) of
+			case filelib:is_regular(string:concat(string:concat(util:priv_dir("/www/admin/lang/nls/"), SuperLang), "/labels.js")) of
 				true ->
 					SuperLang;
 				false ->
@@ -1323,7 +1323,7 @@ api({modules, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 					<<"dynamic">> ->
 						case application:get_env(cpx, webdir_dynamic) of
 							undefined ->
-								"priv/www/dynamic";
+								util:priv_dir("www/dynamic");
 							{ok, WebDirDyn} ->
 								WebDirDyn
 						end;
@@ -2010,7 +2010,7 @@ api(_, _, _) ->
 parse_path(Path) ->
 	case Path of
 		"/" ->
-			{file, {"index.html", "priv/www/admin/"}};
+			{file, {"index.html", util:priv_dir("www/admin/")}};
 		"/getsalt" ->
 			{api, getsalt};
 		"/login" ->
@@ -2032,7 +2032,7 @@ parse_path(Path) ->
 					File = string:join(Tail, "/"),
 					Dynamic = case application:get_env(cpx, webdir_dynamic) of
 						undefined ->
-							"priv/www/dynamic";
+							util:priv_dir("www/dynamic");
 						{ok, WebDirDyn} ->
 							WebDirDyn
 					end,
@@ -2081,13 +2081,13 @@ parse_path(Path) ->
 				["", "clients", Client, Action] ->
 					{api, {clients, Client, Action}};
 				Allothers ->
-					Adminpath = string:concat("priv/www/admin", Path),
-					Contribpath = string:concat("priv/www/contrib", Path),
+					Adminpath = string:concat(util:priv_dir("www/admin"), Path),
+					Contribpath = string:concat(util:priv_dir("www/contrib"), Path),
 					case {filelib:is_regular(Adminpath), filelib:is_regular(Contribpath)} of
 						{true, _} ->
-							{file, {string:strip(Path, left, $/), "priv/www/admin/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/admin/")}};
 						{false, true} ->
-							{file, {string:strip(Path, left, $/), "priv/www/contrib/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
 						{false, false} ->
 							{api, Allothers}
 					end

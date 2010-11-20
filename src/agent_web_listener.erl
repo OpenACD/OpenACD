@@ -326,13 +326,13 @@ determine_language([]) ->
 determine_language(String) ->
 	[Head | Other] = util:string_split(String, ",", 2),
 	[Lang |_Junk] = util:string_split(Head, ";"),
-	case filelib:is_regular(string:concat(string:concat("priv/www/agent/application/nls/", Lang), "/labels.js")) of
+	case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/agent/application/nls/"), Lang), "/labels.js")) of
 		true ->
 			Lang;
 		false ->
 			% try the "super language" (eg en vs en-us) in case it's not in the list itself
 			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
-			case filelib:is_regular(string:concat(string:concat("priv/www/agent/application/nls/", SuperLang), "/labels.js")) of
+			case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/agent/application/nls/"), SuperLang), "/labels.js")) of
 				true ->
 					SuperLang;
 				false ->
@@ -867,7 +867,7 @@ parse_path(Path) ->
 	%?DEBUG("Path:  ~s", [Path]),
 	case Path of
 		"/" ->
-			{file, {"index.html", "priv/www/agent/"}};
+			{file, {"index.html", util:priv_dir("www/agent/")}};
 		"/api" ->
 			{api, api};
 		"/poll" ->
@@ -893,7 +893,7 @@ parse_path(Path) ->
 					File = string:join(Moretail, "/"),
 					Dynamic = case application:get_env(cpx, webdir_dynamic) of
 						undefined ->
-							"priv/www/dynamic";
+							util:priv_dir("www/dynamic");
 						{ok, WebDirDyn} ->
 							WebDirDyn
 					end,
@@ -945,13 +945,13 @@ parse_path(Path) ->
 					{api, {supervisor, Supertail}};
 				_Allother ->
 					% is there an actual file to serve?
-					case {filelib:is_regular(string:concat("priv/www/agent", Path)), filelib:is_regular(string:concat("priv/www/contrib", Path))} of
+					case {filelib:is_regular(string:concat(util:priv_dir("www/agent"), Path)), filelib:is_regular(string:concat(util:priv_dir("www/contrib"), Path))} of
 						{true, false} ->
-							{file, {string:strip(Path, left, $/), "priv/www/agent/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/agent/")}};
 						{false, true} ->
-							{file, {string:strip(Path, left, $/), "priv/www/contrib/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
 						{true, true} ->
-							{file, {string:strip(Path, left, $/), "priv/www/contrib/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
 						{false, false} ->
 							{api, {undefined, Path}}
 					end
@@ -1319,7 +1319,7 @@ web_connection_login_test_() ->
 % TODO add tests for interaction w/ agent, agent_manager
 
 -define(PATH_TEST_SET, [
-		{"/", {file, {"index.html", "priv/www/agent/"}}},
+		{"/", {file, {"index.html", util:priv_dir("www/agent/")}}},
 		{"/poll", {api, poll}},
 		{"/logout", {api, logout}},
 		{"/login", {api, login}},
@@ -1329,7 +1329,7 @@ web_connection_login_test_() ->
 		{"/ack/7", {api, {ack, "7"}}},
 		{"/err/89", {api, {err, "89"}}},
 		{"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
-		{"/index.html", {file, {"index.html", "priv/www/agent/"}}},
+		{"/index.html", {file, {"index.html", util:priv_dir("www/agent/")}}},
 		{"/otherfile.ext", {api, {undefined, "/otherfile.ext"}}},
 		{"/other/path", {api, {undefined, "/other/path"}}},
 		{"/releaseopts", {api, releaseopts}},
@@ -1341,7 +1341,7 @@ web_connection_login_test_() ->
 		{"/agent_transfer/agent@domain", {api, {agent_transfer, "agent@domain"}}},
 		{"/agent_transfer/agent@domain/1234", {api, {agent_transfer, "agent@domain", "1234"}}},
 		{"/mediapush", {api, mediapush}},
-		{"/dynamic/test.html", {file, {"test.html", "priv/www/dynamic"}}}
+		{"/dynamic/test.html", {file, {"test.html", util:priv_dir("www/dynamic")}}}
 	]
 ).
 

@@ -5,11 +5,13 @@ RUNNER_SCRIPT_DIR=$(cd ${0%/*} && pwd)
 RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
 RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
+RUNNER_RUN_DIR=$RUNNER_BASE_DIR/run
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
 
 export RUNNER_ETC_DIR
 export RUNNER_LOG_DIR
+export RUNNER_RUN_DIR
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
@@ -21,6 +23,7 @@ cd $RUNNER_BASE_DIR
 
 # Make sure log directory exists
 mkdir -p $RUNNER_LOG_DIR
+mkdir -p $RUNNER_RUN_DIR
 
 # Extract the target node name from node.args
 NAME_ARG=`grep -e '-[s]*name' $RUNNER_ETC_DIR/vm.args`

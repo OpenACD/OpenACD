@@ -145,13 +145,13 @@
 -spec(start_link/1 :: (Args :: options()) -> {'ok', pid()}).
 start_link(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-    gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Args, []).
 
 %% @doc See {@link start_link/1}
 -spec(start/1 :: (Args :: options()) -> {'ok', pid()}).
 start(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Args, []).
 
 %% @doc Stops the monitor.
 -spec(stop/0 :: () -> any()).

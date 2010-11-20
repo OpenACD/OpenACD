@@ -71,7 +71,8 @@
 	find_first_arc/2,
 	floor/1,
 	priv_dir/0,
-	priv_dir/1
+	priv_dir/1,
+	run_dir/0
 ]).
 %% time tracking util functions
 -export([
@@ -538,6 +539,14 @@ priv_dir(Suffix) ->
 			Error;
 		Dir ->
 			filename:join(Dir, Suffix)
+	end.
+
+run_dir() ->
+	case os:getenv("RUNNER_RUN_DIR") of
+		false ->
+			".";
+		Dir ->
+			Dir
 	end.
 
 -ifdef(TEST).

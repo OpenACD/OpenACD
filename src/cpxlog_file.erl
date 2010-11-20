@@ -66,7 +66,18 @@ init([Files]) ->
 
 open_files([], State) ->
 	{ok, State};
-open_files([{Filename, LogLevel} | Tail], State) ->
+open_files([{File, LogLevel} | Tail], State) ->
+	Filename = case filename:pathtype(File) of
+		relative ->
+			case os:getenv("RUNNER_LOG_DIR") of
+				false ->
+					File;
+				Dir ->
+					filename:join(Dir, File)
+			end;
+		_ ->
+			File
+	end,
 	case file:open(Filename, [append, delayed_write]) of % buffer writes to reduce overhead
 		{ok, FileHandle} ->
 			{ok, FileInfo} = file:read_file_info(Filename),

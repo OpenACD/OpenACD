@@ -2112,7 +2112,7 @@ check_cookie(Allothers) ->
 	end.
 
 get_pubkey() ->
-	Key = case os:getenv("RUNNER_ETC_DIR") of
+	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			"./key";
 		Val ->
@@ -2159,7 +2159,7 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
-	Key = case os:getenv("RUNNER_ETC_DIR") of
+	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			"./key";
 		Val ->

@@ -69,7 +69,7 @@ open_files([], State) ->
 open_files([{File, LogLevel} | Tail], State) ->
 	Filename = case filename:pathtype(File) of
 		relative ->
-			case os:getenv("RUNNER_LOG_DIR") of
+			case os:getenv("OPENACD_LOG_DIR") of
 				false ->
 					File;
 				Dir ->

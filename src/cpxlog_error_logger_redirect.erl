@@ -58,66 +58,66 @@ init([Size]) ->
 
 %% error_handler messages
 handle_event({error, _Gleader, {Pid, Format, Data}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(error, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
+	cpxlog:log(error, erlang:now(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
 	{ok, State};
 handle_event({error, _Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(error, erlang:now(), Pid, Format, Data),
 	{ok, State};
 
 handle_event({error_report, _Gleader, {Pid, std_error, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(error, erlang:now(), Pid, "Error Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({error_report, _Gleader, {Pid, std_error, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~p", [Report]),
+	cpxlog:log(error, erlang:now(), Pid, "Error Report: ~p", [Report]),
 	{ok, State};
 
 handle_event({error_report, _Gleader, {Pid, supervisor_report, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Supervisor Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(error, erlang:now(), Pid, "Supervisor Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({error_report, _Gleader, {Pid, supervisor_report, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Supervisor Report: ~p", [Report]),
+	cpxlog:log(error, erlang:now(), Pid, "Supervisor Report: ~p", [Report]),
 	{ok, State};
 
 handle_event({error_report, _Gleader, {Pid, crash_report, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Crash Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(error, erlang:now(), Pid, "Crash Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({error_report, _Gleader, {Pid, crash_report, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Crash Report: ~p", [Report]),
+	cpxlog:log(error, erlang:now(), Pid, "Crash Report: ~p", [Report]),
 	{ok, State};
 
 handle_event({warning_msg, _Gleader, {Pid, Format, Data}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(warning, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
+	cpxlog:log(warning, erlang:now(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
 	{ok, State};
 handle_event({warning_msg, _Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(warning, erlang:now(), Pid, Format, Data),
 	{ok, State};
 
 handle_event({warning_report, _Gleader, {Pid, std_warning, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(warning, erlang:localtime(), Pid, "Warning Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(warning, erlang:now(), Pid, "Warning Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({warning_report, _Gleader, {Pid, std_warning, Report}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, "Warning Report: ~p", [Report]),
+	cpxlog:log(warning, erlang:now(), Pid, "Warning Report: ~p", [Report]),
 	{ok, State};
 
 handle_event({info_msg, _Gleader, {Pid, Format, Data}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(info, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
+	cpxlog:log(info, erlang:now(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, Size))]),
 	{ok, State};
 handle_event({info_msg, _Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(info, erlang:now(), Pid, Format, Data),
 	{ok, State};
 
 handle_event({info_report, _Gleader, {Pid, std_info, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(info, erlang:localtime(), Pid, "Info Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(info, erlang:now(), Pid, "Info Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({info_report, _Gleader, {Pid, std_info, Report}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, "Info Report: ~p", [Report]),
+	cpxlog:log(info, erlang:now(), Pid, "Info Report: ~p", [Report]),
 	{ok, State};
 
 handle_event({info_report, _Gleader, {Pid, progress, Report}}, #state{size = Size} = State) when Size > 0 ->
-	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~s", [trunc_io:fprint(Report, Size)]),
+	cpxlog:log(debug, erlang:now(), Pid, "Progress Report: ~s", [trunc_io:fprint(Report, Size)]),
 	{ok, State};
 handle_event({info_report, _Gleader, {Pid, progress, Report}}, State) ->
-	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~p", [Report]),
+	cpxlog:log(debug, erlang:now(), Pid, "Progress Report: ~p", [Report]),
 	{ok, State};
 
 handle_event(Event, State) ->

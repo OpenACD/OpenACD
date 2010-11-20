@@ -9,6 +9,7 @@ PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
 
 export RUNNER_ETC_DIR
+export RUNNER_LOG_DIR
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then

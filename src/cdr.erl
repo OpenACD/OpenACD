@@ -366,7 +366,7 @@ get_unsummarized() ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
-	Nodes = case application:get_env(cpx, nodes) of
+	Nodes = case application:get_env('OpenACD', nodes) of
 		undefined ->
 			[node()];
 		{ok, List} ->
@@ -688,7 +688,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
 		F = fun() ->
-			Nodes = case application:get_env(cpx, nodes) of
+			Nodes = case application:get_env('OpenACD', nodes) of
 				undefined ->
 					[node()];
 				{ok, List} ->

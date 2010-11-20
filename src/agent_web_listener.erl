@@ -891,7 +891,7 @@ parse_path(Path) ->
 			case Tail of 
 				["dynamic" | Moretail] ->
 					File = string:join(Moretail, "/"),
-					Dynamic = case application:get_env(cpx, webdir_dynamic) of
+					Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
 							util:priv_dir("www/dynamic");
 						{ok, WebDirDyn} ->

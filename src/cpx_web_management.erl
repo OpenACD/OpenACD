@@ -1062,7 +1062,7 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 %% modules -> *
 %% =====
 api({modules, "poll"}, ?COOKIE, _Post) ->
-	{ok, Appnodes} = application:get_env(cpx, nodes),
+	{ok, Appnodes} = application:get_env('OpenACD', nodes),
 	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
 	F = fun(Node) ->
 		{Node, [
@@ -1240,7 +1240,7 @@ api({modules, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 		#cpx_conf{start_args = [Args]} ->
 			Rrdpath = list_to_binary(proplists:get_value(rrd_dir, Args, "rrd")),
 			Protoimagepath = list_to_binary(proplists:get_value(image_dir, Args, "rrd path")),
-			Dynamic = case application:get_env(cpx, webdir_dynamic) of
+			Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 				undefined ->
 					<<"../www/dynamic">>;
 				{ok, WebDirDyn} ->
@@ -1275,7 +1275,7 @@ api({modules, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 				"rrd path" ->
 					Rrdpath;
 				"Dynamic Files" ->
-					case application:get_env(cpx, webdir_dynamic) of
+					case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
 							"../www/dynamic";
 						{ok, WebDirDyn} ->
@@ -1321,7 +1321,7 @@ api({modules, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 			Convert = fun({struct, Props}) ->
 				Fileout = case proplists:get_value(<<"outputdir">>, Props) of
 					<<"dynamic">> ->
-						case application:get_env(cpx, webdir_dynamic) of
+						case application:get_env('OpenACD', webdir_dynamic) of
 							undefined ->
 								util:priv_dir("www/dynamic");
 							{ok, WebDirDyn} ->
@@ -2030,7 +2030,7 @@ parse_path(Path) ->
 			case util:string_split(Path, "/") of
 				["", "dynamic" | Tail] ->
 					File = string:join(Tail, "/"),
-					Dynamic = case application:get_env(cpx, webdir_dynamic) of
+					Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
 							util:priv_dir("www/dynamic");
 						{ok, WebDirDyn} ->

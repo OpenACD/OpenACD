@@ -386,7 +386,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		true ->
 			Nodes = case proplists:get_value(nodes, Options) of
 				undefined ->
-					case application:get_env(cpx, nodes) of
+					case application:get_env('OpenACD', nodes) of
 						{ok, N} -> N;
 						undefined -> [node()]
 					end;
@@ -1638,7 +1638,7 @@ from_ringing_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			application:set_env(cpx, agent_ringout_lock, 10),
+			application:set_env('OpenACD', agent_ringout_lock, 10),
 			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
 			?assertEqual(locked, Newlocked),
 			receive
@@ -1648,7 +1648,7 @@ from_ringing_test_() ->
 				?assert("ring_unlock on recieved")
 			end,
 			Assertmocks(),
-			application:set_env(cpx, agent_ringout_lock, 0)
+			application:set_env('OpenACD', agent_ringout_lock, 0)
 	 end}
 	end,
 	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->

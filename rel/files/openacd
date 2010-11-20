@@ -8,6 +8,8 @@ RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
 
+export RUNNER_ETC_DIR
+
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     exec sudo -u $RUNNER_USER -i $0 $@
@@ -31,6 +33,16 @@ COOKIE_ARG=`grep -e '-setcookie' $RUNNER_ETC_DIR/vm.args`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
     exit 1
+fi
+
+if [ ! -f "$RUNNER_ETC_DIR/key" ]; then
+	echo "RSA key does not exist, generating..."
+	ssh-keygen -t rsa -f $RUNNER_ETC_DIR/key -N ""
+	RES=$?
+	if [ $RES != 0 ]; then
+		echo "Key generation failed with error $RES!"
+		exit $RES
+	fi
 fi
 
 # Identify the script name

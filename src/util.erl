@@ -542,7 +542,7 @@ priv_dir(Suffix) ->
 	end.
 
 run_dir() ->
-	case os:getenv("RUNNER_RUN_DIR") of
+	case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			".";
 		Dir ->

@@ -9,9 +9,12 @@ RUNNER_RUN_DIR=$RUNNER_BASE_DIR/run
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 RUNNER_USER=
 
-export RUNNER_ETC_DIR
-export RUNNER_LOG_DIR
-export RUNNER_RUN_DIR
+# XXX Change thse if you want other behaviour
+OPENACD_LOG_DIR=$RUNNER_LOG_DIR
+OPENACD_RUN_DIR=$RUNNER_RUN_DIR
+
+export OPENACD_LOG_DIR
+export OPENACD_RUN_DIR
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
@@ -39,9 +42,9 @@ if [ -z "$COOKIE_ARG" ]; then
     exit 1
 fi
 
-if [ ! -f "$RUNNER_ETC_DIR/key" ]; then
+if [ ! -f "$OPENACD_RUN_DIR/key" ]; then
 	echo "RSA key does not exist, generating..."
-	ssh-keygen -t rsa -f $RUNNER_ETC_DIR/key -N ""
+	ssh-keygen -t rsa -f $OPENACD_RUN_DIR/key -N ""
 	RES=$?
 	if [ $RES != 0 ]; then
 		echo "Key generation failed with error $RES!"

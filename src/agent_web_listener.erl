@@ -959,7 +959,7 @@ parse_path(Path) ->
 	end.
 
 get_pubkey() ->
-	Key = case os:getenv("RUNNER_ETC_DIR") of
+	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			"./key";
 		Val ->
@@ -976,7 +976,7 @@ get_pubkey() ->
 	[E, N].
 
 decrypt_password(Password) ->
-	Key = case os:getenv("RUNNER_ETC_DIR") of
+	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			"./key";
 		Val ->

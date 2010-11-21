@@ -116,7 +116,8 @@ start(_Type, StartArgs) ->
 			end,
 			ok;
 		_Else ->
-			Nodes = [node()]
+			Nodes = [node()],
+			application:set_env('OpenACD', nodes, Nodes)
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),

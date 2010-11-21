@@ -541,7 +541,7 @@ dojo.addOnLoad(function(){
 		}
 		settings.username = confs.username;
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
-		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpoint;
+		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){

@@ -31,7 +31,7 @@
 
 -behaviour(gen_server).
 
--include("contrib/errd/include/errd.hrl").
+-include_lib("errd/include/errd.hrl").
 
 -include("log.hrl").
 -include_lib("stdlib/include/qlc.hrl").

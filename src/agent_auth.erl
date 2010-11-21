@@ -54,10 +54,12 @@
 	destroy/1,
 	destroy/2,
 	merge/3,
+	add_agent/7,
 	add_agent/5,
 	add_agent/1,
 	set_agent/5,
 	set_agent/6,
+	set_agent/8,
 	set_agent/2,
 	get_agent/1,
 	get_agent/2,
@@ -71,6 +73,7 @@
 	new_profile/1,
 	new_profile/2,
 	set_profile/2,
+        set_profile/3,
 	get_profile/1,
 	get_profiles/0,
 	destroy_profile/1
@@ -171,6 +174,15 @@ new_profile(Rec) ->
 new_profile(Name, Skills) ->
 	Rec = #agent_profile{name = Name, skills = Skills},
 	new_profile(Rec).
+
+-spec(set_profile/3 :: (Oldname :: string(), Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
+set_profile(Oldname, Name, Skills) ->
+        Old = agent_auth:get_profile(Oldname),
+	New = #agent_profile{
+		name = Name,
+		skills = Skills
+	},
+	set_profile(Oldname, New).
 
 %% @doc Update the profile `string() Oldname' to the given rec.
 -spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
@@ -301,6 +313,20 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 		{skills, Newskills},
 		{securitylevel, NewSecurity},
 		{profile, Newprofile}
+	],
+	set_agent(Id, Props).
+
+%% @doc Update the agent `string() Oldlogin' with a new password (as well as everything else).
+-spec(set_agent/8 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string(), Newfirstname :: string(), Newlastname :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
+set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstname, Newlastname) ->
+	Props = [
+		{login, Newlogin},
+		{password, util:bin_to_hexstr(erlang:md5(Newpass))},
+		{skills, Newskills},
+		{securitylevel, NewSecurity},
+		{profile, Newprofile},
+		{firstname, Newfirstname},
+		{lastname, Newlastname}
 	],
 	set_agent(Id, Props).
 
@@ -666,6 +692,22 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 		skills = Skills,
 		securitylevel = Security,
 		profile = Profile},
+	add_agent(Rec).
+
+%% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password
+%% in plain text!
+-spec(add_agent/7 ::
+	(Username :: string(), Firstname :: string(), Lastname :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
+		{'atomic', 'ok'}).
+add_agent(Username, Firstname, Lastname, Password, Skills, Security, Profile) ->
+	Rec = #agent_auth{
+		login = Username,
+		password = util:bin_to_hexstr(erlang:md5(Password)),
+		skills = Skills,
+		securitylevel = Security,
+		profile = Profile,
+		firstname = Firstname,
+		lastname = Lastname},
 	add_agent(Rec).
 
 %% @doc adds a user to the local cache; more flexible than `add_agent/5'.

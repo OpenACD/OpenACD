@@ -9,6 +9,8 @@
 		mnesia,
 		crypto,
 		inets,
-		{cpx, "0.9.5"}
+		{cpx, "0.9.5"},
+		{erlmongo, "0.1"},
+		{sipxplugin, "0.1"}
 	]
 }.

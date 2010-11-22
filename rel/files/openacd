@@ -106,6 +106,17 @@ case "$1" in
         $NODETOOL ping
         ;;
 
+    remsh)
+        # Make sure a node IS running
+        RES=`$NODETOOL ping`
+        if [ "$RES" != "pong" ]; then
+            echo "Node is not running!"
+            exit 1
+        fi
+
+        $ERTS_PATH/erl -name remsh@127.0.0.1 -setcookie openacd -remsh openacd@127.0.0.1
+        ;;
+
     attach)
         # Make sure a node IS running
         RES=`$NODETOOL ping`

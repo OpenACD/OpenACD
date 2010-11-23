@@ -26,7 +26,7 @@ EXTRA_DIST = \
 	success_message \
 	tests \
 	VERSION \
-	www
+	priv
 
 all compile :
 	rake

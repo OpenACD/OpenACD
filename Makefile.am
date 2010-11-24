@@ -15,6 +15,7 @@ CONTRIB_DEPS = \
 	gen_leader_revival \
 	gen_server_mock \
 	mochiweb \
+	erlmongo \
 	gen_smtp
 
 WWW_CONTRIB = \

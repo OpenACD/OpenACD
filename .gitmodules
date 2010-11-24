@@ -22,3 +22,6 @@
 [submodule "priv/www/contrib/dojo/dijit"]
 	path = priv/www/contrib/dojo/dijit
 	url = http://github.com/dojo/dijit.git
+[submodule "contrib/erlmongo"]
+	path = contrib/erlmongo
+	url = git://github.com/wpntv/erlmongo.git

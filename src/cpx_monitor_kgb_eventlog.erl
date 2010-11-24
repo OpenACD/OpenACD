@@ -101,8 +101,8 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{agent, Key}, Details, _Node}}
 	case dict:find(Key, State#state.agents) of
 		error ->
 			%?NOTICE("Agent ~p just logged in ~p", [Key, Details]),
-			log_event(State#state.file, "agent_start", Timestamp, [proplists:get_value(node, Details), proplists:get_value(login, Details)]),
-			[log_event(State#state.file, "agent_login", Timestamp, [proplists:get_value(node, Details), proplists:get_value(login, Details), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
+			log_event(State#state.file, "agent_start", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details)]),
+			[log_event(State#state.file, "agent_login", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
 			?INFO("skills: ~p", [proplists:get_value(skills, Details)]),
 			ok;
 		{ok, Current} ->
@@ -121,8 +121,8 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {agent, Key}}}, State) ->
 		error ->
 			{noreply, State};
 		{ok, Current} ->
-			log_event(State#state.file, "agent_stop", Timestamp, [proplists:get_value(node, Current), proplists:get_value(login, Current)]),
-			[log_event(State#state.file, "agent_logout", Timestamp, [proplists:get_value(node, Current), proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
+			log_event(State#state.file, "agent_stop", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current)]),
+			[log_event(State#state.file, "agent_logout", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
 handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}}, State) ->
@@ -130,8 +130,8 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 		undefined ->
 			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
-			log_event(State#state.file, "call_enqueue", Timestamp, [
-					proplists:get_value(node, Details),
+			log_event(State#state.file, "call_enqueue", Timestamp, 
+					proplists:get_value(node, Details), [
 					Queue,
 					element(2, proplists:get_value(callerid, Details)),
 					Key,
@@ -154,8 +154,8 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = 
 			case dict:find(Key, State#state.calls) of
 				{ok, New} ->
 					?INFO("~p abandoned", [Key]),
-					log_event(File, "call_terminate", Timestamp, [
-							proplists:get_value(node, New),
+					log_event(File, "call_terminate", Timestamp, 
+							proplists:get_value(node, New), [
 							Queue,
 							"", %proplists:get_value(login, New),
 							element(2, proplists:get_value(callerid, New)),
@@ -202,8 +202,8 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 						% ok, now diff the skill lists to see if we've changed queue membership
 						Lost = proplists:get_value(skills, Old) -- proplists:get_value(skills, New),
 						Gained = proplists:get_value(skills, New) -- proplists:get_value(skills, Old),
-						[log_event(File, "agent_logout", Timestamp, [proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Lost],
-						[log_event(File, "agent_login", Timestamp, [proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Gained],
+						[log_event(File, "agent_logout", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Lost],
+						[log_event(File, "agent_login", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Gained],
 						ok
 			end;
 		false ->
@@ -217,8 +217,8 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							{ok, Value} -> Value
 						end,
 
-						log_event(File, "call_terminate", Timestamp, [
-								proplists:get_value(node, New),
+						log_event(File, "call_terminate", Timestamp, 
+								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
 								element(2, Call#call.callerid),
@@ -235,8 +235,8 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							{ok, Value} -> Value
 						end,
 
-						log_event(File, "call_complete", Timestamp, [
-								proplists:get_value(node, New),
+						log_event(File, "call_complete", Timestamp, 
+								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
 								element(2, Call#call.callerid),
@@ -253,8 +253,8 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							{ok, Value} -> Value
 						end,
 
-						log_event(File, "call_pickup", Timestamp, [
-								proplists:get_value(node, New),
+						log_event(File, "call_pickup", Timestamp, 
+								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
 								element(2, Call#call.callerid),
@@ -265,9 +265,9 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 								Call#call.dnis
 							]);
 					{idle, released} ->
-						[log_event(State#state.file, "agent_unavailable", Timestamp, [proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+						[log_event(State#state.file, "agent_unavailable", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
 					{released, idle} ->
-						[log_event(State#state.file, "agent_available", Timestamp, [proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+						[log_event(State#state.file, "agent_available", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
 					{_, _} ->
 						ok
 				end
@@ -278,9 +278,9 @@ monotonic_counter() ->
 	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
 	MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000.
 
-log_event(File, Event, Timestamp, Args) ->
-	FormatString = "~f : ~s : ~s : ~s : " ++ string:join([ "~p" || _ <- lists:seq(1, length(Args)) ], " : ") ++ "~n",
-	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Event] ++ Args,
+log_event(File, Event, Timestamp, Node, Args) ->
+	FormatString = "~f : ~s : ~s : ~s : ~p : " ++ string:join([ "~s" || _ <- lists:seq(1, length(Args)) ], " : ") ++ "~n",
+	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Node, Event] ++ Args,
 	io:format(File, FormatString, AllArgs).
 
 % generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601

@@ -280,7 +280,7 @@ monotonic_counter() ->
 
 log_event(File, Event, Timestamp, Node, Args) ->
 	FormatString = "~f : ~s : ~s : ~s : ~p : " ++ string:join([ "~s" || _ <- lists:seq(1, length(Args)) ], " : ") ++ "~n",
-	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Node, Event] ++ Args,
+	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Event, Node] ++ Args,
 	io:format(File, FormatString, AllArgs).
 
 % generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601

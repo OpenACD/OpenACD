@@ -108,7 +108,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp}}}, State) ->
+handle_info({cpx_monitor_event, {set, Timestmap, {{agent, Key}, Details, _Node}}}, State) ->
 	case proplists:get_value(state, Details) of
 		S when State#state.oncall == false, (S == oncall orelse S == outgoing) ->
 			?NOTICE("Watched ~p just went oncall ~p", [State#state.type, Details]),

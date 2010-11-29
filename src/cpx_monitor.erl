@@ -415,12 +415,12 @@ handle_DOWN(Node, State, Election) ->
 	Message = {{node, Node}, [{down, Time}], Node},
 	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Message, os:timestamp()), none), undefined),
 	ets:insert(?MODULE, Cached),
-	tell_cands({set, Message}, Election),
-	tell_subs({set, Message}, State#state.subscribers),
+	tell_cands({set, os:timestamp(), Message}, Election),
+	tell_subs({set, os:timestamp(), Message}, State#state.subscribers),
 	ets:safe_fixtable(?MODULE, true),
 	Drops = qlc:e(qlc:q([begin
 			ets:delete(?MODULE, Key),
-			{drop, {Key, Time}}
+			{drop, os:timestamp, Key}
 		end ||
 		{Key, _Time, _Props, WhichNode, _, _} <- ets:table(?MODULE),
 		Key =/= {node, Node},

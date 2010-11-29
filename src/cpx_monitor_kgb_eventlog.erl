@@ -30,9 +30,11 @@
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
+-include_lib("kernel/include/file.hrl").
 -include("log.hrl").
 -include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
+
 %% API
 -export([
 	start/0,
@@ -85,8 +87,10 @@ init(Props) ->
 				CallQMap = init_call_queue_map(),
 				CallAgentMap = dict:new(), % TODO bootstrap this to avoid false positives on abandon
 				cpx_monitor:subscribe(),
-				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap, callagentmap = CallAgentMap}};
+				{ok, FileInfo} = file:read_file_info(Filename),
+				{ok, #state{file = {File, Filename, FileInfo#file_info.inode}, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap, callagentmap = CallAgentMap}};
 			{error, Reason} ->
+				?WARNING("~p failed to start due to error:~p", [?MODULE, Reason]),
 				{stop, {error, Reason}}
 	end.
 
@@ -98,39 +102,42 @@ handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
 handle_info({cpx_monitor_event, {set, Timestamp, {{agent, Key}, Details, _Node}}}, State) ->
+	NewFile = check_file(State#state.file),
 	case dict:find(Key, State#state.agents) of
 		error ->
 			%?NOTICE("Agent ~p just logged in ~p", [Key, Details]),
-			log_event(State#state.file, "agent_start", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details)]),
-			[log_event(State#state.file, "agent_login", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
+			log_event(NewFile, "agent_start", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details)]),
+			[log_event(NewFile, "agent_login", Timestamp, proplists:get_value(node, Details), [proplists:get_value(login, Details), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
 			?INFO("skills: ~p", [proplists:get_value(skills, Details)]),
 			ok;
 		{ok, Current} ->
 			%?NOTICE("Udating agent ~p from  ~p to ~p", [Key, Current, Details]),
-			agent_diff(Key, Details, Current, Timestamp, State)
+			agent_diff(Key, Details, Current, Timestamp, State#state{file = NewFile})
 	end,
 	case {proplists:get_value(statedata, Details), proplists:get_value(state, Details)} of
 		{X, Y} when is_record(X, call), Y =/= ringing ->
 			% ok, an agent is definitely interacting with this call
-			{noreply, State#state{agents = dict:store(Key, Details, State#state.agents), callagentmap = dict:store(X#call.id, Key, State#state.callagentmap)}};
+			{noreply, State#state{file = NewFile, agents = dict:store(Key, Details, State#state.agents), callagentmap = dict:store(X#call.id, Key, State#state.callagentmap)}};
 		_ ->
-			{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}}
+			{noreply, State#state{file = NewFile, agents = dict:store(Key, Details, State#state.agents)}}
 	end;
 handle_info({cpx_monitor_event, {drop, Timestamp, {agent, Key}}}, State) ->
+	NewFile = check_file(State#state.file),
 	case dict:find(Key, State#state.agents) of
 		error ->
-			{noreply, State};
+			{noreply, State#state{file = NewFile}};
 		{ok, Current} ->
-			log_event(State#state.file, "agent_stop", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current)]),
-			[log_event(State#state.file, "agent_logout", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
+			log_event(NewFile, "agent_stop", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current)]),
+			[log_event(NewFile, "agent_logout", Timestamp, proplists:get_value(node, Current), [proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
 handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}}, State) ->
+	NewFile = check_file(State#state.file),
 	case proplists:get_value(queue, Details) of
 		undefined ->
-			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
+			{noreply, State#state{file = NewFile, calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
-			log_event(State#state.file, "call_enqueue", Timestamp, 
+			log_event(NewFile, "call_enqueue", Timestamp, 
 					proplists:get_value(node, Details), [
 					Queue,
 					element(2, proplists:get_value(callerid, Details)),
@@ -139,11 +146,12 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 					"CLS",
 					"Source IP",
 					proplists:get_value(dnis, Details, "")]),
-			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls)}}
+			{noreply, State#state{file = NewFile, callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls)}}
 	end;
 handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = File} = State) ->
 	% setting up a delay as there may be messages about agents that need the 
 	% info.
+	NewFile = check_file(File),
 	case dict:find(Key, State#state.callagentmap) of
 		error -> % An abandonment!
 			Queue = case dict:find(Key, State#state.callqueuemap) of
@@ -154,7 +162,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = 
 			case dict:find(Key, State#state.calls) of
 				{ok, New} ->
 					?INFO("~p abandoned", [Key]),
-					log_event(File, "call_terminate", Timestamp, 
+					log_event(NewFile, "call_terminate", Timestamp, 
 							proplists:get_value(node, New), [
 							Queue,
 							"", %proplists:get_value(login, New),
@@ -173,7 +181,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = 
 	end,
 	Self = self(),
 	erlang:send_after(5000, Self, {redrop, {media, Key}}),
-	{noreply, State#state{calls = dict:erase(Key, State#state.calls)}};
+	{noreply, State#state{file = NewFile, calls = dict:erase(Key, State#state.calls)}};
 handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, callagentmap = CallAgentMap, calls = Calls} = State) ->
 	Newcalls = dict:erase(Key, Calls),
 	Newcmap = dict:erase(Key, Callqmap),
@@ -278,10 +286,35 @@ monotonic_counter() ->
 	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
 	MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000.
 
-log_event(File, Event, Timestamp, Node, Args) ->
+log_event({File, _Name, Inode}, Event, Timestamp, Node, Args) ->
 	FormatString = "~f : ~s : ~s : ~s : ~p : " ++ string:join([ "~s" || _ <- lists:seq(1, length(Args)) ], " : ") ++ "~n",
 	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Event, Node] ++ Args,
 	io:format(File, FormatString, AllArgs).
+
+check_file({FileHandle, FileName, FileInode}) ->
+	?DEBUG("Checking file ~s", [FileName]),
+	{Fhandle, Finode} = case file:read_file_info(FileName) of
+		{ok, #file_info{inode = FileInode} = _Fileinfo} ->
+	 		?DEBUG("file ~s say's it's cool", [FileName]),
+			{FileHandle, FileInode};
+		{ok, #file_info{inode = NewInode} = Fileinfo} ->
+			case file:open(FileName, [append]) of
+				{ok, NewHandle} ->
+					?DEBUG("Gots myself a new file inode.", []),
+					{NewHandle, NewInode};
+				_ ->
+					?ERROR("Could not re-open disappeared file ~s", [FileName]),
+					exit(nofile)
+			end;
+		{error, enoent} ->
+			?DEBUG("Looks like the file ~s was removed", [FileName]),
+			{ok, NewHandle} = file:open(FileName, [append]),
+			{ok, #file_info{inode = NewInode}} = file:read_file_info(FileName),
+			{NewHandle, NewInode};
+		Else ->
+			?WARNING("Could not ensure events file ~s exists (~p).", [FileName, Else])
+	end,
+	{Fhandle, FileName, Finode}.
 
 % generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601
 -spec iso8601_timestamp() -> string().
@@ -314,3 +347,47 @@ map_call_to_queue([{_Key, #queued_call{id = Id} = _Media} | Tail], Name, Dict) -
 get_FQDN() ->
 	lists:flatten([inet_db:gethostname(),".",inet_db:res_option(domain)]).
 
+-ifdef(TEST).
+
+-define(test_file, "event.test.log").
+
+file_handling_test_() ->
+	{foreach,
+	fun() ->
+		file:delete(?test_file),
+		Ets = ets:new(cpx_monitor, [named_table]),
+		{ok, Qm} = gen_leader_mock:start(queue_manager),
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+			{ok, [], State}
+		end),
+		{ok, EventLog} = start([{filename, ?test_file}]),
+		{EventLog, Ets}
+	end,
+	fun({EventLog, Ets}) ->
+		exit(EventLog, kill),
+		gen_leader_mock:stop(whereis(queue_manager)),
+		file:delete(?test_file),
+		ets:delete(Ets),
+		timer:sleep(10) % letting everything die...
+	end,
+	[fun({EventLog, _}) -> {"removal and touch", fun() ->
+		EventLog ! {cpx_monitor_event, {set, erlang:now(), {{agent, "agent"}, [{login, "agent"}, {skills, []}], node()}}},
+		file:delete(?test_file),
+		{ok, File} = file:open(?test_file, [append]),
+		file:close(File),
+		EventLog ! {cpx_monitor_event, {drop, erlang:now(), {agent, "agent"}}},
+		timer:sleep(5),
+		{ok, Bin} = file:read_file(?test_file),
+		?assertNot(<<>> == Bin)
+	end} end,
+	fun({EventLog, _}) -> {"straight removal", fun() ->
+		EventLog ! {cpx_monitor_event, {set, erlang:now(), {{agent, "agent"}, [{login, "agent"}, {skills, []}], node()}}},
+		file:delete(?test_file),
+		timer:sleep(5),
+		EventLog ! {cpx_monitor_event, {drop, erlang:now(), {agent, "agent"}}},
+		timer:sleep(5),
+		?assertMatch({ok, Bin}, file:read_file(?test_file))
+	end} end]}.
+		
+
+-endif.

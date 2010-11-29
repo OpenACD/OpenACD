@@ -21,7 +21,9 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 
-%% @doc Generates an eventlog in a format approaching a legacy format used by KGB
+%% @doc Generates an eventlog in a format approaching a legacy format used 
+%% by KGB. Most of the records here are based on documentation provided by
+%% kgb.
 
 -module(cpx_monitor_kgb_eventlog).
 
@@ -61,6 +63,42 @@
 		callagentmap
 	}).
 
+-type(agent_event() ::
+	'agent_login' |
+	'agent_logout' |
+	'agent_start' |
+	'agent_stop' |
+	'agent_available' |
+	'agent_unavailable'
+).
+
+-record(agent_event, {
+	uuid = monotonic_counter() :: float(),
+	hostname,
+	timestamp,
+	event_type :: agent_event(),
+	agent_id :: string(),
+	queue_name :: 'undefined' | string()
+}).
+
+-record(call_enqueue_event, {
+	uuid = monotonic_counter() :: float(),
+	hostname,
+	timestamp,
+	event_type = call_enqueue,
+	node,
+	queue,
+	from_header,
+	call_id,
+	origin_code = "Origin",
+	cls = "CLS",
+	source_ip = "Source IP",
+	did_number
+}).
+
+% =====
+% API
+% =====
 
 start() ->
 	start([]).
@@ -74,6 +112,9 @@ start_link() ->
 start_link(Props) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Props, []).
 
+% =====
+% init 
+% =====
 init(Props) ->
 	Filename = proplists:get_value(filename, Props, "events.log"),
 	case file:open(Filename, [append]) of
@@ -86,7 +127,7 @@ init(Props) ->
 				% hopefully the below won't take too long if this module is started on a busy system.
 				CallQMap = init_call_queue_map(),
 				CallAgentMap = dict:new(), % TODO bootstrap this to avoid false positives on abandon
-				cpx_monitor:subscribe(),
+				cpx_monitor:subscribe(fun subscription_filter/1),
 				{ok, FileInfo} = file:read_file_info(Filename),
 				{ok, #state{file = {File, Filename, FileInfo#file_info.inode}, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap, callagentmap = CallAgentMap}};
 			{error, Reason} ->
@@ -94,13 +135,22 @@ init(Props) ->
 				{stop, {error, Reason}}
 	end.
 
+% =====
+% Call
+% =====
 handle_call(_Request, _From, State) ->
 	Reply = ok,
 	{reply, Reply, State, hibernate}.
 
+% =====
+% Cast
+% =====
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
+% =====
+% Info
+% =====
 handle_info({cpx_monitor_event, {set, Timestamp, {{agent, Key}, Details, _Node}}}, State) ->
 	NewFile = check_file(State#state.file),
 	case dict:find(Key, State#state.agents) of
@@ -191,11 +241,37 @@ handle_info(Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.
 
+% =====
+% Terminate
+% =====
 terminate(_Reason, _State) ->
 	ok.
 
 code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
+
+% =====
+% Internal Functions
+% =====
+
+subscription_filter({set, _, {{agent, _}, Details, _}}) ->
+	case proplists:get_value(skills, Details) of
+		undefined ->
+			false;
+		[] ->
+			false;
+		Skills ->
+			case length([X || {'_queue', X} <- Skills]) of
+				0 ->
+					false;
+				_ ->
+					true
+			end
+	end;
+subscription_filter({set, _, {{media, _}, _, _}}) ->
+	true;
+subscription_filter({drop, _, _}) ->
+	true.
 
 agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 	% has the agent's state changed?
@@ -389,5 +465,43 @@ file_handling_test_() ->
 		?assertMatch({ok, Bin}, file:read_file(?test_file))
 	end} end]}.
 		
-
+formatting_test_() ->
+	{foreach,
+	fun() ->
+		file:delete(?test_file),
+		Ets = ets:new(cpx_monitor, [named_table]),
+		{ok, Qm} = gen_leader_mock:start(queue_manager),
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+			{ok, [], State}
+		end),
+		{ok, EventLog} = start([{filename, ?test_file}]),
+		{EventLog, Ets}
+	end,
+	fun({EventLog, Ets}) ->
+		exit(EventLog, kill),
+		gen_leader_mock:stop(whereis(queue_manager)),
+		%file:delete(?test_file),
+		ets:delete(Ets),
+		timer:sleep(10) % letting everything die...
+	end,
+	[fun({EventLog, _}) -> {"An agent logs in", fun() ->
+		EventLog ! {cpx_monitor_event, {set, erlang:now(), {{agent, "agent"}, [{login, "agentName"}, {skills, [{'_queue', "Queue"}]}, {node, node()}], node()}}},
+		timer:sleep(5),
+		{ok, Bin} = file:read_file(?test_file),
+		?DEBUG("Got bin:  ~p", [Bin]),
+		Localhost = list_to_binary(net_adm:localhost()),
+		LhostSize = size(Localhost),
+		Node = list_to_binary(atom_to_list(node())),
+		NodeSize = size(Node),
+		?DEBUG("Localhost:  ~s~nNode:  ~s", [Localhost, Node]),
+		<<_:17/binary, " : ", Localhost:LhostSize/binary, " : ", 
+		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
+		" : agentName", _:1/binary, Rest/binary>> = Bin,
+		?DEBUG("Rest:  ~p", [Rest]),
+		<<_:17/binary, " : ", Localhost:LhostSize/binary, " : ",
+		_:27/binary, " : agent_login : ", Node:NodeSize/binary,
+		" : agentName : Queue", _:1/binary>> = Rest,
+		?assert(true)
+	end} end]}.
+		
 -endif.

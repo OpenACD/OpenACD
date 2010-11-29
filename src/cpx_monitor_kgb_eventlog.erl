@@ -314,13 +314,12 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 								"Source IP",
 								Call#call.dnis
 							]);
-					{wrapup, _} ->
+					{wrapup, NextState} ->
 						Call = proplists:get_value(statedata, Old),
 						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
 							error -> "Unknown Queue";
 							{ok, Value} -> Value
 						end,
-
 						log_event(File, "call_complete", Timestamp, 
 								proplists:get_value(node, New), [
 								Queue,
@@ -331,7 +330,13 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 								"CLS",
 								"Source IP",
 								Call#call.dnis
-							]);
+							]),
+						case NextState of
+							idle ->
+								[log_event(State#state.file, "agent_available", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+							_ ->
+								ok
+						end;	
 					{_, oncall} ->
 						Call = proplists:get_value(statedata, New),
 						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of

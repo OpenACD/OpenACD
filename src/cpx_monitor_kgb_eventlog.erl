@@ -271,7 +271,9 @@ subscription_filter({set, _, {{agent, _}, Details, _}}) ->
 subscription_filter({set, _, {{media, _}, _, _}}) ->
 	true;
 subscription_filter({drop, _, _}) ->
-	true.
+	true;
+subscription_filter(_) ->
+	false.
 
 agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 	% has the agent's state changed?

@@ -486,24 +486,15 @@
 			</script>
 			<span>TABS</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
-				<div dojoType="dijit.PopupMenuItem">
-					<script type="dojo/method" event="postCreate">
-						this.inherited("postCreate", arguments);
-						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").LOADTAB);
+				<div dojoType="dijit.MenuItem">Supervisor
+					<script type="dojo/connect" event="onClick">
+						loadTab('supervisorTab');
 					</script>
-					<span>LOADTAB</span>
-					<div dojoType="dijit.Menu">
-						<div dojoType="dijit.MenuItem">Supervisor
-							<script type="dojo/connect" event="onClick">
-								loadTab('supervisorTab');
-							</script>
-						</div>
-						<div dojoType="dijit.MenuItem">Dashboard
-							<script type="dojo/connect" event="onClick">
-								loadTab('dashboardTab');
-							</script>
-						</div>
-					</div>
+				</div>
+				<div dojoType="dijit.MenuItem">Dashboard
+					<script type="dojo/connect" event="onClick">
+						loadTab('dashboardTab');
+					</script>
 				</div>
 			</div>
 		</div>

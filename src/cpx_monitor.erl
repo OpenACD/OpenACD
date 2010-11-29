@@ -420,7 +420,7 @@ handle_DOWN(Node, State, Election) ->
 	ets:safe_fixtable(?MODULE, true),
 	Drops = qlc:e(qlc:q([begin
 			ets:delete(?MODULE, Key),
-			{drop, os:timestamp, Key}
+			{drop, os:timestamp(), Key}
 		end ||
 		{Key, _Time, _Props, WhichNode, _, _} <- ets:table(?MODULE),
 		Key =/= {node, Node},

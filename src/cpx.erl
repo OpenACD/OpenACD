@@ -63,6 +63,7 @@
 % helper funcs
 -export([
 	agent_state/1,
+	agent_states/0,
 	agent_states/1,
 	backup_config/0,
 	backup_config/1,
@@ -197,7 +198,7 @@ merge_env() ->
 			merge_env(Cpxdb, Locked)
 	end.
 
-merge_env([], LockedKeys) ->
+merge_env([], _LockedKeys) ->
 	ok;
 merge_env([{Key, Val} | T], Locked) ->
 	case application:get_env(cpx, Key) of
@@ -277,10 +278,12 @@ get_agents(Profile) ->
 get_queues() ->
 	queue_manager:queues().
 
+-spec(get_queue_status/0 :: () -> 'ok').
 get_queue_status() ->
 	[io:format("Queue: ~s; ~B calls~n", [Name, call_queue:call_count(Pid)]) || {Name, Pid} <- queue_manager:queues()],
 	ok.
 
+-spec(get_agent_status/0 :: () -> 'ok').
 get_agent_status() ->
 	Agents = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
 	{I, O, W, R} = lists:foldl(fun({_, Info, _, _, _, _}, {Idle, Oncall, Wrapup, Released}) ->
@@ -337,37 +340,37 @@ get_medias_managers([#cpx_conf{supervisor = mediamanager_sup, module_name = Mod}
 get_medias_managers([_Head | Tail], Needle) ->
 	get_medias_managers(Tail, Needle).
 
-get_media_queues([], _Callref) ->
-	none;
-get_media_queues([{Qnom, Queue} | Tail], Callref) ->
-	Calls = call_queue:to_list(Queue),
-	case get_media_queues_medias(Calls, Callref) of
-		none ->
-			get_media_queues(Tail, Callref);
-		Pid ->
-			Pid
-	end.
-
-get_media_queues_medias([], _Callref) ->
-	none;
-get_media_queues_medias([QueuedCall | Tail],  Callref) ->
-	case QueuedCall#queued_call.id of
-		Callref ->
-			QueuedCall#queued_call.media;
-		_ ->
-			get_media_queues_medias(Tail, Callref)
-	end.
-
-get_media_agents([], _Callref) ->
-	none;
-get_media_agents([{_Login, Pid} | Tail], Callref) ->
-	#agent{statedata = State} = agent:dump_state(Pid),
-	case State of
-		#call{id = Callref} ->
-			State#call.source;
-		_ ->
-			get_media_agents(Tail, Callref)
-	end.
+%get_media_queues([], _Callref) ->
+%	none;
+%get_media_queues([{Qnom, Queue} | Tail], Callref) ->
+%	Calls = call_queue:to_list(Queue),
+%	case get_media_queues_medias(Calls, Callref) of
+%		none ->
+%			get_media_queues(Tail, Callref);
+%		Pid ->
+%			Pid
+%	end.
+%
+%get_media_queues_medias([], _Callref) ->
+%	none;
+%get_media_queues_medias([QueuedCall | Tail],  Callref) ->
+%	case QueuedCall#queued_call.id of
+%		Callref ->
+%			QueuedCall#queued_call.media;
+%		_ ->
+%			get_media_queues_medias(Tail, Callref)
+%	end.
+%
+%get_media_agents([], _Callref) ->
+%	none;
+%get_media_agents([{_Login, Pid} | Tail], Callref) ->
+%	#agent{statedata = State} = agent:dump_state(Pid),
+%	case State of
+%		#call{id = Callref} ->
+%			State#call.source;
+%		_ ->
+%			get_media_agents(Tail, Callref)
+%	end.
 
 -spec(kick_agent/1 :: (AgentRef :: string() | pid()) -> 'ok' | 'none').
 kick_agent(Pid) when is_pid(Pid) ->
@@ -463,7 +466,7 @@ help(Module) ->
 				undefined ->
 					io:format("There is no help information available for ~p~n~n", [Module]),
 					ok;
-				[Head | Tail] ->
+				[Head | _Tail] ->
 					io:format("~p", [Head]),
 					ok
 			end,
@@ -691,6 +694,7 @@ pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
 	Newacc = lists:append([integer_to_list(Rem), " ", Label, " ", Acc]),
 	pretty_print_time(Tail, Newtime, Newacc).
 
+-spec(reload_recipe/1 :: (Queue :: string()) -> 'ok').
 reload_recipe(Queue) ->
 	#call_queue{group = Group, recipe = Recipe} = call_queue_config:get_queue(Queue),
 	{atomic, [#queue_group{recipe = Grep}]} = call_queue_config:get_queue_group(Group),
@@ -698,10 +702,12 @@ reload_recipe(Queue) ->
 	Q = queue_manager:get_queue(Queue),
 	call_queue:set_recipe(Q, Newrec).
 
+-spec(in_progress/0 :: () -> [#cdr_rec{}]).
 in_progress() ->
 	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([begin M = R#cdr_rec.media, M#call.id end || #cdr_rec{summary = inprogress} = R <- mnesia:table(cdr_rec)])) end),
 	List.
 
+-spec(print_raws/1 :: (Cdr :: string() | #cdr_rec{}) -> 'ok').
 print_raws(#cdr_rec{transactions = inprogress, media = Media}) ->
 	Id = Media#call.id,
 	print_raws(Id);
@@ -727,9 +733,9 @@ print_raws(Id) ->
 
 pretty_print_raws(UnsortedList) ->
 	Sort = fun
-		(#cdr_raw{transaction = cdrinit, start = Astart}, #cdr_raw{transaction = Btran, start = Bstart}) ->
+		(#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction = _Btran}) ->
 			true;
-		(#cdr_raw{transaction = _Tran, start = Astart}, #cdr_raw{transaction = cdrinit, start = Bstart}) ->
+		(#cdr_raw{transaction = _Tran}, #cdr_raw{transaction = cdrinit}) ->
 			false;
 		(#cdr_raw{start = Astart}, #cdr_raw{start = Bstart}) ->
 			Astart =< Bstart
@@ -769,6 +775,7 @@ pretty_print_summary_details([{Key, Total} | Tail]) ->
 	io:format("\t\t~s:  ~p~n", [Key, Total]),
 	pretty_print_summary_details(Tail).
 
+-spec(print_cdr/1 :: (Cdr :: #cdr_rec{}) -> 'ok').
 print_cdr(#cdr_rec{media = M, summary = inprogress, transactions = inprogress}) ->
 	Id = M#call.id,
 	io:format("Id:  ~s~n", [Id]),
@@ -796,6 +803,9 @@ print_cdr(Id) ->
 			print_cdr(Rec)
 	end.
 
+-type(find_cdr_test() :: any()). % TODO flesh this out.  there's a lot of em
+-type(find_cdr_tests() :: [find_cdr_test()]).
+-spec(find_cdr/1 :: (Tests :: find_cdr_tests()) -> [#cdr_rec{}]).
 find_cdr(Tests) when is_list(Tests) ->
 	QH = qlc:q([Cdr || Cdr <- mnesia:table(cdr_rec), lists:all(fun(Test) -> find_cdr_test(Test, Cdr) end, Tests)]),
 	find_cdr(QH);
@@ -837,7 +847,7 @@ find_cdr_test({agent, Agent}, #cdr_rec{media = Media, transactions = inprogress}
 		{atomic, _} ->
 			true
 	end;
-find_cdr_test({agent, Agent}, #cdr_rec{media = Media, transactions = Trans}) ->
+find_cdr_test({agent, Agent}, #cdr_rec{media = _Media, transactions = Trans}) ->
 	case [X || #cdr_raw{eventdata = Edata} = X <- Trans, Edata =:= Agent] of
 		[] ->
 			false;

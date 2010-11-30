@@ -48,24 +48,33 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %% API
+-spec(start/2 :: (AgentRec :: #agent{}, Security :: 'agent' | 'supervisor' | 'admin') -> {'ok', pid()}).
 start(AgentRec, Security) ->
 	gen_server:start(?MODULE, [AgentRec, Security], []).
 
+-spec(start_link/2 :: (AgentRec :: #agent{}, Security :: 'agent' | 'supervisor' | 'admin') -> {'ok', pid()}).
 start_link(AgentRec, Security) ->
 	gen_server:start_link(?MODULE, [AgentRec, Security], []).
 
+-spec(logout/1 :: (Pid :: pid()) -> 'ok').
 logout(Pid) ->
 	gen_server:call(Pid, logout).
 
+-spec(go_released/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
 go_released(Pid) ->
 	gen_server:call(Pid, go_released).
 
+-spec(go_available/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
 go_available(Pid) ->
 	gen_server:call(Pid, go_available).
 
 %% gen_server API
-init([AgentRec, Security]) ->
+init([AgentRec, _Security]) -> % TODO if not used, why is it here?
 	case agent_manager:start_agent(AgentRec) of
 		{ok, Apid} ->
 			ok;

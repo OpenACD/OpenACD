@@ -253,6 +253,7 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
 
+-spec(truncate/0 :: () -> ['none' | 'ok' | pid()]).
 truncate() ->
 	Now = util:now(),
 	{atomic, Deads} = mnesia:transaction(fun() -> 
@@ -273,6 +274,7 @@ truncate() ->
 	[truncate(X) || X <- Deads].
 	%Handles = [gen_event:delete_handler(cdr, {cdr, Id}, truncate) || {cdr, Id} <- gen_event:which_handlers(cdr), lists:member(Deads, Id)],
 
+-spec(truncate/1 :: (Call :: string() | #call{}) -> 'ok' | 'none' | pid).
 truncate(Callid) when is_list(Callid) ->
 	Res = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([M || #cdr_rec{media = M} <- mnesia:table(cdr_rec), M#call.id =:= Callid]))
@@ -321,7 +323,7 @@ attached_agent([Head | Tail]) ->
 		_ ->
 			attached_agent(Tail)
 	end;
-attached_agent(#cdr_raw{eventdata = D, id = Id}) when is_list(D) ->
+attached_agent(#cdr_raw{eventdata = D, id = _Id}) when is_list(D) ->
 	case agent_manager:query_agent(D) of
 		{true, _Pid} ->
 			true;
@@ -627,7 +629,7 @@ find_untermed(endwrapup, #call{id = Cid}, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(ringout, #call{id = Cid}, {_Reason, Agent}) ->
+find_untermed(ringout, #call{id = Cid}, {_Reason, _Agent}) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,

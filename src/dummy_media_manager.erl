@@ -115,6 +115,7 @@ set_option(Key, Valu) ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+-spec(halt/0 :: () -> 'ok').
 halt() ->
 	gen_server:cast(?MODULE, halt).
 

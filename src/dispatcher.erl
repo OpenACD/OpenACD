@@ -143,7 +143,6 @@ handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
 handle_cast(regrab, #state{tried_queues = Tried} = State) ->
-	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of

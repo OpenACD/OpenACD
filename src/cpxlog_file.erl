@@ -87,7 +87,7 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Arg
 		false ->
 			ok
 	end,
-	Files = lists:filter(fun({_, FH, _, LogLevel}) ->
+	Files = lists:filter(fun({_, _FH, _, LogLevel}) ->
 				lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS))
 		end, Filehandles),
 	case Files of
@@ -116,7 +116,7 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
 		false ->
 			ok
 	end,
-	Files = lists:filter(fun({_, FH, _, LogLevel}) ->
+	Files = lists:filter(fun({_, _FH, _, LogLevel}) ->
 				lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS))
 		end, Filehandles),
 	case Files of

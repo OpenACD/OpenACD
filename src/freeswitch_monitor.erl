@@ -59,6 +59,11 @@
 		node :: node()
 	}).
 
+-define(GEN_SERVER, true).
+-type(state() :: #state{}).
+-include("gen_spec.hrl").
+
+-spec(monitor_agent/3 :: (Agent :: string(), Dialstring :: string(), Node :: atom()) -> {'ok', pid()}).
 monitor_agent(Agent, Dialstring, Node) ->
 	case agent_auth:get_agent(Agent) of
 		{'atomic', [AgentAuth]} ->
@@ -73,12 +78,13 @@ monitor_agent(Agent, Dialstring, Node) ->
 			{error, no_agent}
 	end.
 
+-spec(monitor_client/3 :: (Client :: string(), Dialstring :: string(), Node :: atom()) -> {'ok', pid()}).
 monitor_client(Client, Dialstring, Node) ->
 	case call_queue_config:get_client(Client) of
 		none ->
 			{error, no_client};
 		ClientRec ->
-			Filter = fun({set, Timestamp, {_, Details, Node}}) ->
+			Filter = fun({set, _Timestamp, {_, Details, _Node2}}) ->
 					case proplists:get_value(statedata, Details) of
 						Res when is_record(Res, call) ->
 							case Res#call.client of
@@ -108,7 +114,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-handle_info({cpx_monitor_event, {set, Timestmap, {{agent, Key}, Details, _Node}}}, State) ->
+handle_info({cpx_monitor_event, {set, _Timestamp, {{agent, _Key}, Details, _Node}}}, State) ->
 	case proplists:get_value(state, Details) of
 		S when State#state.oncall == false, (S == oncall orelse S == outgoing) ->
 			?NOTICE("Watched ~p just went oncall ~p", [State#state.type, Details]),
@@ -148,7 +154,7 @@ handle_info({originate, error, Reply}, State) ->
 	{stop, {bad_originate, Reply}, State};
 handle_info(call_hangup, State) ->
 	{stop, normal, State};
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.
 

@@ -300,6 +300,7 @@ terminate(Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+-spec(format_status/2 :: (Cause :: any(), Props :: [any()]) -> #state{} | [any()]).
 format_status(normal, [PDict, State]) ->
 	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
 format_status(terminate, [_PDict, #state{callrec = Call} = State]) ->

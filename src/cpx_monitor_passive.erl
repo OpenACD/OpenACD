@@ -153,20 +153,20 @@
 }).
 
 -record(media_stats, {
-	inbound = 0,
-	outbound = 0,
-	inivr = 0,
-	inqueue = 0,
-	abandoned = 0,
+	inbound = 0 :: non_neg_integer(),
+	outbound = 0 :: non_neg_integer(),
+	inivr = 0 :: non_neg_integer(),
+	inqueue = 0 :: non_neg_integer(),
+	abandoned = 0 :: non_neg_integer(),
 	oldest = null :: 'null' | {string(), non_neg_integer()}
 }).
 
 -record(agent_stats, {
-	total = 0,
-	available = 0,
-	oncall = 0,
-	released = 0,
-	wrapup = 0
+	total = 0 :: non_neg_integer(),
+	available = 0 :: non_neg_integer(),
+	oncall = 0 :: non_neg_integer(),
+	released = 0 :: non_neg_integer(),
+	wrapup = 0 :: non_neg_integer()
 }).
 
 -record(state, {
@@ -445,7 +445,7 @@ update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue
 			end,
 			ets:insert(stats_cache, {{queue, Newqueue}, Newstats})
 	end;
-update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = New) ->
+update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = _New) ->
 	{_G, Newqueue} = Old#cached_media.statedata,
 	[{{queue, Newqueue}, Stats}] = case ets:lookup(stats_cache, {queue, Newqueue}) of
 		[] ->
@@ -659,7 +659,7 @@ update_agent_profiles_up(New, Mid) ->
 			Mid#agent_stats{oncall = Mid#agent_stats.oncall + 1}
 	end.
 
-transform_event({set, {Megasec, Sec, Micorsec}, {{media, Id}, Details, _Node}}, [], QueueCache, AgentCache) ->
+transform_event({set, {Megasec, Sec, _Micorsec}, {{media, Id}, Details, _Node}}, [], QueueCache, _AgentCache) ->
 	Time = (Megasec * 1000000) + Sec,
 	{State, Statedata} = case proplists:get_value(queue, Details) of
 		undefined ->
@@ -688,7 +688,7 @@ transform_event({set, {Megasec, Sec, Micorsec}, {{media, Id}, Details, _Node}}, 
 		history = History
 	},
 	RecInit#cached_media{json = media_to_json(RecInit)};
-transform_event({set, {Megasec, Sec, Micorsec}, {{media, _Id}, Details, _Node}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
+transform_event({set, {Megasec, Sec, _Micorsec}, {{media, _Id}, Details, _Node}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
 	% movements:
 	% ivr -> queue
 	% ivr -> drop (though with a set, that's impossible)
@@ -725,7 +725,7 @@ transform_event({set, {Megasec, Sec, Micorsec}, {{media, _Id}, Details, _Node}},
 			Midrec = OldRec#cached_media{state = NewState, statedata = NewStateData, endstate = Endstate, history = History},
 			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
 	end;
-transform_event({drop, Timestamp, {media, _Id}}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
+transform_event({drop, _Timestamp, {media, _Id}}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
 	% if dropping we were:
 	% queue
 	% ivr
@@ -891,6 +891,7 @@ determine_event(ended, D, _, _, _) ->
 	% I am not going to dignify this with a response.
 	{ended, D, nochange}.
 
+-spec(write_output/3 :: (Interval :: non_neg_integer(), QCache :: any(), ACache :: any()) -> 'ok' | {'error', any()}).
 write_output(Interval, _QueueCache, _AgentCache) ->
 	% clients
 	% queues

@@ -56,59 +56,37 @@
 ]).
 
 -record(state, {
-		file,
-		agents,
-		calls,
-		callqueuemap,
-		callagentmap
+		file :: {string(), pid(), string()},
+		agents :: dict(),
+		calls :: dict(),
+		callqueuemap :: dict(),
+		callagentmap :: dict()
 	}).
 
--type(agent_event() ::
-	'agent_login' |
-	'agent_logout' |
-	'agent_start' |
-	'agent_stop' |
-	'agent_available' |
-	'agent_unavailable'
-).
-
--record(agent_event, {
-	uuid = monotonic_counter() :: float(),
-	hostname,
-	timestamp,
-	event_type :: agent_event(),
-	agent_id :: string(),
-	queue_name :: 'undefined' | string()
-}).
-
--record(call_enqueue_event, {
-	uuid = monotonic_counter() :: float(),
-	hostname,
-	timestamp,
-	event_type = call_enqueue,
-	node,
-	queue,
-	from_header,
-	call_id,
-	origin_code = "Origin",
-	cls = "CLS",
-	source_ip = "Source IP",
-	did_number
-}).
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 % =====
 % API
 % =====
 
+-type(file_opt() :: {'file', string()}).
+-type(start_opts() :: [file_opt()]).
+
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start([]).
 
+-spec(start/1 :: (Props :: start_opts()) -> {'ok', pid()}).
 start(Props) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, Props, []).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link([]).
 
+-spec(start_link/1 :: (Props :: start_opts()) -> {'ok', pid()}).
 start_link(Props) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Props, []).
 
@@ -120,8 +98,8 @@ init(Props) ->
 	case file:open(Filename, [append]) of
 			{ok, File} ->
 				inet_config:do_load_resolv(os:type(), longnames),
-				Agents = qlc:e(qlc:q([{Key, Details} || {{agent, Key}, Details, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-				Calls = qlc:e(qlc:q([{Key, Details} || {{media, Key}, Details, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+				Agents = qlc:e(qlc:q([{Key, Details} || {{agent, Key}, Details, _, _, _, _} = _X <- ets:table(cpx_monitor)])),
+				Calls = qlc:e(qlc:q([{Key, Details} || {{media, Key}, Details, _, _, _, _} = _X <- ets:table(cpx_monitor)])),
 				AgentDict = dict:from_list(Agents),
 				CallDict = dict:from_list(Calls),
 				% hopefully the below won't take too long if this module is started on a busy system.
@@ -237,7 +215,7 @@ handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, callagentmap
 	Newcmap = dict:erase(Key, Callqmap),
 	Newamap = dict:erase(Key, CallAgentMap),
 	{noreply, State#state{callqueuemap = Newcmap, callagentmap = Newamap, calls = Newcalls}};
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.
 
@@ -275,7 +253,7 @@ subscription_filter({drop, _, _}) ->
 subscription_filter(_) ->
 	false.
 
-agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
+agent_diff(_Agent, New, Old, Timestamp, #state{file = File} = State) ->
 	% has the agent's state changed?
 	case proplists:get_value(state, New) == proplists:get_value(state, Old) of
 		true ->
@@ -333,7 +311,7 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							]),
 						case NextState of
 							idle ->
-								[log_event(State#state.file, "agent_available", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+								[log_event(State#state.file, "agent_available", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), AQueue]) || {'_queue', AQueue} <- proplists:get_value(skills, New)];
 							_ ->
 								ok
 						end;	
@@ -369,7 +347,7 @@ monotonic_counter() ->
 	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
 	MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000.
 
-log_event({File, _Name, Inode}, Event, Timestamp, Node, Args) ->
+log_event({File, _Name, _Inode}, Event, Timestamp, Node, Args) ->
 	FormatString = "~f : ~s : ~s : ~s : ~p : " ++ string:join([ "~s" || _ <- lists:seq(1, length(Args)) ], " : ") ++ "~n",
 	AllArgs = [monotonic_counter(), get_FQDN(), iso8601_timestamp(Timestamp), Event, Node] ++ Args,
 	io:format(File, FormatString, AllArgs).
@@ -380,7 +358,7 @@ check_file({FileHandle, FileName, FileInode}) ->
 		{ok, #file_info{inode = FileInode} = _Fileinfo} ->
 	 		?DEBUG("file ~s say's it's cool", [FileName]),
 			{FileHandle, FileInode};
-		{ok, #file_info{inode = NewInode} = Fileinfo} ->
+		{ok, #file_info{inode = NewInode} = _Fileinfo} ->
 			case file:open(FileName, [append]) of
 				{ok, NewHandle} ->
 					?DEBUG("Gots myself a new file inode.", []),
@@ -400,9 +378,9 @@ check_file({FileHandle, FileName, FileInode}) ->
 	{Fhandle, FileName, Finode}.
 
 % generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601
--spec iso8601_timestamp() -> string().
-iso8601_timestamp() ->
-	iso8601_timestamp(os:timestamp()).
+%-spec iso8601_timestamp() -> string().
+%iso8601_timestamp() ->
+%	iso8601_timestamp(os:timestamp()).
 
 -spec iso8601_timestamp(Now :: {integer(), integer(), integer()}) -> string().
 iso8601_timestamp(Now) ->

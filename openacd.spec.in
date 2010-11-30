@@ -29,8 +29,8 @@ BuildRequires: rubygem-rake
 make
 
 %install
-mkdir -p -m 755 $RPM_BUILD_ROOT/opt
-cp -r . $RPM_BUILD_ROOT/opt/openacd
+mkdir -p -m 755 $RPM_BUILD_ROOT/opt/openacd
+cp -r contrib boot.rb ebin LICENSE misc priv key key.pub $RPM_BUILD_ROOT/opt/openacd
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -42,5 +42,14 @@ rm -rf $RPM_BUILD_ROOT
 %files
 # TODO: fixme once we figure out how to package openacd
 %defattr(644,sipxchange,sipxchange,755)
-/opt/openacd/*
+%dir /opt/openacd
+%attr (755,sipxchange,sipxchange) /opt/openacd/boot.rb
+/opt/openacd/key
+/opt/openacd/key.pub
+/opt/openacd/contrib
+/opt/openacd/ebin
+/opt/openacd/LICENSE
+/opt/openacd/misc
+/opt/openacd/priv
+
 

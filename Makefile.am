@@ -1,10 +1,3 @@
-SPEC_FILE = @PACKAGE@.spec
-
-# Override default tarball creation, need to support paths > 99 chars
-# change tar options: "chof" to "chf", which implies the tarball is not
-# compatible with legacy systems.  See 'man tar' for more info
-am__tar = ${AMTAR} chf - "$$tardir"
-
 LOCALIZE = \
 	-e 's/@PACKAGE\@/@PACKAGE@/g' \
 	-e 's/@PACKAGE_VERSION\@/@PACKAGE_VERSION@/g'
@@ -30,7 +23,7 @@ WWW_CONTRIB_DEP_DIRS = \
 	$(foreach D,$(WWW_CONTRIB_DEPS),$(srcdir)/priv/www/contrib/dojo/$(D))
 
 EXTRA_DIST = \
-	$(SPEC_FILE) \
+	openacd.spec \
 	boot.rb \
 	configure \
 	Makefile.in \
@@ -53,12 +46,12 @@ all compile :
 install :
 	@echo "No install target, copy this dir to where you want OpenACD to run"
 
-.PHONY :
-$(SPEC_FILE) :
+.PHONY : openacd.spec
+openacd.spec :
 	sed $(LOCALIZE) $(srcdir)/$@.in > $@
 
 clean-local :
-	rm $(SPECFILE)
+	rm openacd.spec
 	rake clean
 
 # Download everything and put it in the tarball, so build server doesn't download anything

@@ -494,10 +494,10 @@ send_media_set(Pid, drop) ->
 	Pid ! {cpx_monitor_event, {drop, erlang:now(), {media, "media"}}};
 send_media_set(Pid, InProps) ->
 	Props = [
-		{callerid, "2318232979*12358497*112*9080"},
+		{callerid, {"ignored", "from_header"}},
 		{dnis, "9080"},
 		{node, node()}
-	],
+	 | InProps],
 	Pid ! {cpx_monitor_event, {set, erlang:now(), {{media, "media"}, Props, node()}}}.
 
 %% Yes, these use ?assert(true).  The real test are the pattern matching.
@@ -591,8 +591,18 @@ formatting_test_() ->
 		_:27/binary, " : agent_logout : ", Node:NodeSize/binary,
 		" : agentName : Queue", _:1/binary>> = Rest,
 		?assert(true)
-	end} end
-	%fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"a call enters queue", fun() ->
-		]}.
+	end} end,
+	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"a call enters queue", fun() ->
+		send_media_set(EventLog, [{queue, "Queue"}]),
+		timer:sleep(5),
+		{ok, Bin} = file:read_file(?test_file),
+		?DEBUG("Got bin:  ~p", [Bin]),
+		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+		_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
+		" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", _:1/binary, Rest/binary>> = Bin,
+		?DEBUG("Got rest:  ~p", [Rest]),
+		<<>> = Rest,
+		?assert(true)
+	end} end]}.
 		
 -endif.

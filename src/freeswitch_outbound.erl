@@ -560,7 +560,7 @@ handle_info(call_hangup, Call, State) ->
 	case State#state.warm_transfer_uuid of
 		undefined ->
 			catch freeswitch_ring:hangup(State#state.ringchannel);
-		Else ->
+		_Else ->
 			% TODO - check if the call is still ringing or if its bridged so we can hang up if we're only ringing
 			RUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 			?INFO("original call hung up, but agent is still oncall with a warm transfer call", []),

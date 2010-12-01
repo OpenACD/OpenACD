@@ -629,9 +629,9 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 			set_cpx_monitor(Newagent, []),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}}
 	end;
-oncall({wrapup, #call{media_path = inband} = Call}, From, State) ->
+oncall({wrapup, #call{media_path = inband} = _Call}, From, State) ->
 	oncall(wrapup, From, State);
-oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #state{agent_rec = #agent{statedata = Currentcall, connection = AgentConnection} = Agent} = State) when From =:= CallSource orelse From =:= Currentcall#call.source ->
+oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #state{agent_rec = #agent{statedata = Currentcall} = Agent} = State) when From =:= CallSource orelse From =:= Currentcall#call.source ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
@@ -1254,7 +1254,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec(format_status/2 :: (Cause :: atom(), Data :: [any()]) -> any()).
 format_status(normal, [PDict, State]) ->
 	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
-format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
+format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 	% prevent client data from being dumped
 	Newagent = case Agent#agent.statedata of
 		#call{client = Client} = Call when is_record(Call#call.client, client) ->

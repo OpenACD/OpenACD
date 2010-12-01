@@ -349,7 +349,7 @@ handle_DOWN(Node, #state{agents = Agents} = State, _Election) ->
 	{ok, State#state{agents = Agents2}}.
 
 %% @hidden
-handle_leader_call({exists, Agent}, From, #state{agents = Agents} = State, Election) when is_list(Agent) -> 
+handle_leader_call({exists, Agent}, From, #state{agents = _Agents} = State, Election) when is_list(Agent) -> 
 	?DEBUG("Trying to determine if ~p exists", [Agent]),
 	case handle_leader_call({full_data, Agent}, From, State, Election) of
 		{reply, false, _State} = O ->
@@ -398,7 +398,7 @@ handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills}, #state{agents =
 			{noreply, State}
 	end;
 handle_leader_cast({update_notify, Login, Value}, #state{agents = Agents} = State, _Election) ->
-	NewAgents = dict:update(Login, fun(Old) -> Value end, Value, Agents),
+	NewAgents = dict:update(Login, fun(_Old) -> Value end, Value, Agents),
 	{noreply, State#state{agents = NewAgents}};
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
 	?NOTICE("leader notified of ~p exiting", [Agent]),
@@ -490,7 +490,7 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 			case gen_leader:leader_call(?MODULE, {full_data, Login}) of
 				false ->
 					{reply, false, State};
-				{Pid, Id, Time, Skills} = V when node(Pid) =:= node() ->
+				{Pid, _Id, _Time, _Skills} = V when node(Pid) =:= node() ->
 					% leader knows about a local agent, but we didn't!
 					% So we update the local dict
 					Agents2 = dict:store(Login, V, Agents),

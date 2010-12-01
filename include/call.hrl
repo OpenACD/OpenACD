@@ -89,7 +89,7 @@
 	'cdrend'
 ).
 
--type(time() :: pos_integer()).
+-type(cpx_time() :: pos_integer()).
 -type(callid() :: string()).
 -type(cdr_proplist() :: [{any(), any()}]).
 
@@ -97,10 +97,10 @@
 	id :: callid(),
 	transaction :: transaction_type(),
 	eventdata :: any(),
-	start = util:now() :: time(),
-	ended :: 'undefined' | time(),
+	start = util:now() :: cpx_time(),
+	ended :: 'undefined' | cpx_time(),
 	terminates = [] :: [transaction_type()] | 'infoevent',
-	timestamp = util:now() :: time(),
+	timestamp = util:now() :: cpx_time(),
 	nodes = [] :: [atom()]
 }).
 
@@ -108,6 +108,6 @@
 	media :: #call{},
 	summary = inprogress :: 'inprogress' | cdr_proplist(),
 	transactions = inprogress :: 'inprogress' | [#cdr_raw{}],
-	timestamp = util:now() :: time(),
+	timestamp = util:now() :: cpx_time(),
 	nodes = [] :: [atom()]
 }).

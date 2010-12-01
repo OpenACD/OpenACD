@@ -118,7 +118,7 @@ start_x(N, Args) ->
 start() ->
 	start([]).
 	
--spec(start/1 :: (Args :: [any()]) -> {'ok', pid()}).
+-spec(start/1 :: (Args :: start_options()) -> {'ok', pid()}).
 start(Args) ->
 	gen_server:start(?MODULE, [Args], []).
 
@@ -126,7 +126,7 @@ start(Args) ->
 start_link() ->
 	start_link([]).
 
--spec(start_link/1 :: (Args :: [any()]) -> {'ok', pid()}).
+-spec(start_link/1 :: (Args :: start_options()) -> {'ok', pid()}).
 start_link(Args) ->
 	gen_server:start_link(?MODULE, [Args], []).
 

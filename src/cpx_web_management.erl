@@ -315,7 +315,7 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
 	Node = list_to_existing_atom(binary_to_list(NodeBin)),
 	case freeswitch_monitor:monitor_agent(binary_to_list(Agent), binary_to_list(SpyDialstring), Node) of
-		{ok, Pid} ->
+		{ok, _Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_agent} ->
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"No such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
@@ -326,7 +326,7 @@ json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
 json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring, NodeBin]) ->
 	Node = list_to_existing_atom(binary_to_list(NodeBin)),
 	case freesiwtch_monitor:monitor_client(binary_to_list(ClientLabel), binary_to_list(SpyDialstring), Node) of
-		{ok, Pid} ->
+		{ok, _Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_client} ->
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
@@ -422,7 +422,7 @@ api(dialer, _, Post) ->
 		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
 		?DEBUG("starting dialer", []),
 		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
-			{ok, Pid} ->
+			{ok, _Pid} ->
 				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
 			{error, Reason} ->
 				{500, [], mochijson2:encode({struct, [{success, false}, {message, Reason}]})}
@@ -594,7 +594,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 					{struct, [{success, true}, {<<"message">>< <<"Already enabled">>}]}
 			end
 	end,
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout, Dialplanout]}]})};
 api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
 		undefined ->
@@ -1590,7 +1590,7 @@ api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post)
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"update what now?">>}]})};
 api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -2122,6 +2122,7 @@ get_pubkey() ->
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
 
+-spec(parse_posted_skills/1 :: (PostedSkills :: [string()]) -> [atom() | {atom(), string()}]).
 parse_posted_skills(PostedSkills) ->
 	parse_posted_skills(PostedSkills, []).
 
@@ -2586,7 +2587,7 @@ list_to_terms([], _Loc, Acc) ->
 	lists:reverse(Acc);
 list_to_terms(List, Location, Acc) ->
 	case erl_scan:tokens([], List, Location) of
-		{done, {ok, Tokens, End}, Tail} ->
+		{done, {ok, Tokens, _End}, Tail} ->
 			{ok, Term} = erl_parse:parse_term(Tokens),
 			NewAcc = [Term | Acc],
 			list_to_terms(Tail, 1, NewAcc);

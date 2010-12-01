@@ -221,6 +221,7 @@ ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+-spec(get_default_dial_string/0 :: () -> string()).
 get_default_dial_string() ->
 	gen_server:call(?MODULE, get_default_dial_string).
 
@@ -246,9 +247,11 @@ do_dial_string(DialString, Destination, Options) ->
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
 	"{" ++ string:join(EscapedOptions, ",") ++ "}" ++ D1.
 
+-spec(monitor_agent/2 :: (Agent :: string(), Watcher :: string()) -> {'ok', pid()}).
 monitor_agent(Agent, Watcher) ->
 	gen_server:call(?MODULE, {monitor, agent, Agent, Watcher}).
 
+-spec(monitor_client/2 :: (Client :: string(), Watcher :: string()) -> {'ok', pid()}).
 monitor_client(Client, Watcher) ->
 	gen_server:call(?MODULE, {monitor, client, Client, Watcher}).
 
@@ -453,7 +456,7 @@ handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename
 	Lpid = start_listener(Nodename),
 	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 	{noreply, State#state{eventserver = Lpid}};
-handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true, fetch_domain_user = Fopts} = State) ->
+handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = _DialString, freeswitch_up = true, fetch_domain_user = Fopts} = State) ->
 	?NOTICE("XML pid exited unexpectedly: ~p", [Reason]),
 	{ok, NPid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 	link(NPid),

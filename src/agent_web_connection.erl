@@ -390,6 +390,7 @@ get_web_api() ->
 	Attrs = ?MODULE:module_info(attributes),
 	proplists:get_value(web_api_functions, Attrs).
 
+-spec(is_web_api/2 :: (Func :: atom(), Arity :: non_neg_integer()) -> boolean()).
 is_web_api(Func, Arity) ->
 	Api = get_web_api(),
 	lists:member({Func, Arity}, Api).
@@ -519,6 +520,7 @@ keep_alive(Pid) ->
 mediaload(Conn) ->
 	gen_server:call(Conn, mediaload).
 
+-spec(dump_state/1 :: (Conn :: pid) -> #agent{}).
 dump_state(Conn) ->
 	gen_server:call(Conn, dump_state).
 
@@ -1628,6 +1630,7 @@ terminate(Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+-spec(format_status/2 :: (Cause :: any(), Data :: [any()]) -> #state{}).
 format_status(normal, [PDict, State]) ->
 	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
 format_status(terminate, [_PDict, State]) ->

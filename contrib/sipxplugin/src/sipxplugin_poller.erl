@@ -121,7 +121,7 @@ process_agent(Agent, Command) ->
 	Command =:= "UPDATE" ->
 		{_, Oldname} = lists:nth(9, Agent),
 		{_, [Old]} = agent_auth:get_agent(erlang:binary_to_list(Oldname)),
-		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), element(5, Old), agent, erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
+		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), element(5, Old), element(6, Old), erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
 	true -> ?WARNING("Unrecognized command", [])
 	end.
 

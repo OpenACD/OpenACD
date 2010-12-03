@@ -27,18 +27,26 @@ end
 
 INCLUDE = "include"
 
-vertest = `erl -noshell -eval "timer:sleep(10), io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s init stop`.chomp.split("\n")[-1]
-if vertest =~ /(R(\d\d)[AB])(\d*)/
-	OTPVERSION = $1
-	unless $2.to_i >= 13 and not ($2 == '13' and $3 == '')
-		STDERR.puts "I'm sorry, but your version of erlang (#{$1}#{$3}) is too old. Please upgrade to R13B01 or later."
-		exit -1
+def otpver
+	if !defined? $OTPVER
+		vertest = `erl -noshell -eval "timer:sleep(10), io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s init stop`.chomp.split("\n")[-1]
+		if vertest =~ /(R(\d\d)[AB])(\d*)/
+			unless $2.to_i >= 13 and not ($2 == '13' and $3 == '')
+				STDERR.puts "I'm sorry, but your version of erlang (#{$1}#{$3}) is too old. Please upgrade to R13B01 or later."
+				exit -1
+			end
+			$OTPVER = $1
+		else
+			STDERR.puts "unable to determine OTP version! (I got #{vertest})"
+			exit -1
+		end
 	end
-else
-	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
-	exit -1
+	return $OTPVER
 end
-ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_untyped_record"
+
+def erlc_flags
+  "-I#{INCLUDE} -D #{otpver} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_untyped_record"
+end
 
 SRC = FileList['src/*.erl']
 HEADERS = FileList['include/*.hrl']
@@ -78,11 +86,11 @@ directory 'coverage'
 #directory 'doc'
 
 rule ".beam" => ["%{ebin,src}X.erl"] + HEADERS do |t|
-	sh "erlc -pa ebin -W #{ERLC_FLAGS} +warn_missing_spec -o ebin #{t.source} "
+	sh "erlc -pa ebin -W #{erlc_flags} +warn_missing_spec -o ebin #{t.source} "
 end
 
 rule ".beam" => ["%{debug_ebin,src}X.erl"] + HEADERS do |t|
-	sh "erlc +debug_info -D TEST -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t.source} "
+	sh "erlc +debug_info -D TEST -pa debug_ebin -W #{erlc_flags} -o debug_ebin #{t.source} "
 end
 
 rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
@@ -270,7 +278,7 @@ namespace :test do
 	desc "run test for profiling"
 	task :profile => [:clean, :contrib]  do
 		SRC.each do |t|
-			sh "erlc +debug_info -D PROFILE -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t} "
+			sh "erlc +debug_info -D PROFILE -pa debug_ebin -W #{erlc_flags} -o debug_ebin #{t} "
 		end
 		SRC.each do |t|
 			mod = File.basename(t, '.erl')
@@ -351,7 +359,7 @@ namespace :test do
 		dialyzer_flags += " -DTEST=1" if ENV['dialyzer_debug']
 		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
 		contribfiles = Dir['contrib/*/src/*.erl'].join(' ')
-		dialyzer_output = `dialyzer -D#{OTPVERSION}=1 #{dialyzer_flags} --src -I include -c #{SRC.join(' ')} #{contribfiles}`
+		dialyzer_output = `dialyzer -D#{otpver}=1 #{dialyzer_flags} --src -I include -c #{SRC.join(' ')} #{contribfiles}`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'

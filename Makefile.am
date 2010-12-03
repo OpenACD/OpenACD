@@ -3,7 +3,6 @@ LOCALIZE = \
 	-e 's/@PACKAGE_VERSION\@/@PACKAGE_VERSION@/g'
 
 CONTRIB_DEPS = \
-	gen_server_mock \
 	errd \
 	gen_leader_revival \
 	gen_server_mock \
@@ -41,6 +40,7 @@ EXTRA_DIST = \
 	priv
 
 all compile :
+	rake contrib
 	rake
 
 install :
@@ -55,8 +55,8 @@ clean-local :
 	rake clean
 
 # Download everything and put it in the tarball, so build server doesn't download anything
-dist-hook : $(CONTRIB_DEP_DIRS) $(WWW_CONTRIB_DEP_DIRS)
-	find $(distdir) -name '.git' -type d -exec echo rm -rf {} \;
+dist-hook : $(CONTRIB_DEP_DIRS) $(WWW_CONTRIB_DEP_DIRS);
 
 $(CONTRIB_DEP_DIRS) $(WWW_CONTRIB_DEP_DIRS) :
-	rake contrib
+	cd $(srcdir); \
+	  rake submodules

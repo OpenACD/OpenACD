@@ -15,6 +15,7 @@ def helpdump
 	STDERR.puts "  -d uses the debug compile."
 	STDERR.puts "  -r to add -run reloader to the erl command line flags."
 	STDERR.puts "  -q to run the system detached; good for daemonizing."
+	STDERR.puts "  -x do not read from stdin."
 	STDERR.puts ""
 	STDERR.puts "If you have not yet run rake (or rake test if you are using"
 	STDERR.puts "-d), erl will fail to start.  If the config file does not"
@@ -36,6 +37,7 @@ $conf = 'single'
 $boot = 'cpx-rel-0.1'
 $reloader = ''
 $daemon = ''
+$input = ''
 
 while true do
 	case ARGV[0]
@@ -56,6 +58,10 @@ while true do
 			ARGV.shift
 			$nametype = "-name"
 			$name = ARGV.shift
+
+		when '-x'
+			ARGV.shift
+			$input = "-noinput"
 
 		when '-b'
 			ARGV.shift
@@ -110,6 +116,6 @@ if ! File.exists?($conf + ".config")
 	f.close
 end
 
-execStr = "erl +K true -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}#{$daemon}"
+execStr = "erl +K true -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}#{$daemon} #{$input}"
 #puts execStr
 exec execStr

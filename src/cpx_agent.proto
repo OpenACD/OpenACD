@@ -216,8 +216,8 @@ message GoReleasedRequest {
 
 message SaltReply {
 	required string salt = 1;
-	required string e = 2;
-	required string n = 3;
+	required string pubkey_e = 2;
+	required string pubkey_n = 3;
 }
 
 message StateChange {

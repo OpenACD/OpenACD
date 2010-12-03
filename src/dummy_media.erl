@@ -527,6 +527,7 @@ handle_ring_stop(_Callrec, State) ->
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
 
+-spec(handle_warm_transfer_begin/3 :: (Number :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'invalid', #state{}}).
 handle_warm_transfer_begin(Number, _Callrec, #state{fail = Fail} = State) ->
 	case check_fail(warm_transfer_begin, Fail) of
 		{success, Newfail} ->
@@ -535,6 +536,7 @@ handle_warm_transfer_begin(Number, _Callrec, #state{fail = Fail} = State) ->
 			{invalid, State#state{fail = Newfail}}
 	end.
 
+-spec(handle_warm_transfer_cancel/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'error', any(), #state{}}).
 handle_warm_transfer_cancel(_Callrec, #state{fail = Fail} = State) ->
 	case check_fail(warm_transfer_cancel, Fail) of
 		{success, Newfail} ->
@@ -543,6 +545,7 @@ handle_warm_transfer_cancel(_Callrec, #state{fail = Fail} = State) ->
 			{error, DidFail, State#state{fail = Newfail}}
 	end.
 
+-spec(handle_warm_transfer_complete/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'error', any(), #state{}}).
 handle_warm_transfer_complete(_Callrec, #state{fail = Fail} = State) ->
 	case check_fail(warm_transfer_complete, Fail) of
 		{success, Newfail} ->

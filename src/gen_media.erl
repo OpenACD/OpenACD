@@ -485,9 +485,11 @@ queue(Genmedia, Queue) ->
 spy(Genmedia, Spy) ->
 	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
 
+-spec(set_cook/2 :: (Genmedia :: pid(), CookPid :: pid()) -> 'ok').
 set_cook(Genmedia, CookPid) ->
 	gen_server:cast(Genmedia, {'$gen_media_set_cook', CookPid}).
 
+-spec(set_queue/2 :: (Genmedia :: pid(), Qpid :: pid()) -> 'ok').
 set_queue(Genmedia, Qpid) ->
 	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
 
@@ -960,7 +962,7 @@ handle_call({'$gen_media_set_queue', Qpid}, _From, #state{callrec = Call, queue_
 	end,
 	Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
 	{reply, ok, State#state{queue_pid = {Queue, Qpid}, monitors = Newmons}};
-handle_call('$gen_media_get_url_vars', From, #state{url_pop_getvars = GenPopopts, substate = Substate, callback = Callback} = State) ->
+handle_call('$gen_media_get_url_vars', _From, #state{url_pop_getvars = GenPopopts, substate = Substate, callback = Callback} = State) ->
 	Cbopts = case erlang:function_exported(Callback, urlpop_getvars, 1) of
 		true ->
 			Callback:urlpop_getvars(Substate);
@@ -1133,6 +1135,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
+-spec(format_status/2 :: (Cause :: any(), [any()]) -> #state{}).
 format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
 	% prevent client data from being dumped
 	NewCall = case Call#call.client of
@@ -1388,7 +1391,7 @@ correct_client_sub(Id) ->
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
-set_cpx_mon(#state{callrec = Call} = State, Details) ->
+set_cpx_mon(#state{callrec = _Call} = State, Details) ->
 	set_cpx_mon(State, Details, ignore).
 
 set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
@@ -1402,7 +1405,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
 		{media_path, Call#call.media_path},
 		{direction, Call#call.direction}
 	],
-	{Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
+	{_Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
 		{undefined, undefined} ->
 			{[], MidBasedet};
 		{undefined, _A} ->

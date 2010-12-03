@@ -442,7 +442,7 @@ start_listener(Nodename) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, [UUID | Event]} ->
+		{event, [UUID | _Event]} ->
 			?DEBUG("recieved event '~p' from c node.", [UUID]),
 %			Ename = proplists:get_value("Event-Name", Event),
 %			case Ename of

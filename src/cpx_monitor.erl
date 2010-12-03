@@ -415,12 +415,12 @@ handle_DOWN(Node, State, Election) ->
 	Message = {{node, Node}, [{down, Time}], Node},
 	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Message, os:timestamp()), none), undefined),
 	ets:insert(?MODULE, Cached),
-	tell_cands({set, Message}, Election),
-	tell_subs({set, Message}, State#state.subscribers),
+	tell_cands({set, os:timestamp(), Message}, Election),
+	tell_subs({set, os:timestamp(), Message}, State#state.subscribers),
 	ets:safe_fixtable(?MODULE, true),
 	Drops = qlc:e(qlc:q([begin
 			ets:delete(?MODULE, Key),
-			{drop, {Key, Time}}
+			{drop, os:timestamp(), Key}
 		end ||
 		{Key, _Time, _Props, WhichNode, _, _} <- ets:table(?MODULE),
 		Key =/= {node, Node},
@@ -474,7 +474,7 @@ handle_leader_cast({reporting, Node}, State, Election) ->
 	tell_cands({set, Time, Event}, Election),
 	tell_subs({set, Time, Event}, State#state.subscribers),
 	{noreply, State};
-handle_leader_cast({drop, Time, Key} = Msg, State, Election) ->
+handle_leader_cast({drop, _Time, Key} = Msg, State, Election) ->
 	case qlc:e(qlc:q([ X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
 		[] ->
 			% no need to do ets updates, or change monitoring
@@ -488,7 +488,7 @@ handle_leader_cast({drop, Time, Key} = Msg, State, Election) ->
 	tell_subs(Msg, State#state.subscribers),
 	tell_cands(Msg, Election),
 	{noreply, State};
-handle_leader_cast({info, Time, Params} = Msg, State, _Election) ->
+handle_leader_cast({info, _Time, _Params} = Msg, State, _Election) ->
 	tell_subs(Msg, State#state.subscribers),
 	%% no ets need updating, so not telling cands.
 	{noreply, State};
@@ -502,7 +502,7 @@ handle_leader_cast({set, Time, {Key, Details, Node} = Event, ignore}, State, Ele
 	tell_cands({set, Time, Event}, Election),
 	tell_subs({set, Time, Event}, State#state.subscribers),
 	{noreply, State};
-handle_leader_cast({set, Time, {Key, Details, Node} = Event, Watchwhat}, State, Election) ->
+handle_leader_cast({set, Time, {Key, _Details, _Node} = Event, Watchwhat}, State, Election) ->
 	case qlc:e(qlc:q([X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
 		[] ->
 			Monref = case Watchwhat of

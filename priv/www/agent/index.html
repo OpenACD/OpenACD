@@ -233,15 +233,15 @@
 					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
 				</script>
 			</label>
-			<select dojoType="dijit.form.FilteringSelect" value="SIP Registration" id="voipendpoint" name="voipendpoint">
+			<select dojoType="dijit.form.FilteringSelect" id="voipendpoint" name="voipendpoint">
 				<script type="dojo/method" event="onChange">
 					//endpointselect()
 				</script>
-				<option value="SIP Registration" selected="selected">SIP Registration</option>
-				<option value="SIP URI">SIP URI</option>
-				<option value="IAX2 URI">IAX2 URI</option>
-				<option value="H323 URI">H323 URI</option>
-				<option value="PSTN Number">PSTN Number</option>
+				<option value="sip_registration" selected="selected">SIP Registration</option>
+				<option value="sip">SIP URI</option>
+				<option value="iax">IAX2 URI</option>
+				<option value="h323">H323 URI</option>
+				<option value="pstn">PSTN Number</option>
 			</select>
 		</p>
 		<p>
@@ -486,24 +486,15 @@
 			</script>
 			<span>TABS</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
-				<div dojoType="dijit.PopupMenuItem">
-					<script type="dojo/method" event="postCreate">
-						this.inherited("postCreate", arguments);
-						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").LOADTAB);
+				<div dojoType="dijit.MenuItem">Supervisor
+					<script type="dojo/connect" event="onClick">
+						loadTab('supervisorTab');
 					</script>
-					<span>LOADTAB</span>
-					<div dojoType="dijit.Menu">
-						<div dojoType="dijit.MenuItem">Supervisor
-							<script type="dojo/connect" event="onClick">
-								loadTab('supervisorTab');
-							</script>
-						</div>
-						<div dojoType="dijit.MenuItem">Dashboard
-							<script type="dojo/connect" event="onClick">
-								loadTab('dashboardTab');
-							</script>
-						</div>
-					</div>
+				</div>
+				<div dojoType="dijit.MenuItem">Dashboard
+					<script type="dojo/connect" event="onClick">
+						loadTab('dashboardTab');
+					</script>
 				</div>
 			</div>
 		</div>

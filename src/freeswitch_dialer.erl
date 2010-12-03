@@ -60,27 +60,34 @@
 	]).
 -endif.
 
+-type(skill() :: atom() | {atom(), string()}).
+-type(skill_list() :: [skill()]).
 
 -record(state, {
-		cnode,
-		number,
-		exten,
-		skills,
-		client,
-		vars,
-		uuid,
-		agent,
-		call,
-		fg_pid
+		cnode :: atom(),
+		number :: string(),
+		exten :: string(),
+		skills :: skill_list(),
+		client :: #client{},
+		vars :: [any()],
+		uuid :: string(),
+		agent :: pid(),
+		call :: #call{},
+		fg_pid :: pid()
 	}).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
+-spec(start/6 :: (Node :: atom(), Number :: string(), Exten :: string(), Skills :: skill_list(), Client :: string(), Vars :: [any()]) -> {'ok', pid()}).
 start(Node, Number, Exten, Skills, Client, Vars) ->
 	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, false], []).
 
+-spec(start_fg/6 :: (Node :: atom(), Number :: string(), Exten :: string(), Skills :: skill_list(), Client :: string(), Vars :: [any()]) -> {'ok', pid()}).
 start_fg(Node, Number, Exten, Skills, Client, Vars) ->
 	case gen_server:start_link(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
-		{ok, Pid} ->
+		{ok, _Pid} ->
 			receive
 				{dialer_result, Result} ->
 					Result
@@ -100,11 +107,11 @@ init([Node, Number, Exten, Skills, Client, Vars, Foreground]) ->
 					{ok, UUID} ->
 						State = #state{cnode = Node, number = Number, exten = Exten, skills = Skills, client = ClientRec, vars = Vars, uuid = UUID},
 						case Foreground of
-							Pid ->
-								reserve_agent(State#state{fg_pid = Pid});
 							false ->
 								erlang:send_after(1000, self(), reserve_agent), % defer doing this to after we return control
-								{ok, State}
+								{ok, State};
+							Pid ->
+								reserve_agent(State#state{fg_pid = Pid})
 						end;
 					Else ->
 						?WARNING("create_uuid returned ~p", [Else]),
@@ -164,7 +171,7 @@ handle_info(call_hangup, State) ->
 	agent:set_state(element(2, State#state.agent), idle),
 	agent:set_state(element(2, State#state.agent), wrapup, State#state.call),
 	{stop, normal, State};
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.
 
@@ -176,7 +183,7 @@ code_change(_Oldvsn, State, _Extra) ->
 
 grab_agent([], _Call) ->
 	none;
-grab_agent([{Login, Pid, Time, AgentRec} = Agent | Agents], Call) ->
+grab_agent([{_Login, Pid, _Time, _AgentRec} = Agent | Agents], Call) ->
 	case agent:set_state(Pid, precall, Call) of
 		ok ->
 			{ok, Agent};

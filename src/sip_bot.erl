@@ -192,14 +192,14 @@ case_event_name([UUID | Rawcall], State) ->
 			{noreply, State}
 	end.
 
-spew_vars(Rawcall) ->
-	spawn(fun() -> spew_vars_loop(Rawcall) end).
-
-spew_vars_loop([]) ->
-	ok;
-spew_vars_loop([{Key, Val} | Tail]) ->
-	io:format("	~s:	~s~n", [Key, Val]),
-	spew_vars_loop(Tail).
+%spew_vars(Rawcall) ->
+%	spawn(fun() -> spew_vars_loop(Rawcall) end).
+%
+%spew_vars_loop([]) ->
+%	ok;
+%spew_vars_loop([{Key, Val} | Tail]) ->
+%	io:format("	~s:	~s~n", [Key, Val]),
+%	spew_vars_loop(Tail).
 
 %12:24:01 [DEBUG] <0.61.0>@sip_bot:163 Event:  "CHANNEL_DATA";  UUID:  "31e5569e-0428-4230-a327-fd531e0ebecf"
 %12:24:01 [DEBUG] <0.61.0>@sip_bot:163 Event:  "CHANNEL_PARK";  UUID:  "31e5569e-0428-4230-a327-fd531e0ebecf"

@@ -48,12 +48,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
 
--define(Major, 2).
--define(Minor, 0).
+-define(Major, 0).
+-define(Minor, 1).
 
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("cpx_agent_pb.hrl").
 
 % {Counter, Event, Data, now()}
 -type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
@@ -74,6 +75,10 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+% =====
+% API
+% =====
+
 %% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
 -spec(start/1 :: (Socket :: port()) -> {'ok', pid()}).
 start(Socket) ->
@@ -84,407 +89,499 @@ start(Socket) ->
 start_link(Socket) ->
 	gen_server:start_link(?MODULE, [Socket], []).
 
+
+
 %% @doc negotiate the client's protocol and version before login.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
+
+% =====
+% Init
+% =====
 
 %% @hidden
 init([Socket]) ->
 	timer:send_interval(10000, do_tick),
 	{ok, #state{socket=Socket}}.
 
+% =====
+% handle_call
+% =====
+
 %% @hidden
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
+
+% =====
+% handle_cast
+% =====
 
 %% @hidden
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
 	?DEBUG("starting negotiation...", []),
-	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
-	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
+	inet:setopts(State#state.socket, [{active, false}, {packet, line}, binary]),
+	gen_tcp:send(State#state.socket, <<"AgentServer">>),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
 	%?CONSOLE("packet: ~p.~n", [Packet]),
-	case Packet of
-		"Protocol: " ++ Args ->
-			?DEBUG("Got protcol version ~p.~n", [Args]),
-			try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
-				[?Major, ?Minor] ->
-					gen_tcp:send(State#state.socket, "0 OK\r\n"),
-					inet:setopts(State#state.socket, [{active, once}]),
-					{noreply, State};
-				[?Major, _Minor] ->
-					gen_tcp:send(State#state.socket, "1 Protocol version mismatch. Please consider upgrading your client\r\n"),
-					inet:setopts(State#state.socket, [{active, once}]),
-					{noreply, State};
-				[_Major, _Minor] ->
-					gen_tcp:send(State#state.socket, "2 Protocol major version mismatch. Login denied\r\n"),
-					{stop, normal, State}
-			catch
-				_:_ ->
-					gen_tcp:send(State#state.socket, "2 Invalid Response. Login denied\r\n"),
-					{stop, normal, State}
-			end;
-		_Else ->
-			gen_tcp:send(State#state.socket, "2 Invalid Response. Login denied\r\n"),
-			{stop, normal, State}
+	case recv(Packet) of
+		{[], <<>>} ->
+			{noreply, State};
+		{Bins, <<>>} ->
+			NewState = service_requests(Bins, State),
+			{noreply, NewState}
 	end;
 
-%% @hidden
-handle_cast({change_state, ringing, #call{} = Call}, State) ->
-	?DEBUG("change_state to ringing with call ~p", [Call]),
-	Counter = State#state.counter,
-	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
-	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ lists:flatten(tuple_to_list(Call#call.callerid))  ++ "\r\n"),
-	{noreply, State#state{counter = Counter + 2}};
 
-handle_cast({change_state, AgState, _Data}, State) ->
-	Counter = State#state.counter,
-	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
-	{noreply, State#state{counter = Counter + 1}};
 
-handle_cast({change_state, AgState}, State) ->
-	Counter = State#state.counter,
-	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
-	{noreply, State#state{counter = Counter + 1}};
+
+
+%handle_cast({change_state, ringing, #call{} = Call}, State) ->
+%	?DEBUG("change_state to ringing with call ~p", [Call]),
+%	Counter = State#state.counter,
+%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
+%	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ lists:flatten(tuple_to_list(Call#call.callerid))  ++ "\r\n"),
+%	{noreply, State#state{counter = Counter + 2}};
+%
+%handle_cast({change_state, AgState, _Data}, State) ->
+%	Counter = State#state.counter,
+%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
+%	{noreply, State#state{counter = Counter + 1}};
+%
+%handle_cast({change_state, AgState}, State) ->
+%	Counter = State#state.counter,
+%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
+%	{noreply, State#state{counter = Counter + 1}};
 
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+% =====
+% handle_info
+% =====
+
 %% @hidden
-handle_info({tcp, Socket, Packet}, State) ->
-	%?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
-	Ev = parse_event(Packet),
-	case handle_event(Ev, State) of
-		{Reply, State2} ->
-			%?CONSOLE("response: ~p", [Reply]),
-			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
-			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
-			% Flow control: enable forwarding of next TCP message
-			ok = inet:setopts(Socket, [{active, once}]),
-			%?CONSOLE("leaving info", []),
-			{noreply, State3};
-		State2 ->
-			% Flow control: enable forwarding of next TCP message
-			ok = inet:setopts(Socket, [{active, once}]),
-			{noreply, State2}
+handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
+	case recv(Packet) of
+		{[], <<>>} ->
+			{noreply, State};
+		{Bins, <<>>} ->
+			service_requests(Bins, State),
+			{noreply, State}
 	end;
+handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
+	{stop, tcp_closed, State};
 
-handle_info({tcp_closed, _Socket}, State) ->
-	?NOTICE("Client disconnected", []),
-	case is_pid(State#state.agent_fsm) of
-		true ->
-			gen_fsm:send_all_state_event(State#state.agent_fsm, stop);
-		false ->
-			ok
-	end,
-	{stop, normal, State};
-
-handle_info(do_tick, #state{resend_counter = Resends} = State) when Resends > 2 ->
-	?NOTICE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
-	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
-	{stop, normal, State};
-handle_info(do_tick, State) ->
-	ExpiredEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 60000000 end, State#state.resent),
-	ResendEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 10000000 end, State#state.unacked),
-	lists:foreach(fun({Counter, Event, Data, _Time}) ->
-		?NOTICE("Expired event ~s ~p ~s", [Event, Counter, Data])
-	end, ExpiredEvents),
-	State2 = State#state{unacked = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 10000000 end, State#state.unacked)},
-	State3 = State2#state{resent = lists:append(lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 60000000 end, State#state.resent), ResendEvents)},
-	case length(ResendEvents) of
-		0 ->
-			{noreply, State3};
-		_Else ->
-			{noreply, resend_events(ResendEvents, State3)}
-	end;
+%handle_info({tcp, Socket, Packet}, State) ->
+%	%?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
+%	Ev = parse_event(Packet),
+%	case handle_event(Ev, State) of
+%		{Reply, State2} ->
+%			%?CONSOLE("response: ~p", [Reply]),
+%			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
+%			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
+%			% Flow control: enable forwarding of next TCP message
+%			ok = inet:setopts(Socket, [{active, once}]),
+%			%?CONSOLE("leaving info", []),
+%			{noreply, State3};
+%		State2 ->
+%			% Flow control: enable forwarding of next TCP message
+%			ok = inet:setopts(Socket, [{active, once}]),
+%			{noreply, State2}
+%	end;
+%
+%handle_info({tcp_closed, _Socket}, State) ->
+%	?NOTICE("Client disconnected", []),
+%	case is_pid(State#state.agent_fsm) of
+%		true ->
+%			gen_fsm:send_all_state_event(State#state.agent_fsm, stop);
+%		false ->
+%			ok
+%	end,
+%	{stop, normal, State};
+%
+%handle_info(do_tick, #state{resend_counter = Resends} = State) when Resends > 2 ->
+%	?NOTICE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
+%	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
+%	{stop, normal, State};
+%handle_info(do_tick, State) ->
+%	ExpiredEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 60000000 end, State#state.resent),
+%	ResendEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 10000000 end, State#state.unacked),
+%	lists:foreach(fun({Counter, Event, Data, _Time}) ->
+%		?NOTICE("Expired event ~s ~p ~s", [Event, Counter, Data])
+%	end, ExpiredEvents),
+%	State2 = State#state{unacked = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 10000000 end, State#state.unacked)},
+%	State3 = State2#state{resent = lists:append(lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 60000000 end, State#state.resent), ResendEvents)},
+%	case length(ResendEvents) of
+%		0 ->
+%			{noreply, State3};
+%		_Else ->
+%			{noreply, resend_events(ResendEvents, State3)}
+%	end;
 
 handle_info(_Info, State) ->
 	{noreply, State}.
+
+% =====
+% terminate
+% =====
 
 %% @hidden
 terminate(_Reason, _State) ->
 	ok.
 
+% =====
+% code_change
+% ======
+
 %% @hidden
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
-	State2 = State#state{salt=crypto:rand_uniform(0, 4294967295)}, %bounds of number
-	{ack(Counter, integer_to_list(State2#state.salt)), State2};
+% =====
+% Internal functions
+% =====
 
-handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
-	{err(Counter, "Please request a salt with GETSALT first"), State};
+send(Socket, Record) ->
+	Bin = cpx_agent_pb:encode(Record),
+	Size = integer_to_list(size(Bin)),
+	Outbin = <<Size, ":", Bin, ",">>,
+	gen_tcp:send(Socket, Outbin).
 
-handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
-	case util:string_split(Credentials, ":", 2) of
-		[Username, Password] ->
-			%% Yes this will always fail.
-			case agent_auth:auth(Username, Password) of
-				deny -> 
-					?INFO("Authentication failure for ~s",[Username]),
-					{err(Counter, "Authentication Failure"), State};
-				{allow, ID, Skills, Security, Profile} -> 
-					%?CONSOLE("Authenciation success, next steps...",[]),
-					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, id=ID, skills=Skills, profile=Profile}),
-					case agent:set_connection(Pid, self()) of
-						ok ->
-							% TODO validate this?
-							?NOTICE("remote number is ~p~n", [RemoteNumber]),
-							case RemoteNumber of
-								[] ->
-									agent:set_endpoint(Pid, {sip_registration, Username});
-								undefined ->
-									agent:set_endpoint(Pid, {sip_registration, Username});
-								_ ->
-									agent:set_endpoint(Pid, {pstn, RemoteNumber})
-							end,
-							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
-							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
-							{MegaSecs, Secs, _MicroSecs} = now(),
-							{ack(Counter, io_lib:format("~p 1 ~p~p", [securitylevel_to_id(Security), MegaSecs, Secs])), State2};
-						error ->
-							{err(Counter, Username ++ " is already logged in"), State}
-					end
-			end;
-			_Else ->
-				{err(Counter, "Authentication Failure"), State}
-	end;
+recv(Bin) ->
+	read_tcp_strings(Bin).
 
-handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
-	handle_event(["LOGIN", Counter, Credentials, undefined], State);
+read_tcp_strings(Bin) ->
+	read_tcp_strings(Bin, []).
 
-handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
-	{err(Counter, "This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN"), State};
+read_tcp_strings(Bin, Acc) ->
+	case read_tcp_string(Bin) of
+		nostring ->
+			{lists:reverse(Acc), Bin};
+		{String, Rest} ->
+			read_tcp_strings(Rest, [String | Acc])
+	end.
 
-handle_event(["PING", Counter], State) when is_integer(Counter) ->
-	{MegaSecs, Secs, _MicroSecs} = now(),
-	{ack(Counter, integer_to_list(MegaSecs) ++ integer_to_list(Secs)), State};
+read_tcp_string(Bin) ->
+	read_tcp_string(Bin, []).
 
-handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Counter) ->
-	?DEBUG("Trying to set state to ~p with data ~p.", [AgState, AgStateData]),
-	try agent:list_to_state(AgState) of
-		released ->
-			try list_to_integer(AgStateData) of
-				ReleaseState ->
-					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of % {humanReadable, release_reason_id}
-						ok ->
-							{ack(Counter), State};
-						queued ->
-							{ack(Counter), State}
-					end
-			catch
-				_:_ ->
-					{err(Counter, "Invalid release option"), State}
-			end;
-		NewState ->
-			case agent:set_state(State#state.agent_fsm, NewState, AgStateData) of
-				ok ->
-					{ack(Counter), State};
-				invalid ->
-					{ok, OldState} = agent:query_state(State#state.agent_fsm),
-					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
+read_tcp_string(<<":", Bin/binary>>, RevSize) ->
+	Size = list_to_integer(lists:reverse(RevSize)),
+	<<String:Size/binary, ",", Rest/binary>> = Bin,
+	{String, Rest};
+read_tcp_string(<<>>, Acc) ->
+	nostring;
+read_tcp_string(<<Char:1/binary, Rest/binary>>, Acc) ->
+	read_tcp_string(Rest, [Char | Acc]).
+
+service_requests([], State) ->
+	State;
+service_requests([Head | Tail], State) ->
+	NewState = service_request(Head, State),
+	service_requests(Tail, NewState).
+
+service_request(Bin, State) ->
+	#agentrequest{request_id = ReqId, request_hint = Hint} = Request = cpx_agent_pb:decode_agentrequest(Bin),
+	BaseReply = #serverreply{
+		request_id = ReqId,
+		request_hinted = Hint,
+		success = false
+	},
+	NewReply = case Hint of
+		'CHECK_VERSION' ->
+			Reply = case Request#agentrequest.agent_client_version of
+				#agentclientversion{major = ?Major, minor = ?Minor} ->
+					BaseReply#serverreply{success = true};
+				#agentclientversion{major = ?Major, minor = _} ->
+					?WARNING("A client is connecting with a minor version mismatch.", []),
+					BaseReply#serverreply{
+						success = true,
+						error_message = "minor version mismatch"
+					};
+				_ ->
+					?ERROR("A client is connection with a major version mismtach", []),
+					BaseReply#serverreply{
+						error_message = "major version mismatch",
+						error_code = "VERSION_MISMatch"
+					}
 			end
-	catch
-		_:_ ->
-			{err(Counter, "Invalid state " ++ AgState), State}
-	end;
-
-handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
-	?DEBUG("Trying to set state ~p.", [AgState]),
-	try agent:list_to_state(AgState) of
-		released ->
-			case agent:set_state(State#state.agent_fsm, released, default) of
-				ok ->
-					{ack(Counter), State};
-				invalid ->
-					{ok, OldState} = agent:query_state(State#state.agent_fsm),
-					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
-			end;
-		NewState ->
-			case agent:set_state(State#state.agent_fsm, NewState) of
-				ok ->
-					{ack(Counter), State};
-				invalid ->
-					{ok, OldState} = agent:query_state(State#state.agent_fsm),
-					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
-			end
-	catch
-		_:_ ->
-			{err(Counter, "Invalid state " ++ AgState), State}
-	end;
-
-handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
-	case call_queue_config:get_clients() of
-		[] ->
-			{err(Counter, "No brands configured"), State};
-		Brands ->
-			F = fun(Elem, Acc) ->
-					%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
-					%Padding = lists:duplicate(8 - length(Idbase), "0"),
-					%Idstring = lists:append([Padding, Idbase]),
-					case is_list(Elem#client.label) of
-						true ->
-							Idstring = clientrec_to_id(Elem),
-							[lists:append(["(", Idstring, "|", Elem#client.label, ")"]) | Acc];
-						false ->
-							Acc
-					end
-			end,
-			Brandstringed = lists:reverse(lists:foldl(F, [], Brands)),
-			{ack(Counter, string:join(Brandstringed, ",")), State}
-	end;
-handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
-	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
-
-handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
-	% queues only have one name right now...
-	Queues = string:join(lists:map(fun({Name, _Pid}) -> io_lib:format("~s|~s", [Name, Name]) end,queue_manager:queues()), "),("),
-	{ack(Counter, io_lib:format("(~s)", [Queues])), State};
-
-handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
-	Releaseopts = agent_auth:get_releases(),
-	F = fun(Elem) ->
-		string:join([integer_to_list(Elem#release_opt.id), Elem#release_opt.label, integer_to_list(Elem#release_opt.bias)], ":")
 	end,
-	Releasestringed = string:join(lists:map(F, Releaseopts), ","),
-	{ack(Counter, Releasestringed), State};
+	Message = #servermessage{
+		type_hint = 'REPLY',
+		reply = NewReply
+	},
+	send(State#state.socket, Message).
+			
+					
 
-handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
-	case agent:query_state(State#state.agent_fsm) of
-		{ok, wrapup} ->
-			case agent:set_state(State#state.agent_fsm, idle) of
-				ok ->
-					{ok, Curstate} = agent:query_state(State#state.agent_fsm),
-					State2 = send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
-					{ack(Counter), State2};
-				invalid ->
-					{err(Counter, "invalid state"), State}
-			end;
-		_Else ->
-			{err(Counter, "Agent must be in wrapup to send an ENDWRAPUP"), State}
-	end;
-
-handle_event(["QUEUES", Counter, "ALL"], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
-	State2 = lists:foldl(fun({Name, _Pid}, St) -> send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St) end, State, queue_manager:queues()),
-	{ack(Counter), State2};
-handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
-	Queues = util:string_split(QueueNames, ":"),
-	State2 = lists:foldl(fun({Name, _Pid}, St) ->
-		case lists:member(Name, Queues) of
-			true ->
-				send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St);
-			false ->
-				St
-		end
-	end, State, queue_manager:queues()),
-	{ack(Counter), State2};
-
-% TODO use the brand on the outbound call
-handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
-	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
-	{ack(Counter), State};
-
-handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Counter) ->
-	case agent_manager:query_agent(Agent) of
-		{true, AgentPid} ->
-			case agent:agent_transfer(State#state.agent_fsm, AgentPid) of
-				ok -> 
-					{ack(Counter), State};
-				invalid ->
-					{err(Counter, "Could not transfer"), State}
-			end;
-		false ->
-			{err(Counter, "No such agent logged int"), State}
-	end;
-
-handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
-	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
-
-handle_event(["ACK", Counter], State) when is_integer(Counter) ->
-	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
-
-% beware for here be errors 
-handle_event(["ERR" | [Counter | _Args]], State) when is_integer(Counter) ->
-	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
-
-handle_event(["ERR", Counter], State) when is_integer(Counter) ->
-	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
-
-handle_event([Event, Counter], State) when is_integer(Counter) ->
-	?INFO("Unhandled: ~p", [Event]),
-	{err(Counter, "Unknown event " ++ Event), State};
-
-handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
-	?INFO("Unhandled: ~p with Args: ~p", [Event, Args]),
-	{err(Counter, "Unknown event " ++ Event), State};
-
-handle_event(_Stuff, State) ->
-	{"ERR Invalid Event, missing or invalid counter", State}.
-
-parse_event(String) ->
-	case util:string_split(string:strip(util:string_chomp(String)), " ", 3) of
-		[Event] ->
-			[Event];
-		[Event, Counter] ->
-			[Event, parse_counter(Counter)];
-		[Event, Counter, Args] ->
-			lists:append([Event, parse_counter(Counter)], util:string_split(Args, " "));
-		[] ->
-			[]
-	end.
-
-parse_counter(Counter) ->
-	try list_to_integer(Counter) of
-		IntCounter -> IntCounter
-	catch
-		_:_ -> Counter
-	end.
-
-ack(Counter, Data) ->
-	"ACK " ++ integer_to_list(Counter) ++ " " ++ Data.
-
-ack(Counter) ->
-	"ACK " ++ integer_to_list(Counter).
-
-err(Counter, Error) ->
-	"ERR " ++ integer_to_list(Counter) ++ " " ++ Error.
-
--spec(send/3 :: (Event :: string(), Message :: string(), State :: #state{}) -> #state{}).
-send(Event, Message, State) ->
-	Counter = State#state.counter,
-	SendQueue = [Event++" "++integer_to_list(Counter)++" "++Message | State#state.send_queue],
-	UnackedEvents = [{Counter, Event, Message, now()} | State#state.unacked],
-	State#state{counter=Counter + 1, send_queue=SendQueue, unacked=UnackedEvents}.
-
--spec(flush_send_queue/2 :: (Queue :: [string()], Socket :: port()) -> []).
-flush_send_queue([], _Socket) ->
-	[];
-flush_send_queue([H|T], Socket) ->
-	?DEBUG("sent ~s to socket~n", [lists:flatten(H)]),
-	gen_tcp:send(Socket, H ++ "\r\n"),
-	flush_send_queue(T, Socket).
-
--spec(resend_events/2 :: (Events :: [unacked_event()], State :: #state{}) -> #state{}).
-resend_events([], State) ->
-	State#state{resend_counter = State#state.resend_counter + 1};
-resend_events([{Counter, Event, Data, _Time}|T], State) ->
-	?NOTICE("Resending event ~s ~p ~s", [Event, Counter, Data]),
-	resend_events(T, send(Event, Data, State)).
-
-clientrec_to_id(Rec) ->
-	Idbase = Rec#client.id,
-	Padding = lists:duplicate(8 - length(Idbase), "0"),
-	lists:flatten(lists:append([Padding, Idbase])).
-
-securitylevel_to_id(agent) ->
-	1;
-securitylevel_to_id(supervisor) ->
-	3;
-securitylevel_to_id(admin) ->
-	4.
+%handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
+%	State2 = State#state{salt=crypto:rand_uniform(0, 4294967295)}, %bounds of number
+%	{ack(Counter, integer_to_list(State2#state.salt)), State2};
+%
+%handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
+%	{err(Counter, "Please request a salt with GETSALT first"), State};
+%
+%handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
+%	case util:string_split(Credentials, ":", 2) of
+%		[Username, Password] ->
+%			%% Yes this will always fail.
+%			case agent_auth:auth(Username, Password) of
+%				deny -> 
+%					?INFO("Authentication failure for ~s",[Username]),
+%					{err(Counter, "Authentication Failure"), State};
+%				{allow, ID, Skills, Security, Profile} -> 
+%					%?CONSOLE("Authenciation success, next steps...",[]),
+%					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, id=ID, skills=Skills, profile=Profile}),
+%					case agent:set_connection(Pid, self()) of
+%						ok ->
+%							% TODO validate this?
+%							?NOTICE("remote number is ~p~n", [RemoteNumber]),
+%							case RemoteNumber of
+%								[] ->
+%									agent:set_endpoint(Pid, {sip_registration, Username});
+%								undefined ->
+%									agent:set_endpoint(Pid, {sip_registration, Username});
+%								_ ->
+%									agent:set_endpoint(Pid, {pstn, RemoteNumber})
+%							end,
+%							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
+%							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
+%							{MegaSecs, Secs, _MicroSecs} = now(),
+%							{ack(Counter, io_lib:format("~p 1 ~p~p", [securitylevel_to_id(Security), MegaSecs, Secs])), State2};
+%						error ->
+%							{err(Counter, Username ++ " is already logged in"), State}
+%					end
+%			end;
+%			_Else ->
+%				{err(Counter, "Authentication Failure"), State}
+%	end;
+%
+%handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
+%	handle_event(["LOGIN", Counter, Credentials, undefined], State);
+%
+%handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
+%	{err(Counter, "This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN"), State};
+%
+%handle_event(["PING", Counter], State) when is_integer(Counter) ->
+%	{MegaSecs, Secs, _MicroSecs} = now(),
+%	{ack(Counter, integer_to_list(MegaSecs) ++ integer_to_list(Secs)), State};
+%
+%handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Counter) ->
+%	?DEBUG("Trying to set state to ~p with data ~p.", [AgState, AgStateData]),
+%	try agent:list_to_state(AgState) of
+%		released ->
+%			try list_to_integer(AgStateData) of
+%				ReleaseState ->
+%					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of % {humanReadable, release_reason_id}
+%						ok ->
+%							{ack(Counter), State};
+%						queued ->
+%							{ack(Counter), State}
+%					end
+%			catch
+%				_:_ ->
+%					{err(Counter, "Invalid release option"), State}
+%			end;
+%		NewState ->
+%			case agent:set_state(State#state.agent_fsm, NewState, AgStateData) of
+%				ok ->
+%					{ack(Counter), State};
+%				invalid ->
+%					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+%					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
+%			end
+%	catch
+%		_:_ ->
+%			{err(Counter, "Invalid state " ++ AgState), State}
+%	end;
+%
+%handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
+%	?DEBUG("Trying to set state ~p.", [AgState]),
+%	try agent:list_to_state(AgState) of
+%		released ->
+%			case agent:set_state(State#state.agent_fsm, released, default) of
+%				ok ->
+%					{ack(Counter), State};
+%				invalid ->
+%					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+%					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
+%			end;
+%		NewState ->
+%			case agent:set_state(State#state.agent_fsm, NewState) of
+%				ok ->
+%					{ack(Counter), State};
+%				invalid ->
+%					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+%					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
+%			end
+%	catch
+%		_:_ ->
+%			{err(Counter, "Invalid state " ++ AgState), State}
+%	end;
+%
+%handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
+%	case call_queue_config:get_clients() of
+%		[] ->
+%			{err(Counter, "No brands configured"), State};
+%		Brands ->
+%			F = fun(Elem, Acc) ->
+%					%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
+%					%Padding = lists:duplicate(8 - length(Idbase), "0"),
+%					%Idstring = lists:append([Padding, Idbase]),
+%					case is_list(Elem#client.label) of
+%						true ->
+%							Idstring = clientrec_to_id(Elem),
+%							[lists:append(["(", Idstring, "|", Elem#client.label, ")"]) | Acc];
+%						false ->
+%							Acc
+%					end
+%			end,
+%			Brandstringed = lists:reverse(lists:foldl(F, [], Brands)),
+%			{ack(Counter, string:join(Brandstringed, ",")), State}
+%	end;
+%handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
+%	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
+%
+%handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
+%	% queues only have one name right now...
+%	Queues = string:join(lists:map(fun({Name, _Pid}) -> io_lib:format("~s|~s", [Name, Name]) end,queue_manager:queues()), "),("),
+%	{ack(Counter, io_lib:format("(~s)", [Queues])), State};
+%
+%handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
+%	Releaseopts = agent_auth:get_releases(),
+%	F = fun(Elem) ->
+%		string:join([integer_to_list(Elem#release_opt.id), Elem#release_opt.label, integer_to_list(Elem#release_opt.bias)], ":")
+%	end,
+%	Releasestringed = string:join(lists:map(F, Releaseopts), ","),
+%	{ack(Counter, Releasestringed), State};
+%
+%handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
+%	case agent:query_state(State#state.agent_fsm) of
+%		{ok, wrapup} ->
+%			case agent:set_state(State#state.agent_fsm, idle) of
+%				ok ->
+%					{ok, Curstate} = agent:query_state(State#state.agent_fsm),
+%					State2 = send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
+%					{ack(Counter), State2};
+%				invalid ->
+%					{err(Counter, "invalid state"), State}
+%			end;
+%		_Else ->
+%			{err(Counter, "Agent must be in wrapup to send an ENDWRAPUP"), State}
+%	end;
+%
+%handle_event(["QUEUES", Counter, "ALL"], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
+%	State2 = lists:foldl(fun({Name, _Pid}, St) -> send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St) end, State, queue_manager:queues()),
+%	{ack(Counter), State2};
+%handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
+%	Queues = util:string_split(QueueNames, ":"),
+%	State2 = lists:foldl(fun({Name, _Pid}, St) ->
+%		case lists:member(Name, Queues) of
+%			true ->
+%				send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St);
+%			false ->
+%				St
+%		end
+%	end, State, queue_manager:queues()),
+%	{ack(Counter), State2};
+%
+%% TODO use the brand on the outbound call
+%handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
+%	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
+%	{ack(Counter), State};
+%
+%handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Counter) ->
+%	case agent_manager:query_agent(Agent) of
+%		{true, AgentPid} ->
+%			case agent:agent_transfer(State#state.agent_fsm, AgentPid) of
+%				ok -> 
+%					{ack(Counter), State};
+%				invalid ->
+%					{err(Counter, "Could not transfer"), State}
+%			end;
+%		false ->
+%			{err(Counter, "No such agent logged int"), State}
+%	end;
+%
+%handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
+%	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
+%
+%handle_event(["ACK", Counter], State) when is_integer(Counter) ->
+%	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
+%
+%% beware for here be errors 
+%handle_event(["ERR" | [Counter | _Args]], State) when is_integer(Counter) ->
+%	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
+%
+%handle_event(["ERR", Counter], State) when is_integer(Counter) ->
+%	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
+%
+%handle_event([Event, Counter], State) when is_integer(Counter) ->
+%	?INFO("Unhandled: ~p", [Event]),
+%	{err(Counter, "Unknown event " ++ Event), State};
+%
+%handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
+%	?INFO("Unhandled: ~p with Args: ~p", [Event, Args]),
+%	{err(Counter, "Unknown event " ++ Event), State};
+%
+%handle_event(_Stuff, State) ->
+%	{"ERR Invalid Event, missing or invalid counter", State}.
+%
+%parse_event(String) ->
+%	case util:string_split(string:strip(util:string_chomp(String)), " ", 3) of
+%		[Event] ->
+%			[Event];
+%		[Event, Counter] ->
+%			[Event, parse_counter(Counter)];
+%		[Event, Counter, Args] ->
+%			lists:append([Event, parse_counter(Counter)], util:string_split(Args, " "));
+%		[] ->
+%			[]
+%	end.
+%
+%parse_counter(Counter) ->
+%	try list_to_integer(Counter) of
+%		IntCounter -> IntCounter
+%	catch
+%		_:_ -> Counter
+%	end.
+%
+%ack(Counter, Data) ->
+%	"ACK " ++ integer_to_list(Counter) ++ " " ++ Data.
+%
+%ack(Counter) ->
+%	"ACK " ++ integer_to_list(Counter).
+%
+%err(Counter, Error) ->
+%	"ERR " ++ integer_to_list(Counter) ++ " " ++ Error.
+%
+%-spec(send/3 :: (Event :: string(), Message :: string(), State :: #state{}) -> #state{}).
+%send(Event, Message, State) ->
+%	Counter = State#state.counter,
+%	SendQueue = [Event++" "++integer_to_list(Counter)++" "++Message | State#state.send_queue],
+%	UnackedEvents = [{Counter, Event, Message, now()} | State#state.unacked],
+%	State#state{counter=Counter + 1, send_queue=SendQueue, unacked=UnackedEvents}.
+%
+%-spec(flush_send_queue/2 :: (Queue :: [string()], Socket :: port()) -> []).
+%flush_send_queue([], _Socket) ->
+%	[];
+%flush_send_queue([H|T], Socket) ->
+%	?DEBUG("sent ~s to socket~n", [lists:flatten(H)]),
+%	gen_tcp:send(Socket, H ++ "\r\n"),
+%	flush_send_queue(T, Socket).
+%
+%-spec(resend_events/2 :: (Events :: [unacked_event()], State :: #state{}) -> #state{}).
+%resend_events([], State) ->
+%	State#state{resend_counter = State#state.resend_counter + 1};
+%resend_events([{Counter, Event, Data, _Time}|T], State) ->
+%	?NOTICE("Resending event ~s ~p ~s", [Event, Counter, Data]),
+%	resend_events(T, send(Event, Data, State)).
+%
+%clientrec_to_id(Rec) ->
+%	Idbase = Rec#client.id,
+%	Padding = lists:duplicate(8 - length(Idbase), "0"),
+%	lists:flatten(lists:append([Padding, Idbase])).
 
 -ifdef(TEST_DEPRICATED).
 % these will likely fail, and fail hard.

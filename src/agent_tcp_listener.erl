@@ -85,11 +85,10 @@ start() ->
 %% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 
-	gen_server:call(Pid, stop).
+	gen_server:cast(Pid, stop).
 
 %% @hidden
 init([Port]) ->
-	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 %	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -97,20 +96,23 @@ init([Port]) ->
 		{ok, Listen_socket} ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
+			?INFO("Started on port ~p", [Port]),
 			{ok, #state{listener = Listen_socket, acceptor = Ref}};
 		{error, Reason} ->
-			?DEBUG("Could not start gen_tcp:  ~p", [Reason]),
+			?WARNING("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
 	end.
 
 %% @hidden
-handle_call(stop, _From, State) ->
-	{stop, normal, ok, State};
+handle_call(_Msg, _From, State) ->
+	{reply, invalid, State};
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
 %% @hidden
+handle_cast(stop, State) ->
+	{stop, normal, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -128,8 +130,6 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		?DEBUG("new client connection.~n", []),
 		{ok, Pid} = agent_tcp_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
-
-		?DEBUG("negiotiating protocol.~n", []),
 		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection

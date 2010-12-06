@@ -1106,7 +1106,7 @@ api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	end;
 api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	case proplists:get_value("enabled") of
+	case proplists:get_value("enabled", Post) of
 		"true" ->
 			StartArgs = case proplists:get_value("port", Post, "") of
 				"" ->
@@ -1121,7 +1121,7 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 				start_args = StartArgs,
 				supervisor = agent_connection_sup
 			},
-			case rpc:call(Node, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
 				{atomic, {ok, _Pid}} ->
 					{200, [], mochijson2:encode({struct, [{<<"success">>, true}]})};
 				{aborted, {start_fail, Why}} ->
@@ -1151,7 +1151,7 @@ api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, Post) ->
 	end;
 api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	case proplists:get_value("enabled") of
+	case proplists:get_value("enabled", Post) of
 		"true" ->
 			StartArgs = case proplists:get_value("port", Post, "") of
 				"" ->
@@ -1162,8 +1162,7 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 			Conf = #cpx_conf{
 				id = agent_tcp_listener,
 				module_name = agent_tcp_listener,
-				start_function = start_link,
-				start_args = StartArgs,
+				start_function = start_link, start_args = StartArgs,
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_tcp_listener, Conf]) of
@@ -1175,7 +1174,7 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 			end;
 		_ ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_tcp_listener]),
-			{200, [], mochijson2:encode({struct, [{success, false}]})}
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -1196,7 +1195,7 @@ api({modules, Node, "agent_dialplan_listener", "update"}, ?COOKIE, Post) ->
 				start_args = [],
 				supervisor = agent_connection_sup
 			},
-			case rpc:call(Atomnode, cpx_supervisor, update_conf, [Conf]) of
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_dialplan_listener, Conf]) of
 				{atomic, {ok, _Pid}} ->
 					{200, [], mochijson2:encode({struct, [{success, true}]})};
 				{aborted, {start_fail, Err}} ->
@@ -1205,7 +1204,7 @@ api({modules, Node, "agent_dialplan_listener", "update"}, ?COOKIE, Post) ->
 			end;
 		_ ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_dialplan_listener]),
-			{200, [], mochinjson2:encode({struct, [{success, true}]})}
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),

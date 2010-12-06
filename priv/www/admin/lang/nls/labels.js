@@ -23,6 +23,7 @@
 	ADDAGENT: "+",
 	ADDAGENTPROFILE: "+ Profile",
 	DROPAGENTORPROFILE: "-",
+	PORT:  "Port",
 	TCPPORT: "TCP Port",
 	WEBPORT: "Web Port",
 	SUBMIT: "Submit",

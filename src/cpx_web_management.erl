@@ -1073,7 +1073,10 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
 			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
-			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)}
+			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)},
+			{agent_web_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_web_listener], 2000)},
+			{agent_tcp_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_tcp_listener], 2000)},
+			{agent_dialplan_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_dialplan_listener], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -1084,6 +1087,126 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of
+		#cpx_conf{start_args = Port} ->
+			OutPort = case Port of
+				[] ->
+					5050;
+				[N] ->
+					N
+			end,
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 5050}]})};
+		Else ->
+			?WARNING("Error getting agent_web_listener settings:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
+	end;
+api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled") of
+		"true" ->
+			StartArgs = case proplists:get_value("port", Post, "") of
+				"" ->
+					[];
+				List ->
+					[list_to_integer(List)]
+			end,
+			Conf = #cpx_conf{
+				id = agent_web_listener,
+				module_name = agent_web_listener,
+				start_function = start_link,
+				start_args = StartArgs,
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Node, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{<<"success">>, true}]})};
+				{aborted, {start_fail, Why}} ->
+					?WARNING("Could not start agent_web_listener:  ~p", [Why]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
+		#cpx_conf{start_args = Port} ->
+			OutPort = case Port of
+				[] ->
+					1337;
+				[N] ->
+					N
+			end,
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 1337}]})};
+		Else ->
+			?WARNING("Error getting agent_tcp_listener settings:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
+	end;
+api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled") of
+		"true" ->
+			StartArgs = case proplists:get_value("port", Post, "") of
+				"" ->
+					[];
+				List ->
+					[list_to_integer(List)]
+			end,
+			Conf = #cpx_conf{
+				id = agent_tcp_listener,
+				module_name = agent_tcp_listener,
+				start_function = start_link,
+				start_args = StartArgs,
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_tcp_listener, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{<<"success">>, true}]})};
+				{aborted, {start_fail, Why}} ->
+					?WARNING("Could not start agent_tcp_listener:  ~p", [Why]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_tcp_listener]),
+			{200, [], mochijson2:encode({struct, [{success, false}]})}
+	end;
+api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_dialplan_listener]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
+		_ ->
+			{200, [], mochijson2:encode({struct, [{succes, true}, {<<"enabled">>, true}]})}
+	end;
+api({modules, Node, "agent_dialplan_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			Conf = #cpx_conf{
+				id = agent_dialplan_listener,
+				module_name = agent_dialplan_listener,
+				start_function = start_link,
+				start_args = [],
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				{aborted, {start_fail, Err}} ->
+					?WARNING("Could not start dp listener:  ~p", [Err]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_dialplan_listener]),
+			{200, [], mochinjson2:encode({struct, [{success, true}]})}
+	end;
 api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_web_management]) of

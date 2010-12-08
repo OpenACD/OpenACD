@@ -1,0 +1,30 @@
+#!/bin/bash
+# 
+# This is the successor to ./boot.rb.  To remove the dependancy on ruby, we
+# are converting to rebar.  However, rebar does not allow for an easy way
+# to change a system that's running.  Generating a release does a fine
+# job of creating a start up script, but it cannot be regenerated without
+# trashing the existing release.  The bins for the deps are not put into
+# the primary ebin folder, so those get lost.  Thus, this is a dev boot 
+# script that will allow one to start the system in a dev-friendly mode, 
+# and still be able to run rebar and reload the resulting code.
+EBIN="ebin"
+COOKIE="OpenACDDev"
+NAMETYPE="-sname"
+NODENAME="openacddev"
+CONFIG="single"
+BOOT="cpx-rel-0.1"
+
+deps=`ls deps`
+morepa=""
+
+for deps_file in $deps
+do
+	morepa="$morepa -pa deps/$deps_file/ebin"
+done
+
+CMD="erl +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG -boot $BOOT"
+
+exec $CMD
+
+exit 0

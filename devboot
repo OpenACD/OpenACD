@@ -8,12 +8,14 @@
 # the primary ebin folder, so those get lost.  Thus, this is a dev boot 
 # script that will allow one to start the system in a dev-friendly mode, 
 # and still be able to run rebar and reload the resulting code.
+# 
+# The ironic twist is this will only work if you've done a rebar generate.
 EBIN="ebin"
 COOKIE="OpenACDDev"
 NAMETYPE="-sname"
 NODENAME="openacddev"
 CONFIG="single"
-BOOT="cpx-rel-0.1"
+BOOT="rel/openacd/releases/1/openacd"
 
 deps=`ls deps`
 morepa=""

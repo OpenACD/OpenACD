@@ -102,7 +102,7 @@ negotiate(Pid) ->
 
 %% @hidden
 init([Socket]) ->
-	timer:send_interval(10000, do_tick),
+	%timer:send_interval(10000, do_tick),
 	{ok, #state{socket=Socket}}.
 
 % =====
@@ -121,10 +121,11 @@ handle_call(Request, _From, State) ->
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
 	?DEBUG("starting negotiation...", []),
-	inet:setopts(State#state.socket, [{active, false}, {packet, line}, binary]),
+	inet:setopts(State#state.socket, [{packet, raw}, binary]),
 	gen_tcp:send(State#state.socket, <<"AgentServer">>),
+	?DEBUG("SENT", []),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
-	%?CONSOLE("packet: ~p.~n", [Packet]),
+	?DEBUG("packet: ~p.~n", [Packet]),
 	case recv(Packet) of
 		{[], <<>>} ->
 			{noreply, State};
@@ -163,6 +164,7 @@ handle_cast(_Msg, State) ->
 
 %% @hidden
 handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
+	?DEBUG("got packet ~p", [Packet]),
 	case recv(Packet) of
 		{[], <<>>} ->
 			{noreply, State};
@@ -220,7 +222,8 @@ handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
 %			{noreply, resend_events(ResendEvents, State3)}
 %	end;
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?DEBUG("Unhandled info ~p", [Info]),
 	{noreply, State}.
 
 % =====
@@ -245,9 +248,12 @@ code_change(_OldVsn, State, _Extra) ->
 
 send(Socket, Record) ->
 	Bin = cpx_agent_pb:encode(Record),
-	Size = integer_to_list(size(Bin)),
-	Outbin = <<Size, ":", Bin, ",">>,
-	gen_tcp:send(Socket, Outbin).
+	?DEBUG("post encode:  ~p", [Bin]),
+	Size = list_to_binary(integer_to_list(size(Bin))),
+	?DEBUG("Das size:  ~p", [Size]),
+	Outbin = <<Size/binary, $:, Bin/binary, $,>>,
+	?DEBUG("Das outbin:  ~p", [Outbin]),
+	ok = gen_tcp:send(Socket, Outbin).
 
 recv(Bin) ->
 	read_tcp_strings(Bin).
@@ -266,13 +272,17 @@ read_tcp_strings(Bin, Acc) ->
 read_tcp_string(Bin) ->
 	read_tcp_string(Bin, []).
 
-read_tcp_string(<<":", Bin/binary>>, RevSize) ->
+read_tcp_string(<<$:, Bin/binary>>, RevSize) ->
 	Size = list_to_integer(lists:reverse(RevSize)),
-	<<String:Size/binary, ",", Rest/binary>> = Bin,
-	{String, Rest};
+	case Bin of
+		<<String:Size/binary, ",", Rest/binary>> ->
+			{String, Rest};
+		_ ->
+			nostring
+	end;
 read_tcp_string(<<>>, Acc) ->
 	nostring;
-read_tcp_string(<<Char:1/binary, Rest/binary>>, Acc) ->
+read_tcp_string(<<Char/integer, Rest/binary>>, Acc) ->
 	read_tcp_string(Rest, [Char | Acc]).
 
 service_requests([], State) ->

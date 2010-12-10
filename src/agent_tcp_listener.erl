@@ -203,7 +203,7 @@ async_listsock_test() ->
 -define(MYSERVERFUNC, 
 	fun() -> 
 		{ok, Pid} = start_link(?PORT), 
-		{Pid, fun() -> stop(Pid) end} 
+		{Pid, fun() -> stop(Pid),timer:sleep(10) end} 
 	end).
 
 -include("gen_server_test.hrl").

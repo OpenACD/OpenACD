@@ -662,7 +662,7 @@ hex_bin_conversion_test_() ->
 	].
 
 build_table_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 

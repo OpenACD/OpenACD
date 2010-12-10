@@ -19,6 +19,7 @@ contrib/mochiweb/_test
 rel/openacd
 deps
 ebin
+.eunit
 
 # unique config files
 www/dynamic/tv_config.js

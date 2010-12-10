@@ -828,7 +828,7 @@ tell_cands(Message, [Node | Tail], Leader) ->
 	State = #state{}, 
 	% This is an election record, see gen_leader to find out what it is
 	% as the copy/pasta record below may be out of date
-	Election = {election, node(), none, ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
+	Election = {election, node(), ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
 	handle_DOWN("deadnode", State, Election),
 	?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
 	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
@@ -836,15 +836,14 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 %-record(election, {
 %          leader = none,
-%          previous_leader = none,
 %          name,
 %          leadernode = none,
 %          candidate_nodes = [],
 %          worker_nodes = [],
+%          alive = [],
 %          down = [],
 %          monitored = [],
 %          buffered = [],
-%          seed_node = none,
 %          status,
 %          elid,
 %          acks = [],
@@ -854,9 +853,8 @@ tell_cands(Message, [Node | Tail], Leader) ->
 %          pendack,
 %          incarn,
 %          nextel,
-%          %% all | one. When `all' each election event
+%          bcast_type              %% all | one. When `all' each election event
 %          %% will be broadcast to all candidate nodes.
-%          bcast_type
 %         }).
 
 sub_mock() ->

@@ -270,7 +270,7 @@ dump() ->
 	gen_server:call(?MODULE, dump).
 
 test_primer() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),

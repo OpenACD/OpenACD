@@ -865,7 +865,6 @@ test_queue() ->
 	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
 	
 call_queue_test_() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 
@@ -1032,7 +1031,6 @@ call_queue_test_() ->
 	}.
 
 queue_group_test_() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 
@@ -1173,7 +1171,6 @@ queue_group_test_() ->
 	}.
 
 skill_rec_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 
@@ -1370,7 +1367,6 @@ merge_client_options_test_() ->
 	end}].
 
 client_rec_test_() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{foreach,
 	fun() -> 
 		mnesia:stop(),
@@ -1535,7 +1531,6 @@ client_rec_test_() ->
 	}]}.
 
 timestamp_test_() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 

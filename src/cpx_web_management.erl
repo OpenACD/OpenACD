@@ -545,9 +545,11 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 	end,
 	Webout = case proplists:get_value("agentModuleWebListen", Post) of
 		undefined ->
+			?DEBUG("this is teh happy", []),
 			cpx_supervisor:destroy(agent_web_listener),
 			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
 		Webport ->
+			?DEBUG("This is pure shit", []),
 			OldWebPort = case cpx_supervisor:get_conf(agent_web_listener) of
 				WebRecord when is_record(WebRecord, cpx_conf) ->
 					lists:nth(1, WebRecord#cpx_conf.start_args);
@@ -2696,7 +2698,7 @@ recipe_encode_decode_test_() ->
 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
-	{foreach,
+	{inorder, {foreach,
 	fun() -> 
 		crypto:start(),
 		mnesia:stop(),
@@ -3187,6 +3189,6 @@ api_test_() ->
 %				end}
 %			]}
 %		end
-	]}.			
+	]}}.
 		
 -endif.

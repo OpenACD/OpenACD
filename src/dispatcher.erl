@@ -267,7 +267,7 @@ stop(Pid, Force) ->
 -define(MAX_RANDOM_TEST, 100000).
 
 random_test() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),

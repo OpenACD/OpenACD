@@ -751,7 +751,8 @@ scrub_send_html_test_() ->
 	end}].
 
 getmail(File) ->
-	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
+	Pre = case node() of nonode@nohost -> "../"; _ -> [] end,
+	{ok, Bin} = file:read_file(Pre ++ "contrib/gen_smtp/testdata/" ++ File),
 	%Email = binary_to_list(Bin),
 	mimemail:decode(Bin).
 	

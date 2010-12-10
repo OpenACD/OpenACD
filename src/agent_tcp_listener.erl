@@ -104,11 +104,8 @@ init([Port]) ->
 	end.
 
 %% @hidden
-handle_call(_Msg, _From, State) ->
-	{reply, invalid, State};
-
-handle_call(Request, _From, State) ->
-	{reply, {unknown_call, Request}, State}.
+handle_call(Msg, _From, State) ->
+	{reply, {unknown_call, Msg}, State}.
 
 %% @hidden
 handle_cast(stop, State) ->

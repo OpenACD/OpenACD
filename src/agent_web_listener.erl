@@ -169,7 +169,7 @@ start_link(Port) ->
 %% @doc Stop the web listener.
 -spec(stop/0 :: () -> 'ok').
 stop() ->
-	gen_server:call(?MODULE, stop).
+	gen_server:cast(?MODULE, stop).
 
 %% @doc Link to the passed pid; usually an agent pid.
 -spec(linkto/1 :: (Pid :: pid()) -> 'ok').
@@ -196,8 +196,6 @@ init([Port]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-handle_call(stop, _From, State) ->
-	{stop, shutdown, ok, State};
 handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
     {reply, {unknown_call, Request}, State}.
@@ -214,6 +212,8 @@ handle_cast({linkto, Reflist, Salt, Pid}, State) ->
 	link(Pid),
 	ets:insert(web_connections, {Reflist, Salt, Pid}),
 	{noreply, State};
+handle_cast(stop, State) ->
+	{stop, shutdown, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -867,7 +867,7 @@ parse_path(Path) ->
 	%?DEBUG("Path:  ~s", [Path]),
 	case Path of
 		"/" ->
-			{file, {"index.html", util:priv_dir("www/agent/")}};
+			{file, {"index.html", util:priv_dir("www/agent") ++ "/"}};
 		"/api" ->
 			{api, api};
 		"/poll" ->
@@ -893,7 +893,7 @@ parse_path(Path) ->
 					File = string:join(Moretail, "/"),
 					Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
-							util:priv_dir("www/dynamic");
+							util:priv_dir("www/dynamic") ++ "/";
 						{ok, WebDirDyn} ->
 							WebDirDyn
 					end,
@@ -947,11 +947,11 @@ parse_path(Path) ->
 					% is there an actual file to serve?
 					case {filelib:is_regular(string:concat(util:priv_dir("www/agent"), Path)), filelib:is_regular(string:concat(util:priv_dir("www/contrib"), Path))} of
 						{true, false} ->
-							{file, {string:strip(Path, left, $/), util:priv_dir("www/agent/")}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/agent") ++ "/"}};
 						{false, true} ->
-							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/") ++ "/"}};
 						{true, true} ->
-							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/") ++ "/"}};
 						{false, false} ->
 							{api, {undefined, Path}}
 					end
@@ -999,8 +999,7 @@ decrypt_password(Password) ->
 -define(url(Path), lists:append(["http://127.0.0.1:", integer_to_list(?PORT), Path])).
 
 cooke_file_test_() ->
-	{
-		foreach,
+	{inorder, { foreach,
 		fun() ->
 			agent_web_listener:start(),
 			inets:start(),
@@ -1010,78 +1009,68 @@ cooke_file_test_() ->
 		fun(Httpc) ->
 			inets:stop(httpc, Httpc),
 			inets:stop(),
-			agent_web_listener:stop()
-		end,
-		[
-			fun(_Httpc) ->
-				{"Get a cookie on index page request",
-				fun() ->
-					{ok, Result} = http:request(?url("/")),
-					?assertMatch({_Statusline, _Headers, _Boddy}, Result),
-					{_Line, Head, _Body} = Result,
-					?CONSOLE("Das head:  ~p", [Head]),
-					Cookies = proplists:get_all_values("set-cookie", Head),
-					Test = fun(C) ->
-						case util:string_split(C, "=", 2) of
-							["cpx_id", _Whatever] ->
-								true;
-							_Else ->
-								false
-						end
-					end,
-					?CONSOLE("Hmmm, cookie:  ~p", [Cookies]),
-					?assert(lists:any(Test, Cookies))
-				end}
+			agent_web_listener:stop(),
+			timer:sleep(10)
+		end, [
+		fun(_Httpc) -> {"Get a cookie on index page request", fun() ->
+			{ok, Result} = http:request(?url("/")),
+			?assertMatch({_Statusline, _Headers, _Boddy}, Result),
+			{_Line, Head, _Body} = Result,
+			?CONSOLE("Das head:  ~p", [Head]),
+			Cookies = proplists:get_all_values("set-cookie", Head),
+			Test = fun(C) ->
+				case util:string_split(C, "=", 2) of
+					["cpx_id", _Whatever] ->
+						true;
+					_Else ->
+						false
+				end
 			end,
-			fun(_Httpc) ->
-				{"Try to get a page with a bad cookie",
-				fun() ->
-					{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
-					?assertEqual(200, Code),
-					?CONSOLE("~p", [Head]),
-					Cookies = proplists:get_all_values("set-cookie", Head),
-					Test = fun(C) ->
-						case util:string_split(C, "=", 2) of
-							["cpx_id", _Whatever] ->
-								true;
-							_Else ->
-								false
-						end
-					end,
-					?assertEqual(true, lists:any(Test, Cookies))
-				end}
+			?CONSOLE("Hmmm, cookie:  ~p", [Cookies]),
+			?assert(lists:any(Test, Cookies))
+		end} end,
+		fun(_Httpc) -> {"Try to get a page with a bad cookie", fun() ->
+			{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
+			?assertEqual(200, Code),
+			?CONSOLE("~p", [Head]),
+			Cookies = proplists:get_all_values("set-cookie", Head),
+			Test = fun(C) ->
+				case util:string_split(C, "=", 2) of
+					["cpx_id", _Whatever] ->
+						true;
+					_Else ->
+						false
+				end
 			end,
-			fun(_Httpc) ->
-				{"Get a cookie, then a request with that cookie",
-				fun() ->
-					{ok, {_Statusline, Head, _Body}} = http:request(?url("/")),
-					Cookie = proplists:get_all_values("set-cookie", Head),
-					Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
-					{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {?url(""), Cookielist}, [], []),
-					Cookie2 = proplists:get_all_values("set-cookie", Head2),
-					Test = fun(C) ->
-						case util:string_split(C, "=", 2) of
-							["cpx_id", _Whatever] ->
-								true;
-							_Else ->
-								false
-						end
-					end,
-					?assertEqual(false, lists:any(Test, Cookie2)),
-					?assertEqual(200, Code)
-				end}
-			end
-		]
-	}.
+			?assertEqual(true, lists:any(Test, Cookies))
+		end} end,
+		fun(_Httpc) -> {"Get a cookie, then a request with that cookie", fun() ->
+			{ok, {_Statusline, Head, _Body}} = http:request(?url("/")),
+			Cookie = proplists:get_all_values("set-cookie", Head),
+			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
+			{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {?url(""), Cookielist}, [], []),
+			Cookie2 = proplists:get_all_values("set-cookie", Head2),
+			Test = fun(C) ->
+				case util:string_split(C, "=", 2) of
+					["cpx_id", _Whatever] ->
+						true;
+					_Else ->
+						false
+				end
+			end,
+			?assertEqual(false, lists:any(Test, Cookie2)),
+			?assertEqual(200, Code)
+		end} end,
+		fun cookie_api_test_d/1
+	]}}.
 
-cookie_api_test_() ->
-	{
+cookie_api_test_d(Httpc) ->
+	{inorder, {
 		foreach,
 		fun() ->
-			agent_web_listener:start(),
-			inets:start(),
-			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
-			{ok, {_Statusline, Head, _Body}} = http:request(?url("")),
+			?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
+			HttpRes = http:request(?url("")),
+			{ok, {_Statusline, Head, _Body}} = HttpRes,
 			Cookie = proplists:get_all_values("set-cookie", Head),
 			?CONSOLE("cookie_api_test_ setup ~p", [Cookie]),
 			Cookieproplist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
@@ -1089,14 +1078,13 @@ cookie_api_test_() ->
 			{Httpc, Cookieproplist}
 		end,
 		fun({Httpc, _Cookie}) ->
-			inets:stop(httpc, Httpc),
-			inets:stop(),
-			agent_web_listener:stop()
+			ok
 		end,
 		[
 			fun({_Httpc, Cookielist}) ->
 				{"Get a salt with a valid cookie",
 				fun() ->
+					?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
 					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
 					?CONSOLE("body:  ~p", [Body]),
 					{struct, Pairs} = mochijson2:decode(Body),
@@ -1116,9 +1104,9 @@ cookie_api_test_() ->
 				end}
 			end
 		]
-	}.
+	}}.
 	
-web_connection_login_test_() ->
+web_connection_login_test_d() ->
 	{
 		foreach,
 		fun() ->
@@ -1331,7 +1319,7 @@ web_connection_login_test_() ->
 % TODO add tests for interaction w/ agent, agent_manager
 
 -define(PATH_TEST_SET, [
-		{"/", {file, {"index.html", util:priv_dir("www/agent/")}}},
+		{"/", {file, {"index.html", util:priv_dir("www/agent") ++ "/"}}},
 		{"/poll", {api, poll}},
 		{"/logout", {api, logout}},
 		{"/login", {api, login}},
@@ -1341,7 +1329,7 @@ web_connection_login_test_() ->
 		{"/ack/7", {api, {ack, "7"}}},
 		{"/err/89", {api, {err, "89"}}},
 		{"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
-		{"/index.html", {file, {"index.html", util:priv_dir("www/agent/")}}},
+		{"/index.html", {file, {"index.html", util:priv_dir("www/agent/") ++ "/"}}},
 		{"/otherfile.ext", {api, {undefined, "/otherfile.ext"}}},
 		{"/other/path", {api, {undefined, "/other/path"}}},
 		{"/releaseopts", {api, releaseopts}},
@@ -1353,7 +1341,7 @@ web_connection_login_test_() ->
 		{"/agent_transfer/agent@domain", {api, {agent_transfer, "agent@domain"}}},
 		{"/agent_transfer/agent@domain/1234", {api, {agent_transfer, "agent@domain", "1234"}}},
 		{"/mediapush", {api, mediapush}},
-		{"/dynamic/test.html", {file, {"test.html", util:priv_dir("www/dynamic")}}}
+		{"/dynamic/test.html", {file, {"test.html", util:priv_dir("www/dynamic") ++ "/"}}}
 	]
 ).
 
@@ -1398,7 +1386,13 @@ cookie_good_test_() ->
 
 -define(MYSERVERFUNC, fun() -> {ok, Pid} = start_link(), unlink(Pid), {?MODULE, fun() -> stop() end} end).
 
--include("gen_server_test.hrl").
+%-include("gen_server_test.hrl").
 
+all_test_d() ->
+	{inorder, [
+	%	fun cooke_file_test_d/0,
+	%	fun cookie_api_test_d/0,
+		fun web_connection_login_test_d/0
+	]}.
 
 -endif.

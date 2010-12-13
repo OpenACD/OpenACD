@@ -42,6 +42,11 @@
 		{ram_copies, lists:append([nodes(), [node()]])}
 	]
 ).
+-export([
+	add_paths/0,
+	get_modules/1,
+	eunit/1
+]).
 -endif.
 
 -export([
@@ -550,6 +555,23 @@ run_dir() ->
 	end.
 
 -ifdef(TEST).
+
+add_paths() ->
+	{Pre, Deps} = case {file:list_dir("deps"), file:list_dir("../deps")} of
+		{{ok, Files}, _} -> {"deps/", Files};
+		{_, {ok, Files}} -> {"../deps/", Files};
+		_ -> {[], []}
+	end,
+	Paths = [Pre ++ X ++ "/ebin" || X <- Deps],
+	code:add_paths(Paths).
+
+get_modules(Appfile) ->
+	{ok, [{application, 'OpenACD', Props}]} = file:consult(Appfile),
+	proplists:get_value(modules, Props).
+
+eunit(Mods) ->
+	Mid = [{M, eunit:test(M)} || M <- Mods],
+	[X || {error, _} = X <- Mid].
 
 code_reload_test_() ->
 	% Using dummy_media because using util kills coverage reporting.

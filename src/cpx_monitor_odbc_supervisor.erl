@@ -31,11 +31,17 @@
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
+	-define(stop_writer(Pid) , gen_server_mock:stop(Pid)).
+-else.
+	-define(stop_writer(Pid), 	cpx_monitor_kgb_odbc:stop(State#state.odbc_pid)).
 -endif.
+
+
 
 -include("log.hrl").
 -include("call.hrl").
 -include("cpx.hrl").
+-include("odbc_kgb.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 %% API
@@ -68,44 +74,6 @@
 	max_t()
 ]).
 -type(start_opts() :: [start_opt()]).
-
--type(event_type() ::
-	'acd_start' |
-	'acd_stop' |
-	'agent_login' |
-	'agent_logout' |
-	'agent_start' |
-	'agent_stop' |
-	'agent_available' |
-	'agent_unavailable' |
-	'call_enqueue' |
-	%'call_pickup' |
-	'call_answer' |
-	'call_terminate' |
-	'transfer'
-).
-
--record(event_log_row, {
-	id :: string(),
-	hostname :: string(),
-	event_type = 'start_acd' :: event_type(),
-	acd_type = "openacd" :: string(),
-	acd_name :: string(), % usually hostname
-	acd_agent_id :: string(), % usually agent login
-	acd_agent_ip :: string(), 
-	ani :: string(), % field one of from_header
-	uci :: string(), % field 2 of from_header
-	did :: string(), % field 4 of from_header
-	origin_code :: string(), % field 3 of from_header
-	queue :: string(),
-	queue_name :: string(),
-	source_ip = "Source IP" :: string(),
-	from_header :: string(), % '*' deliminated string value
-	information :: string(),
-	created_at :: string(), % formated datetime string
-	% updated at is left to the db.
-	line :: string() % remnant of using events.log; remainder of line.
-}).
 
 -record(state, {
 	odbc_pid :: 'undefined' | pid(),
@@ -176,8 +144,7 @@ init([Dsn, Opts]) ->
 	Trace = proplists:get_value(trace, Opts),
 	MaxRestarts = proplists:get_value(max_r, Opts, 3),
 	MaxTime = proplists:get_value(max_t, Opts, 5),
-	{ok, SupOdbc} = start_odbc_super(MaxRestarts, MaxTime),
-	{ok, Odbc} = start_odbc_process(SupOdbc, Dsn, Trace),
+	{ok, SupOdbc, Odbc} = init_sub_pids(MaxRestarts, MaxTime, Dsn, Trace),
 	inet_config:do_load_resolv(os:type(), longnames),
 	% hopefully the below won't take too long if this module is started on a busy system.
 	CallQMap = init_call_queue_map(),
@@ -216,8 +183,8 @@ handle_cast(start_odbc, State) ->
 	?INFO("Supervisor for odbc still up", []),
 	{noreply, State};
 handle_cast(stop, State) ->
-	cpx_monitor_kgb_odbc:stop(State#state.odbc_pid),
-	{stop, State#state{odbc_pid = undefined}};
+	?stop_writer(State#state.odbc_pid),
+	{stop, normal, State#state{odbc_pid = undefined}};
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
@@ -378,6 +345,29 @@ subscription_filter(_) ->
 start_odbc_super(MaxR, MaxT) ->
 	supervisor:start_link(cpx_middle_supervisor, [MaxR, MaxT]).
 
+% for testing purposes (ensureing the write process gets all the correct events,
+% one starts the 'proper' module, the other starts a mock and preps an expect
+% info for the appropriate time.
+-ifdef(TEST).
+start_odbc_process(SupPid, _, _) ->
+	Spec = #cpx_conf{
+			id = cpx_monitor_kgb_odbc,
+			module_name = gen_server_mock,
+			start_function = named,
+			start_args = [{local, test_odbc_writer}]
+		},
+		cpx_middle_supervisor:add_directly(SupPid, Spec).
+		
+init_sub_pids(Maxr, Maxt, _, _) ->
+	{ok, Sup} = start_odbc_super(Maxr, Maxt),
+	{ok, Odbc} = start_odbc_process(Sup, undefined, undefined),
+	gen_server_mock:expect_info(test_odbc_writer,
+		fun(#event_log_row{event_type = acd_start}, _State) ->
+			ok
+		end
+	),
+	{ok, Sup, Odbc}.
+-else.
 start_odbc_process(SupPid, Dsn, Trace) ->
 	Spec = #cpx_conf{
 		id = cpx_monitor_kgb_odbc,
@@ -386,7 +376,13 @@ start_odbc_process(SupPid, Dsn, Trace) ->
 		start_args = [Dsn, Trace]
 	},
 	cpx_middle_supervisor:add_directly(SupPid, Spec).
-	
+
+init_sup_pids(Maxr, Maxt, Dsn, Trace) ->
+	{ok, Sup} = start_odbc_super(Maxr, Maxt),
+	{ok, Pid} = start_odbc_process(Sup, Dsn, Trace),
+	{ok, Sup, Pid}.
+-endif.
+
 agent_diff(_Agent, New, Old, Timestamp, State) ->
 	% has the agent's state changed?
 	case proplists:get_value(state, New) == proplists:get_value(state, Old) of
@@ -587,5 +583,45 @@ get_FQDN() ->
 
 -ifdef(TEST).
 
+-record(test_conf, {
+	ets,
+	queue_man,
+	odbc_sup
+}).
+
+all_test_() ->
+	{inorder, {foreach,
+	fun() ->
+		Ets = ets:new(cpx_monitor, [named_table]),
+		{ok, Qm} = gen_leader_mock:start(queue_manager),
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+			{ok, [], State}
+		end),	
+		{ok, Pid} = start("fake_dsn"),
+		#test_conf{
+			ets = Ets,
+			queue_man = Qm,
+			odbc_sup = Pid
+		}
+	end,
+	fun(#test_conf{ets = Ets}) ->
+		cpx_monitor_odbc_supervisor:stop(),
+		gen_leader_mock:stop(whereis(queue_manager)),
+		ets:delete(Ets),
+		% give it time to die
+		timer:sleep(10)
+	end,
+	[fun(_Rec) -> {"start_acd", ?_assert(false)} end,
+	fun(_Rec) -> {"stop_acd", ?_assert(false)} end,
+	fun(_Rec) -> {"agent_start", ?_assert(false)} end,
+	fun(_Rec) -> {"agent_stop", ?_assert(false)} end,
+	fun(_Rec) -> {"call_enqueue", ?_assert(false)} end,
+	fun(_Rec) -> {"call_terminate in queue", ?_assert(false)} end,
+	fun(_Rec) -> {"call_answer", ?_assert(false)} end,
+	fun(_Rec) -> {"call_terminate with agent", ?_assert(false)} end,
+	fun(_Rec) -> {"call_complete", ?_assert(false)} end,
+	fun(_Rec) -> {"murder the writer once", ?_assert(false)} end,
+	fun(_Rec) -> {"keep the writer down", ?_assert(false)} end,
+	fun(_Rec) -> {"writer ressurection", ?_assert(false)} end]}}.
 
 -endif.

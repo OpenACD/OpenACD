@@ -50,7 +50,6 @@
 		queue_manager,
 		sip_bot,
 		sip_bot_manager,
-		spicecsm_integration,
 		util
 	]},
 	{registered, [

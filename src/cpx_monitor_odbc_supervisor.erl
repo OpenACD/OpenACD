@@ -31,7 +31,7 @@
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
-	-define(stop_writer(Pid) , gen_server_mock:stop(Pid)).
+	-define(stop_writer(Pid), gen_server_mock:stop(whereis(test_odbc_writer))).
 -else.
 	-define(stop_writer(Pid), 	cpx_monitor_kgb_odbc:stop(State#state.odbc_pid)).
 -endif.
@@ -186,8 +186,10 @@ handle_cast(start_odbc, State) ->
 	?INFO("Supervisor for odbc still up", []),
 	{noreply, State};
 handle_cast(stop, State) ->
+	Event = build_event_log(acd_stop, os:timestamp(), []),
+	NewCache = send_events(State#state.odbc_pid, [Event], State#state.event_cache),
 	?stop_writer(State#state.odbc_pid),
-	{stop, normal, State#state{odbc_pid = undefined}};
+	{stop, normal, State#state{odbc_pid = undefined, event_cache = NewCache}};
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
@@ -608,7 +610,19 @@ all_test_() ->
 		}
 	end,
 	fun(#test_conf{ets = Ets}) ->
+		try gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = acd_stop}, _State) ->
+				ok
+			end
+		)
+		catch
+			_:_ -> ok
+		end,
 		cpx_monitor_odbc_supervisor:stop(),
+		try gen_server_mock:stop(whereis(test_odbc_writer))
+		catch
+			_:_ -> ok
+		end,
 		gen_leader_mock:stop(whereis(queue_manager)),
 		ets:delete(Ets),
 		% give it time to die
@@ -619,7 +633,22 @@ all_test_() ->
 		% just assert expectations.
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"stop_acd", ?_assert(false)} end,
+	fun(_Rec) -> {"stop_acd", fun() ->
+		Self = self(),
+		gen_server_mock:expect_info(test_odbc_writer, 
+			fun(#event_log_row{event_type = acd_stop}, _State) ->
+				Self ! {ok, acd_stop},
+				ok
+			end
+		),
+		cpx_monitor_odbc_supervisor:stop(),
+		receive
+			{ok, acd_stop} ->
+				?assert(true)
+		after 20 ->
+			?assert(timeout)
+		end
+	end} end,
 	fun(_Rec) -> {"agent_start", ?_assert(false)} end,
 	fun(_Rec) -> {"agent_stop", ?_assert(false)} end,
 	fun(_Rec) -> {"call_enqueue", ?_assert(false)} end,

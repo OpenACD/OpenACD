@@ -185,6 +185,9 @@ handle_cast(start_odbc, #state{odbc_sup_pid = undefined} = State) ->
 handle_cast(start_odbc, State) ->
 	?INFO("Supervisor for odbc still up", []),
 	{noreply, State};
+handle_cast(stop, #state{odbc_sup_pid = undefined} = State) ->
+	?WARNING("Stopping while writer process is stopped.", []),
+	{stop, normal, State};
 handle_cast(stop, State) ->
 	Event = build_event_log(acd_stop, os:timestamp(), []),
 	NewCache = send_events(State#state.odbc_pid, [Event], State#state.event_cache),
@@ -425,7 +428,8 @@ agent_diff(_Agent, New, Old, Timestamp, State) ->
 							error -> "Unknown Queue";
 							{ok, Value} -> Value
 						end,
-						Events1 = build_event_log(call_complete, Timestamp, [{cached_queue, Queue} | New]),
+						% faking the state data because the call_complete needs call rec.
+						Events1 = build_event_log(call_complete, Timestamp, [{cached_queue, Queue}, {statedata, Call} | New]),
 						case NextState of
 							idle ->
 								Events2 = build_event_log(agent_available, Timestamp, New),
@@ -545,11 +549,16 @@ build_event_log_call_base(E, Props) ->
 	
 send_events(_Pid, [], Acc) ->
 	Acc;
-send_events(Pid, [Head | Tail], Acc) ->
+send_events(Pid, [Head | Tail], Acc) when is_pid(Pid) ->
 	Pid ! Head,
 	NewAcc = [Head | Acc],
-	send_events(Pid, Tail, NewAcc).
-
+	send_events(Pid, Tail, NewAcc);
+send_events(undefined, [Head | Tail], Acc) -> 
+	NewAcc = [Head | Acc],
+	send_events(undefined, Tail, NewAcc);
+send_events(Nom, List, Acc) ->
+	send_events(whereis(Nom), List, Acc).
+	
 -spec monotonic_counter() -> float().
 monotonic_counter() ->
 	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
@@ -594,6 +603,9 @@ get_FQDN() ->
 	odbc_sup
 }).
 
+ignore_infos(Mock, Count) ->
+	[gen_server_mock:expect_info(Mock, fun(_, _) -> ok end) || _ <- lists:seq(1, Count)].
+	
 all_test_() ->
 	{inorder, {foreach,
 	fun() ->
@@ -649,15 +661,257 @@ all_test_() ->
 			?assert(timeout)
 		end
 	end} end,
-	fun(_Rec) -> {"agent_start", ?_assert(false)} end,
-	fun(_Rec) -> {"agent_stop", ?_assert(false)} end,
-	fun(_Rec) -> {"call_enqueue", ?_assert(false)} end,
-	fun(_Rec) -> {"call_terminate in queue", ?_assert(false)} end,
-	fun(_Rec) -> {"call_answer", ?_assert(false)} end,
-	fun(_Rec) -> {"call_terminate with agent", ?_assert(false)} end,
-	fun(_Rec) -> {"call_complete", ?_assert(false)} end,
-	fun(_Rec) -> {"murder the writer once", ?_assert(false)} end,
-	fun(_Rec) -> {"keep the writer down", ?_assert(false)} end,
-	fun(_Rec) -> {"writer ressurection", ?_assert(false)} end]}}.
+	fun(_Rec) -> {"agent_start", fun() ->
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_start}, _State) ->
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_login}, _State) ->
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_login}, _State) ->
+				ok
+			end
+		),
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]}
+		], "node"}}},
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		timer:sleep(10), % give it time to eat the event
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"agent_stop", fun() ->
+		% build it up
+		ignore_infos(test_odbc_writer, 3),
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]}
+		], "node"}}},
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		% and now tear it down.
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_stop}, _) ->
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_logout}, _) ->
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_logout}, _) ->
+				ok
+			end
+		),
+		CpxDropEvent = {cpx_monitor_event, {drop, os:timestamp(), {agent, "testagent"}}},
+		cpx_monitor_odbc_supervisor ! CpxDropEvent,
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"call_enqueue", fun() ->
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = call_enqueue}, _) ->
+				ok
+			end
+		),
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+			{queue, "A Queue"},
+			{callerid, {"ignored", "a*b*c*d"}}
+		], "node"}}},
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"call_terminate in queue", fun() ->
+		% build it up
+		ignore_infos(test_odbc_writer, 1),
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+			{queue, "A Queue"},
+			{callerid, {"ignored", "a*b*c*d"}}
+		], "node"}}},
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		% tear it down
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = call_terminate}, _) ->
+				ok
+			end
+		),
+		CpxDropEvent = {cpx_monitor_event, {drop, os:timestamp(), {media, "testmedia"}}},
+		cpx_monitor_odbc_supervisor ! CpxDropEvent,
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"call_answer", fun() ->
+		
+		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]}
+		], "node"}}},
+		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+			{callerid, {"ignored", "a*b*c*d"}},
+			{queue, "Q"}
+		], "node"}}},
+		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
+		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{state, oncall},
+			{statedata, Call}
+		], "node"}}},
+		ignore_infos(test_odbc_writer, 3),
+		gen_server_mock:expect_info(test_odbc_writer, 
+			fun(#event_log_row{event_type = call_answer}, _) ->
+				ok
+			end
+		),
+		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer],
+		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"call_terminate with agent", fun() ->
+		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]}
+		], "node"}}},
+		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+			{callerid, {"ignored", "a*b*c*d"}},
+			{queue, "Q"}
+		], "node"}}},
+		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
+		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{state, oncall},
+			{statedata, Call}
+		], "node"}}},
+		CpxMediaDie = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]},
+			{state, wrapup},
+			{statedata, Call}
+		], "node"}}},
+		ignore_infos(test_odbc_writer, 4),
+		gen_server_mock:expect_info(test_odbc_writer, 
+			fun(#event_log_row{event_type = call_terminate}, _) ->
+				ok
+			end
+		),
+		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer, CpxMediaDie],
+		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"call_complete", fun() ->
+		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]}
+		], "node"}}},
+		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+			{callerid, {"ignored", "a*b*c*d"}},
+			{queue, "Q"}
+		], "node"}}},
+		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
+		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{state, oncall},
+			{statedata, Call}
+		], "node"}}},
+		CpxMediaDie = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]},
+			{state, wrapup},
+			{statedata, Call}
+		], "node"}}},
+		CpxAgentEndwrap = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]},
+			{state, idle}
+		], "node"}}},
+		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer, CpxMediaDie, CpxAgentEndwrap],
+		ignore_infos(test_odbc_writer, 5),
+		gen_server_mock:expect_info(test_odbc_writer, 
+			fun(#event_log_row{event_type = call_complete}, _) ->
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_available}, _) ->
+				ok
+			end
+		),
+		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
+		timer:sleep(10),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"murder the writer once", fun() ->
+		OldPid = whereis(test_odbc_writer),
+		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]}
+		], "node"}}},
+		ignore_infos(OldPid, 1),
+		cpx_monitor_odbc_supervisor ! CpxAgentEvent,
+		gen_server_mock:crash(OldPid),
+		timer:sleep(10),
+		NewPid = whereis(test_odbc_writer),
+		?assert(is_pid(NewPid)),
+		?assertNot(OldPid =:= NewPid)
+	end} end,
+	fun(_Rec) -> {"keep the writer down", fun() ->
+		OldFlag = process_flag(trap_exit, true),
+		Jack = spawn_jack(test_odbc_writer),
+		receive
+			{'EXIT', Jack, normal} ->
+				ok
+		after 5000 ->
+			?assert("Jack failed to kill fast enough")
+		end,
+		process_flag(trap_exit, OldFlag),
+		?assertEqual(undefined, whereis(test_odbc_writer))
+	end} end,
+	fun(_Rec) -> {"writer ressurection", fun() ->
+		OldFlag = process_flag(trap_exit, true),
+		Jack = spawn_jack(test_odbc_writer),
+		receive
+			{'EXIT', Jack, normal} ->
+				ok
+		after 5000 ->
+			?assert("Jack failed to kill fast enough")
+		end,
+		process_flag(trap_exit, OldFlag),
+		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "Q"}]}
+		], "node"}}},
+		cpx_monitor_odbc_supervisor ! CpxAgentEvent,
+		start_odbc(),
+		% the mock should get the cached event; if it doesn't this test is fail.
+		% it should get it every time it comes up, eventually murdering it again.
+		?assertEqual(undefined, whereis(test_odbc_writer))
+	end} end]}}.
+
+spawn_jack(Target) ->
+	spawn_link(fun() -> jack_the_ripper(Target) end).
+
+jack_the_ripper(Target) when is_atom(Target) ->
+	jack_the_ripper(Target, 4).
+
+jack_the_ripper(Target, Max) when is_atom(Target) ->
+	jack_the_ripper(Target, 0, Max).
+	
+jack_the_ripper(_Target, Max, Max) ->
+	ok;
+jack_the_ripper(Target, Count, Max) when Count < Max ->
+	case whereis(Target) of
+		undefined ->
+			timer:sleep(10),
+			jack_the_ripper(Target, Count, Max);
+		Pid ->
+			exit(Pid, kill),
+			timer:sleep(10),
+			jack_the_ripper(Target, Count + 1, Max)
+	end.
 
 -endif.

@@ -149,6 +149,8 @@ init([Dsn, Opts]) ->
 	% hopefully the below won't take too long if this module is started on a busy system.
 	CallQMap = init_call_queue_map(),
 	CallAgentMap = dict:new(), % TODO bootstrap this to avoid false positives on abandon
+	E = build_event_log(acd_start, os:timestamp(), []),
+	Cache = send_events(Odbc, [E], []),
 	{ok, #state{
 		odbc_pid = Odbc,
 		odbc_sup_pid = SupOdbc,
@@ -159,7 +161,8 @@ init([Dsn, Opts]) ->
 		agents = dict:new(),
 		calls = dict:new(),
 		callqueuemap = CallQMap,
-		callagentmap = CallAgentMap
+		callagentmap = CallAgentMap,
+		event_cache = Cache
 	}}.
 
 % =====
@@ -611,7 +614,11 @@ all_test_() ->
 		% give it time to die
 		timer:sleep(10)
 	end,
-	[fun(_Rec) -> {"start_acd", ?_assert(false)} end,
+	[fun(_Rec) -> {"start_acd", fun() ->
+		% the start should be sent automattically on start, so
+		% just assert expectations.
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
 	fun(_Rec) -> {"stop_acd", ?_assert(false)} end,
 	fun(_Rec) -> {"agent_start", ?_assert(false)} end,
 	fun(_Rec) -> {"agent_stop", ?_assert(false)} end,

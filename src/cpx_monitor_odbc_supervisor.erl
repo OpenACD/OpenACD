@@ -571,8 +571,11 @@ send_events(Pid, [Head | Tail], Acc) when is_pid(Pid) ->
 send_events(undefined, [Head | Tail], Acc) -> 
 	NewAcc = [Head | Acc],
 	send_events(undefined, Tail, NewAcc);
-send_events(Nom, List, Acc) ->
-	send_events(whereis(Nom), List, Acc).
+send_events(Nom, List, Acc) when is_atom(Nom)->
+	send_events(whereis(Nom), List, Acc);
+send_events(_Pid, [Head | Tail], Acc) ->
+	NewAcc = [Head | Acc],
+	send_events(undefined, Tail, NewAcc).
 	
 -spec monotonic_counter() -> float().
 monotonic_counter() ->

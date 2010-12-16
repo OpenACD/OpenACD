@@ -175,10 +175,18 @@ build_sql(EventRow) ->
 	Fields = record_info(fields, event_log_row),
 	{Cols, Vals} = get_values(EventRow, Fields),
 	StringFields = [atom_to_list(X) || X <- Cols],
-	FormatVals = [io_lib:format("~p", [X]) || X <- Vals],
+	FormatVals = [format(X) || X <- Vals],
 	JoinedFields = string:join(StringFields, ", "),
 	JoinedVals = string:join(FormatVals, ", "),
 	lists:flatten(io_lib:format("INSERT INTO event_logs (~s) VALUES (~s);", [JoinedFields, JoinedVals])).
+
+format(V) when is_atom(V); is_list(V); is_binary(V) ->
+	format("'~s'", V);
+format(V) ->
+	format("~p", V).
+
+format(Str, Val) ->
+	io_lib:format(Str, [Val]).
 
 get_values(EventRow, Fields) ->
 	get_values(EventRow, Fields, 2, [], []).
@@ -189,9 +197,6 @@ get_values(EventRow, [Col | Tail], Nth, Cols, Vals) ->
 	case element(Nth, EventRow) of
 		undefined ->
 			get_values(EventRow, Tail, Nth + 1, Cols, Vals);
-		Val when is_atom(Val) ->
-			ListVal = atom_to_list(Val),
-			get_values(EventRow, Tail, Nth + 1, [Col | Cols], [ListVal | Vals]);
 		Val ->
 			get_values(EventRow, Tail, Nth + 1, [Col | Cols], [Val | Vals])
 	end.
@@ -202,10 +207,15 @@ get_values(EventRow, [Col | Tail], Nth, Cols, Vals) ->
 % =====
 
 build_sql_test_() ->
-	[fun() ->
-		Expected = "INSERT INTO event_logs (event_type, acd_type) VALUES (\"acd_start\", \"openacd\");",
+	[{"A few strings", fun() ->
+		Expected = "INSERT INTO event_logs (event_type, acd_type) VALUES ('acd_start', 'openacd');",
 		Got = build_sql(#event_log_row{event_type = acd_start, acd_type = "openacd", source_ip = undefined}),
 		?assertEqual(Expected, Got)
-	end].
+	end},
+	{"Strings and numbers", fun() ->
+		Expected = "INSERT INTO event_logs (id, event_type, acd_type) VALUES (5, 'acd_start', 'openacd');",
+		Got = build_sql(#event_log_row{id = 5, event_type = acd_start, acd_type = "openacd", source_ip = undefined}),
+		?assertEqual(Expected, Got)
+	end}].
 	
 -endif.

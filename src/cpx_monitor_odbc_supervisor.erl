@@ -64,7 +64,6 @@
 	code_change/3
 ]).
 
--type(dsn() :: string()).
 -type(trace_opt() :: 'trace').
 -type(max_r() :: {'max_r', pos_integer()}).
 -type(max_t() :: {'max_t', pos_integer()}). % seconds

@@ -38,6 +38,8 @@
 	'transfer'
 ).
 
+-type(dsn() :: string()).
+
 -record(event_log_row, {
 	id :: string(),
 	hostname :: string(),

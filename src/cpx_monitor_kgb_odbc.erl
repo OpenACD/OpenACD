@@ -27,7 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The process that does the writing to the database via ODBC.
+%% @doc The process that does the writing to the database via ODBC.  Note
+%% this was build with postgres as the target, so other sql servers might choke.
 -module(cpx_monitor_kgb_odbc).
 
 -behaviour(gen_server).
@@ -102,6 +103,7 @@ init([Dsn, Trace]) ->
 	end,
 	Opts = lists:append(Trace, [{auto_commit, off}, {scrollable_cursors, off}]),
 	{ok, Conn} = odbc:connect(Dsn, Opts),
+	?INFO("Started with dsn ~s", [Dsn]),
 	{ok, #state{dsn = Dsn, connection = Conn}}.
 
 % =====
@@ -133,9 +135,11 @@ handle_info(EventLog, State) when is_record(EventLog, event_log_row) ->
 	Sql = build_sql(EventLog),
 	case odbc:sql_query(State#state.connection, Sql, 2000) of
 		{error, Reason} ->
+			?DEBUG("Sql:  ~p", [Sql]),
 			{stop, {failed_query, Reason}, State};
 		{updated, _N} ->
 			ok = odbc:commit(State#state.connection, commit),
+			cpx_monitor_odbc_supervisor ! {ack, EventLog#event_log_row.id},
 			{noreply, State}
 	end;
 handle_info(_Msg, State) ->
@@ -174,7 +178,7 @@ build_sql(EventRow) ->
 	FormatVals = [io_lib:format("~p", [X]) || X <- Vals],
 	JoinedFields = string:join(StringFields, ", "),
 	JoinedVals = string:join(FormatVals, ", "),
-	lists:flatten(io_lib:format("INSERT INTO event_log (~s) VALUES (~s);", [JoinedFields, JoinedVals])).
+	lists:flatten(io_lib:format("INSERT INTO event_logs (~s) VALUES (~s);", [JoinedFields, JoinedVals])).
 
 get_values(EventRow, Fields) ->
 	get_values(EventRow, Fields, 2, [], []).
@@ -185,6 +189,9 @@ get_values(EventRow, [Col | Tail], Nth, Cols, Vals) ->
 	case element(Nth, EventRow) of
 		undefined ->
 			get_values(EventRow, Tail, Nth + 1, Cols, Vals);
+		Val when is_atom(Val) ->
+			ListVal = atom_to_list(Val),
+			get_values(EventRow, Tail, Nth + 1, [Col | Cols], [ListVal | Vals]);
 		Val ->
 			get_values(EventRow, Tail, Nth + 1, [Col | Cols], [Val | Vals])
 	end.
@@ -196,8 +203,8 @@ get_values(EventRow, [Col | Tail], Nth, Cols, Vals) ->
 
 build_sql_test_() ->
 	[fun() ->
-		Expected = "INSERT INTO event_log (event_type, acd_type) VALUES (\"acd_start\", \"openacd\");",
-		Got = build_sql(#event_log_row{event_type = "acd_start", acd_type = "openacd", source_ip = undefined}),
+		Expected = "INSERT INTO event_logs (event_type, acd_type) VALUES (\"acd_start\", \"openacd\");",
+		Got = build_sql(#event_log_row{event_type = acd_start, acd_type = "openacd", source_ip = undefined}),
 		?assertEqual(Expected, Got)
 	end].
 	

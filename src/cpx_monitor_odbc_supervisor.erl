@@ -234,10 +234,17 @@ handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
 			Ref = erlang:send_after(?Check_interval, Self, check_odbc),
 			{noreply, State#state{odbc_pid = Ref}};
 		[{cpx_monitor_kgb_odbc, Pid, _, _}] ->
-			link(Pid),
-			Resend = lists:reverse(State#state.event_cache),
-			[Pid ! X || X <- Resend],
-			{noreply, State#state{odbc_pid = Pid}}
+			case is_process_alive(Pid) of
+				true ->
+					link(Pid),
+					Resend = lists:reverse(State#state.event_cache),
+					[Pid ! X || X <- Resend],
+					{noreply, State#state{odbc_pid = Pid}};
+				false ->
+					Self = self(),
+					Ref = erlang:send_after(?Check_interval, Self, check_odbc),
+					{noreply, State#state{odbc_pid = Ref}}
+			end
 	end;
 
 % === event handling ===

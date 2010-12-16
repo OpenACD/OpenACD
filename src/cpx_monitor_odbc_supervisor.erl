@@ -915,7 +915,7 @@ murder_tests() ->
 		end,
 		?assert(is_reference(NewState#state.odbc_pid))
 	end} end,
-	fun(_) -> {"Aware of when the writer is resurected", fun() ->
+	fun(_) -> {"Periodic check for writer resurrectoin", fun() ->
 		{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
 		gen_server_mock:crash(whereis(test_odbc_writer)),
 		{noreply, WaitForCheck} = receive
@@ -932,6 +932,37 @@ murder_tests() ->
 			?assert("didn't get check_odbc message")
 		end,
 		?assert(is_pid(GotCheck#state.odbc_pid))
+	end} end,
+	fun(_) -> {"Notices when writer is ressurected", fun() ->
+		{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
+		gen_server_mock:crash(whereis(test_odbc_writer)),
+		WaitForUp = fun(W) ->
+			timer:sleep(10),
+			case whereis(test_odbc_writer) of
+				undefined ->
+					W(W);
+				P ->
+					ignore_infos(test_odbc_writer, 1),
+					ok
+			end
+		end,
+		Waited = WaitForUp(WaitForUp	),
+		Consumer = fun
+			(C, State, 1000) ->
+				?assert("1000 interations is too many, something's wrong");
+			(C, State, Count) ->
+				receive
+					Msg ->
+						{noreply, NewState} = handle_info(Msg, State),
+						C(C, NewState, Count + 1)
+				after (?Check_interval + 20) ->
+					State
+				end
+		end,
+		ResState = Consumer(Consumer, State, 0),
+		?assert(Odbc =/= ResState#state.odbc_pid),
+		?assert(is_pid(ResState#state.odbc_pid)),
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(_) -> {timeout, 20, {"Killing writer permanently is noticed", fun() ->
 		{ok, #state{odbc_sup_pid = Sup} = State} = init(["fake_dsn", []]),

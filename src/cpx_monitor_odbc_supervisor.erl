@@ -143,7 +143,7 @@ init([Dsn, Opts]) ->
 	Trace = proplists:get_value(trace, Opts),
 	MaxRestarts = proplists:get_value(max_r, Opts, 3),
 	MaxTime = proplists:get_value(max_t, Opts, 5),
-	{ok, SupOdbc, Odbc} = init_sub_pids(MaxRestarts, MaxTime, Dsn, Trace),
+	{ok, SupOdbc, Odbc} = init_sup_pids(MaxRestarts, MaxTime, Dsn, Trace),
 	inet_config:do_load_resolv(os:type(), longnames),
 	% hopefully the below won't take too long if this module is started on a busy system.
 	CallQMap = init_call_queue_map(),
@@ -365,7 +365,7 @@ start_odbc_process(SupPid, _, _) ->
 		},
 		cpx_middle_supervisor:add_directly(SupPid, Spec).
 		
-init_sub_pids(Maxr, Maxt, _, _) ->
+init_sup_pids(Maxr, Maxt, _, _) ->
 	{ok, Sup} = start_odbc_super(Maxr, Maxt),
 	{ok, Odbc} = start_odbc_process(Sup, undefined, undefined),
 	gen_server_mock:expect_info(test_odbc_writer,
@@ -604,8 +604,12 @@ get_FQDN() ->
 
 ignore_infos(Mock, Count) ->
 	[gen_server_mock:expect_info(Mock, fun(_, _) -> ok end) || _ <- lists:seq(1, Count)].
-	
+
 all_test_() ->
+	[transform_events_tests(),
+	murder_tests()].
+
+transform_events_tests() ->
 	{inorder, {foreach,
 	fun() ->
 		Ets = ets:new(cpx_monitor, [named_table]),
@@ -843,52 +847,6 @@ all_test_() ->
 		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
-	end} end,
-	fun(_Rec) -> {"murder the writer once", fun() ->
-		OldPid = whereis(test_odbc_writer),
-		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
-			{login, "testagent"},
-			{skills, [{'_queue', "Q"}]}
-		], "node"}}},
-		ignore_infos(OldPid, 1),
-		cpx_monitor_odbc_supervisor ! CpxAgentEvent,
-		gen_server_mock:crash(OldPid),
-		timer:sleep(10),
-		NewPid = whereis(test_odbc_writer),
-		?assert(is_pid(NewPid)),
-		?assertNot(OldPid =:= NewPid)
-	end} end,
-	fun(_Rec) -> {"keep the writer down", fun() ->
-		OldFlag = process_flag(trap_exit, true),
-		Jack = spawn_jack(test_odbc_writer),
-		receive
-			{'EXIT', Jack, normal} ->
-				ok
-		after 5000 ->
-			?assert("Jack failed to kill fast enough")
-		end,
-		process_flag(trap_exit, OldFlag),
-		?assertEqual(undefined, whereis(test_odbc_writer))
-	end} end,
-	fun(_Rec) -> {"writer ressurection", fun() ->
-		OldFlag = process_flag(trap_exit, true),
-		Jack = spawn_jack(test_odbc_writer),
-		receive
-			{'EXIT', Jack, normal} ->
-				ok
-		after 5000 ->
-			?assert("Jack failed to kill fast enough")
-		end,
-		process_flag(trap_exit, OldFlag),
-		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
-			{login, "testagent"},
-			{skills, [{'_queue', "Q"}]}
-		], "node"}}},
-		cpx_monitor_odbc_supervisor ! CpxAgentEvent,
-		start_odbc(),
-		% the mock should get the cached event; if it doesn't this test is fail.
-		% it should get it every time it comes up, eventually murdering it again.
-		?assertEqual(undefined, whereis(test_odbc_writer))
 	end} end]}}.
 
 spawn_jack(Target) ->
@@ -912,5 +870,32 @@ jack_the_ripper(Target, Count, Max) when Count < Max ->
 			timer:sleep(10),
 			jack_the_ripper(Target, Count + 1, Max)
 	end.
+
+murder_tests() ->
+	{inorder, {foreach, 
+	fun() ->
+		Ets = ets:new(cpx_monitor, [named_table]),
+		{ok, Qm} = gen_leader_mock:start(queue_manager),
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+			{ok, [], State}
+		end),	
+		{ok, State} = init(["fake_dsn", []]),
+		State
+	end,
+	fun(State) ->
+		terminate(normal, State),
+		timer:sleep(10)
+	end,
+	[fun(#state{odbc_pid = Odbc} = State) -> {"Killing the writer is not permanent", fun() ->
+		gen_server_mock:crash(whereis(test_odbc_writer)),
+		{noreply, NewState} = receive 
+			{'EXIT', Odbc, Reason} = Msg ->
+				?DEBUG("~p", [Reason]),
+				handle_info(Msg, State)
+		after 20 ->
+			?assert("didn't get exit message")
+		end,
+		?assert(is_reference(NewState#state.odbc_pid))
+	end} end]}}.
 
 -endif.

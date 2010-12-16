@@ -144,6 +144,7 @@ init([Dsn, Opts]) ->
 	MaxRestarts = proplists:get_value(max_r, Opts, 3),
 	MaxTime = proplists:get_value(max_t, Opts, 5),
 	{ok, SupOdbc, Odbc} = init_sup_pids(MaxRestarts, MaxTime, Dsn, Trace),
+	link(Odbc),
 	inet_config:do_load_resolv(os:type(), longnames),
 	% hopefully the below won't take too long if this module is started on a busy system.
 	CallQMap = init_call_queue_map(),
@@ -198,10 +199,14 @@ handle_cast(_Msg, State) ->
 % =====
 % Info
 % =====
+
+%% === handle exits ===
 handle_info({'EXIT', Pid, _Reason} = Msg, #state{odbc_sup_pid = Pid, odbc_pid = OdbcPid} = State) when is_pid(OdbcPid) ->
+	?DEBUG("bing", []),
 	MidState = State#state{odbc_pid = undefined},
 	handle_info(Msg, MidState);
 handle_info({'EXIT', Pid, _Reason} = Msg, #state{odbc_sup_pid = Pid, odbc_pid = Ref} = State) when is_reference(Ref) ->
+	?DEBUG("bing", []),
 	erlang:cancel_timer(Ref),
 	MidState = State#state{odbc_pid = undefined},
 	handle_info(Msg, MidState);
@@ -212,11 +217,13 @@ handle_info({'EXIT', Pid, Reason}, #state{odbc_sup_pid = Pid, odbc_pid = undefin
 handle_info({'EXIT', Pid, Reason}, #state{odbc_sup_pid = undefined} = State) ->
 	?INFO("Likely a late exit for odbc process ~p due to ~p.", [Pid, Reason]),
 	{noreply, State};
-handle_info({'Exit', Pid, Reason}, #state{odbc_pid = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, #state{odbc_pid = Pid} = State) ->
 	?INFO("Got exit for odbc process ~p due to ~p; scheduling resend of cache.", [Pid, Reason]),
 	Self = self(),
 	Ref = erlang:send_after(?Check_interval, Self, check_odbc),
 	{noreply, State#state{odbc_pid = Ref}};
+
+% === exit recovery ===
 handle_info(check_odbc, #state{odbc_sup_pid = undefined} = State) ->
 	?INFO("likely a late check_odbc since the supervisor is dead.", []),
 	{noreply, State#state{odbc_pid = undefined}};
@@ -232,6 +239,8 @@ handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
 			[Pid ! X || X <- Resend],
 			{noreply, State#state{odbc_pid = Pid}}
 	end;
+
+% === event handling ===
 handle_info({ack, EventId}, #state{event_cache = Cache} = State) ->
 	Pred = fun(E) ->
 		case E#event_log_row.id of
@@ -311,8 +320,8 @@ handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, callagentmap
 	Newcmap = dict:erase(Key, Callqmap),
 	Newamap = dict:erase(Key, CallAgentMap),
 	{noreply, State#state{callqueuemap = Newcmap, callagentmap = Newamap, calls = Newcalls}};
-handle_info(_Info, State) ->
-	%?NOTICE("Got message: ~p", [Info]),
+handle_info(Info, State) ->
+	?DEBUG("Got message: ~p", [Info]),
 	{noreply, State}.
 
 % =====
@@ -871,6 +880,8 @@ jack_the_ripper(Target, Count, Max) when Count < Max ->
 			jack_the_ripper(Target, Count + 1, Max)
 	end.
 
+-record(murder_test_conf, {}).
+
 murder_tests() ->
 	{inorder, {foreach, 
 	fun() ->
@@ -879,14 +890,13 @@ murder_tests() ->
 		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
 			{ok, [], State}
 		end),	
-		{ok, State} = init(["fake_dsn", []]),
-		State
+		#murder_test_conf{}
 	end,
-	fun(State) ->
-		terminate(normal, State),
+	fun(_) ->
 		timer:sleep(10)
 	end,
-	[fun(#state{odbc_pid = Odbc} = State) -> {"Killing the writer is not permanent", fun() ->
+	[fun(_) -> {"Killing the writer is not permanent", fun() ->
+		{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
 		gen_server_mock:crash(whereis(test_odbc_writer)),
 		{noreply, NewState} = receive 
 			{'EXIT', Odbc, Reason} = Msg ->
@@ -895,6 +905,7 @@ murder_tests() ->
 		after 20 ->
 			?assert("didn't get exit message")
 		end,
+		?DEBUG("pid:  ~p", [NewState#state.odbc_pid]),
 		?assert(is_reference(NewState#state.odbc_pid))
 	end} end]}}.
 

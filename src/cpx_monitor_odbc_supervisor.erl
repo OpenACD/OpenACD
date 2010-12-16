@@ -880,8 +880,6 @@ jack_the_ripper(Target, Count, Max) when Count < Max ->
 			jack_the_ripper(Target, Count + 1, Max)
 	end.
 
--record(murder_test_conf, {}).
-
 murder_tests() ->
 	{inorder, {foreach, 
 	fun() ->
@@ -889,13 +887,23 @@ murder_tests() ->
 		{ok, Qm} = gen_leader_mock:start(queue_manager),
 		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
 			{ok, [], State}
-		end),	
-		#murder_test_conf{}
+		end),
+		#test_conf{
+			ets = Ets,
+			queue_man = Qm
+		}
 	end,
-	fun(_) ->
+	fun(Conf) ->
+		try gen_server_mock:stop(whereis(test_odbc_writer))
+		catch
+			_:_ -> ok
+		end,
+		gen_leader_mock:stop(whereis(queue_manager)),
+		ets:delete(Conf#test_conf.ets),
+		% give it time to die
 		timer:sleep(10)
 	end,
-	[fun(_) -> {"Killing the writer is not permanent", fun() ->
+	[fun(_) -> {"Killing the writer is noticed", fun() ->
 		{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
 		gen_server_mock:crash(whereis(test_odbc_writer)),
 		{noreply, NewState} = receive 
@@ -905,8 +913,41 @@ murder_tests() ->
 		after 20 ->
 			?assert("didn't get exit message")
 		end,
-		?DEBUG("pid:  ~p", [NewState#state.odbc_pid]),
 		?assert(is_reference(NewState#state.odbc_pid))
-	end} end]}}.
+	end} end,
+	fun(_) -> {"Aware of when the writer is resurected", fun() ->
+		{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
+		gen_server_mock:crash(whereis(test_odbc_writer)),
+		{noreply, WaitForCheck} = receive
+			{'EXIT', Odbc, crash} = Msg ->
+				handle_info(Msg, State)
+		after 20 ->
+			?assert("didn't get exit message")
+		end,
+		ignore_infos(test_odbc_writer, 1),
+		{noreply, GotCheck} = receive
+			check_odbc ->
+				handle_info(check_odbc, WaitForCheck)
+		after 120 ->
+			?assert("didn't get check_odbc message")
+		end,
+		?assert(is_pid(GotCheck#state.odbc_pid))
+	end} end,
+	fun(_) -> {timeout, 20, {"Killing writer permanently is noticed", fun() ->
+		{ok, #state{odbc_sup_pid = Sup} = State} = init(["fake_dsn", []]),
+		Jack = spawn_jack(test_odbc_writer),
+		receive
+			{'EXIT', Jack, Reason} ->
+				?assertEqual(normal, Reason)
+		after 5020 ->
+			?assert("Jack didn't kill fast enough")
+		end,
+		{noreply, SupDeadState} = receive
+			{'EXIT', Sup, SupDeadY} = Msg ->
+				handle_info(Msg, State)
+		after 5020 ->
+			?assert("Doubtful the exit from the supervisor was recieved")
+		end
+	end}} end]}}.
 
 -endif.

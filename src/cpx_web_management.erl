@@ -1084,7 +1084,7 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
 
 %% =====
-%% media -> node -> media
+%% modules -> node -> modules
 %% =====
 
 api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
@@ -1709,6 +1709,39 @@ api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post)
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		{ok, Val} ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val / 1000}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "get", "max_ringouts"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx, get_env, [max_ringouts]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, infinity}]})};
+		{ok, infinity} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, infinity}]})};
+		{ok, N} when is_integer(N) ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, N}, {<<"default">>, infinity}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "update", "max_ringouts"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Val = case proplists:get_value("value", Post) of
+		undefined ->
+			infinity;
+		"infinity" ->
+			infinity;
+		X ->
+			case list_to_integer(X) of
+				0 ->
+					infinity;
+				Nx ->
+					Nx
+			end
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, set_value, [max_ringouts, Val]) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;

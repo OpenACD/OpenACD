@@ -54,24 +54,3 @@ modules.refreshTree = function(node){
 	}, node);
 	dojo.publish("modules/tree/refreshed", []);
 };
-
-/*medias.setMedia = function(erlnode, mediatype, args, treenode){
-	dojo.xhrPost({
-		url:"medias/" + erlnode + "/" + mediatype + "/" + "update",
-		handleAs:"json",
-		content:args,
-		load:function(resp, ioargs){
-			if(resp.success){
-				medias.refreshTree(treenode);
-			}
-			else{
-				errMessage(["Setting media failed", resp.message]);
-				//onsole.log(resp.message);
-			}
-		},
-		error:function(res){
-			errMessage(["Setting media errored", res]);
-			console.warn(["Setting media errored", res]);
-		}
-	});
-};*/

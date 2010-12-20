@@ -112,9 +112,9 @@ function Agent(username, statetime, timestamp){
 				agentref.handleData(response);
 			},
 			failure:function(errcode, msg){
-				errMessage(["poll failed", response.message]);
+				errMessage(["poll failed", msg]);
 				//agentref.poller.stop();
-				dojo.publish("agent/logout", [response.message]);
+				dojo.publish("agent/logout", [msg]);
 				//agentref.poll();
 			}
 		};

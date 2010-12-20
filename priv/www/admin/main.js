@@ -181,8 +181,10 @@ dojo.addOnLoad(function(){
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", modules.store.getValue(item, 'name'));
 				dijit.byId("moduleConf").set('href', "openacd/modules/" + modules.store.getValue(item, 'name') + ".html");
+				dijit.byId("moduleMain").selectChild("moduleConf");
+			} else {
+				dijit.byId("moduleMain").selectChild("moduleNodeInfo");
 			}
-			dijit.byId("moduleMain").selectChild("moduleConf");
 		});
 		dojo.connect(modules.tree, 'onOpen', function(item, node){
 			dijit.byId('moduleTab').layout();

@@ -1190,6 +1190,9 @@ set_agent_state(Apid, Args) ->
 	catch
 		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
 			?WARNING("Agent ~p is a dead pid", [Apid]),
+			badagent;
+		exit:{max_ringouts, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?DEBUG("Max ringouts reached for agent ~p", [Apid]),
 			badagent
 	end.
 

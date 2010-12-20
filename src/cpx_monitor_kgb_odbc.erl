@@ -28,7 +28,7 @@
 %%
 
 %% @doc The process that does the writing to the database via ODBC.  Note
-%% this was build with postgres as the target, so other sql servers might choke.
+%% this was built with postgres as the target, so other sql servers might choke.
 -module(cpx_monitor_kgb_odbc).
 
 -behaviour(gen_server).

@@ -420,6 +420,7 @@ dojo.addOnLoad(function(){
 					modules.refreshTree('moduleList');
 					clients.init();
 					releaseOpts.init();
+					modules.getNodeStatus("moduleNodeInfo");
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 				}
 				else{

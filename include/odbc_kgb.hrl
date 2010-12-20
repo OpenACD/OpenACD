@@ -44,6 +44,7 @@
 	id :: string(),
 	hostname :: string(),
 	event_type = 'start_acd' :: event_type(),
+	agent_id :: string(),
 	acd_type = "openacd" :: string(),
 	acd_name :: string(), % usually hostname
 	acd_agent_id :: string(), % usually agent login

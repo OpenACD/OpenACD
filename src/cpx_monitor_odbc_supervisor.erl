@@ -385,7 +385,11 @@ init_sup_pids(Maxr, Maxt, _, _) ->
 	{ok, Sup} = start_odbc_super(Maxr, Maxt),
 	{ok, Odbc} = start_odbc_process(Sup, undefined, undefined),
 	gen_server_mock:expect_info(test_odbc_writer,
-		fun(#event_log_row{event_type = acd_start}, _State) ->
+		fun(#event_log_row{event_type = acd_start} = In, _State) ->
+			undefined = In#event_log_row.id,
+			Fqdn = get_FQDN(),
+			Fqdn = In#event_log_row.hostname,
+			Fqdn = In#event_log_row.acd_name,
 			ok
 		end
 	),
@@ -474,7 +478,6 @@ build_event_log(Type, Time, Props) ->
 	Base = #event_log_row{
 		acd_type = "openacd",
 		acd_name = proplists:get_value(node, Props, node()),
-		id = monotonic_counter(),
 		hostname = get_FQDN(),
 		created_at = iso8601_timestamp(Time),
 		event_type = Type
@@ -618,7 +621,8 @@ get_FQDN() ->
 -record(test_conf, {
 	ets,
 	queue_man,
-	odbc_sup
+	odbc_sup,
+	timestamp = iso8601_timestamp(os:timestamp())
 }).
 
 ignore_infos(Mock, Count) ->
@@ -667,10 +671,13 @@ transform_events_tests() ->
 		% just assert expectations.
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"stop_acd", fun() ->
+	fun(Rec) -> {"stop_acd", fun() ->
 		Self = self(),
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(#event_log_row{event_type = acd_stop}, _State) ->
+			fun(#event_log_row{event_type = acd_stop} = In, _State) ->
+				Fqdn = get_FQDN(),
+				Fqdn = In#event_log_row.hostname,
+				Fqdn = In#event_log_row.acd_name,
 				Self ! {ok, acd_stop},
 				ok
 			end
@@ -683,28 +690,177 @@ transform_events_tests() ->
 			?assert(timeout)
 		end
 	end} end,
-	fun(_Rec) -> {"agent_start", fun() ->
+	fun(Rec) -> {"agent_start", fun() ->
+		% "316670"; "ca1acd05.infonxx.local"; "agent_start"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
+		% ""; "2010-12-17 08:08:27.487565-05"; ""; 
+		% "openacd : 1292591307.488780 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_start : testme@ca1acd05 : 5151";
+		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_start}, _State) ->
+			fun(#event_log_row{event_type = agent_start} = In, _State) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_start,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					acd_type = "openacd",
+					created_at = Rec#test_conf.timestamp
+				},
+				Expected = In,
+				ok
+			end
+		),
+		% "316671"; "ca1acd05.infonxx.local"; "agent_login"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% ""; ""; ""; ""; "2010-12-17 08:08:27.487565-05"; ""; 
+		% "openacd : 1292591307.488943 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_login : testme@ca1acd05 : 5151 : SRVCC_English"; 
+		% ""; "openacd"
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_login} = In, _State) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_login,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q1",
+					acd_type = "openacd",
+					created_at = Rec#test_conf.timestamp
+				},
+				In = Expected,
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
 			fun(#event_log_row{event_type = agent_login}, _State) ->
-				ok
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_login,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q2",
+					acd_type = "openacd",
+					created_at = Rec#test_conf.timestamp
+				},
+				In = Expected,	ok
 			end
 		),
-		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_login}, _State) ->
-				ok
-			end
-		),
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]}
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		timer:sleep(10), % give it time to eat the event
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"agent_available", fun() ->
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
+			{state, released},
+			{statedata, default}
+		], "node"}}},
+		GoAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
+			{state, idle},
+			{statedata, {}}
+		], "node"}}},
+		ignore_infos(test_odbc_writer, 3),
+		% "316672"; "ca1acd05.infonxx.local"; "agent_available"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% ""; ""; ""; ""; "2010-12-17 08:14:11.402181-05"; "";
+		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_available : testme@ca1acd05 : 5151 : SRVCC_English";
+		% ""; "openacd"
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_available,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q1",
+					acd_type = "openacd"
+				},
+				In = Expected,
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_available,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q2",
+					acd_type = "openacd"
+				},
+				In = Expected,
+				ok
+			end
+		),
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		cpx_monitor_odbc_supervisor ! GoAvailEvent,
+		timer:sleep(20), % nom nom my pretties
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+	end} end,
+	fun(_Rec) -> {"agent_unavailable", fun() ->
+		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
+			{state, released},
+			{statedata, default}
+		], "node"}}},
+		GoAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
+			{state, idle},
+			{statedata, {}}
+		], "node"}}},
+		EndAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+			{login, "testagent"},
+			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
+			{state, released},
+			{statedata, default}
+		], "node"}}},
+		ignore_infos(test_odbc_writer, 5),
+		% "316672"; "ca1acd05.infonxx.local"; "agent_available"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% ""; ""; ""; ""; "2010-12-17 08:14:11.402181-05"; "";
+		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_unavailable : testme@ca1acd05 : 5151 : SRVCC_English";
+		% ""; "openacd"
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_unavailable,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q1",
+					acd_type = "openacd"
+				},
+				In = Expected,
+				ok
+			end
+		),
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_unavailable,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q2",
+					acd_type = "openacd"
+				},
+				In = Expected,
+				ok
+			end
+		),
+		cpx_monitor_odbc_supervisor ! CpxEvent,
+		cpx_monitor_odbc_supervisor ! GoAvailEvent,
+		cpx_monitor_odbc_supervisor ! EndAvailEvent,
+		timer:sleep(20), % nom nom my pretties
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(_Rec) -> {"agent_stop", fun() ->
@@ -716,18 +872,51 @@ transform_events_tests() ->
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		% and now tear it down.
+		% "316673"; "ca1acd05.infonxx.local"; "agent_stop"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
+		% ""; "2010-12-17 08:39:37.656684-05"; ""; "openacd : 1292593177.657229 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_stop : testme@ca1acd05 : 5151"; 
+		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_stop}, _) ->
+			fun(#event_log_row{event_type = agent_stop} = In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_stop,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					acd_type = "openacd"
+				},
+				Expected = In,
+				ok
+			end
+		),
+		% "316674"; "ca1acd05.infonxx.local"; "agent_logout"; 
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% ""; ""; ""; ""; "2010-12-17 08:39:37.656684-05"; ""; 
+		% "openacd : 1292593177.657609 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_logout : testme@ca1acd05 : 5151 : SRVCC_English";
+		% ""; "openacd"
+		gen_server_mock:expect_info(test_odbc_writer,
+			fun(#event_log_row{event_type = agent_logout} = In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_logout,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q1"
+				},
+				Expected = In,
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_logout}, _) ->
-				ok
-			end
-		),
-		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_logout}, _) ->
+			fun(#event_log_row{event_type = agent_logout} = In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = agent_logout,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					queue_name = "q2"
+				},
+				Expected = In,
 				ok
 			end
 		),
@@ -737,8 +926,28 @@ transform_events_tests() ->
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(_Rec) -> {"call_enqueue", fun() ->
+		% "316653"; "ca1acd05.infonxx.local"; "call_enqueue"; 
+		% "ca1acd05.infonxx.local"; ""; ""; "15162337*112"; "9080"; "112"; 
+		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080"; 
+		% ""; ""; "2010-12-17 07:14:03.361929-05"; ""; 
+		% "openacd : 1292588043.362124 : ca1acd05.infonxx.local : 2010-12-17T12:14:03.361929Z : call_enqueue : testme@ca1acd05 : SRVCC_English : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin Code : CLS : Source IP : 9080";
+		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = call_enqueue}, _) ->
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = call_enqueue,
+					acd_name = get_FQDN(),
+					uci = "b*c",
+					did = "d",
+					origin_code = "c",
+					queue = "A Queue",
+					queue_name = "A Queue",
+					from_header = "a*b*c*d",
+					acd_type = "openacd",
+					ani = "a"
+				},
+				In = Expected,
 				ok
 			end
 		),
@@ -759,8 +968,28 @@ transform_events_tests() ->
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		% tear it down
+		% "316655"; "ca1acd05.infonxx.local"; "call_terminate";
+		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
+		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
+		% ""; ""; "2010-12-17 07:24:21.30899-05"; ""; 
+		% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
+		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = call_terminate}, _) ->
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = call_terminate,
+					acd_name = get_FQDN(),
+					uci = "b*c",
+					did = "d",
+					origin_code = "c",
+					queue = "A Queue",
+					queue_name = "A Queue",
+					from_header = "a*b*c*d",
+					acd_type = "openacd",
+					ani = "a"
+				},
+				Expected = In,
 				ok
 			end
 		),
@@ -770,7 +999,6 @@ transform_events_tests() ->
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(_Rec) -> {"call_answer", fun() ->
-		
 		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
@@ -785,8 +1013,29 @@ transform_events_tests() ->
 			{statedata, Call}
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 3),
+		% "316654"; "ca1acd05.infonxx.local"; "call_answer"; 
+		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
+		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
+		% ""; ""; "2010-12-17 07:14:08.563499-05"; ""; 
+		% "openacd : 1292588048.563678 : ca1acd05.infonxx.local : 2010-12-17T12:14:08.563499Z : call_pickup : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
+		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(#event_log_row{event_type = call_answer}, _) ->
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = call_answer,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					uci = "b*c",
+					did = "d",
+					origin_code = "c",
+					queue = "A Queue",
+					queue_name = "A Queue",
+					from_header = "a*b*c*d",
+					acd_type = "openacd",
+					ani = "a"
+				},
+				In = Expected,
 				ok
 			end
 		),
@@ -816,8 +1065,29 @@ transform_events_tests() ->
 			{statedata, Call}
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 4),
+		% "316655"; "ca1acd05.infonxx.local"; "call_terminate"; 
+		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
+		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
+		% ""; ""; "2010-12-17 07:24:21.30899-05"; ""; 
+		% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
+		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(#event_log_row{event_type = call_terminate}, _) ->
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = call_answer,
+					acd_name = get_FQDN(),
+					agent_id = "testagent",
+					uci = "b*c",
+					did = "d",
+					origin_code = "c",
+					queue = "A Queue",
+					queue_name = "A Queue",
+					from_header = "a*b*c*d",
+					acd_type = "openacd",
+					ani = "a"
+				},
+				Expected = In,
 				ok
 			end
 		),
@@ -853,8 +1123,18 @@ transform_events_tests() ->
 		], "node"}}},
 		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer, CpxMediaDie, CpxAgentEndwrap],
 		ignore_infos(test_odbc_writer, 5),
+		% "316656"; "ca1acd05.infonxx.local"; "call_complete"; ""; ""; ""; "";
+		% ""; ""; ""; ""; ""; ""; ""; ""; "2010-12-17 07:24:21.836007-05"; "";
+		% "openacd : 1292588661.836533 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.836007Z : call_complete : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
+		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(#event_log_row{event_type = call_complete}, _) ->
+			fun(In, _) ->
+				Expected = #event_log_row{
+					hostname = get_FQDN(),
+					event_type = "call_complete",
+					acd_type = "openacd"
+				},
+				In = Expected,
 				ok
 			end
 		),

@@ -54,3 +54,43 @@ modules.refreshTree = function(node){
 	}, node);
 	dojo.publish("modules/tree/refreshed", []);
 };
+
+modules.getNodeStatus = function(domNode){
+	dojo.xhrPost({
+		url:"modules/status",
+		handleAs:"json",
+		load:function(res){
+			if(res.success){
+				if(res.error){
+					dojo.byId("nodesErrors").innerHTML = res.error;
+				} else {
+					dojo.byId("nodesErrors").innerHTML = "";
+				}
+				var table = dojo.place("<table> <tr> <th>Node</th> <th>Up Since</th> <th>Modules</th> </tr> </table>", domNode, "last");
+				for(var i in res.nodes){
+					var tr = "<tr><td>" + i + "</td>";
+					if(res.nodes[i].isUp){
+						var date = new Date(res.nodes[i].uptime);
+						tr += "<td>" + date.toString() + "</td>";
+					} else {
+						tr += "<td class=\"downNode\">Down</td>";
+					}
+					var list = "<ul>";
+					for(var j in res.nodes[i].modules){
+						list += "<li>" + res.nodes[i].modules[j] + "</li>";
+					}
+					list += "</ul>";
+					tr += "<td>" + list + "</td>";
+					tr += "</tr>";
+					dojo.place(tr, table, "last");
+				}
+				
+				return true;
+			}
+			errMessage(["Getting node statuses failed", res.message]);
+		},
+		error:function(res){
+			errMessage(["Getting node statuses errored", res]);
+		}
+	});
+}

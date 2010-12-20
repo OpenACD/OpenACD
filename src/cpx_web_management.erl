@@ -1082,6 +1082,39 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_modules(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+api({modules, "status"}, ?COOKIE, _Post) ->
+	{ok, AppNodes} = cpx:get_env(nodes, []),
+	Error = case lists:member(node(), AppNodes) of
+		true ->
+			[];
+		false ->
+			[{<<"error">>, list_to_binary(io_lib:format("This node (~s) is not a member of the cluster.", [node()]))}]
+	end,
+	DataRaw = [begin
+		Uptime = rpc:call(Node, cpx, get_env, [uptime, false]),
+		Confs = case rpc:call(Node, cpx_supervisor, get_conf, []) of
+			undefined ->
+				[];
+			Else ->
+				Else
+		end,
+		{Node, Uptime, Confs}
+	end || Node <- AppNodes],
+	Jsonable = [begin
+		IsUp = case Uptime of
+			{ok, N} when is_integer(N) ->
+				[{<<"isUp">>, true}, {<<"uptime">>, N * 1000}];
+			_ ->
+				[{<<"isUp">>, false}]
+		end,
+		UpConfs = [element(2, Conf) || Conf <- Confs],
+		{Node, {struct, [{modules, UpConfs} | IsUp]}}
+	end || {Node, Uptime, Confs} <- DataRaw],
+	Json = {struct, [
+		{success, true},
+		{nodes, {struct, Jsonable}}
+	]},
+	{200, [], mochijson2:encode(Json)};
 
 %% =====
 %% modules -> node -> modules

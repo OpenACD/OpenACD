@@ -380,7 +380,7 @@ init_sup_pids(Maxr, Maxt, _, _) ->
 	{ok, Sup} = start_odbc_super(Maxr, Maxt),
 	{ok, Odbc} = start_odbc_process(Sup, undefined, undefined),
 	gen_server_mock:expect_info(test_odbc_writer,
-		fun(#event_log_row{event_type = acd_start} = In, _State) ->
+		fun({_Ref, #event_log_row{event_type = acd_start} = In}, _State) ->
 			undefined = In#event_log_row.id,
 			Fqdn = get_FQDN(),
 			Fqdn = In#event_log_row.hostname,
@@ -645,7 +645,7 @@ transform_events_tests() ->
 	end,
 	fun(#test_conf{ets = Ets}) ->
 		try gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = acd_stop}, _State) ->
+			fun({_Ref, #event_log_row{event_type = acd_stop}}, _State) ->
 				ok
 			end
 		)
@@ -670,7 +670,7 @@ transform_events_tests() ->
 	fun(_Rec) -> {"stop_acd", fun() ->
 		Self = self(),
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(#event_log_row{event_type = acd_stop} = In, _State) ->
+			fun({_Ref, #event_log_row{event_type = acd_stop} = In}, _State) ->
 				Fqdn = get_FQDN(),
 				Fqdn = In#event_log_row.hostname,
 				Fqdn = In#event_log_row.acd_name,
@@ -878,7 +878,7 @@ transform_events_tests() ->
 		% ""; "2010-12-17 08:39:37.656684-05"; ""; "openacd : 1292593177.657229 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_stop : testme@ca1acd05 : 5151"; 
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_stop} = In, _) ->
+			fun({_Ref, #event_log_row{event_type = agent_stop} = In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_stop,
@@ -897,7 +897,7 @@ transform_events_tests() ->
 		% "openacd : 1292593177.657609 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_logout : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_logout} = In, _) ->
+			fun({_Ref, #event_log_row{event_type = agent_logout} = In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_logout,
@@ -911,7 +911,7 @@ transform_events_tests() ->
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_logout} = In, _) ->
+			fun({_Ref, #event_log_row{event_type = agent_logout} = In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_logout,
@@ -1148,7 +1148,7 @@ transform_events_tests() ->
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_available}, _) ->
+			fun({_Ref, #event_log_row{event_type = agent_available}}, _) ->
 				ok
 			end
 		),

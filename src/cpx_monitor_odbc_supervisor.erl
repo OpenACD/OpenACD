@@ -521,9 +521,8 @@ build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 			}
 	end;
 build_event_log(#event_log_row{event_type = call_complete} = E, Props) ->
-	MidEvent = build_event_log_call_base(E, Props),
-	MidEvent#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+	E#event_log_row{
+		acd_name = undefined
 	};
 build_event_log(#event_log_row{event_type = agent_available} = E, Props) ->
 	Login = proplists:get_value(login, Props),
@@ -541,7 +540,12 @@ build_event_log(#event_log_row{event_type = agent_unavailable} = E, Props) ->
 	} || {'_queue', Q} <- Skills].
 
 build_event_log_call_base(E, Props) ->
-	Queue = proplists:get_value(cached_queue, Props),
+	Queue = case proplists:get_value(cached_queue, Props) of
+		undefined ->
+			proplists:get_value(queue, Props);
+		Q ->
+			Q
+	end,
 	FromHeader = case {proplists:get_value(callerid, Props), proplists:get_value(statedata, Props)} of
 		{undefined, #call{callerid = {_, H}}} ->
 			H;
@@ -627,6 +631,12 @@ all_test_() ->
 	[transform_events_tests(),
 	murder_tests()].
 
+receive_oks(N) ->
+	receive_oks(N, 20).
+
+receive_oks(N, Timeout) ->
+	[receive ok -> ok; X -> ?assert(X) after Timeout -> ?assert(timeout) end || _ <- lists:seq(1, N)].
+
 transform_events_tests() ->
 	{inorder, {foreach,
 	fun() ->
@@ -686,13 +696,14 @@ transform_events_tests() ->
 		end
 	end} end,
 	fun(Rec) -> {"agent_start", fun() ->
+		Self = self(),
 		% "316670"; "ca1acd05.infonxx.local"; "agent_start"; 
 		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
 		% ""; "2010-12-17 08:08:27.487565-05"; ""; 
 		% "openacd : 1292591307.488780 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_start : testme@ca1acd05 : 5151";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _State) ->
+			fun({_Ref, In}, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_start,
@@ -701,7 +712,7 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -711,7 +722,7 @@ transform_events_tests() ->
 		% "openacd : 1292591307.488943 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_login : testme@ca1acd05 : 5151 : SRVCC_English"; 
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _State) ->
+			fun({_, In}, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_login,
@@ -721,12 +732,12 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _State) ->
+			fun({_, In}, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_login,
@@ -736,7 +747,7 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -746,9 +757,11 @@ transform_events_tests() ->
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		timer:sleep(10), % give it time to eat the event
-		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
+		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer))),
+		receive_oks(3)
 	end} end,
 	fun(Rec) -> {"agent_available", fun() ->
+		Self = self(),
 		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
@@ -768,7 +781,7 @@ transform_events_tests() ->
 		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_available : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_available,
@@ -778,12 +791,12 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_available,
@@ -793,13 +806,14 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		cpx_monitor_odbc_supervisor ! GoAvailEvent,
 		timer:sleep(20), % nom nom my pretties
+		receive_oks(2),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"agent_unavailable", fun() ->
@@ -822,13 +836,14 @@ transform_events_tests() ->
 			{statedata, default}
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 5),
+		Self = self(),
 		% "316672"; "ca1acd05.infonxx.local"; "agent_available"; 
 		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
 		% ""; ""; ""; ""; "2010-12-17 08:14:11.402181-05"; "";
 		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_unavailable : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
@@ -838,12 +853,12 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
@@ -853,7 +868,7 @@ transform_events_tests() ->
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				?assertEqual(Expected, In),
+				Self ! ?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -861,6 +876,7 @@ transform_events_tests() ->
 		cpx_monitor_odbc_supervisor ! GoAvailEvent,
 		cpx_monitor_odbc_supervisor ! EndAvailEvent,
 		timer:sleep(20), % nom nom my pretties
+		receive_oks(2),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"agent_stop", fun() ->
@@ -871,6 +887,7 @@ transform_events_tests() ->
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]}
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
+		Self = self(),
 		% and now tear it down.
 		% "316673"; "ca1acd05.infonxx.local"; "agent_stop"; 
 		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
@@ -884,9 +901,12 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					acd_type = "openacd",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end,
 				ok
 			end
 		),
@@ -903,10 +923,12 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q1",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at =  In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -917,18 +939,22 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q2",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case{?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		CpxDropEvent = {cpx_monitor_event, {drop, os:timestamp(), {agent, "testagent"}}},
 		cpx_monitor_odbc_supervisor ! CpxDropEvent,
 		timer:sleep(10),
+		receive_oks(3),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"call_enqueue", fun() ->
+		Self = self(),
 		% "316653"; "ca1acd05.infonxx.local"; "call_enqueue"; 
 		% "ca1acd05.infonxx.local"; ""; ""; "15162337*112"; "9080"; "112"; 
 		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080"; 
@@ -936,7 +962,7 @@ transform_events_tests() ->
 		% "openacd : 1292588043.362124 : ca1acd05.infonxx.local : 2010-12-17T12:14:03.361929Z : call_enqueue : testme@ca1acd05 : SRVCC_English : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin Code : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = call_enqueue,
@@ -949,10 +975,12 @@ transform_events_tests() ->
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
 					ani = "a",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
@@ -961,6 +989,7 @@ transform_events_tests() ->
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		timer:sleep(10),
+		receive_oks(1),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"call_terminate in queue", fun() ->
@@ -971,6 +1000,7 @@ transform_events_tests() ->
 			{callerid, {"ignored", "a*b*c*d"}}
 		], "node"}}},
 		cpx_monitor_odbc_supervisor ! CpxEvent,
+		Self = self(),
 		% tear it down
 		% "316655"; "ca1acd05.infonxx.local"; "call_terminate";
 		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
@@ -979,7 +1009,7 @@ transform_events_tests() ->
 		% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = call_terminate,
@@ -992,18 +1022,22 @@ transform_events_tests() ->
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
 					ani = "a",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		CpxDropEvent = {cpx_monitor_event, {drop, Rec#test_conf.timestamp, {media, "testmedia"}}},
 		cpx_monitor_odbc_supervisor ! CpxDropEvent,
 		timer:sleep(10),
+		receive_oks(1),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"call_answer", fun() ->
+		Self = self(),
 		CpxAgentEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
@@ -1014,6 +1048,7 @@ transform_events_tests() ->
 		], "node"}}},
 		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
 		CpxMediaAnswer = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
+			{login, "testagent"},
 			{state, oncall},
 			{statedata, Call}
 		], "node"}}},
@@ -1025,7 +1060,7 @@ transform_events_tests() ->
 		% "openacd : 1292588048.563678 : ca1acd05.infonxx.local : 2010-12-17T12:14:08.563499Z : call_pickup : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = call_answer,
@@ -1034,20 +1069,23 @@ transform_events_tests() ->
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",
-					queue = "A Queue",
-					queue_name = "A Queue",
+					queue = "Q",
+					queue_name = "Q",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
 					ani = "a",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer],
 		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
 		timer:sleep(10),
+		receive_oks(1),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"call_terminate with agent", fun() ->
@@ -1070,6 +1108,7 @@ transform_events_tests() ->
 			{state, wrapup},
 			{statedata, Call}
 		], "node"}}},
+		Self = self(),
 		ignore_infos(test_odbc_writer, 4),
 		% "316655"; "ca1acd05.infonxx.local"; "call_terminate"; 
 		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
@@ -1078,32 +1117,36 @@ transform_events_tests() ->
 		% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
-					event_type = call_answer,
+					event_type = call_terminate,
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",
-					queue = "A Queue",
-					queue_name = "A Queue",
+					queue = "Q",
+					queue_name = "Q",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
 					ani = "a",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		Msgs = [CpxAgentEvent, CpxMediaEvent, CpxMediaAnswer, CpxMediaDie],
 		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
 		timer:sleep(10),
+		receive_oks(1),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
 	fun(Rec) -> {"call_complete", fun() ->
+		Self = self(),
 		CpxAgentEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
@@ -1135,15 +1178,17 @@ transform_events_tests() ->
 		% "openacd : 1292588661.836533 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.836007Z : call_complete : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer, 
-			fun(In, _) ->
+			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = call_complete,
 					acd_type = "openacd",
-					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
+					created_at = In#event_log_row.created_at
 				},
-				?assertEqual(Expected, In),
-				ok
+				case {?assertEqual(Expected, In), ?assertNot(undefined =:= In#event_log_row.created_at)} of
+					{ok, ok} ->
+						Self ! ok
+				end
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -1153,6 +1198,7 @@ transform_events_tests() ->
 		),
 		[cpx_monitor_odbc_supervisor ! X || X <- Msgs],
 		timer:sleep(10),
+		receive_oks(1),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end]}}.
 

@@ -477,7 +477,7 @@ agent_diff(_Agent, New, Old, Timestamp, State) ->
 build_event_log(Type, Time, Props) ->
 	Base = #event_log_row{
 		acd_type = "openacd",
-		acd_name = proplists:get_value(node, Props, node()),
+		acd_name = get_FQDN(),
 		hostname = get_FQDN(),
 		created_at = iso8601_timestamp(Time),
 		event_type = Type
@@ -619,10 +619,10 @@ get_FQDN() ->
 -ifdef(TEST).
 
 -record(test_conf, {
-	ets,
-	queue_man,
-	odbc_sup,
-	timestamp = iso8601_timestamp(os:timestamp())
+	ets  :: any(),
+	queue_man :: pid(),
+	odbc_sup :: pid(),
+	timestamp = os:timestamp() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
 }).
 
 ignore_infos(Mock, Count) ->
@@ -671,7 +671,7 @@ transform_events_tests() ->
 		% just assert expectations.
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(Rec) -> {"stop_acd", fun() ->
+	fun(_Rec) -> {"stop_acd", fun() ->
 		Self = self(),
 		gen_server_mock:expect_info(test_odbc_writer, 
 			fun(#event_log_row{event_type = acd_stop} = In, _State) ->
@@ -697,16 +697,16 @@ transform_events_tests() ->
 		% "openacd : 1292591307.488780 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_start : testme@ca1acd05 : 5151";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_start} = In, _State) ->
+			fun(In, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_start,
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					acd_type = "openacd",
-					created_at = Rec#test_conf.timestamp
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -716,7 +716,7 @@ transform_events_tests() ->
 		% "openacd : 1292591307.488943 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_login : testme@ca1acd05 : 5151 : SRVCC_English"; 
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_login} = In, _State) ->
+			fun(In, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_login,
@@ -724,14 +724,14 @@ transform_events_tests() ->
 					agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
-					created_at = Rec#test_conf.timestamp
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
 		gen_server_mock:expect_info(test_odbc_writer,
-			fun(#event_log_row{event_type = agent_login}, _State) ->
+			fun(In, _State) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
 					event_type = agent_login,
@@ -739,9 +739,10 @@ transform_events_tests() ->
 					agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
-					created_at = Rec#test_conf.timestamp
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,	ok
+				?assertEqual(Expected, In),
+				ok
 			end
 		),
 		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
@@ -752,14 +753,14 @@ transform_events_tests() ->
 		timer:sleep(10), % give it time to eat the event
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"agent_available", fun() ->
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+	fun(Rec) -> {"agent_available", fun() ->
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
 			{state, released},
 			{statedata, default}
 		], "node"}}},
-		GoAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		GoAvailEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
 			{state, idle},
@@ -779,9 +780,10 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q1",
-					acd_type = "openacd"
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -793,9 +795,10 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q2",
-					acd_type = "openacd"
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -804,20 +807,20 @@ transform_events_tests() ->
 		timer:sleep(20), % nom nom my pretties
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"agent_unavailable", fun() ->
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+	fun(Rec) -> {"agent_unavailable", fun() ->
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
 			{state, released},
 			{statedata, default}
 		], "node"}}},
-		GoAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		GoAvailEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
 			{state, idle},
 			{statedata, {}}
 		], "node"}}},
-		EndAvailEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		EndAvailEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]},
 			{state, released},
@@ -837,9 +840,10 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q1",
-					acd_type = "openacd"
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -851,9 +855,10 @@ transform_events_tests() ->
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
 					queue_name = "q2",
-					acd_type = "openacd"
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -863,10 +868,10 @@ transform_events_tests() ->
 		timer:sleep(20), % nom nom my pretties
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"agent_stop", fun() ->
+	fun(Rec) -> {"agent_stop", fun() ->
 		% build it up
 		ignore_infos(test_odbc_writer, 3),
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "q1"}, {'_queue', "q2"}]}
 		], "node"}}},
@@ -883,9 +888,10 @@ transform_events_tests() ->
 					event_type = agent_stop,
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
-					acd_type = "openacd"
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -901,9 +907,10 @@ transform_events_tests() ->
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
-					queue_name = "q1"
+					queue_name = "q1",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -914,9 +921,10 @@ transform_events_tests() ->
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
 					agent_id = "testagent",
-					queue_name = "q2"
+					queue_name = "q2",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -925,7 +933,7 @@ transform_events_tests() ->
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"call_enqueue", fun() ->
+	fun(Rec) -> {"call_enqueue", fun() ->
 		% "316653"; "ca1acd05.infonxx.local"; "call_enqueue"; 
 		% "ca1acd05.infonxx.local"; ""; ""; "15162337*112"; "9080"; "112"; 
 		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080"; 
@@ -945,13 +953,14 @@ transform_events_tests() ->
 					queue_name = "A Queue",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
-					ani = "a"
+					ani = "a",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
 			{queue, "A Queue"},
 			{callerid, {"ignored", "a*b*c*d"}}
 		], "node"}}},
@@ -959,10 +968,10 @@ transform_events_tests() ->
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"call_terminate in queue", fun() ->
+	fun(Rec) -> {"call_terminate in queue", fun() ->
 		% build it up
 		ignore_infos(test_odbc_writer, 1),
-		CpxEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+		CpxEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
 			{queue, "A Queue"},
 			{callerid, {"ignored", "a*b*c*d"}}
 		], "node"}}},
@@ -987,28 +996,29 @@ transform_events_tests() ->
 					queue_name = "A Queue",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
-					ani = "a"
+					ani = "a",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
-		CpxDropEvent = {cpx_monitor_event, {drop, os:timestamp(), {media, "testmedia"}}},
+		CpxDropEvent = {cpx_monitor_event, {drop, Rec#test_conf.timestamp, {media, "testmedia"}}},
 		cpx_monitor_odbc_supervisor ! CpxDropEvent,
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"call_answer", fun() ->
-		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+	fun(Rec) -> {"call_answer", fun() ->
+		CpxAgentEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
 		], "node"}}},
-		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+		CpxMediaEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
 			{callerid, {"ignored", "a*b*c*d"}},
 			{queue, "Q"}
 		], "node"}}},
 		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
-		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxMediaAnswer = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{state, oncall},
 			{statedata, Call}
 		], "node"}}},
@@ -1033,9 +1043,10 @@ transform_events_tests() ->
 					queue_name = "A Queue",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
-					ani = "a"
+					ani = "a",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -1044,21 +1055,21 @@ transform_events_tests() ->
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"call_terminate with agent", fun() ->
-		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+	fun(Rec) -> {"call_terminate with agent", fun() ->
+		CpxAgentEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
 		], "node"}}},
-		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+		CpxMediaEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
 			{callerid, {"ignored", "a*b*c*d"}},
 			{queue, "Q"}
 		], "node"}}},
 		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
-		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxMediaAnswer = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{state, oncall},
 			{statedata, Call}
 		], "node"}}},
-		CpxMediaDie = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxMediaDie = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]},
 			{state, wrapup},
@@ -1085,9 +1096,10 @@ transform_events_tests() ->
 					queue_name = "A Queue",
 					from_header = "a*b*c*d",
 					acd_type = "openacd",
-					ani = "a"
+					ani = "a",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				Expected = In,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -1096,27 +1108,27 @@ transform_events_tests() ->
 		timer:sleep(10),
 		?assertEqual(ok, gen_server_mock:assert_expectations(whereis(test_odbc_writer)))
 	end} end,
-	fun(_Rec) -> {"call_complete", fun() ->
-		CpxAgentEvent = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+	fun(Rec) -> {"call_complete", fun() ->
+		CpxAgentEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]}
 		], "node"}}},
-		CpxMediaEvent = {cpx_monitor_event, {set, os:timestamp(), {{media, "testmedia"}, [
+		CpxMediaEvent = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{media, "testmedia"}, [
 			{callerid, {"ignored", "a*b*c*d"}},
 			{queue, "Q"}
 		], "node"}}},
 		Call = #call{id = "testmedia", source = self(), callerid = {"ignored", "a*b*c*d"}},
-		CpxMediaAnswer = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxMediaAnswer = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{state, oncall},
 			{statedata, Call}
 		], "node"}}},
-		CpxMediaDie = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxMediaDie = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]},
 			{state, wrapup},
 			{statedata, Call}
 		], "node"}}},
-		CpxAgentEndwrap = {cpx_monitor_event, {set, os:timestamp(), {{agent, "testagent"}, [
+		CpxAgentEndwrap = {cpx_monitor_event, {set, Rec#test_conf.timestamp, {{agent, "testagent"}, [
 			{login, "testagent"},
 			{skills, [{'_queue', "Q"}]},
 			{state, idle}
@@ -1131,10 +1143,11 @@ transform_events_tests() ->
 			fun(In, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
-					event_type = "call_complete",
-					acd_type = "openacd"
+					event_type = call_complete,
+					acd_type = "openacd",
+					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
-				In = Expected,
+				?assertEqual(Expected, In),
 				ok
 			end
 		),
@@ -1231,22 +1244,22 @@ murder_tests() ->
 			case whereis(test_odbc_writer) of
 				undefined ->
 					W(W);
-				P ->
+				_P ->
 					ignore_infos(test_odbc_writer, 1),
 					ok
 			end
 		end,
-		Waited = WaitForUp(WaitForUp	),
+		WaitForUp(WaitForUp),
 		Consumer = fun
-			(C, State, 1000) ->
+			(_C, _FState, 1000) ->
 				?assert("1000 interations is too many, something's wrong");
-			(C, State, Count) ->
+			(C, FState, Count) ->
 				receive
 					Msg ->
-						{noreply, NewState} = handle_info(Msg, State),
+						{noreply, NewState} = handle_info(Msg, FState),
 						C(C, NewState, Count + 1)
 				after (?Check_interval + 20) ->
-					State
+					FState
 				end
 		end,
 		ResState = Consumer(Consumer, State, 0),
@@ -1263,8 +1276,8 @@ murder_tests() ->
 		after 5020 ->
 			?assert("Jack didn't kill fast enough")
 		end,
-		{noreply, SupDeadState} = receive
-			{'EXIT', Sup, SupDeadY} = Msg ->
+		{noreply, _SupDeadState} = receive
+			{'EXIT', Sup, _SupDeadY} = Msg ->
 				handle_info(Msg, State)
 		after 5020 ->
 			?assert("Doubtful the exit from the supervisor was recieved")

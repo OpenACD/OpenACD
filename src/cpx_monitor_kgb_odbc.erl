@@ -131,7 +131,7 @@ handle_cast(stop, State) ->
 % handle_info
 % =====
 
-handle_info(EventLog, State) when is_record(EventLog, event_log_row) ->
+handle_info({Ref, EventLog}, State) when is_record(EventLog, event_log_row) ->
 	Sql = build_sql(EventLog),
 	case odbc:sql_query(State#state.connection, Sql, 2000) of
 		{error, Reason} ->
@@ -139,7 +139,7 @@ handle_info(EventLog, State) when is_record(EventLog, event_log_row) ->
 			{stop, {failed_query, Reason}, State};
 		{updated, _N} ->
 			ok = odbc:commit(State#state.connection, commit),
-			cpx_monitor_odbc_supervisor ! {ack, EventLog#event_log_row.id},
+			cpx_monitor_odbc_supervisor ! {ack, Ref},
 			{noreply, State}
 	end;
 handle_info(_Msg, State) ->

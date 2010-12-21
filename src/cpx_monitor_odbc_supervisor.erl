@@ -248,14 +248,9 @@ handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
 	end;
 
 % === event handling ===
-handle_info({ack, EventId}, #state{event_cache = Cache} = State) ->
-	Pred = fun(E) ->
-		case E#event_log_row.id of
-			EventId ->
-				false;
-			_ ->
-				true
-		end
+handle_info({ack, Ref}, #state{event_cache = Cache} = State) ->
+	Pred = fun({TestRef, _E}) ->
+		TestRef /= Ref
 	end,
 	NewCache = lists:filter(Pred, Cache),
 	{noreply, State#state{event_cache = NewCache}};
@@ -568,16 +563,17 @@ build_event_log_call_base(E, Props) ->
 send_events(_Pid, [], Acc) ->
 	Acc;
 send_events(Pid, [Head | Tail], Acc) when is_pid(Pid) ->
-	Pid ! Head,
-	NewAcc = [Head | Acc],
+	Ref = make_ref(),
+	Pid ! {Ref, Head},
+	NewAcc = [{Ref, Head} | Acc],
 	send_events(Pid, Tail, NewAcc);
 send_events(undefined, [Head | Tail], Acc) -> 
-	NewAcc = [Head | Acc],
+	NewAcc = [{make_ref(), Head} | Acc],
 	send_events(undefined, Tail, NewAcc);
 send_events(Nom, List, Acc) when is_atom(Nom)->
 	send_events(whereis(Nom), List, Acc);
 send_events(_Pid, [Head | Tail], Acc) ->
-	NewAcc = [Head | Acc],
+	NewAcc = [{make_ref(), Head} | Acc],
 	send_events(undefined, Tail, NewAcc).
 	
 -spec monotonic_counter() -> float().

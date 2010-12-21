@@ -1061,6 +1061,8 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 %% =====
 %% modules -> *
 %% =====
+% TODO this function is ugly.  It's used to populate the modules list,
+% but the result of the rpc call is not used ever.
 api({modules, "poll"}, ?COOKIE, _Post) ->
 	{ok, Appnodes} = application:get_env(cpx, nodes),
 	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
@@ -1073,6 +1075,7 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
 			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
+			{cpx_monitor_odbc_supervisor, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor], 2000)},
 			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)},
 			{agent_web_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_web_listener], 2000)},
 			{agent_tcp_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_tcp_listener], 2000)},
@@ -1327,6 +1330,78 @@ api({modules, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}]};
 		_ ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_web_management], 2000),
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_monitor_odbc_supervisor", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor]) of
+		undefined ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, false}
+			]};
+		#cpx_conf{start_args = [RawDsn | RawArgs]} ->
+			Dsn = list_to_binary(RawDsn),
+			OtherOpts = case RawArgs of
+				[] ->
+					[];
+				[Args] ->
+					[case O of
+						trace ->
+							{trace, true};
+						{max_r, N} ->
+							{max_r, N};
+						{max_t, N} ->
+							{max_t, N}
+					end || O <- Args]
+			end,
+			Opts = [{dsn, Dsn} | OtherOpts],
+			{struct, [{success, true}, {<<"enabled">>, true} | Opts]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_monitor_odbc_supervisor", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("enabled", Post) of
+		"true" ->
+			Dsn = proplists:get_value("dsn", Post),
+			BuildOpts = fun
+				(_R, [], Acc) ->
+					Acc;
+				(R, [{"trace", "true"} | Tail], Acc) ->
+					R(R, Tail, [trace | Acc]);
+				(R, [{"maxR", ListN} | Tail], Acc) ->
+					R(R, Tail, [{max_r, list_to_integer(ListN)} | Acc]);
+				(R, [{"maxT", ListN} | Tail], Acc) ->
+					R(R, Tail, [{max_t, list_to_integer(ListN)} | Acc]);
+				(R, [_ | Tail], Acc) ->
+					R(R, Tail, Acc)
+			end,
+			Opts = BuildOpts(BuildOpts, Post, []),
+			StartArgs = case Opts of
+				[] ->
+					[Dsn];
+				_ ->
+					[Dsn, Opts]
+			end,
+			Conf = #cpx_conf{
+				id = cpx_monitor_odbc_supervisor,
+				module_name  = cpx_monitor_odbc_supervisor,
+				start_function = start_link,
+				start_args = StartArgs,
+				supervisor = management_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_monitor_odbc_supervisor, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{struct, [{success, true}]};
+				Else ->
+					{struct, [
+						{success, false},
+						{<<"message">>, list_to_binary(io_lib:format("Could not start odbc_supervisor<pre>~n~p</pre>", [Else]))}
+					]}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_monitor_odbc_supervisor]),
 			{struct, [{success, true}]}
 	end,
 	{200, [], mochijson2:encode(Json)};

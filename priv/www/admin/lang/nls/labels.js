@@ -95,5 +95,10 @@
 	ENABLED:  "Enabled",
 	FILE: "File",
 	OVERWRITE_EXISTING: "Overwrite existing",
-	LOAD_AGENTS_EXPLANATION: 'An agents file is a list of tuples, each defining an agent.  The format is:'
+	LOAD_AGENTS_EXPLANATION: 'An agents file is a list of tuples, each defining an agent.  The format is:',
+	DSN: "DSN",
+	MAX_RESTARTS: "End after restarting",
+	IN: "times in",
+	SECONDS: "seconds.",
+	TRACE: "Trace"
 }

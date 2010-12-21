@@ -43,7 +43,7 @@
 -record(event_log_row, {
 	id :: string(),
 	hostname :: string(),
-	event_type = 'start_acd' :: event_type(),
+	event_type :: 'undefined' | event_type(),
 	agent_id :: string(),
 	acd_type = "openacd" :: string(),
 	acd_name :: string(), % usually hostname

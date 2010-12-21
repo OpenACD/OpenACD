@@ -47,15 +47,14 @@
 	agent_id :: string(),
 	acd_type = "openacd" :: string(),
 	acd_name :: string(), % usually hostname
-	acd_agent_id :: string(), % usually agent login
-	acd_agent_ip :: string(), 
+	agent_ip :: string(), 
 	ani :: string(), % field one of from_header
 	uci :: string(), % field 2 of from_header
 	did :: string(), % field 4 of from_header
 	origin_code :: string(), % field 3 of from_header
 	queue :: string(),
 	queue_name :: string(),
-	source_ip = "Source IP" :: string(),
+	source_ip :: string(),
 	from_header :: string(), % '*' deliminated string value
 	information :: string(),
 	created_at :: string(), % formated datetime string

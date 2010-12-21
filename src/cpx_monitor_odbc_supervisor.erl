@@ -490,21 +490,21 @@ build_event_log(#event_log_row{event_type = acd_stop} = E, _Props) ->
 	E;
 build_event_log(#event_log_row{event_type = agent_start} = E, Props) ->
 	E#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = agent_login} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_stop} = E, Props) ->
 	E#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type= agent_logout} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
@@ -513,7 +513,7 @@ build_event_log(#event_log_row{event_type = call_enqueue} = E , Props) ->
 build_event_log(#event_log_row{event_type = call_answer} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
 	MidEvent#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
@@ -522,26 +522,26 @@ build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 			MidEvent;
 		Login ->
 			MidEvent#event_log_row{
-				acd_agent_id = Login
+				agent_id = Login
 			}
 	end;
 build_event_log(#event_log_row{event_type = call_complete} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
 	MidEvent#event_log_row{
-		acd_agent_id = proplists:get_value(login, Props)
+		agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = agent_available} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		acd_agent_id = Login,
+		agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_unavailable} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		acd_agent_id = Login,
+		agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills].
 

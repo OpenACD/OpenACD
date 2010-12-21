@@ -554,10 +554,9 @@ build_event_log_call_base(E, Props) ->
 		queue_name = Queue,
 		from_header = FromHeader,
 		ani = Ani,
-		uci = Uci,
+		uci = Uci ++ "*" ++ OriginCode,
 		did = Did,
-		origin_code = OriginCode,
-		source_ip = "Source IP"
+		origin_code = OriginCode
 	}.
 	
 send_events(_Pid, [], Acc) ->

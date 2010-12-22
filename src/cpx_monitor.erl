@@ -785,6 +785,12 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 -ifdef(STANDARD_TEST).
 
+all_test_() ->
+	{inorder, [
+		ets_tests(),
+		subscribers_tests()
+	]}.
+
 %data_grooming_test_() ->
 %	{foreach,
 %	fun() ->
@@ -882,7 +888,7 @@ mock_test_then_die([H | T]) ->
 	gen_server_mock:stop(H),
 	mock_test_then_die(T).
 
-subscribers_test_() ->
+subscribers_tests() ->
 	{foreach,
 	fun() ->
 		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
@@ -992,8 +998,8 @@ subscribers_test_() ->
 		mock_test_then_die([Watcher])
 	end} end]}.
 
-ets_test_() ->
-	{foreach,
+ets_tests() ->
+	{inorder, {foreach,
 	fun() ->
 		{ok, _} = cpx_monitor:start([{nodes, node()}]),
 		ok
@@ -1041,7 +1047,7 @@ ets_test_() ->
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
 		?assertEqual([], Res)
-	end} end]}.
+	end} end]}}.
 		
 multinode_test_d() ->
 	{foreach,

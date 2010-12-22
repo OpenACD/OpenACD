@@ -959,12 +959,7 @@ parse_path(Path) ->
 	end.
 
 get_pubkey() ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			"./key";
-		Val ->
-			filename:join(Val, "key")
-	end,
+	Key = get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then
 	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
@@ -975,13 +970,21 @@ get_pubkey() ->
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
 
-decrypt_password(Password) ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
+-ifdef(TEST).
+get_keyfile() ->
+	"../key".
+-else.
+get_keyfile() ->
+	case os:getenv("OPENACD_RUN_DIR") of
 		false ->
 			"./key";
 		Val ->
 			filename:join(Val, "key")
-	end,
+	end.
+-endif.
+
+decrypt_password(Password) ->
+	Key = get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then
 	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
@@ -998,8 +1001,8 @@ decrypt_password(Password) ->
 
 -define(url(Path), lists:append(["http://127.0.0.1:", integer_to_list(?PORT), Path])).
 
-cooke_file_test_() ->
-	{inorder, { foreach,
+cookie_file_tests() ->
+	{ foreach,
 		fun() ->
 			agent_web_listener:start(),
 			inets:start(),
@@ -1060,14 +1063,16 @@ cooke_file_test_() ->
 			end,
 			?assertEqual(false, lists:any(Test, Cookie2)),
 			?assertEqual(200, Code)
-		end} end,
-		fun cookie_api_test_d/1
-	]}}.
+		end} end
+	]}.
 
-cookie_api_test_d(Httpc) ->
-	{inorder, {
+get_salt_tests() ->
+	{
 		foreach,
 		fun() ->
+			agent_web_listener:start(),
+			inets:start(),
+			{ok, Httpc} = inets:start(httpc, [{profile, test_prof2}]),
 			?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
 			HttpRes = http:request(?url("")),
 			{ok, {_Statusline, Head, _Body}} = HttpRes,
@@ -1078,7 +1083,10 @@ cookie_api_test_d(Httpc) ->
 			{Httpc, Cookieproplist}
 		end,
 		fun({Httpc, _Cookie}) ->
-			ok
+			inets:stop(httpc, Httpc),
+			inets:stop(),
+			agent_web_listener:stop(),
+			timer:sleep(10)
 		end,
 		[
 			fun({_Httpc, Cookielist}) ->
@@ -1104,9 +1112,9 @@ cookie_api_test_d(Httpc) ->
 				end}
 			end
 		]
-	}}.
+	}.
 	
-web_connection_login_test_d() ->
+web_connection_login_tests() ->
 	{
 		foreach,
 		fun() ->
@@ -1388,11 +1396,11 @@ cookie_good_test_() ->
 
 %-include("gen_server_test.hrl").
 
-all_test_d() ->
+all_test_() ->
 	{inorder, [
-	%	fun cooke_file_test_d/0,
-	%	fun cookie_api_test_d/0,
-		fun web_connection_login_test_d/0
+	cookie_file_tests(),
+	get_salt_tests(),
+	web_connection_login_tests()
 	]}.
 
 -endif.

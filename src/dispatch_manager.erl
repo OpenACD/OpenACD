@@ -301,16 +301,16 @@ balance_test_() ->
 						ok
 					end,
 					State1 = dump(),
-					?assertEqual(State1#state.agents, []),
-					?assertEqual(State1#state.dispatchers, [])
+					?assertEqual([], State1#state.agents),
+					?assertEqual([], State1#state.dispatchers)
 				end
 			},
 			{
 				"Agent started then set available, so a dispatcher starts",
 				fun() ->
 					State1 = dump(),
-					?assertEqual(State1#state.agents, []),
-					?assertEqual(State1#state.dispatchers, []),
+					?assertEqual([], State1#state.agents),
+					?assertEqual([], State1#state.dispatchers),
 					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 					agent:set_state(Apid, idle),
 					receive
@@ -332,7 +332,7 @@ balance_test_() ->
 						ok
 					end,
 					State1 = dump(),
-					?assertEqual(State1#state.agents, [Apid]),
+					?assertEqual([Apid], State1#state.agents),
 					?assertEqual(1, length(State1#state.dispatchers)),
 					exit(Apid, kill),
 					receive

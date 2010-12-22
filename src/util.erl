@@ -427,7 +427,7 @@ reload_all() ->
 	reload_all(soft).
 
 -ifdef(TEST).
--define(BEAM_DIR, "OpenACD/debug_ebin").
+-define(BEAM_DIR, "OpenACD/.eunit").
 -else.
 -define(BEAM_DIR, "OpenACD/ebin").
 -endif.

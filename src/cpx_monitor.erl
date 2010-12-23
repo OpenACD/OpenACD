@@ -787,7 +787,6 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 all_test_() ->
 	util:start_testnode(),
-	?DEBUG("Rundir2:  ~s;  cwd:  ~p;  path:  ~p", [util:run_dir(), file:get_cwd(), code:get_path()]),
 	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
 	EtsNode = util:start_testnode(cpx_monitor_ets_tests),
 	[{setup, {spawn, SubscribeNode}, fun() -> ok end,
@@ -1014,7 +1013,8 @@ ets_tests() ->
 	end,
 	[fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
-		timer:sleep(10),
+		timer:sleep(15),
+		%?DEBUG("Whereis:  ~p", [whereis(cpx_monitor)]),
 		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
 		Node = node(),
 		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)

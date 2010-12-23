@@ -786,10 +786,14 @@ tell_cands(Message, [Node | Tail], Leader) ->
 -ifdef(STANDARD_TEST).
 
 all_test_() ->
-	{inorder, [
-		ets_tests(),
-		subscribers_tests()
-	]}.
+	util:start_testnode(),
+	?DEBUG("Rundir2:  ~s;  cwd:  ~p;  path:  ~p", [util:run_dir(), file:get_cwd(), code:get_path()]),
+	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
+	EtsNode = util:start_testnode(cpx_monitor_ets_tests),
+	[{setup, {spawn, SubscribeNode}, fun() -> ok end,
+	subscribers_tests()},
+	{setup, {spawn, EtsNode}, fun() -> ok end,
+	ets_tests()}].
 
 %data_grooming_test_() ->
 %	{foreach,
@@ -889,7 +893,7 @@ mock_test_then_die([H | T]) ->
 	mock_test_then_die(T).
 
 subscribers_tests() ->
-	{foreach,
+	{foreach, 
 	fun() ->
 		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
 		ok
@@ -910,6 +914,7 @@ subscribers_tests() ->
 		end 
 	end} end,
 	fun(ok) -> {"simple set", fun() ->
+		?DEBUG("cold slappy!", []),
 		cpx_monitor:subscribe(),
 		cpx_monitor:set({media, "media1"}, [{<<"key">>, <<"val">>}]),
 		receive
@@ -999,7 +1004,7 @@ subscribers_tests() ->
 	end} end]}.
 
 ets_tests() ->
-	{inorder, {foreach,
+	{foreach,
 	fun() ->
 		{ok, _} = cpx_monitor:start([{nodes, node()}]),
 		ok
@@ -1047,7 +1052,7 @@ ets_tests() ->
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
 		?assertEqual([], Res)
-	end} end]}}.
+	end} end]}.
 		
 multinode_test_d() ->
 	{foreach,

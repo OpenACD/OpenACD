@@ -45,7 +45,10 @@
 -export([
 	add_paths/0,
 	get_modules/1,
-	eunit/1
+	eunit/1,
+	start_testnode/0,
+	start_testnode/1,
+	start_testnode/2
 ]).
 -endif.
 
@@ -572,6 +575,35 @@ get_modules(Appfile) ->
 eunit(Mods) ->
 	Mid = [{M, eunit:test(M)} || M <- Mods],
 	[X || {error, _} = X <- Mid].
+
+start_testnode() ->
+	add_paths(),
+	case node() of
+		nonode@nohost ->
+			[] = os:cmd("epmd -daemon"),
+			case net_kernel:start([openacdTest, shortnames]) of
+				{ok, _} ->
+					node();
+				{error, {{already_started, _}, _}}  ->
+					node();
+				_ ->
+					erlang:error(node_fail)
+			end;
+		Else ->
+			Else
+	end.
+
+start_testnode(Name) ->
+	start_testnode(Name, net_adm:localhost()).
+
+start_testnode(Name, Host) ->
+	start_testnode(),
+	case slave:start_link(Host, Name) of
+		{ok, N} -> 
+			rpc:cast(N, util, add_paths, []),
+			N;
+		{error, {already_running, N}} -> N
+	end.
 
 code_reload_test_() ->
 	% Using dummy_media because using util kills coverage reporting.

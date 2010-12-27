@@ -447,6 +447,10 @@ recloop(Regrabs, Grab_bests, State) ->
 	end.
 	
 grab_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatcher_grab_tests),
+	{spawn,
+	N,
 	{
 		foreach,
 		fun() ->
@@ -551,7 +555,7 @@ grab_test_() ->
 				end}
 			end
 		]
-	}.
+	}}.
 
 bias_to_test() ->
 	?assertEqual(none, biased_to([], 0, 20)).

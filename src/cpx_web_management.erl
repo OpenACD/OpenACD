@@ -2650,7 +2650,10 @@ rec_equals(_A, _B) ->
 	false.
 
 cookie_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_cookie_tests),
 	{setup,
+	{spawn, N},
 	fun() ->
 		ets:new(cpx_management_logins, [set, public, named_table]),
 		ok
@@ -2693,7 +2696,10 @@ recipe_encode_decode_test_() ->
 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_api_tests),
 	{inorder, {foreach,
+	{spawn, N},
 	fun() -> 
 		crypto:start(),
 		mnesia:stop(),

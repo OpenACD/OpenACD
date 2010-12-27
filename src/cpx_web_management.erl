@@ -2116,12 +2116,7 @@ check_cookie(Allothers) ->
 get_pubkey() ->
 	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
-			case node() of
-				nonode@nohost ->
-					"../key";
-				_ ->
-					"./key"
-			end;
+			"../key";
 		Val ->
 			filename:join(Val, "key")
 	end,

@@ -87,3 +87,36 @@ gen_server_test_() ->
 	]}.
 
 -endif.
+
+%% @hidden
+%% Same as above, but allows for more isolation; especially important
+%% for named processes.  ?GEN_SERVER_TEST is expected to be a fun that returns a 3 element tuple:  {Node, Start, Stop}.  The start and stop are funs.  
+%% Start should return the pid or name used to address the gen_server, 
+%% while stop will accept same and end it.
+
+-ifdef(GEN_SERVER_TEST).
+
+gen_server_test_() ->
+	Tests = [fun(Pid)-> {"handle_call with garbage value",
+		?_assertEqual({unknown_call, garbage}, gen_server:call(Pid, garbage))
+	} end,
+	fun(Pid) -> {"handle_cast with garbage value",
+		?_assertEqual(ok, gen_server:cast(Pid, garbage))
+	} end,
+	fun(Pid) -> {"code_change", fun() ->
+		?assertEqual(ok, sys:suspend(Pid)),
+		?assertEqual(ok, sys:change_code(Pid, "", ?MODULE, "")),
+		?assertEqual(ok, sys:resume(Pid))
+	end } end,
+	fun(Pid) -> {"handle info with garbage value", fun() ->
+		Pid ! garbage
+	end} end
+	],
+	case ?GEN_SERVER_TEST() of
+		{Node, Start, Stop} ->
+			{spawn, Node, {foreach, Start, Stop, Tests}};
+		{Start, Stop} ->
+			{foreach, Start, Stop, Tests}
+	end.
+	
+-endif.

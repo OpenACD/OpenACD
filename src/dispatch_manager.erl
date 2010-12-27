@@ -431,7 +431,19 @@ balance_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
+gen_server_test_start() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatch_manager_gen_server_tests),
+	Start = fun() ->
+		{ok, _Pid} = ?MODULE:start_link(),
+		?MODULE
+	end,
+	Stop = fun(_) ->
+		?MODULE:stop()
+	end,
+	{N, Start, Stop}.
+
+-define(GEN_SERVER_TEST, fun gen_server_test_start/0).
 
 -include("gen_server_test.hrl").
 

@@ -895,6 +895,7 @@ subscribers_tests() ->
 	{foreach, 
 	fun() ->
 		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
+		timer:sleep(5), % time for it to start up
 		ok
 	end,
 	fun(ok) ->

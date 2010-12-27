@@ -898,9 +898,11 @@ subscribers_tests() ->
 		ok
 	end,
 	fun(ok) ->
-		cpx_monitor:stop()
+		cpx_monitor:stop(),
+		timer:sleep(5) % time to die
 	end,
 	[fun(ok) -> {"simple info", fun() ->
+		timer:sleep(5), % fails unless cpx_mon is given time to wake up.
 		cpx_monitor:subscribe(),
 		cpx_monitor:info([{<<"key">>, <<"value">>}]),
 		receive
@@ -913,7 +915,6 @@ subscribers_tests() ->
 		end 
 	end} end,
 	fun(ok) -> {"simple set", fun() ->
-		?DEBUG("cold slappy!", []),
 		cpx_monitor:subscribe(),
 		cpx_monitor:set({media, "media1"}, [{<<"key">>, <<"val">>}]),
 		receive
@@ -1014,7 +1015,7 @@ ets_tests() ->
 	[fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
 		timer:sleep(15),
-		%?DEBUG("Whereis:  ~p", [whereis(cpx_monitor)]),
+		?DEBUG("Whereis:  ~p", [whereis(cpx_monitor)]),
 		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
 		Node = node(),
 		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)

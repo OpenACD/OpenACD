@@ -2652,8 +2652,9 @@ rec_equals(_A, _B) ->
 cookie_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(cpx_web_management_cookie_tests),
+	{spawn,
+	N,
 	{setup,
-	{spawn, N},
 	fun() ->
 		ets:new(cpx_management_logins, [set, public, named_table]),
 		ok
@@ -2675,7 +2676,7 @@ cookie_test_() ->
 			ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
 			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
 		end}
-	]}.
+	]}}.
 
 recipe_encode_decode_test_() ->
 	[{"Simple encode",
@@ -2698,8 +2699,9 @@ recipe_encode_decode_test_() ->
 api_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(cpx_web_management_api_tests),
-	{inorder, {foreach,
-	{spawn, N},
+	{spawn,
+	N,
+	{foreach,
 	fun() -> 
 		crypto:start(),
 		mnesia:stop(),

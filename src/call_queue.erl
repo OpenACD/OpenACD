@@ -1092,6 +1092,7 @@ call_update_test_() ->
 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
 					add(Pid, Dummy1),
 					dummy_media:stop(Dummy1, testkill),
+					timer:sleep(10),
 					?assertMatch(none, get_call(Pid, "C1"))
 				end
 			}, {

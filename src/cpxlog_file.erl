@@ -105,7 +105,8 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Arg
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~w:~s:~s.~s [~s] ~w@~s:~w ~s~n", [
+			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w@~s:~w ~s\e[m~n", [
+					colorize(Level),
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
@@ -134,7 +135,8 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~w:~s:~s.~s [~s] ~w ~s~n", [
+			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w ~s~n\e[m", [
+					colorize(Level),
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
@@ -203,12 +205,13 @@ check_filehandles([{Filename, Handle, Inode, Loglevel}|Tail], Acc) ->
 			end
 	end.
 
-
-
-
-
-
-
-
-
-
+colorize(debug) ->
+	"\e[0;33m";
+colorize(info) ->
+	"";
+colorize(notice) ->
+	"\e[0;36m";
+colorize(warning) ->
+	"\e[0,35m";
+colorize(_) ->
+	"\e[0,31m".

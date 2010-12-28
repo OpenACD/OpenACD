@@ -266,7 +266,7 @@ stop(Pid, Force) ->
 -define(MAX_RANDOM_TEST, 100000).
 
 random_test() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),
@@ -446,6 +446,10 @@ recloop(Regrabs, Grab_bests, State) ->
 	end.
 	
 grab_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatcher_grab_tests),
+	{spawn,
+	N,
 	{
 		foreach,
 		fun() ->
@@ -550,7 +554,7 @@ grab_test_() ->
 				end}
 			end
 		]
-	}.
+	}}.
 
 bias_to_test() ->
 	?assertEqual(none, biased_to([], 0, 20)).

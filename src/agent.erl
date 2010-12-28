@@ -33,6 +33,17 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([
+	from_idle_tests/0,
+	from_ringing_tests/0,
+	from_precall_tests/0,
+	from_oncall_tests/0,
+	from_outgoing_tests/0,
+	from_released_tests/0,
+	from_warmtransfer_tests/0,
+	from_wrapup_tests/0
+]).
+
 -endif.
 
 -include("log.hrl").
@@ -388,7 +399,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		true ->
 			Nodes = case proplists:get_value(nodes, Options) of
 				undefined ->
-					case application:get_env(cpx, nodes) of
+					case application:get_env('OpenACD', nodes) of
 						{ok, N} -> N;
 						undefined -> [node()]
 					end;
@@ -1407,8 +1418,23 @@ expand_magic_skills_test_() ->
 	?_assert(lists:member(english, Newskills)),
 	?_assert(lists:member({'_profile', "testprofile"}, Newskills)),
 	?_assert(lists:member({'_brand', "testbrand"}, Newskills))].
-	
-from_idle_test_() ->
+
+start_change_test_() ->
+	util:start_testnode(),
+	NodeNames = [
+		from_idle_tests,
+		from_ringing_tests,
+		from_precall_tests,
+		from_oncall_tests,
+		from_outgoing_tests,
+		from_released_tests,
+		from_warmtransfer_tests,
+		from_wrapup_tests
+	],
+	NodesList = [{?MODULE:Name(), util:start_testnode(Name)} || Name <- NodeNames],
+	[{setup, {spawn, Node}, fun() -> ok end, Tests} || {Tests, Node} <- NodesList].
+
+from_idle_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -1581,7 +1607,7 @@ from_idle_test_() ->
 		end}
 	end]}.
 
-from_ringing_test_() ->
+from_ringing_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -1646,8 +1672,8 @@ from_ringing_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			application:set_env(cpx, agent_ringout_lock, 10),
-			{reply, ok, idle, #state{ring_locked = Newlocked, ringouts = Ringouts} = Newstate} = ringing(idle, "from", State),
+			application:set_env('OpenACD', agent_ringout_lock, 10),
+			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
 			?assertEqual(locked, Newlocked),
 			?assertEqual(1, Ringouts),
 			receive
@@ -1657,7 +1683,7 @@ from_ringing_test_() ->
 				?assert("ring_unlock on recieved")
 			end,
 			Assertmocks(),
-			application:set_env(cpx, agent_ringout_lock, 0)
+			application:set_env('OpenACD', agent_ringout_lock, 0)
 	 end}
 	end,
 	fun({State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
@@ -1865,7 +1891,7 @@ from_ringing_test_() ->
 		end}
 	end]}.
 
-from_precall_test_() ->
+from_precall_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -1998,7 +2024,7 @@ from_precall_test_() ->
 		end}
 	end]}.
 
-from_oncall_test_() ->
+from_oncall_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -2279,7 +2305,7 @@ from_oncall_test_() ->
 		end}
 	end]}.
 
-from_outgoing_test_() ->
+from_outgoing_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -2454,7 +2480,7 @@ from_outgoing_test_() ->
 		end}
 	end]}.
 
-from_released_test_() ->
+from_released_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -2585,7 +2611,7 @@ from_released_test_() ->
 		end}
 	end]}.
 
-from_warmtransfer_test_() ->
+from_warmtransfer_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
@@ -2701,7 +2727,7 @@ from_warmtransfer_test_() ->
 		end}
 	end]}.
 
-from_wrapup_test_() ->
+from_wrapup_tests() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),

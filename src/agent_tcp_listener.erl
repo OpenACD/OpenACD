@@ -195,12 +195,11 @@ double_start_test() ->
 	stop(Pid).
 	
 async_listsock_test() -> 
-	{ok, Pid} = start(6666),
+	{timeout, 10, fun() -> {ok, Pid} = start(6666),
 	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [list]),
 	gen_tcp:send(Socket, "test/r/n"),
 	stop(Pid),
-	gen_tcp:close(Socket).
-
+	gen_tcp:close(Socket) end}.
 
 
 -define(MYSERVERFUNC, 

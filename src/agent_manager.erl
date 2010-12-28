@@ -105,20 +105,20 @@
 %% @doc Starts the `agent_manger' linked to the calling process.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) -> 
-	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, [], []).
 
 -spec(start_link/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
 start_link(Nodes, Opts) ->
-	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Opts, []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Opts, []).
 
 %% @doc Starts the `agent_manager' without linking to the calling process.
 -spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
-	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, [], []).
 
 -spec(start/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
 start(Nodes, Opts) ->
-	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Opts, []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Opts, []).
 
 %% @doc stops the `agent_manager'.
 -spec(stop/0 :: () -> {'ok', pid()}).
@@ -637,8 +637,13 @@ build_tables() ->
 -ifdef(STANDARD_TEST).
 
 handle_call_start_test() ->
-	?assertMatch({ok, _Pid}, start([node()])),
-	stop().
+	util:start_testnode(),
+	N = util:start_testnode(agent_manager_handle_call_start_test),
+	{spawn, N, [fun() -> 
+		?assertMatch({ok, _Pid}, start([node()])),
+		stop(),
+		slave:stop(N)
+	end]}.
 
 sort_eligible_agents_test_() ->
 	[{"only difference is the length of the skills list",

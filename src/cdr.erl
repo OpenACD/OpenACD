@@ -101,13 +101,24 @@
 %% @doc starts the cdr event server.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	build_tables(),
+	Nodes = cpx:get_env(nodes, [node()]),
+	start(Nodes).
+
+%% @doc starts the cdr event server with mnesia on specified nodes.
+start(Nodes) ->
+	build_tables(Nodes),
 	gen_event:start({local, ?MODULE}).
 
 %% @doc Starts the cdr event server linked.
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
-	build_tables(),
+	Nodes = cpx:get_env(nodes, [node()]),
+	start_link(Nodes).
+
+%% @doc Starts the cdr event server with mnesia on specified nodes.
+-spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
+start_link(Nodes) ->
+	build_tables(Nodes),
 	gen_event:start_link({local, ?MODULE}).
 
 %% @doc Create a handler specifically for `#call{} Call' with default options.
@@ -368,7 +379,7 @@ get_unsummarized() ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
-	Nodes = case application:get_env(cpx, nodes) of
+	Nodes = case application:get_env('OpenACD', nodes) of
 		undefined ->
 			[node()];
 		{ok, List} ->
@@ -664,17 +675,23 @@ find_untermed(_, _, _) ->
 	%% some other event, prolly an info.  unknowns terminate nothing.
 	[].
 	
-build_tables() ->
-	util:build_table(cdr_rec, [
+build_tables(Nodes) ->
+	RecT = util:build_table(cdr_rec, [
 		{attributes, record_info(fields, cdr_rec)},
-		{disc_copies, [node() | nodes()]}
+		{disc_copies, Nodes}
 	]),
-	util:build_table(cdr_raw, [
+	RawT = util:build_table(cdr_raw, [
 		{attributes, record_info(fields, cdr_raw)},
-		{disc_copies, [node() | nodes()]},
+		{disc_copies, Nodes},
 		{type, bag}
 	]),
-	ok.
+	Successes = [exists, copied, {atomic, ok}],
+	case {lists:member(RecT, Successes), lists:member(RawT, Successes)} of
+		{true, true} ->
+			ok;
+		_ ->
+			{RecT, RawT}
+	end.
 
 spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 	Summarize = fun() ->
@@ -690,7 +707,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
 		F = fun() ->
-			Nodes = case application:get_env(cpx, nodes) of
+			Nodes = case application:get_env('OpenACD', nodes) of
 				undefined ->
 					[node()];
 				{ok, List} ->
@@ -916,13 +933,16 @@ analyze_test_() ->
 	end}].
 
 push_raw_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(cdr_push_raw_tests),
+	{spawn, N, {foreach,
 	fun() ->
+		?DEBUG("node:  ~p", [node()]),
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		build_tables(),
+		ok = build_tables([node()]),
 		Pull = fun() ->
 			{atomic, List} = mnesia:transaction(fun() -> mnesia:read(cdr_raw, "testcall") end),
 			List
@@ -1165,18 +1185,20 @@ push_raw_test_() ->
 				cdrend
 			])
 		end}
-	end]}.
+	end]}}.
 
 
 % handle_event's primary duty is to see if the call is ready for summary.
 handle_event_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(cdr_handle_event_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		build_tables(),
+		build_tables([node()]),
 		Call = #call{
 			id = "testcall",
 			source = self()
@@ -1203,7 +1225,7 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({endwrapup, Call, util:now(), "testagent"}, Instate),
 			?assertEqual(Instate#state.limbo_wrapup_count, Newstate#state.limbo_wrapup_count + 1)
 		end}
-	end]}.
+	end]}}.
 
 merge_test_() ->
 	[{"Get ids",
@@ -1579,7 +1601,7 @@ summarize_test_() ->
 %		mnesia:delete_schema([node()]),
 %		mnesia:create_schema([node()]),
 %		mnesia:start(),
-%		build_tables(),
+%		build_tables([node()]),
 %		#call{id = "testcall", source = self()}
 %	end,
 %	fun(_Whatever) ->

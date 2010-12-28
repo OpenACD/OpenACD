@@ -380,13 +380,13 @@ determine_language([]) ->
 	"";
 determine_language([Head | Tail]) ->
 	[Lang |_Junk] = util:string_split(Head, ";"),
-	case filelib:is_regular(string:concat(string:concat("priv/www/admin/lang/nls/", Lang), "/labels.js")) of
+	case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/admin/lang/nls/"), Lang), "/labels.js")) of
 		true ->
 			Lang;
 		false ->
 			% try the "super language" (eg en vs en-us) in case it's not in the list itself
 			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
-			case filelib:is_regular(string:concat(string:concat("priv/www/admin/lang/nls/", SuperLang), "/labels.js")) of
+			case filelib:is_regular(string:concat(string:concat(util:priv_dir("/www/admin/lang/nls/"), SuperLang), "/labels.js")) of
 				true ->
 					SuperLang;
 				false ->
@@ -545,9 +545,11 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 	end,
 	Webout = case proplists:get_value("agentModuleWebListen", Post) of
 		undefined ->
+			?DEBUG("this is teh happy", []),
 			cpx_supervisor:destroy(agent_web_listener),
 			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
 		Webport ->
+			?DEBUG("This is pure shit", []),
 			OldWebPort = case cpx_supervisor:get_conf(agent_web_listener) of
 				WebRecord when is_record(WebRecord, cpx_conf) ->
 					lists:nth(1, WebRecord#cpx_conf.start_args);
@@ -1064,7 +1066,7 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 % TODO this function is ugly.  It's used to populate the modules list,
 % but the result of the rpc call is not used ever.
 api({modules, "poll"}, ?COOKIE, _Post) ->
-	{ok, Appnodes} = application:get_env(cpx, nodes),
+	{ok, Appnodes} = application:get_env('OpenACD', nodes),
 	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
 	F = fun(Node) ->
 		{Node, [
@@ -1470,7 +1472,7 @@ api({modules, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 		#cpx_conf{start_args = [Args]} ->
 			Rrdpath = list_to_binary(proplists:get_value(rrd_dir, Args, "rrd")),
 			Protoimagepath = list_to_binary(proplists:get_value(image_dir, Args, "rrd path")),
-			Dynamic = case application:get_env(cpx, webdir_dynamic) of
+			Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 				undefined ->
 					<<"../www/dynamic">>;
 				{ok, WebDirDyn} ->
@@ -1505,7 +1507,7 @@ api({modules, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 				"rrd path" ->
 					Rrdpath;
 				"Dynamic Files" ->
-					case application:get_env(cpx, webdir_dynamic) of
+					case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
 							"../www/dynamic";
 						{ok, WebDirDyn} ->
@@ -1551,9 +1553,9 @@ api({modules, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 			Convert = fun({struct, Props}) ->
 				Fileout = case proplists:get_value(<<"outputdir">>, Props) of
 					<<"dynamic">> ->
-						case application:get_env(cpx, webdir_dynamic) of
+						case application:get_env('OpenACD', webdir_dynamic) of
 							undefined ->
-								"priv/www/dynamic";
+								util:priv_dir("www/dynamic");
 							{ok, WebDirDyn} ->
 								WebDirDyn
 						end;
@@ -2273,7 +2275,7 @@ api(_, _, _) ->
 parse_path(Path) ->
 	case Path of
 		"/" ->
-			{file, {"index.html", "priv/www/admin/"}};
+			{file, {"index.html", util:priv_dir("www/admin/")}};
 		"/getsalt" ->
 			{api, getsalt};
 		"/login" ->
@@ -2293,9 +2295,9 @@ parse_path(Path) ->
 			case util:string_split(Path, "/") of
 				["", "dynamic" | Tail] ->
 					File = string:join(Tail, "/"),
-					Dynamic = case application:get_env(cpx, webdir_dynamic) of
+					Dynamic = case application:get_env('OpenACD', webdir_dynamic) of
 						undefined ->
-							"priv/www/dynamic";
+							util:priv_dir("www/dynamic");
 						{ok, WebDirDyn} ->
 							WebDirDyn
 					end,
@@ -2344,13 +2346,13 @@ parse_path(Path) ->
 				["", "clients", Client, Action] ->
 					{api, {clients, Client, Action}};
 				Allothers ->
-					Adminpath = string:concat("priv/www/admin", Path),
-					Contribpath = string:concat("priv/www/contrib", Path),
+					Adminpath = string:concat(util:priv_dir("www/admin"), Path),
+					Contribpath = string:concat(util:priv_dir("www/contrib"), Path),
 					case {filelib:is_regular(Adminpath), filelib:is_regular(Contribpath)} of
 						{true, _} ->
-							{file, {string:strip(Path, left, $/), "priv/www/admin/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/admin/")}};
 						{false, true} ->
-							{file, {string:strip(Path, left, $/), "priv/www/contrib/"}};
+							{file, {string:strip(Path, left, $/), util:priv_dir("www/contrib/")}};
 						{false, false} ->
 							{api, Allothers}
 					end
@@ -2375,8 +2377,14 @@ check_cookie(Allothers) ->
 	end.
 
 get_pubkey() ->
+	Key = case os:getenv("OPENACD_RUN_DIR") of
+		false ->
+			"../key";
+		Val ->
+			filename:join(Val, "key")
+	end,
 	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der("./key") of
+	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
 			Ent;
 		[Ent] ->
@@ -2417,8 +2425,14 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
+	Key = case os:getenv("OPENACD_RUN_DIR") of
+		false ->
+			"./key";
+		Val ->
+			filename:join(Val, "key")
+	end,
 	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der("./key") of
+	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->
 			Ent;
 		[Ent] ->
@@ -2900,6 +2914,10 @@ rec_equals(_A, _B) ->
 	false.
 
 cookie_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_cookie_tests),
+	{spawn,
+	N,
 	{setup,
 	fun() ->
 		ets:new(cpx_management_logins, [set, public, named_table]),
@@ -2922,7 +2940,7 @@ cookie_test_() ->
 			ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
 			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
 		end}
-	]}.
+	]}}.
 
 recipe_encode_decode_test_() ->
 	[{"Simple encode",
@@ -2943,6 +2961,10 @@ recipe_encode_decode_test_() ->
 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_api_tests),
+	{spawn,
+	N,
 	{foreach,
 	fun() -> 
 		crypto:start(),
@@ -3434,6 +3456,6 @@ api_test_() ->
 %				end}
 %			]}
 %		end
-	]}.			
+	]}}.
 		
 -endif.

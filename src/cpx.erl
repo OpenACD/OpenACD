@@ -100,12 +100,12 @@
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
 start(_Type, StartArgs) ->
 	io:format("Start args ~p~n", [StartArgs]),
-	io:format("All env: ~p~n", [application:get_all_env(cpx)]),
+	io:format("All env: ~p~n", [application:get_all_env('OpenACD')]),
 	crypto:start(),
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
 	%mnesia:start(),
-	case application:get_env(cpx, nodes) of
+	case application:get_env('OpenACD', nodes) of
 		{ok, Nodes} ->
 			lists:foreach(fun(Node) -> net_adm:ping(Node) end, Nodes),
 			case nodes() of
@@ -117,30 +117,31 @@ start(_Type, StartArgs) ->
 			end,
 			ok;
 		_Else ->
-			Nodes = [node()]
+			Nodes = [node()],
+			application:set_env('OpenACD', nodes, Nodes)
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
 	merge_env(),
 	try cpx_supervisor:start_link(Nodes) of
 		{ok, Pid} ->
-			application:set_env(cpx, uptime, util:now()),
-			?NOTICE("Application cpx started sucessfully!", []),
+			application:set_env('OpenACD', uptime, util:now()),
+			?NOTICE("Application OpenACD started sucessfully!", []),
 			{ok, Pid}
 	catch
 		What:Why ->
-			?ERROR("Application cpx failed to start successfully! ~p:~p", [What, Why]),
+			?ERROR("Application OpenACD failed to start successfully! ~p:~p", [What, Why]),
 			{What, Why}
 	end.
 
 -spec(prep_stop/1 :: (State :: any()) -> any()).
 prep_stop(State) ->
-	?NOTICE("Application cpx stopping...", []),
+	?NOTICE("Application OpenACD stopping...", []),
 	State.
 
 -spec(stop/1 :: (State :: any()) -> 'ok').
 stop(_State) ->
-	application:unset_env(cpx, uptime),
+	application:unset_env('OpenACD', uptime),
 	ok.
 
 %% ====
@@ -151,12 +152,12 @@ stop(_State) ->
 %% a default value.  These do.
 -spec(get_env/1 :: (Key :: any()) -> {'ok', any()} | 'undefined').
 get_env(Key) ->
-	application:get_env(cpx, Key).
+	application:get_env('OpenACD', Key).
 
 %% @doc @see gen_env/1
 -spec(get_env/2 :: (Key :: any(), Default :: any()) -> {'ok', any()}).
 get_env(Key, Default) ->
-	case application:get_env(cpx, Key) of
+	case application:get_env('OpenACD', Key) of
 		undefined ->
 			{ok, Default};
 		Out ->
@@ -165,11 +166,11 @@ get_env(Key, Default) ->
 
 -spec(get_key/1 :: (Key :: any()) -> {'ok', any()} | 'undefined').
 get_key(Key) ->
-	application:get_key(cpx, Key).
+	application:get_key('OpenACD', Key).
 
 -spec(get_key/2 :: (Key :: any(), Default :: any()) -> {'ok', any()}).
 get_key(Key, Default) ->
-	case application:get_key(cpx, Key) of
+	case application:get_key('OpenACD', Key) of
 		undefined ->
 			{ok, Default};
 		Out ->
@@ -190,20 +191,20 @@ merge_env() ->
 	end,
 	case mnesia:transaction(Fun) of
 		{aborted, {no_exists, {cpx_value, index}}} ->
-			application:set_env(cpx, locked_env, [uptime]),
+			application:set_env('OpenACD', locked_env, [uptime]),
 			ok;
 		{atomic, Cpxdb} ->
-			Locked = [uptime | [Key || {Key, _} <- application:get_all_env(cpx)]],
-			application:set_env(cpx, locked_env, Locked),
+			Locked = [uptime | [Key || {Key, _} <- application:get_all_env('OpenACD')]],
+			application:set_env('OpenACD', locked_env, Locked),
 			merge_env(Cpxdb, Locked)
 	end.
 
 merge_env([], _LockedKeys) ->
 	ok;
 merge_env([{Key, Val} | T], Locked) ->
-	case application:get_env(cpx, Key) of
+	case application:get_env('OpenACD', Key) of
 		undefined ->
-			application:set_env(cpx, Key, Val),
+			application:set_env('OpenACD', Key, Val),
 			merge_env(T, Locked);
 		_ ->
 			merge_env(T, Locked)
@@ -651,20 +652,20 @@ uptime() ->
 -spec(uptime/1 :: (Fallback :: boolean()) -> non_neg_integer() | 'stopped').
 uptime(Fallback) ->
 	Apps = application:which_applications(),
-	Fun = fun({cpx, _, _}) -> true; (_) -> false end,
+	Fun = fun({'OpenACD', _, _}) -> true; (_) -> false end,
 	Running = lists:any(Fun, Apps),
 	case Running of
 		false -> 
 			stopped;
 		true ->
-			case {application:get_env(cpx, uptime), Fallback} of
+			case {application:get_env('OpenACD', uptime), Fallback} of
 				{undefined, false} ->
 					io:format("The uptime is not available for this node.~nYou can call cpx:uptime(true) to set the uptime to now~n"),
 					0;
 				{undefined, true} ->
 					io:format("The uptime was not available, so resetting it as requested~n"),
 					Now = util:now(),
-					application:set_env(cpx, uptime, Now),
+					application:set_env('OpenACD', uptime, Now),
 					0;
 				{{ok, Time}, _} ->
 					Out = util:now() - Time,

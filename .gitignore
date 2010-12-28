@@ -16,10 +16,12 @@ contrib/**/ebin/*
 contrib/**/doc/*
 contrib/mochiweb/_test
 
+rel/openacd
+deps
+ebin
+.eunit
+
 # unique config files
-*.config
-*.boot
-*.script
 www/dynamic/tv_config.js
 www/dynamic/all.json
 

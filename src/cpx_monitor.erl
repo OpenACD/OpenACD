@@ -1042,7 +1042,7 @@ ets_test_() ->
 		{ok, Mock} = gen_server_mock:new(),
 		cpx_monitor:set({media, "hi"}, [], none),
 		timer:sleep(10),
-		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
+		[Time] = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
 		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),
 		timer:sleep(10),
 		[{_Key, NewProps, _, NewTime, Mock, _Ref}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),

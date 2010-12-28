@@ -637,8 +637,13 @@ build_tables() ->
 -ifdef(STANDARD_TEST).
 
 handle_call_start_test() ->
-	?assertMatch({ok, _Pid}, start([node()])),
-	stop().
+	util:start_testnode(),
+	N = util:start_testnode(agent_manager_handle_call_start_test),
+	{spawn, N, [fun() -> 
+		?assertMatch({ok, _Pid}, start([node()])),
+		stop(),
+		slave:stop(N)
+	end]}.
 
 sort_eligible_agents_test_() ->
 	[{"only difference is the length of the skills list",

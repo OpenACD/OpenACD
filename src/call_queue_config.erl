@@ -101,6 +101,7 @@
 	get_skills/0,
 	get_skills/1,
 	set_skill/2,
+	set_skill/4,
 	rename_skill_group/2,
 	destroy_skill/1
 	]).
@@ -496,6 +497,11 @@ get_skill(Skill) when is_atom(Skill) ->
 		{atomic, [Skillrec]} ->
 			Skillrec
 	end.
+
+-spec(set_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
+set_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_list(Group) ->
+	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, group = Group},
+	set_skill(Skillatom, Rec).
 
 %% @doc updates the skill Old skill with the data in the Newrec; the atom remains unchanged
 -spec(set_skill/2 :: (Oldskill :: atom(), Newrec :: #skill_rec{}) -> {'atomic', 'ok'} | {'atomic', 'undefined'}).

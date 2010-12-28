@@ -33,6 +33,7 @@
 -import(mongoapi).
 -import(application).
 -import(agent_auth).
+-import(call_queue_config).
 -export([start/0, stop/0, init/1, loop/2]).
 
 -include("../../../include/log.hrl").
@@ -100,6 +101,8 @@ get_command_values(Data, Mong) ->
 					process_agent(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"profile">> ->
 					process_profile(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"skill">> ->
+					process_skill(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -136,5 +139,23 @@ process_profile(Profile, Command) ->
 		{_, Oldname} = lists:nth(4, Profile),
 		Old = agent_auth:get_profile(erlang:binary_to_list(Oldname)),
 		agent_auth:set_profile(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), element(6, Old));
+	true -> ?WARNING("Unrecognized command", [])
+	end.
+
+process_skill(Skill, Command) ->
+	{_, Name} = lists:nth(2, Skill),
+	{_, Atom} = lists:nth(3, Skill),
+	{_, Group} = lists:nth(4, Skill),
+	{_, Description} = lists:nth(5, Skill),
+	if Description =:= null ->
+		Descr = "";
+	true -> Descr = erlang:binary_to_list(Description)
+	end,
+	if Command =:= "ADD" ->
+		call_queue_config:new_skill(list_to_atom(erlang:binary_to_list(Atom)), erlang:binary_to_list(Name), Descr, erlang:binary_to_list(Group));
+	Command =:= "DELETE" ->
+		call_queue_config:destroy_skill(erlang:binary_to_list(Name));
+	Command =:= "UPDATE" ->
+		call_queue_config:set_skill(list_to_atom(erlang:binary_to_list(Atom)), erlang:binary_to_list(Name), Descr, erlang:binary_to_list(Group));
 	true -> ?WARNING("Unrecognized command", [])
 	end.

@@ -916,7 +916,7 @@ subscribers_test_() ->
 				?assert(true);
 			{cpx_monitor_event, Other} ->
 				?assert(Other)
-		after 20 ->
+		after 50 ->
 			?assert("timeout")
 		end
 	end} end,

@@ -1673,7 +1673,7 @@ from_ringing_tests() ->
 				ok
 			end),
 			application:set_env('OpenACD', agent_ringout_lock, 10),
-			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
+			{reply, ok, idle, #state{ringouts = Ringouts, ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
 			?assertEqual(locked, Newlocked),
 			?assertEqual(1, Ringouts),
 			receive

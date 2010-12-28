@@ -785,15 +785,6 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 -ifdef(STANDARD_TEST).
 
-all_test_() ->
-	util:start_testnode(),
-	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
-	EtsNode = util:start_testnode(cpx_monitor_ets_tests),
-	[{setup, {spawn, SubscribeNode}, fun() -> ok end,
-	subscribers_tests()},
-	{setup, {spawn, EtsNode}, fun() -> ok end,
-	ets_tests()}].
-
 %data_grooming_test_() ->
 %	{foreach,
 %	fun() ->
@@ -891,8 +882,10 @@ mock_test_then_die([H | T]) ->
 	gen_server_mock:stop(H),
 	mock_test_then_die(T).
 
-subscribers_tests() ->
-	{foreach, 
+subscribers_test_() ->
+	util:start_testnode(),
+	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
+	{spawn, SubscribeNode, {foreach, 
 	fun() ->
 		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
 		timer:sleep(5), % time for it to start up
@@ -1002,16 +995,22 @@ subscribers_tests() ->
 		gen_server_mock:stop(Watched),
 		timer:sleep(10),
 		mock_test_then_die([Watcher])
-	end} end]}.
+	end} end]}}.
 
-ets_tests() ->
+ets_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_monitor_ets_tests),
+	{spawn,
+	N,
 	{foreach,
 	fun() ->
 		{ok, _} = cpx_monitor:start([{nodes, node()}]),
+		timer:sleep(5),
 		ok
 	end,
 	fun(ok) ->
-		cpx_monitor:stop()
+		cpx_monitor:stop(),
+		timer:sleep(5)
 	end,
 	[fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
@@ -1054,7 +1053,7 @@ ets_tests() ->
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
 		?assertEqual([], Res)
-	end} end]}.
+	end} end]}}.
 		
 multinode_test_d() ->
 	{foreach,

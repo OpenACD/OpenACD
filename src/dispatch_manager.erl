@@ -270,7 +270,7 @@ dump() ->
 	gen_server:call(?MODULE, dump).
 
 test_primer() ->
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),
@@ -301,16 +301,16 @@ balance_test_() ->
 						ok
 					end,
 					State1 = dump(),
-					?assertEqual(State1#state.agents, []),
-					?assertEqual(State1#state.dispatchers, [])
+					?assertEqual([], State1#state.agents),
+					?assertEqual([], State1#state.dispatchers)
 				end
 			},
 			{
 				"Agent started then set available, so a dispatcher starts",
 				fun() ->
 					State1 = dump(),
-					?assertEqual(State1#state.agents, []),
-					?assertEqual(State1#state.dispatchers, []),
+					?assertEqual([], State1#state.agents),
+					?assertEqual([], State1#state.dispatchers),
 					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 					agent:set_state(Apid, idle),
 					receive
@@ -332,7 +332,7 @@ balance_test_() ->
 						ok
 					end,
 					State1 = dump(),
-					?assertEqual(State1#state.agents, [Apid]),
+					?assertEqual([Apid], State1#state.agents),
 					?assertEqual(1, length(State1#state.dispatchers)),
 					exit(Apid, kill),
 					receive
@@ -431,7 +431,19 @@ balance_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
+gen_server_test_start() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatch_manager_gen_server_tests),
+	Start = fun() ->
+		{ok, _Pid} = ?MODULE:start_link(),
+		?MODULE
+	end,
+	Stop = fun(_) ->
+		?MODULE:stop()
+	end,
+	{N, Start, Stop}.
+
+-define(GEN_SERVER_TEST, fun gen_server_test_start/0).
 
 -include("gen_server_test.hrl").
 

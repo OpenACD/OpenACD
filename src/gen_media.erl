@@ -2538,7 +2538,7 @@ handle_cast_test_() ->
 	end]}.
 
 handle_info_test_() ->
-	{foreach,
+	{inorder, {foreach,
 	fun() ->
 		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{Seedstate}
@@ -2762,7 +2762,7 @@ handle_info_test_() ->
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			gen_leader_mock:stop(Mock)
 		end}
-	end]}.
+	end]}}.
 	
 agent_interact_test_() ->
 	{foreach,

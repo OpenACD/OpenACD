@@ -585,7 +585,7 @@ submit_bug_report(Options) when is_list(Options) ->
 -ifdef(TEST).
 
 config_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 
@@ -821,7 +821,9 @@ murder_test_() ->
 		?assertNot(Where == Newwhere)
 	end}]}.
 
-mutlinode_test_() ->
+% TODO to be re-enabled with either rebar can have eunit run on a node or
+% can be re-written to not require a live node.
+mutlinode_test_d() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,

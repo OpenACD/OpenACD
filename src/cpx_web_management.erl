@@ -545,9 +545,11 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 	end,
 	Webout = case proplists:get_value("agentModuleWebListen", Post) of
 		undefined ->
+			?DEBUG("this is teh happy", []),
 			cpx_supervisor:destroy(agent_web_listener),
 			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
 		Webport ->
+			?DEBUG("This is pure shit", []),
 			OldWebPort = case cpx_supervisor:get_conf(agent_web_listener) of
 				WebRecord when is_record(WebRecord, cpx_conf) ->
 					lists:nth(1, WebRecord#cpx_conf.start_args);
@@ -2114,7 +2116,7 @@ check_cookie(Allothers) ->
 get_pubkey() ->
 	Key = case os:getenv("OPENACD_RUN_DIR") of
 		false ->
-			"./key";
+			"../key";
 		Val ->
 			filename:join(Val, "key")
 	end,
@@ -2648,6 +2650,10 @@ rec_equals(_A, _B) ->
 	false.
 
 cookie_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_cookie_tests),
+	{spawn,
+	N,
 	{setup,
 	fun() ->
 		ets:new(cpx_management_logins, [set, public, named_table]),
@@ -2670,7 +2676,7 @@ cookie_test_() ->
 			ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
 			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
 		end}
-	]}.
+	]}}.
 
 recipe_encode_decode_test_() ->
 	[{"Simple encode",
@@ -2691,6 +2697,10 @@ recipe_encode_decode_test_() ->
 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_web_management_api_tests),
+	{spawn,
+	N,
 	{foreach,
 	fun() -> 
 		crypto:start(),
@@ -3182,6 +3192,6 @@ api_test_() ->
 %				end}
 %			]}
 %		end
-	]}.			
+	]}}.
 		
 -endif.

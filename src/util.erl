@@ -42,6 +42,14 @@
 		{ram_copies, lists:append([nodes(), [node()]])}
 	]
 ).
+-export([
+	add_paths/0,
+	get_modules/1,
+	eunit/1,
+	start_testnode/0,
+	start_testnode/1,
+	start_testnode/2
+]).
 -endif.
 
 -export([
@@ -422,7 +430,7 @@ reload_all() ->
 	reload_all(soft).
 
 -ifdef(TEST).
--define(BEAM_DIR, "OpenACD/debug_ebin").
+-define(BEAM_DIR, "OpenACD/.eunit").
 -else.
 -define(BEAM_DIR, "OpenACD/ebin").
 -endif.
@@ -551,6 +559,52 @@ run_dir() ->
 
 -ifdef(TEST).
 
+add_paths() ->
+	{Pre, Deps} = case {file:list_dir("deps"), file:list_dir("../deps")} of
+		{{ok, Files}, _} -> {"deps/", Files};
+		{_, {ok, Files}} -> {"../deps/", Files};
+		_ -> {[], []}
+	end,
+	Paths = [Pre ++ X ++ "/ebin" || X <- Deps],
+	code:add_paths(Paths).
+
+get_modules(Appfile) ->
+	{ok, [{application, 'OpenACD', Props}]} = file:consult(Appfile),
+	proplists:get_value(modules, Props).
+
+eunit(Mods) ->
+	Mid = [{M, eunit:test(M)} || M <- Mods],
+	[X || {error, _} = X <- Mid].
+
+start_testnode() ->
+	add_paths(),
+	case node() of
+		nonode@nohost ->
+			[] = os:cmd("epmd -daemon"),
+			case net_kernel:start([openacdTest, shortnames]) of
+				{ok, _} ->
+					node();
+				{error, {{already_started, _}, _}}  ->
+					node();
+				_ ->
+					erlang:error(node_fail)
+			end;
+		Else ->
+			Else
+	end.
+
+start_testnode(Name) ->
+	start_testnode(Name, net_adm:localhost()).
+
+start_testnode(Name, Host) ->
+	start_testnode(),
+	case slave:start_link(Host, Name) of
+		{ok, N} -> 
+			rpc:cast(N, util, add_paths, []),
+			N;
+		{error, {already_running, N}} -> N
+	end.
+
 code_reload_test_() ->
 	% Using dummy_media because using util kills coverage reporting.
 	[{spawn, [{"Standard reload", ?_assertEqual({ok, dummy_media}, reload(dummy_media))}]},
@@ -662,7 +716,7 @@ hex_bin_conversion_test_() ->
 	].
 
 build_table_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 

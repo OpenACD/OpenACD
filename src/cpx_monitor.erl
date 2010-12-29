@@ -1068,15 +1068,6 @@ ets_test_() ->
 		Node = node(),
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
-		case Res of
-			[] ->
-				ok;
-			[{_Key, ResProps, ResNode, _, ResPid, ResRef}] ->
-				?DEBUG("Doing deeper comparisons.", []),
-				?assertEqual(node(), ResNode),
-				?assertEqual(node(), node(ResPid)),
-				?assertEqual(Mock, ResPid)
-		end,
 		?assertEqual([], Res)
 	end} end]}}.
 		

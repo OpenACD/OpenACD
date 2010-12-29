@@ -52,7 +52,8 @@
 	%level = info :: loglevels(),
 	%debugmodules = [] :: [atom()],
 	lasttime = erlang:localtime() :: {{non_neg_integer(), non_neg_integer(), non_neg_integer()}, {non_neg_integer(), non_neg_integer(), non_neg_integer()}},
-	filehandles = [] :: [{string(), any(), integer(), loglevels()}]
+	filehandles = [] :: [{string(), any(), integer(), loglevels()}],
+	color = false
 }).
 
 -type(state() :: #state{}).
@@ -62,7 +63,8 @@
 init(undefined) ->
 	{'EXIT', "no logfiles defined"};
 init([Files]) ->
-	open_files(Files, #state{}).
+	{ok, Color} = cpx:get_env(color_logfiles, false),
+	open_files(Files, #state{color = Color}).
 
 open_files([], State) ->
 	{ok, State};
@@ -105,15 +107,17 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Arg
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w@~s:~w ~s\e[m~n", [
-					colorize(Level),
+			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w@~s:~w ~s~s~n", [
+					colorize(Level, State#state.color),
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
 					string:right(integer_to_list(MicroSec), 6, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
-					io_lib:format(Message, Args)]),
+					io_lib:format(Message, Args),
+					colorize(endcolor, State#state.color)
+			]),
 			[file:write(FH, Output) || {_, FH, _, _} <- List]
 	end,
 	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
@@ -135,15 +139,17 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w ~s~n\e[m", [
-					colorize(Level),
+			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w ~s~s~n", [
+					colorize(Level, State#state.color),
 					element(1, element(2, Time)),
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
 					string:right(integer_to_list(MicroSec), 6, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid,
-					io_lib:format(Message, Args)]),
+					io_lib:format(Message, Args),
+					colorize(endcolor, State#state.color)
+			]),
 			[file:write(FH, Output) || {_, FH, _, _} <- List]
 	end,
 	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
@@ -205,6 +211,11 @@ check_filehandles([{Filename, Handle, Inode, Loglevel}|Tail], Acc) ->
 			end
 	end.
 
+colorize(_, false) ->
+	"";
+colorize(Level, _) ->
+	colorize(Level).
+
 colorize(debug) ->
 	"\e[0;33m";
 colorize(info) ->
@@ -213,5 +224,7 @@ colorize(notice) ->
 	"\e[0;36m";
 colorize(warning) ->
 	"\e[0,35m";
+colorize(endcolor) ->
+	"\e[m";
 colorize(_) ->
 	"\e[0,31m".

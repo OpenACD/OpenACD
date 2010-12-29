@@ -1040,18 +1040,43 @@ ets_test_() ->
 	end} end,
 	fun(ok) -> {"set, reset, die", fun() ->
 		{ok, Mock} = gen_server_mock:new(),
+		cpx_monitor:subscribe(),
 		cpx_monitor:set({media, "hi"}, [], none),
-		timer:sleep(10),
+		receive
+			{cpx_monitor_event, {set, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("initial set timed out")
+		end,
 		[Time] = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
 		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),
-		timer:sleep(10),
+		receive
+			{cpx_monitor_event, {set, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("reset timed out")
+		end,
 		[{_Key, NewProps, _, NewTime, Mock, _Ref}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
 		gen_server_mock:stop(Mock),
-		timer:sleep(10),
+		receive
+			{cpx_monitor_event, {drop, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("die timed out")
+		end,
 		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
 		Node = node(),
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
+		case Res of
+			[] ->
+				ok;
+			[{_Key, ResProps, ResNode, _, ResPid, ResRef}] ->
+				?DEBUG("Doing deeper comparisons.", []),
+				?assertEqual(node(), ResNode),
+				?assertEqual(node(), node(ResPid)),
+				?assertEqual(Mock, ResPid)
+		end,
 		?assertEqual([], Res)
 	end} end]}}.
 		

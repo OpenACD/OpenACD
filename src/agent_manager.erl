@@ -733,7 +733,9 @@ rotate_based_on_list_count_test_() ->
 	end}].
 
 single_node_test_() -> 
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(agent_manage_single_node_tests),
+	{spawn, N, {foreach,
 		fun() ->
 			Agent = #agent{login="testagent"},
 			mnesia:stop(),
@@ -819,7 +821,7 @@ single_node_test_() ->
 				}
 			end
 		]
-	}.
+	}}.
 
 
 

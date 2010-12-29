@@ -266,12 +266,6 @@ drop_value(Key) ->
 	end,
 	mnesia:transaction(F).
 	
--ifndef(NOWEB).
-%% @doc Responses to web calls.
-web_api(_Path, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
--endif.
-
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
@@ -553,7 +547,7 @@ submit_bug_report(Summary, Description, Reproduce, Other) when is_binary(Summary
 
 -spec(submit_bug_report/1 :: (Options :: [{binary(), binary()}]) -> 'ok' | {'error', any()}).
 submit_bug_report(Options) when is_list(Options) ->
-	case lists:any(fun({Key, Val}) when is_binary(Key) -> false; (_) -> true end, Options) of
+	case lists:any(fun({Key, _Val}) when is_binary(Key) -> false; (_) -> true end, Options) of
 		true ->
 			{error, badarg};
 		false ->

@@ -485,9 +485,11 @@ queue(Genmedia, Queue) ->
 spy(Genmedia, Spy) ->
 	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
 
+-spec(set_cook/2 :: (Genmedia :: pid(), CookPid :: pid()) -> 'ok').
 set_cook(Genmedia, CookPid) ->
 	gen_server:cast(Genmedia, {'$gen_media_set_cook', CookPid}).
 
+-spec(set_queue/2 :: (Genmedia :: pid(), Qpid :: pid()) -> 'ok').
 set_queue(Genmedia, Qpid) ->
 	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
 
@@ -960,7 +962,7 @@ handle_call({'$gen_media_set_queue', Qpid}, _From, #state{callrec = Call, queue_
 	end,
 	Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
 	{reply, ok, State#state{queue_pid = {Queue, Qpid}, monitors = Newmons}};
-handle_call('$gen_media_get_url_vars', From, #state{url_pop_getvars = GenPopopts, substate = Substate, callback = Callback} = State) ->
+handle_call('$gen_media_get_url_vars', _From, #state{url_pop_getvars = GenPopopts, substate = Substate, callback = Callback} = State) ->
 	Cbopts = case erlang:function_exported(Callback, urlpop_getvars, 1) of
 		true ->
 			Callback:urlpop_getvars(Substate);
@@ -1133,6 +1135,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
+-spec(format_status/2 :: (Cause :: any(), [any()]) -> #state{}).
 format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
 	% prevent client data from being dumped
 	NewCall = case Call#call.client of
@@ -1187,6 +1190,9 @@ set_agent_state(Apid, Args) ->
 	catch
 		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
 			?WARNING("Agent ~p is a dead pid", [Apid]),
+			badagent;
+		exit:{max_ringouts, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?DEBUG("Max ringouts reached for agent ~p", [Apid]),
 			badagent
 	end.
 
@@ -1388,7 +1394,7 @@ correct_client_sub(Id) ->
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
-set_cpx_mon(#state{callrec = Call} = State, Details) ->
+set_cpx_mon(#state{callrec = _Call} = State, Details) ->
 	set_cpx_mon(State, Details, ignore).
 
 set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
@@ -1402,7 +1408,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
 		{media_path, Call#call.media_path},
 		{direction, Call#call.direction}
 	],
-	{Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
+	{_Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
 		{undefined, undefined} ->
 			{[], MidBasedet};
 		{undefined, _A} ->
@@ -1666,7 +1672,9 @@ url_pop_test_() ->
 	end}.
 	
 init_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_init_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -1720,10 +1728,12 @@ init_test_() ->
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"default_queue", Qpid}}}, Res),
 			Assertmocks()
 		end}
-	end]}.
+	end]}}.
 
 handle_call_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_handle_call_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -2467,10 +2477,12 @@ handle_call_test_() ->
 			?assertEqual({"default_queue", Qpid}, State#state.queue_pid),
 			Assertmocks()
 		end}
-	end]}.
+	end]}}.
 
 handle_cast_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_handle_cast),
+	{spawn, N, {foreach,
 	fun() ->
 		Call = #call{
 			id = "testcall",
@@ -2535,10 +2547,12 @@ handle_cast_test_() ->
 			{noreply, #state{callrec = Newcall}} = handle_cast({'$gen_media_add_skills', [cookskill]}, State),
 			?assertEqual([cookskill], Newcall#call.skills)
 		end}
-	end]}.
+	end]}}.
 
 handle_info_test_() ->
-	{inorder, {foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_handle_info_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{Seedstate}
@@ -2765,7 +2779,9 @@ handle_info_test_() ->
 	end]}}.
 	
 agent_interact_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_agent_interact_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		Callrec = #call{id = "testcall", source = self(), client = #client{}},
 		{ok, Mock} = gen_leader_mock:start(agent_manager),
@@ -2998,10 +3014,12 @@ agent_interact_test_() ->
 			?assertEqual(undefined, Res#state.ring_pid),
 			gen_event_mock:assert_expectations(cdr)
 		end}
-	end]}.
+	end]}}.
 
 outgoing_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_outgoing_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		{ok, Apid} = agent:start(#agent{login = "testagent", state = precall, statedata = "clientrec"}),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
@@ -3078,10 +3096,12 @@ outgoing_test_() ->
 			gen_leader_mock:assert_expectations(Ammock),
 			gen_event_mock:assert_expectations(cdr)
 		end}
-	end]}.
+	end]}}.
 
 priv_queue_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(gen_media_priv_queue_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		{ok, QMpid} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -3132,6 +3152,6 @@ priv_queue_test_() ->
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
 			Mocks()
 		end}
-	end]}.
+	end]}}.
 
 -endif.

@@ -514,7 +514,7 @@ do_recipe([], _Ticked, _Qpid, _Call) ->
 do_recipe(Recipe, Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
 	do_recipe(Recipe, Ticked, Qpid, Call, []).
 
-do_recipe([], _Ticked, Qpid, Call, Acc) ->
+do_recipe([], _Ticked, _Qpid, _Call, Acc) ->
 	Acc;
 do_recipe([{Conditions, Op, Runs, _Comment} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
 	case check_conditions(Conditions, Ticked, Qpid, Call) of

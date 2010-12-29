@@ -834,7 +834,9 @@ timestamp_comp(A, B) when is_record(A, agent_profile) ->
 %%--------------------------------------------------------------------
 
 crud_test_() ->
-	{setup,
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_crud_tests),
+	{spawn, N, {setup,
 	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
@@ -881,10 +883,12 @@ crud_test_() ->
 		new_profile("target", []),
 		Out = set_profile("target", #agent_profile{name = "original"}),
 		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
-	end}]}.
+	end}]}}.
 
 auth_no_integration_test_() ->
-	{setup,
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_auth_no_integration),
+	{spawn, N, {setup,
 	fun() -> 
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
@@ -915,10 +919,12 @@ auth_no_integration_test_() ->
 		?assertEqual({ok, true}, get_extended_prop({id, "1"}, agent)),
 		drop_extended_prop({id, "1"}, agent),
 		?assertEqual(undefined, get_extended_prop({id, "1"}, agent))
-	end}]}.
+	end}]}}.
 
 auth_integration_test_() ->
-	{foreach,
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_auth_integration_tests),
+	{spawn, N, {foreach,
 	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
@@ -988,162 +994,131 @@ auth_integration_test_() ->
 			?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),
 			?assertMatch({allow, "1", _Skills, agent, "Default"}, local_auth("agent", "Password123"))
 		end}
-	end]}.
+	end]}}.
 
 release_opt_test_() ->
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			build_tables()
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_release_opt_tests),
+	{spawn, N, {foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables()
+	end,
+	fun(_) -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	[{"Add new release option", fun() ->
+		Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+		new_release(Releaseopt),
+		F = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+			qlc:e(Select)
 		end,
-		fun(_) -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()])
+		?assertMatch({atomic, [#release_opt{label ="testopt"}]}, mnesia:transaction(F))
+	end },
+	{"Destroy a release option", fun() ->
+		Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+		new_release(Releaseopt),
+		destroy_release("testopt"),
+		F = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+			qlc:e(Select)
 		end,
-		[
-			{
-				"Add new release option",
-				fun() ->
-					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
-					new_release(Releaseopt),
-					F = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
-						qlc:e(Select)
-					end,
-					?assertMatch({atomic, [#release_opt{label ="testopt"}]}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Destroy a release option",
-				fun() ->
-					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
-					new_release(Releaseopt),
-					destroy_release("testopt"),
-					F = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Update a release option",
-				fun() ->
-					Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
-					Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
-					new_release(Oldopt),
-					update_release("oldopt", Newopt),
-					Getold = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "oldopt"]),
-						qlc:e(Select)
-					end,
-					Getnew = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "newopt"]),
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(Getold)),
-					?assertMatch({atomic, [#release_opt{label = "newopt"}]}, mnesia:transaction(Getnew))
-				end
-			},
-			{
-				"Get all release options",
-				fun() ->
-					Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
-					Bopt = #release_opt{label = "boption", id = 200, bias = 1},
-					Copt = #release_opt{label = "coption", id = 100, bias = -1},
-					new_release(Copt),
-					new_release(Bopt),
-					new_release(Aopt),
-					?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
-				end
-			}
-		]
-	}.
+		?assertEqual({atomic, []}, mnesia:transaction(F))
+	end},
+	{"Update a release option", fun() ->
+		Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
+		Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
+		new_release(Oldopt),
+		update_release("oldopt", Newopt),
+		Getold = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "oldopt"]),
+			qlc:e(Select)
+		end,
+		Getnew = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "newopt"]),
+			qlc:e(Select)
+		end,
+		?assertEqual({atomic, []}, mnesia:transaction(Getold)),
+		?assertMatch({atomic, [#release_opt{label = "newopt"}]}, mnesia:transaction(Getnew))
+	end},
+	{"Get all release options", fun() ->
+		Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
+		Bopt = #release_opt{label = "boption", id = 200, bias = 1},
+		Copt = #release_opt{label = "coption", id = 100, bias = -1},
+		new_release(Copt),
+		new_release(Bopt),
+		new_release(Aopt),
+		?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
+	end}]}}.
 
 profile_test_() ->
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			build_tables()
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_profile_test),
+	{spawn, N, {foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables()
+	end,
+	fun(_) -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	[{"Add a profile", fun() ->
+		F = fun() ->
+			QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+			qlc:e(QH)
 		end,
-		fun(_) -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()])
+		?assertEqual({atomic, []}, mnesia:transaction(F)),
+		?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
+		Test = #agent_profile{name = "test profile", skills = [testskill]},
+		?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
+		?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
+	end},
+	{"Update a profile", fun() ->
+		new_profile(#agent_profile{name = "initial", skills = [english]}),
+		?assertNot(undefined == get_profile("initial")),
+		?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
+		?assertEqual(undefined, get_profile("initial")),
+		?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
+	end},
+	{"Remove a profile", fun() ->
+		F = fun() ->
+			QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+			qlc:e(QH)
 		end,
-		[
-			{
-				"Add a profile",
-				fun() ->
-					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
-						qlc:e(QH)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(F)),
-					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
-					Test = #agent_profile{name = "test profile", skills = [testskill]},
-					?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
-					?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
-				end
-			},
-			{
-				"Update a profile",
-				fun() ->
-					new_profile(#agent_profile{name = "initial", skills = [english]}),
-					?assertNot(undefined == get_profile("initial")),
-					?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
-					?assertEqual(undefined, get_profile("initial")),
-					?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
-				end
-			},
-			{
-				"Remove a profile",
-				fun() ->
-					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
-						qlc:e(QH)
-					end,
-					new_profile("test profile", [english]),
-					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
-					?assertEqual({atomic, ok}, destroy_profile("test profile")),
-					?assertEqual({atomic, []}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Get a profile",
-				fun() ->
-					?assertEqual(undefined, get_profile("noexists")),
-					new_profile("test profile", [testskill]),
-					?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
-				end
-			},
-			{
-				"Get all profiles",
-				fun() ->
-					new_profile("B", [german]),
-					new_profile("A", [english]),
-					new_profile("C", [testskill]),
-					F = fun() ->
-						mnesia:delete({agent_profile, "Default"})
-					end,
-					mnesia:transaction(F),
-					?CONSOLE("profs:  ~p", [get_profiles()]),
-					?assertMatch([
-						#agent_profile{name = "A", skills = [english]},
-						#agent_profile{name = "B", skills = [german]},
-						#agent_profile{name = "C", skills = [testskill]}], 
-						get_profiles())
-				end
-			}
-		]
-	}.
+		new_profile("test profile", [english]),
+		?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
+		?assertEqual({atomic, ok}, destroy_profile("test profile")),
+		?assertEqual({atomic, []}, mnesia:transaction(F))
+	end },
+	{"Get a profile", fun() ->
+		?assertEqual(undefined, get_profile("noexists")),
+		new_profile("test profile", [testskill]),
+		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+	end},
+	{"Get all profiles", fun() ->
+		new_profile("B", [german]),
+		new_profile("A", [english]),
+		new_profile("C", [testskill]),
+		F = fun() ->
+			mnesia:delete({agent_profile, "Default"})
+		end,
+		mnesia:transaction(F),
+		?CONSOLE("profs:  ~p", [get_profiles()]),
+		?assertMatch([
+			#agent_profile{name = "A", skills = [english]},
+			#agent_profile{name = "B", skills = [german]},
+			#agent_profile{name = "C", skills = [testskill]}], 
+			get_profiles())
+	end}]}}.
 	
 diff_recs_test_() ->
 	[{"agent_auth records",

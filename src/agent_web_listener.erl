@@ -142,6 +142,14 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+-type(web_reply() :: {non_neg_integer(), [any()], binary()}).
+-type(cookie_res() :: 
+	'badcookie' | 
+	{'undefined', 'undefined', 'undefined'} |
+	{string(), 'undefined', 'undefined'} |
+	{string(), string(), 'undefined'} |
+	{string(), string(), pid()}
+).
 %%====================================================================
 %% API
 %%====================================================================
@@ -410,6 +418,7 @@ send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
 %% 	"timestamp": timestamp()
 %%  "mediaload": any(); optional
 %% }</pre>
+-spec(check_cookie/1 :: (Cookie :: cookie_res()) -> web_reply()).
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
 	Agentrec = agent_web_connection:dump_agent(Conn),
@@ -479,6 +488,7 @@ check_cookie({_Reflist, _Salt, undefined}) ->
 %% 		"N":   string()
 %% 	}
 %% }</pre>
+-spec(get_salt/1 :: (Cookie :: cookie_res()) -> web_reply()).
 get_salt(badcookie) ->
 	Conn = undefined,
 	Reflist = erlang:ref_to_list(make_ref()),
@@ -562,10 +572,11 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"statetime": timestamp(),
 %% 	"timestamp": timestamp()
 %% }'
+-spec(login/4 :: (Cookie :: cookie_res(), Username :: string(), Password :: string(), Opts :: [any()]) -> web_reply()).
 login(badcookie, _, _, _) ->
 	?DEBUG("bad cookie", []),
 	check_cookie(badcookie);
-login({Ref, undefined, _Conn}, _, _, _) ->
+login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 	Endpointdata = proplists:get_value(voipendpointdata, Opts),
@@ -640,6 +651,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 %% `[{
 %% 	"name": string()
 %% }]'
+-spec(get_queue_list/0 :: () -> web_reply()).
 get_queue_list() ->
 	Queues = call_queue_config:get_queues(),
 	QueuesEncoded = [{struct, [
@@ -654,6 +666,7 @@ get_queue_list() ->
 %% 	"label":  string(),
 %% 	"id":     string()
 %% }]'
+-spec(get_brand_list/0 :: () -> web_reply()).
 get_brand_list() ->
 	Brands = call_queue_config:get_clients(),
 	BrandsEncoded = [{struct, [
@@ -670,6 +683,7 @@ get_brand_list() ->
 %% 	"id":     string(),
 %% 	"bias":   -1 | 0 | 1
 %% }]'
+-spec(get_release_opts/0 :: () -> web_reply()).
 get_release_opts() ->
 	Opts = agent_auth:get_releases(),
 	Encoded = [{struct, [
@@ -740,7 +754,7 @@ api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Your client is requesting a login without first requesting a salt.">>}]})};
-api(login, {Reflist, Salt, _Conn} = Cookie, Post) ->
+api(login, {_Reflist, _Salt, _Conn} = Cookie, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
 	Opts = [],

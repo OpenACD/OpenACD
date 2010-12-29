@@ -177,35 +177,14 @@ dojo.addOnLoad(function(){
 	var moduleTreeRefreshHandle = dojo.subscribe("modules/tree/refreshed", function(data){
 		dojo.connect(modules.tree, "onClick", function(item){
 			modules.activeNode = modules.store.getValue(item, 'node');
-			var node = modules.store.getValue(item, 'node');
-			/*dijit.byId("mediaConf").onDownloadEnd = function(){
-				dijit.byId("mediaSubmit").onClick = function(){
-					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").get('value'), 'mediaList');
-				};
-				dojo.publish("media/node/changed", [node]);
-				dojo.xhrGet({
-					url:"medias/" + node + "/" + medias.store.getValue(item, 'name') + "/get",
-					handleAs:"json",
-					load:function(resp, ioargs){
-						if(resp.success){
-							dijit.byId("mediaForm").set('value', resp);
-							dijit.byId("mediaEnabled").set('value', resp.enabled);
-						}
-						else{
-							//onsole.log(resp.message);
-						}
-					},
-					error:function(resp){
-						console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
-					}
-				});
-			};*/
-		
+			var node = modules.store.getValue(item, 'node');		
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", modules.store.getValue(item, 'name'));
 				dijit.byId("moduleConf").set('href', "openacd/modules/" + modules.store.getValue(item, 'name') + ".html");
+				dijit.byId("moduleMain").selectChild("moduleConf");
+			} else {
+				dijit.byId("moduleMain").selectChild("moduleNodeInfo");
 			}
-			dijit.byId("moduleMain").selectChild("moduleConf");
 		});
 		dojo.connect(modules.tree, 'onOpen', function(item, node){
 			dijit.byId('moduleTab').layout();
@@ -382,6 +361,7 @@ dojo.addOnLoad(function(){
 									dojo.byId("loginerrspan").innerHTML = '';
 									dojo.byId('loginerrp').style.display = 'none';
 									agents.getModules(dijit.byId('editAgentModuleForm'));
+									modules.getNodeStatus("moduleNodeInfo");
 								} else {
 									dojo.byId("loginerrp").style.display = "block";
 									dojo.byId("loginerrspan").innerHTML = response2.message;
@@ -420,6 +400,7 @@ dojo.addOnLoad(function(){
 					modules.refreshTree('moduleList');
 					clients.init();
 					releaseOpts.init();
+					modules.getNodeStatus("moduleNodeInfo");
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 				}
 				else{

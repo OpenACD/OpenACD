@@ -156,7 +156,7 @@ handle_info(update, State) ->
 			[];
 		_ ->
 			[{"Composite", lists:foldl(
-				fun({Profile, U}, A) ->
+				fun({_Profile, U}, A) ->
 						A + U
 				end,
 				0, Util) / AgentCount}]

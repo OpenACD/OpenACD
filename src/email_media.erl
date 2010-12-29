@@ -523,7 +523,8 @@ terminate(_Reason, _Callrec, _State) ->
 code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
-format_status(_, [PDict, State]) ->
+-spec(format_status/2 :: (Any :: any(), List :: [any()]) -> #state{}).
+format_status(_, [_PDict, State]) ->
 	% strip large data out of the state
 	State#state{mimed = {}, skeleton = undefined, file_map = [], outgoing_attachments = []}.
 
@@ -547,7 +548,8 @@ handle_ring_stop(_Callrec, State) ->
 
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
-	
+
+-spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> 'ok').
 handle_spy(Spy, Callrec, State) ->
 	agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
@@ -643,7 +645,7 @@ get_part_by_content_location([Part | Parts], Key) ->
 			{ok, Part};
 		Key2 ->
 			{ok, Part};
-		X ->
+		_X ->
 			get_part_by_content_location(Parts, Key)
 	end.
 
@@ -693,7 +695,7 @@ scrub_send_html_sub([{<<"img">>, Props, []} | Tail], Acc) ->
 		{_, Bin} ->
 			Bin
 	end,
-	[Text | Acc];
+	scrub_send_html(Tail, [Text | Acc]);
 scrub_send_html_sub([{<<"a">>, Props, Children} | Tail], Acc) ->
 	Text = case proplists:get_value(<<"href">>, Props) of
 		undefined ->

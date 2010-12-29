@@ -241,42 +241,6 @@ dojo.addOnLoad(init);
 		
 		<div dojoType="dijit.layout.StackContainer" region="center" id="agentsMain">		
 			<div dojoType="dijit.layout.ContentPane" id="agentModuleSettings">
-				<form dojoType="dijit.form.Form" id="editAgentModuleForm" action="javascript:void(0)" method="post">
-					<p>
-						<label for="agentModuleTCPListenEnabled">&nbsp;</label>
-						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').set('disabled', !this.checked)" />
-						<span class="translate">ENABLEAGENTTCP</span>
-					</p>
-					<p>
-						<label for="agentModuleTCPListen" class="translatecol">TCPPORT</label>
-						<input id="agentModuleTCPListen" dojoType="dijit.form.NumberTextBox" name="agentModuleTCPListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
-					</p>
-					<p>
-						<label for="agentModuleWebListenEnabled">&nbsp;</label>
-						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').set('disabled', !this.checked)" />
-						<span class="translate">ENABLEAGENTWEB</span>
-					</p>
-					<p>
-						<label for="agentModuleWebListen" class="translatecol">WEBPORT</label>
-						<input id="agentModuleWebListen" dojoType="dijit.form.NumberTextBox" name="agentModuleWebListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
-					</p>
-					<p>
-						<label for="agentModuleDialplanListenEnabled">&nbsp;</label>
-						<input id="agentModuleDialplanListenEnabled" name="agentModuleDialplanListenEnabled" dojoType="dijit.form.CheckBox" value="dialplanEnabled" />
-						<span class="translate">ENABLEAGENTDIALPLAN</span>
-					</p>
-					<p>
-						<label for="agentModuleSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="SUBMIT">
-							<script type="dojo/connect" event="onClick">
-								agents.updateModule('editAgentModuleForm');
-							</script>
-							<script type="dojo/method" event="postCreate">
-								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
-							</script>
-						</button>
-					</p>
-				</form>
 				<form dojoType="dijit.form.Form" id="editSpicecsmIntegration" action="javascript:void(0)" method="post">
 					<p>
 						<label for="spiceIntegrationEnabled">&nbsp;</label>
@@ -1039,7 +1003,7 @@ dojo.addOnLoad(init);
 		
 		<div id="moduleMain" dojoType="dijit.layout.StackContainer" region="center">
 			<div id="moduleNodeInfo" dojoType="dijit.layout.ContentPane">
-				Node data
+				<span class="error" id="nodesErrors"></span>
 			</div>
 			
 			<div id="moduleConf" dojoType="dojox.layout.ContentPane">

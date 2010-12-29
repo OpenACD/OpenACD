@@ -122,6 +122,31 @@ CPXSupervisor.setDefaultRingout = function(newVal, callback){
 	});
 }
 
+CPXSupervisor.setMaxRingout = function(newVal, callback){
+	var contentObj = {};
+	if(newVal){
+		contentObj.value = newVal;
+	}
+	console.log('the content sent', contentObj);
+	dojo.xhrPost({
+		url:"/modules/" + modules.activeNode + "/cpx_supervisor/update/max_ringouts",
+		handleAs:'json',
+		content:contentObj,
+		load:function(res){
+			if(res.success){
+				if(callback){
+					callback(res);
+				}
+				return;
+			}
+			errMessage(["setting max_ringout failed", res.message]);
+		},
+		error:function(res){
+			errMessage(["setting max_ringout errored", res]);
+		}
+	});
+}
+
 dojo.query(".translate, .translatecol", 'cpx_module').forEach(function(node){
 	var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
 	if(trans){
@@ -210,5 +235,26 @@ dojo.xhrGet({
 	},
 	error:function(err){
 		console.warn('getting default reingout errored', res);
+	}
+});
+
+dojo.xhrGet({
+	url:"/modules/" +modules.activeNode + "/cpx_supervisor/get/max_ringouts",
+	handleAs:"json",
+	load:function(res){
+		if(res.success){
+			var targetDij = dijit.byId("maxRingouts");
+			targetDij.set('placeHolder', res['default']);
+			if(res.isDefualt){
+				targetDij.set('value', '');
+			} else {
+				targetDij.set('value', res.value);
+			}
+			return;
+		}
+		errMessage(['getting defualt ringout failed', res.message]);
+	},
+	error:function(err){
+		console.warn('getting default ringout errored,', res);
 	}
 });

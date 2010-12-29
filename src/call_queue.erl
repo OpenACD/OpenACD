@@ -650,9 +650,6 @@ set_cpx_mon(State, Watch) ->
 			{{_, {Megsec, Sec, _}}, _} = gb_trees:smallest(State#state.queue),
 			[{oldest, {timestamp, (Megsec * 1000000) + Sec}} | MidDetails]
 	end,
-	Hp = [
-		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
-	],
 	cpx_monitor:set(Key, Details, Watch).
 
 %% @private

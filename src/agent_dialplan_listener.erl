@@ -38,8 +38,12 @@
 -endif.
 
 -record(state, {
-	registry = dict:new()
+	registry = dict:new() :: dict()
 }).
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 %% API
 -export([start/0, start_link/0, stop/0]).
@@ -48,12 +52,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -88,7 +95,7 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 				{atomic, [_A, _B | _]} ->
 					?WARNING("more than one agent found for username ~p, login failed", [Username]),
 					{noreply, State};
-				{atomic, [AgentAuth]} when Endpoint == error ->
+				{atomic, [_AgentAuth]} when Endpoint == error ->
 					?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
 				{atomic, [AgentAuth]} ->
 					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile},

@@ -58,6 +58,8 @@
 -record(state, {
 	agent_rec :: #agent{},
 	ring_fails = 0 :: non_neg_integer(),
+	ringouts = 0 :: non_neg_integer(),
+	max_ringouts = infinity :: 'infinity' | pos_integer(),
 	ring_locked = 'unlocked' :: 'unlocked' | 'locked'
 }).
 
@@ -409,8 +411,12 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		_Orelse ->
 			Agent2
 	end,
+	{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
 	set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
-	{ok, Agent#agent.state, #state{agent_rec = Agent3#agent{start_opts = Options}}}.
+	{ok, Agent#agent.state, #state{
+		agent_rec = Agent3#agent{start_opts = Options},
+		max_ringouts = MaxRingouts
+	}}.
 	
 %% @doc The various state changes available when an agent is idle. <ul>
 %%<li>`{precall, Client :: #client{}}'</li>
@@ -476,7 +482,7 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
 			set_cpx_monitor(Newagent, []),
-			{reply, ok, oncall, State#state{agent_rec = Newagent}};
+			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		invalid ->
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
@@ -489,7 +495,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{stat
 			gen_leader:cast(agent_manager, {end_avail, Newagent#agent.login}),
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newagent, []),
-			{reply, ok, oncall, State#state{agent_rec = Newagent}};
+			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		_Other -> 
 			{reply, invalid, ringing, State}
 	end;
@@ -505,6 +511,8 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	Newagent = Agent#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
 	set_cpx_monitor(Newagent, [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
+ringing(idle, _From, #state{ringouts = X, max_ringouts = Max} = State) when not (X < Max) ->
+	{stop, max_ringouts, State};
 ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 	Locked = case cpx:get_env(agent_ringout_lock, 0) of
 		{ok, 0} ->
@@ -518,7 +526,7 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newagent, []),
-	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked}};
+	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked, ringouts = State#state.ringouts + 1}};
 ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
@@ -640,9 +648,9 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 			set_cpx_monitor(Newagent, []),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}}
 	end;
-oncall({wrapup, #call{media_path = inband} = Call}, From, State) ->
+oncall({wrapup, #call{media_path = inband} = _Call}, From, State) ->
 	oncall(wrapup, From, State);
-oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #state{agent_rec = #agent{statedata = Currentcall, connection = AgentConnection} = Agent} = State) when From =:= CallSource orelse From =:= Currentcall#call.source ->
+oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #state{agent_rec = #agent{statedata = Currentcall} = Agent} = State) when From =:= CallSource orelse From =:= Currentcall#call.source ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
@@ -1265,7 +1273,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec(format_status/2 :: (Cause :: atom(), Data :: [any()]) -> any()).
 format_status(normal, [PDict, State]) ->
 	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
-format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
+format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 	% prevent client data from being dumped
 	Newagent = case Agent#agent.statedata of
 		#call{client = Client} = Call when is_record(Call#call.client, client) ->
@@ -1665,8 +1673,9 @@ from_ringing_tests() ->
 				ok
 			end),
 			application:set_env('OpenACD', agent_ringout_lock, 10),
-			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
+			{reply, ok, idle, #state{ringouts = Ringouts, ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
 			?assertEqual(locked, Newlocked),
+			?assertEqual(1, Ringouts),
 			receive
 				ring_unlock ->
 					ok
@@ -1676,6 +1685,14 @@ from_ringing_tests() ->
 			Assertmocks(),
 			application:set_env('OpenACD', agent_ringout_lock, 0)
 	 end}
+	end,
+	fun({State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"max_ringouts met/exceeded", fun() ->
+			TestState = State#state{max_ringouts = 3, ringouts = 3},
+			Out = ringing(idle, "from", TestState),
+			?assertEqual({stop, max_ringouts, TestState}, Out),
+			Assertmocks()
+		end}
 	end,
 	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
@@ -1706,8 +1723,11 @@ from_ringing_tests() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
-			?assertMatch({reply, ok, oncall, _State}, ringing(oncall, "from", State)),
-			Assertmocks()
+			Out = ringing(oncall, "from", State),
+			?assertMatch({reply, ok, oncall, _State}, Out),
+			Assertmocks(),
+			NewState = element(4, Out),
+			?assertEqual(0, NewState#state.ringouts)
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
@@ -1735,8 +1755,11 @@ from_ringing_tests() ->
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
-			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", State)),
-			Assertmocks()
+			Out = ringing({oncall, Callrec}, "from", State),
+			?assertMatch({reply, ok, oncall, _State}, Out),
+			Assertmocks(),
+			NewState= element(4, Out),
+			?assertEqual(0, NewState#state.ringouts)
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->

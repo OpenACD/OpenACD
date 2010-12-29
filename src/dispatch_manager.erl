@@ -141,7 +141,7 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_cast({now_avail, AgentPid}, State) -> 
-	?DEBUG("Someone's available now.", []),
+	?DEBUG("Someone's (~p) available now.", [AgentPid]),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
 			{noreply, balance(State)};
@@ -151,7 +151,7 @@ handle_cast({now_avail, AgentPid}, State) ->
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
-	?DEBUG("An agent is no longer available.", []),
+	?DEBUG("An agent (~p) is no longer available.", [AgentPid]),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
@@ -173,7 +173,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	?DEBUG("Announcement that an agent is down, balancing in response.", []),
+	?DEBUG("Announcement that an agent (~p) is down, balancing in response.", [Object]),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
@@ -277,159 +277,137 @@ test_primer() ->
 	mnesia:start().
 
 balance_test_() ->
-	{
-		foreach,
-		fun() ->
-			test_primer(),
-			agent_manager:start([node()]),
-			queue_manager:start([node()]),
-			start(),
+	util:start_testnode(),
+	N = util:start_testnode(dispatch_manager_balance_tests),
+	{spawn, N, {inorder, {foreach,
+	fun() ->
+		test_primer(),
+		agent_manager:start([node()]),
+		queue_manager:start([node()]),
+		start(),
+		ok
+	end,
+	fun(ok) ->
+		agent_manager:stop(),
+		queue_manager:stop(),
+		stop(),
+		timer:sleep(50)
+	end,
+	[{"Agent started, but is still released", fun() ->
+		{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		receive
+		after 100 ->
 			ok
 		end,
-		fun(ok) ->
-			agent_manager:stop(),
-			queue_manager:stop(),
-			stop()
+		State1 = dump(),
+		?assertEqual([], State1#state.agents),
+		?assertEqual([], State1#state.dispatchers)
+	end},
+	{"Agent started then set available, so a dispatcher starts", fun() ->
+		State1 = dump(),
+		?assertEqual([], State1#state.agents),
+		?assertEqual([], State1#state.dispatchers),
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive
+		after 100 ->
+			ok
 		end,
-		[
-			{
-				"Agent started, but is still released",
-				fun() ->
-					{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					receive
-					after 100 ->
-						ok
-					end,
-					State1 = dump(),
-					?assertEqual([], State1#state.agents),
-					?assertEqual([], State1#state.dispatchers)
-				end
-			},
-			{
-				"Agent started then set available, so a dispatcher starts",
-				fun() ->
-					State1 = dump(),
-					?assertEqual([], State1#state.agents),
-					?assertEqual([], State1#state.dispatchers),
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					agent:set_state(Apid, idle),
-					receive
-					after 100 ->
-						ok
-					end,
-					State2 = dump(),
-					?assertEqual([Apid], State2#state.agents),
-					?assertEqual(1, length(State2#state.dispatchers))
-				end
-			},
-			{
-				"Agent died, but dispatchers don't die automatically",
-				fun() ->
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					agent:set_state(Apid, idle),
-					receive
-					after 100 ->
-						ok
-					end,
-					State1 = dump(),
-					?assertEqual([Apid], State1#state.agents),
-					?assertEqual(1, length(State1#state.dispatchers)),
-					exit(Apid, kill),
-					receive
-					after 100 ->
-						ok
-					end,
-					State2 = dump(),
-					?assertEqual([], State2#state.agents),
-					?assertEqual(1, length(State2#state.dispatchers))
-				end
-			},
-			{
-				"Unexpected dispatcher death",
-				fun() ->
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					agent:set_state(Apid, idle),
-					#state{dispatchers = [PidToKill]} = dump(),
-					exit(PidToKill, test_kill),
-					receive
-					after 100 ->
-						ok
-					end,
-					State1 = dump(),
-					?assertEqual(1, length(State1#state.dispatchers)),
-					?assertNot([PidToKill] =:= State1#state.dispatchers)
-				end
-			},
-			{
-				"Agent unavailable, do a dispatcher ends",
-				fun() ->
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					agent:set_state(Apid, idle),
-					receive
-					after 100 ->
-						ok
-					end,
-					State1 = dump(),
-					?assertEqual([Apid], State1#state.agents),
-					?assertEqual(1, length(State1#state.dispatchers)),
-					agent:set_state(Apid, released, default),
-					receive
-					after 100 ->
-						ok
-					end,
-					State2 = dump(),
-					?assertEqual([], State2#state.agents),
-					?assertEqual([], State2#state.agents)
-				end
-			},
-			{
-				"Agent avail and already tracked",
-				fun() ->
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-					agent:set_state(Apid, idle),
-					receive
-					after 100 ->
-						ok
-					end,
-					State1 = dump(),
-					?assertEqual([Apid], State1#state.agents),
-					?assertEqual(1, length(State1#state.dispatchers)),
-					gen_server:cast(?MODULE, {now_avail, Apid}),
-					State2 = dump(),
-					?assertEqual([Apid], State2#state.agents),
-					?assertEqual(1, length(State1#state.dispatchers))
-				end
-			},
-			{
-				"Dispatcher unfortunately dies, but notices agents on it's return.",
-				fun() ->
-					agent_dummy_connection:start_x(10),
-					Agents = agent_manager:list(),
-					Setrel = fun(I) ->
-						{_Login, {Pid, _, _, _}} = lists:nth(I, Agents),
-						agent:set_state(Pid, released, default)
-					end,
-					lists:foreach(Setrel, lists:seq(1, 5)),
-					#state{agents = Expectedagents, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
-					exit(whereis(dispatch_manager), kill),
-					timer:sleep(5),
-					{ok, _Pid} = start(),
-					timer:sleep(30),
-					#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
-					?DEBUG("Expected:  ~p", [Expectedagents]),
-					?DEBUG("New agents:  ~p", [Newagents]),
-					?assertEqual(length(Expectedagents), length(Newagents)),
-					?assertEqual(5, length(Newdispathers)),
-					lists:foreach(fun(I) ->
-						?assertNot(lists:member(I, Unexpecteddispatchers))
-					end, Newdispathers),
-					lists:foreach(fun(I) ->
-						?assert(lists:member(I, Expectedagents))
-					end, Newagents)
-				end
-			}
-		]
-	}.
+		State2 = dump(),
+		?assertEqual([Apid], State2#state.agents),
+		?assertEqual(1, length(State2#state.dispatchers))
+	end},
+	{"Agent died, but dispatchers don't die automatically", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive
+		after 100 ->
+			ok
+		end,
+		State1 = dump(),
+		?assertEqual([Apid], State1#state.agents),
+		?assertEqual(1, length(State1#state.dispatchers)),
+		exit(Apid, kill),
+		receive
+		after 100 ->
+			ok
+		end,
+		State2 = dump(),
+		?assertEqual([], State2#state.agents),
+		?assertEqual(1, length(State2#state.dispatchers))
+	end},
+	{"Unexpected dispatcher death", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		#state{dispatchers = [PidToKill]} = dump(),
+		exit(PidToKill, test_kill),
+		receive
+		after 100 ->
+			ok
+		end,
+		State1 = dump(),
+		?assertEqual(1, length(State1#state.dispatchers)),
+		?assertNot([PidToKill] =:= State1#state.dispatchers)
+	end},
+	{"Agent unavailable, do a dispatcher ends", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive
+		after 100 ->
+			ok
+		end,
+		State1 = dump(),
+		?assertEqual([Apid], State1#state.agents),
+		?assertEqual(1, length(State1#state.dispatchers)),
+		agent:set_state(Apid, released, default),
+		receive
+		after 100 ->
+			ok
+		end,
+		State2 = dump(),
+		?assertEqual([], State2#state.agents),
+		?assertEqual([], State2#state.agents)
+	end},
+	{"Agent avail and already tracked", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive
+		after 100 ->
+			ok
+		end,
+		State1 = dump(),
+		?assertEqual([Apid], State1#state.agents),
+		?assertEqual(1, length(State1#state.dispatchers)),
+		gen_server:cast(?MODULE, {now_avail, Apid}),
+		State2 = dump(),
+		?assertEqual([Apid], State2#state.agents),
+		?assertEqual(1, length(State1#state.dispatchers))
+	end},
+	{"Dispatcher unfortunately dies, but notices agents on it's return.", fun() ->
+		agent_dummy_connection:start_x(10),
+		Agents = agent_manager:list(),
+		Setrel = fun(I) ->
+			{_Login, {Pid, _, _, _}} = lists:nth(I, Agents),
+			agent:set_state(Pid, released, default)
+		end,
+		lists:foreach(Setrel, lists:seq(1, 5)),
+		#state{agents = Expectedagents, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
+		exit(whereis(dispatch_manager), kill),
+		timer:sleep(5),
+		{ok, _Pid} = start(),
+		timer:sleep(1000),
+		#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
+		?DEBUG("Expected:  ~p", [Expectedagents]),
+		?DEBUG("New agents:  ~p", [Newagents]),
+		?assertEqual(length(Expectedagents), length(Newagents)),
+		?assertEqual(5, length(Newdispathers)),
+		lists:foreach(fun(I) ->
+			?assertNot(lists:member(I, Unexpecteddispatchers))
+		end, Newdispathers),
+		lists:foreach(fun(I) ->
+			?assert(lists:member(I, Expectedagents))
+		end, Newagents)
+	end}]}}}.
 
 gen_server_test_start() ->
 	util:start_testnode(),

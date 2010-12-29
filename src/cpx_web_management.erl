@@ -315,7 +315,7 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
 	Node = list_to_existing_atom(binary_to_list(NodeBin)),
 	case freeswitch_monitor:monitor_agent(binary_to_list(Agent), binary_to_list(SpyDialstring), Node) of
-		{ok, Pid} ->
+		{ok, _Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_agent} ->
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"No such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
@@ -326,7 +326,7 @@ json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
 json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring, NodeBin]) ->
 	Node = list_to_existing_atom(binary_to_list(NodeBin)),
 	case freesiwtch_monitor:monitor_client(binary_to_list(ClientLabel), binary_to_list(SpyDialstring), Node) of
-		{ok, Pid} ->
+		{ok, _Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_client} ->
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
@@ -422,7 +422,7 @@ api(dialer, _, Post) ->
 		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
 		?DEBUG("starting dialer", []),
 		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
-			{ok, Pid} ->
+			{ok, _Pid} ->
 				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
 			{error, Reason} ->
 				{500, [], mochijson2:encode({struct, [{success, false}, {message, Reason}]})}
@@ -596,7 +596,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 					{struct, [{success, true}, {<<"message">>< <<"Already enabled">>}]}
 			end
 	end,
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout, Dialplanout]}]})};
 api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
 		undefined ->
@@ -1063,6 +1063,8 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 %% =====
 %% modules -> *
 %% =====
+% TODO this function is ugly.  It's used to populate the modules list,
+% but the result of the rpc call is not used ever.
 api({modules, "poll"}, ?COOKIE, _Post) ->
 	{ok, Appnodes} = application:get_env('OpenACD', nodes),
 	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
@@ -1075,17 +1077,173 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
 			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
-			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)}
+			{cpx_monitor_odbc_supervisor, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor], 2000)},
+			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)},
+			{agent_web_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_web_listener], 2000)},
+			{agent_tcp_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_tcp_listener], 2000)},
+			{agent_dialplan_listener, rpc:call(Node, cpx_supervisor, get_conf, [agent_dialplan_listener], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_modules(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+api({modules, "status"}, ?COOKIE, _Post) ->
+	{ok, AppNodes} = cpx:get_env(nodes, []),
+	Error = case lists:member(node(), AppNodes) of
+		true ->
+			[];
+		false ->
+			[{<<"error">>, list_to_binary(io_lib:format("This node (~s) is not a member of the cluster.", [node()]))}]
+	end,
+	DataRaw = [begin
+		Uptime = rpc:call(Node, cpx, get_env, [uptime, false]),
+		Confs = case rpc:call(Node, cpx_supervisor, get_conf, []) of
+			undefined ->
+				[];
+			Else ->
+				Else
+		end,
+		{Node, Uptime, Confs}
+	end || Node <- AppNodes],
+	Jsonable = [begin
+		IsUp = case Uptime of
+			{ok, N} when is_integer(N) ->
+				[{<<"isUp">>, true}, {<<"uptime">>, N * 1000}];
+			_ ->
+				[{<<"isUp">>, false}]
+		end,
+		UpConfs = [element(2, Conf) || Conf <- Confs],
+		{Node, {struct, [{modules, UpConfs} | IsUp]}}
+	end || {Node, Uptime, Confs} <- DataRaw],
+	Json = {struct, [
+		{success, true},
+		{nodes, {struct, Jsonable}}
+	]},
+	{200, [], mochijson2:encode(Json)};
 
 %% =====
-%% media -> node -> media
+%% modules -> node -> modules
 %% =====
 
+api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of
+		#cpx_conf{start_args = Port} ->
+			OutPort = case Port of
+				[] ->
+					5050;
+				[N] ->
+					N
+			end,
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 5050}]})};
+		Else ->
+			?WARNING("Error getting agent_web_listener settings:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
+	end;
+api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			StartArgs = case proplists:get_value("port", Post, "") of
+				"" ->
+					[];
+				List ->
+					[list_to_integer(List)]
+			end,
+			Conf = #cpx_conf{
+				id = agent_web_listener,
+				module_name = agent_web_listener,
+				start_function = start_link,
+				start_args = StartArgs,
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{<<"success">>, true}]})};
+				{aborted, {start_fail, Why}} ->
+					?WARNING("Could not start agent_web_listener:  ~p", [Why]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
+		#cpx_conf{start_args = Port} ->
+			OutPort = case Port of
+				[] ->
+					1337;
+				[N] ->
+					N
+			end,
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 1337}]})};
+		Else ->
+			?WARNING("Error getting agent_tcp_listener settings:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
+	end;
+api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			StartArgs = case proplists:get_value("port", Post, "") of
+				"" ->
+					[];
+				List ->
+					[list_to_integer(List)]
+			end,
+			Conf = #cpx_conf{
+				id = agent_tcp_listener,
+				module_name = agent_tcp_listener,
+				start_function = start_link, start_args = StartArgs,
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_tcp_listener, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{<<"success">>, true}]})};
+				{aborted, {start_fail, Why}} ->
+					?WARNING("Could not start agent_tcp_listener:  ~p", [Why]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_tcp_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_dialplan_listener]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
+		_ ->
+			{200, [], mochijson2:encode({struct, [{succes, true}, {<<"enabled">>, true}]})}
+	end;
+api({modules, Node, "agent_dialplan_listener", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			Conf = #cpx_conf{
+				id = agent_dialplan_listener,
+				module_name = agent_dialplan_listener,
+				start_function = start_link,
+				start_args = [],
+				supervisor = agent_connection_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_dialplan_listener, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				{aborted, {start_fail, Err}} ->
+					?WARNING("Could not start dp listener:  ~p", [Err]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start listener">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_dialplan_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
 api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_web_management]) of
@@ -1174,6 +1332,78 @@ api({modules, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}]};
 		_ ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_web_management], 2000),
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_monitor_odbc_supervisor", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor]) of
+		undefined ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, false}
+			]};
+		#cpx_conf{start_args = [RawDsn | RawArgs]} ->
+			Dsn = list_to_binary(RawDsn),
+			OtherOpts = case RawArgs of
+				[] ->
+					[];
+				[Args] ->
+					[case O of
+						trace ->
+							{trace, true};
+						{max_r, N} ->
+							{max_r, N};
+						{max_t, N} ->
+							{max_t, N}
+					end || O <- Args]
+			end,
+			Opts = [{dsn, Dsn} | OtherOpts],
+			{struct, [{success, true}, {<<"enabled">>, true} | Opts]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_monitor_odbc_supervisor", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("enabled", Post) of
+		"true" ->
+			Dsn = proplists:get_value("dsn", Post),
+			BuildOpts = fun
+				(_R, [], Acc) ->
+					Acc;
+				(R, [{"trace", "true"} | Tail], Acc) ->
+					R(R, Tail, [trace | Acc]);
+				(R, [{"maxR", ListN} | Tail], Acc) ->
+					R(R, Tail, [{max_r, list_to_integer(ListN)} | Acc]);
+				(R, [{"maxT", ListN} | Tail], Acc) ->
+					R(R, Tail, [{max_t, list_to_integer(ListN)} | Acc]);
+				(R, [_ | Tail], Acc) ->
+					R(R, Tail, Acc)
+			end,
+			Opts = BuildOpts(BuildOpts, Post, []),
+			StartArgs = case Opts of
+				[] ->
+					[Dsn];
+				_ ->
+					[Dsn, Opts]
+			end,
+			Conf = #cpx_conf{
+				id = cpx_monitor_odbc_supervisor,
+				module_name  = cpx_monitor_odbc_supervisor,
+				start_function = start_link,
+				start_args = StartArgs,
+				supervisor = management_sup
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_monitor_odbc_supervisor, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{struct, [{success, true}]};
+				Else ->
+					{struct, [
+						{success, false},
+						{<<"message">>, list_to_binary(io_lib:format("Could not start odbc_supervisor<pre>~n~p</pre>", [Else]))}
+					]}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_monitor_odbc_supervisor]),
 			{struct, [{success, true}]}
 	end,
 	{200, [], mochijson2:encode(Json)};
@@ -1592,7 +1822,40 @@ api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post)
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_supervisor", "get", "max_ringouts"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx, get_env, [max_ringouts]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, infinity}]})};
+		{ok, infinity} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, infinity}]})};
+		{ok, N} when is_integer(N) ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, N}, {<<"default">>, infinity}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "update", "max_ringouts"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Val = case proplists:get_value("value", Post) of
+		undefined ->
+			infinity;
+		"infinity" ->
+			infinity;
+		X ->
+			case list_to_integer(X) of
+				0 ->
+					infinity;
+				Nx ->
+					Nx
+			end
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, set_value, [max_ringouts, Val]) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"update what now?">>}]})};
 api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -2130,6 +2393,7 @@ get_pubkey() ->
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
 
+-spec(parse_posted_skills/1 :: (PostedSkills :: [string()]) -> [atom() | {atom(), string()}]).
 parse_posted_skills(PostedSkills) ->
 	parse_posted_skills(PostedSkills, []).
 
@@ -2600,7 +2864,7 @@ list_to_terms([], _Loc, Acc) ->
 	lists:reverse(Acc);
 list_to_terms(List, Location, Acc) ->
 	case erl_scan:tokens([], List, Location) of
-		{done, {ok, Tokens, End}, Tail} ->
+		{done, {ok, Tokens, _End}, Tail} ->
 			{ok, Term} = erl_parse:parse_term(Tokens),
 			NewAcc = [Term | Acc],
 			list_to_terms(Tail, 1, NewAcc);

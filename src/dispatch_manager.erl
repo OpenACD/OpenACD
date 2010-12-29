@@ -395,7 +395,7 @@ balance_test_() ->
 		exit(whereis(dispatch_manager), kill),
 		timer:sleep(5),
 		{ok, _Pid} = start(),
-		timer:sleep(30),
+		timer:sleep(1000),
 		#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
 		?DEBUG("Expected:  ~p", [Expectedagents]),
 		?DEBUG("New agents:  ~p", [Newagents]),

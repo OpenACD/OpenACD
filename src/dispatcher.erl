@@ -423,9 +423,13 @@ recloop(Regrabs, Grab_bests, State) ->
 	receive
 		{'$gen_call',{Pid, Ref} = From, Msg} ->
 			?DEBUG("recloop ~p", [Msg]),
-			{reply, Reply, Newstate} = handle_call(Msg, From, State),
-			gen_server:reply(From, Reply),
-			recloop(Regrabs, Grab_bests, Newstate);
+			case handle_call(Msg, From, State) of
+				{reply, Reply, Newstate} ->
+					gen_server:reply(From, Reply),
+					recloop(Regrabs, Grab_bests, Newstate);
+				{noreply, NewState} ->
+					recloop(Regrabs+1, Grab_bests, NewState)
+			end;
 		{'$gen_cast', Msg} ->
 			?DEBUG("recloop ~p", [Msg]),
 			{noreply, Newstate} = handle_cast(Msg, State),

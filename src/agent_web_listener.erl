@@ -1094,11 +1094,13 @@ get_salt_tests() ->
 			?CONSOLE("cookie_api_test_ setup ~p", [Cookie]),
 			Cookieproplist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
 			?CONSOLE("cookie proplist ~p", [Cookieproplist]),
+			os:cmd("ssh-keygen -t rsa -f ../key -N \"\""),
 			{Httpc, Cookieproplist}
 		end,
 		fun({Httpc, _Cookie}) ->
 			inets:stop(httpc, Httpc),
 			inets:stop(),
+			file:delete("../key"),
 			agent_web_listener:stop(),
 			timer:sleep(10)
 		end,
@@ -1145,6 +1147,7 @@ web_connection_login_tests() ->
 			Cookies = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookies), 
 			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
+			os:cmd("ssh-keygen -t rsa -f ../key -N \"\""),
 			Getsalt = fun() ->
 				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
 				?CONSOLE("Body2:  ~p", [Body2]),
@@ -1157,6 +1160,7 @@ web_connection_login_tests() ->
 		fun({Httpc, _Cookie, _Getsalt}) ->
 			inets:stop(httpc, Httpc),
 			inets:stop(),
+			file:delete("../key"),
 			agent_web_listener:stop(),
 			agent_manager:stop(),
 			agent_auth:destroy("testagent"),

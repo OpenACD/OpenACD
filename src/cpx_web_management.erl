@@ -2977,12 +2977,14 @@ api_test_() ->
 		Cookie = {"ref", "salt", "login"},
 		ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
 
+		os:cmd("ssh-keygen -t rsa -f ../key -N \"\""),
 		Cookie
 	end,
 	fun(_Whatever) -> 
 		cpx_supervisor:stop(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
+		file:delete("../key"),
 		ok
 	end,
 	[

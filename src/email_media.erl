@@ -753,13 +753,13 @@ scrub_send_html_test_() ->
 	end}].
 
 getmail(File) ->
-	Pre = case file:read_file_info("contrib/gen_smtp/testdata") of
+	Pre = case file:read_file_info("deps/gen_smtp/testdata") of
 		{ok, #file_info{type = directory}} ->
 			[];
 		_ ->
 			"../"
 	end,
-	{ok, Bin} = file:read_file(Pre ++ "contrib/gen_smtp/testdata/" ++ File),
+	{ok, Bin} = file:read_file(Pre ++ "deps/gen_smtp/testdata/" ++ File),
 	%Email = binary_to_list(Bin),
 	mimemail:decode(Bin).
 	

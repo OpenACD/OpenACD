@@ -101,6 +101,8 @@
 
 -define(TICK_LENGTH, 11000).
 
+-define(POLL_FLUSH_INTERVAL, 500).
+
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -185,6 +187,7 @@
 	mediaload :: any(),
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
+	poll_flush_timer :: any(),
 	poll_pid :: 'undefined' | pid(),
 	poll_pid_established = 1 :: pos_integer(),
 	ack_timer :: tref() | 'undefined',
@@ -1518,6 +1521,17 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info(poll_flush, State) ->
+	case {State#state.poll_pid, State#state.poll_queue} of
+		{undefined, _} ->
+			{noreply, State#state{poll_flush_timer = undefined}};
+		{Pid, []} ->
+			{noreply, State#state{poll_flush_timer = undefined}};
+		{Pid, PollQueue} when is_pid(Pid) ->
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(State#state.poll_queue)}]})}},
+			unlink(Pid),
+			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined}}
+	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	Now = util:now(),
 	case Now - Last of
@@ -2215,19 +2229,144 @@ extract_groups([{{Type, _Id}, Details, _Node, _Time, _Watched, _Monref} = _Head 
 -spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
 push_event(Eventjson, State) ->
 	Newqueue = [Eventjson | State#state.poll_queue],
-	case State#state.poll_pid of
+	case State#state.poll_flush_timer of
 		undefined ->
-			%?DEBUG("No poll pid to send to", []),
-			State#state{poll_queue = Newqueue};
-		Pid when is_pid(Pid) ->
-			%?DEBUG("Sending to the ~w", [Pid]),
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}, {<<"result">>, lists:reverse(Newqueue)}]})}},
-			unlink(Pid),
-			State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now()}
+			Self = self(),
+			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush), poll_queue = Newqueue};
+		_ ->
+			State#state{poll_queue = Newqueue}
 	end.
 
 -ifdef(TEST).
 
+poll_flushing_test_() ->
+	{foreach,
+	fun() ->
+		Agent = #agent{login = "testagent"},
+		{ok, Apid} = agent:start(Agent),
+		{ok, WebListener} = gen_server_mock:named({local, agent_web_listener}),
+		{ok, AgentManMock} = gen_leader_mock:start(agent_manager),
+		?DEBUG("query agent", []),
+		gen_leader_mock:expect_leader_call(AgentManMock, fun(_, _, State, _) ->
+			{ok, false, State}
+		end),
+		?DEBUG("start agent", []),
+		gen_leader_mock:expect_call(AgentManMock, fun(_, _, State, _) ->
+			%{ok, Apid} = Out = agent:start(Agent),
+			{ok, {ok, Apid}, State}
+		end),
+%		?DEBUG("update skill list", []),
+%		gen_leader_mock:expect_cast(AgentManMock, fun(_, State, _) ->
+%			ok
+%		end),
+		gen_server_mock:expect_cast(WebListener, fun({linkto, _P}, _) ->
+			ok
+		end),
+		{ok, Seedstate} = init([Agent, agent]),
+		AssertMocks = fun() ->
+			gen_server_mock:assert_expectations(WebListener),
+			gen_leader_mock:assert_expectations(AgentManMock)
+		end,
+		{Agent, Apid, WebListener, AgentManMock, Seedstate, AssertMocks}
+	end,
+	fun({_Agent, Apid, WebListener, AgentManMock, _Seedstate, _AssertMocks}) ->
+		agent:stop(Apid),
+		gen_server_mock:stop(WebListener),
+		gen_leader_mock:stop(AgentManMock),
+		timer:sleep(100) % giving the named mocks time to dereg names
+	end,
+	[fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+		{"A single item shoved into queue",
+		fun() ->
+			State = push_event(<<"string">>, Seedstate),
+			Res = receive
+				Any ->
+					 Any
+			after 550 ->
+				timeout
+			end,
+			?assertEqual(poll_flush, Res),
+			AssertMocks()
+		end}
+	end,
+	fun({_Agent, _Apid, _WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+		{"Two items shoved in quickly",
+		fun() ->
+			State = push_event(<<"string">>, Seedstate),
+			State2 = push_event(<<"string2">>, State),
+			{{noreply, State3}, Res1} = receive
+				Any ->
+					?assertEqual(poll_flush, Any),
+					{handle_info(Any, State2), Any}
+			after 550 ->
+				{{noreply, State2}, timeout}
+			end,
+			Res2 = receive
+				Any2 ->
+					 Any2
+			after 550 ->
+				timeout
+			end,
+			?assertEqual({poll_flush, timeout}, {Res1, Res2}),
+			AssertMocks()
+		end}
+	end,
+	fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+		{"Two fast, one slow, then 2 more fast",
+		fun() ->
+			State1 = push_event(<<"string1">>, Seedstate),
+			State2 = push_event(<<"string2">>, State1),
+			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
+				ok
+			end),
+			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string3">>]}]} = mochijson2:decode(Json),
+				ok
+			end),
+			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
+				ok
+			end),
+			HandleInfoState1 = State2#state{poll_pid = WebListener},
+			{{noreply, State3}, Res1} = receive
+				Any ->
+					?assertEqual(poll_flush, Any),
+					{handle_info(Any, HandleInfoState1), Any}
+			after 550 ->
+				{{noreply, State2}, timeout}
+			end,
+			?DEBUG("first fast pair complete", []),
+			?assertEqual(poll_flush, Res1),
+			?assertEqual([], State3#state.poll_queue),
+			State4 = push_event(<<"string3">>, State3),
+			HandleInfoState2 = State4#state{poll_pid = WebListener},
+			{{noreply, State5}, Res2} = receive
+				Any2 ->
+					?assertEqual(poll_flush, Any2),
+					{handle_info(Any2, HandleInfoState2), Any2}
+			after 550 ->
+				{{noreply, State4}, timeout}
+			end,
+			?DEBUG("single pass", []),
+			?assertEqual(poll_flush, Res2),
+			?assertEqual([], State5#state.poll_queue),
+			State6 = push_event(<<"string4">>, State5),
+			State7 = push_event(<<"string5">>, State6),
+			HandleInfoState3 = State7#state{poll_pid = WebListener},
+			{{noreply, State8}, Res3} = receive
+				Any3 ->
+					?assertEqual(poll_flush, Any3),
+					{handle_info(Any3, HandleInfoState3), Any3}
+			after 550 ->
+				{{noreply, State7}, timeout}
+			end,
+			?DEBUG("2nd pair complete", []),
+			?assertEqual(poll_flush, Res3),
+			?assertEqual([], State8#state.poll_queue),
+			AssertMocks()
+		end}
+	end]}.
 
 
 
@@ -2286,35 +2425,6 @@ check_live_poll_test_() ->
 		end,
 		?assert(Ok)
 	end}] end}.
-
-
-
-%
-%
-%
-%handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
-%	Now = util:now(),
-%	case Now - Last of
-%		N when N > 10 ->
-%			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
-%			{stop, missed_polls, State};
-%		_N ->
-%			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
-%			{noreply, State#state{ack_timer = Tref}}
-%	end;
-%handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
-%	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
-%	case util:now() - Last of
-%		N when N > 20 ->
-%			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
-%			{noreply, Newstate#state{ack_timer = Tref}};
-%		_N ->
-%			{noreply, State#state{ack_timer = Tref}}
-%	end;
-%
-%
-
-
 
 set_state_test_() ->
 	{

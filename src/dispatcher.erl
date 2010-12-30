@@ -56,8 +56,10 @@
 	tref :: any(), % timer reference
 	qpid :: pid(),
 	tried_queues = [] :: [pid()],
-	agents = [] :: [pid()]}).
-	
+	agents = [] :: [pid()],
+	cook_mon :: reference() | 'undefined'
+}).
+
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
@@ -96,9 +98,15 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(get_agents, _From, State) when is_record(State#state.call, queued_call) -> 
+handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
-	{reply, agent_manager:filtered_route_list(Call#queued_call.skills), State};
+	case agent_manager:filtered_route_list(Call#queued_call.skills) of
+		[] ->
+			gen_server:reply(From, []),
+			handle_cast(regrab, State);
+		List ->
+			{reply, List, State}
+	end;
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
 		undefined ->
@@ -115,19 +123,6 @@ handle_call({stop, Force}, _From, State) when is_record(State#state.call, queued
 	end;
 handle_call({stop, _Force}, _From, State) ->
 	{stop, normal, ok, State};
-%handle_call(regrab, _From, State) ->
-	%OldQ = State#state.qpid,
-	%Queues = queue_manager:get_best_bindable_queues(),
-	%Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	%?DEBUG("looping through filtered queues... ~p", [Filtered]),
-	%case loop_queues(Filtered) of
-		%none -> 
-			%{reply, State#state.call, State};
-		%{Qpid, Call} ->
-			%OldCall = State#state.call,
-			%call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
-			%{reply, Call, State#state{qpid=Qpid, call=Call}}
-	%end;
 handle_call(dump_state, _From, State) ->
 	{reply, {ok, State}, State};
 handle_call(Request, _From, State) ->
@@ -142,21 +137,25 @@ handle_cast(stop, State) ->
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
-handle_cast(regrab, #state{tried_queues = Tried} = State) ->
+handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
+	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
 		none -> 
 			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
-			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
-			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = []}};
+			case State#state.cook_mon of
+				undefined -> ok;
+				Monitor -> erlang:demonitor(Monitor)
+			end,
+			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = [], cook_mon = undefined}};
 		{Qpid, Call} ->
-			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, State#state.qpid, Call#queued_call.id, Qpid]),
-			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried]}}
+			Cookmon = erlang:monitor(process, Call#queued_call.cook),
+			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried], cook_mon = Cookmon}}
 	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -173,6 +172,12 @@ handle_info(grab_best, State) ->
 		{Qpid, Call} ->
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
+handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) when Reason =:= normal orelse Reason =:= shutdown ->
+	?DEBUG("Monitor'ed cook (~p) exited cleanly, going down", [Pid]),
+	{stop, Reason, State};
+handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) ->
+	?DEBUG("Monitored cook (~p) died messily, moving onto another call.", [Pid]),
+	handle_cast(regrab, State);
 handle_info(Info, State) ->
 	?DEBUG("unexpected info ~p", [Info]),
 	{noreply, State}.
@@ -418,9 +423,13 @@ recloop(Regrabs, Grab_bests, State) ->
 	receive
 		{'$gen_call',{Pid, Ref} = From, Msg} ->
 			?DEBUG("recloop ~p", [Msg]),
-			{reply, Reply, Newstate} = handle_call(Msg, From, State),
-			gen_server:reply(From, Reply),
-			recloop(Regrabs, Grab_bests, Newstate);
+			case handle_call(Msg, From, State) of
+				{reply, Reply, Newstate} ->
+					gen_server:reply(From, Reply),
+					recloop(Regrabs, Grab_bests, Newstate);
+				{noreply, NewState} ->
+					recloop(Regrabs+1, Grab_bests, NewState)
+			end;
 		{'$gen_cast', Msg} ->
 			?DEBUG("recloop ~p", [Msg]),
 			{noreply, Newstate} = handle_cast(Msg, State),
@@ -448,118 +457,98 @@ recloop(Regrabs, Grab_bests, State) ->
 grab_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(dispatcher_grab_tests),
-	{spawn,
-	N,
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			queue_manager:start([node()]),
-			{_, Pid1} = queue_manager:add_queue("queue1", [{weight, 1}]),
-			{_, Pid2} = queue_manager:add_queue("queue2", [{weight, 2}]),
-			{_, Pid3} = queue_manager:add_queue("queue3", [{weight, 99}]),
-			agent_manager:start([node()]),
-			[Pid1, Pid2, Pid3]
+	{spawn, N, { foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		queue_manager:start([node()]),
+		{_, Pid1} = queue_manager:add_queue("queue1", [{weight, 1}]),
+		{_, Pid2} = queue_manager:add_queue("queue2", [{weight, 2}]),
+		{_, Pid3} = queue_manager:add_queue("queue3", [{weight, 99}]),
+		agent_manager:start([node()]),
+		[Pid1, Pid2, Pid3]
+	end,
+	fun(Pids) -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		agent_manager:stop(),
+		lists:foreach(fun(P) -> call_queue:stop(P) end, Pids),
+		queue_manager:stop()
+	end,
+	[ fun([Pid1, Pid2, Pid3]) -> {"there is a call we want", fun() -> 
+		% circumventing usual start because the lack of agents will
+		% make the cook tell the dispatcher to continually regrab.
+		% I just want to make sure the dispatcher on it's very first 
+		% grab gets C3, the call in the highest weighted queue.
+		%{ok, Pid} = start(),
+		{ok, State} = init([]),
+		PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
+		F = fun(Callrec) -> 
+			{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
+			Mpid
 		end,
-		fun(Pids) -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			agent_manager:stop(),
-			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids),
-			queue_manager:stop()
-		end,
-		[
-			fun([Pid1, Pid2, Pid3]) ->
-				{"there is a call we want",
-				fun() -> 
-					% circumventing usual start because the lack of agents will
-					% make the cook tell the dispatcher to continually regrab.
-					% I just want to make sure the dispatcher on it's very first 
-					% grab gets C3, the call in the highest weighted queue.
-					%{ok, Pid} = start(),
-					{ok, State} = init([]),
-					PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
-					F = fun(Callrec) -> 
-						{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
-						Mpid
-					end,
-					Calls = lists:map(F, PCalls),
-					?DEBUG("calls:  ~p", [Calls]),
-					call_queue:add(Pid1, 1, lists:nth(1, Calls)),
-					call_queue:add(Pid2, 1, lists:nth(2, Calls)),
-					call_queue:add(Pid3, 1, lists:nth(3, Calls)),
-					%receive after ?POLL_INTERVAL -> ok end,
-					%Call = bound_call(Pid),
-					{noreply, #state{call = Call} = _Newstate} = handle_info(grab_best, State),
-					?assertEqual("C3", Call#queued_call.id)
-					%stop(Pid, true)
-				end}
-			end,
-			fun(_Pids) ->
-				{"There's no call.  At all.",
-				fun() -> 
-					{ok, Pid} = start(),
-					 Call = bound_call(Pid),
-					 ?assertEqual(none, Call),
-					 stop(Pid, true)
-				end}
-			end,
-			fun([Pid1, _Pid2, _Pid3]) ->
-				{"Regrabbing with no other calls",
-				fun() ->
-					{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
-					call_queue:add(Pid1, MPid),
-					{ok, DPid} = dispatcher:start(),
-					Queuedcall = dispatcher:bound_call(DPid),
-					dispatcher:regrab(DPid),
-					?assertEqual(none, dispatcher:bound_call(DPid))
-				end}
-			end,
-			fun([Pid1, Pid2, _Pid3]) ->
-				{"Regrabbing with a call in another queue",
-				fun() ->
-					{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					call_queue:add(Pid1, MPid1),
-					call_queue:add(Pid2, MPid2),
-					{ok, DPid} = dispatcher:start(),
-					Queuedcall = dispatcher:bound_call(DPid),
-					dispatcher:regrab(DPid),
-					Regrabbed = dispatcher:bound_call(DPid),
-					?assert(is_record(Regrabbed, queued_call)),
-					?assertNot(Queuedcall =:= Regrabbed)
-				end}
-			end,
-			fun([Pid1, _Pid2, _Pid3]) ->
-				{"Regrabbing with a call in the same queue",
-				fun() ->
-					{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					call_queue:add(Pid1, MPid1),
-					call_queue:add(Pid1, MPid2),
-					{ok, DPid} = dispatcher:start(),
-					Queuedcall = dispatcher:bound_call(DPid),
-					dispatcher:regrab(DPid),
-					Regrabbed = dispatcher:bound_call(DPid),
-					?assertEqual(none, Regrabbed)
-				end}
-			end,
-			fun([Pid1, _Pid2, _Pid3]) ->
-				{"loop_queues test",
-				fun() ->
-						?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))
-				end}
-			end
-		]
-	}}.
+		Calls = lists:map(F, PCalls),
+		?DEBUG("calls:  ~p", [Calls]),
+		call_queue:add(Pid1, 1, lists:nth(1, Calls)),
+		call_queue:add(Pid2, 1, lists:nth(2, Calls)),
+		call_queue:add(Pid3, 1, lists:nth(3, Calls)),
+		%receive after ?POLL_INTERVAL -> ok end,
+		%Call = bound_call(Pid),
+		{noreply, #state{call = Call} = _Newstate} = handle_info(grab_best, State),
+		?assertEqual("C3", Call#queued_call.id)
+		%stop(Pid, true)
+	end} end,
+	fun(_Pids) -> {"There's no call.  At all.", fun() -> 
+		{ok, Pid} = start(),
+		 Call = bound_call(Pid),
+		 ?assertEqual(none, Call),
+		 stop(Pid, true)
+	end} end,
+	fun([Pid1, _Pid2, _Pid3]) -> {"Regrabbing with no other calls", fun() ->
+		{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
+		call_queue:add(Pid1, MPid),
+		{ok, DPid} = dispatcher:start(),
+		Queuedcall = dispatcher:bound_call(DPid),
+		dispatcher:regrab(DPid),
+		?assertEqual(none, dispatcher:bound_call(DPid))
+	end} end,
+	fun([Pid1, Pid2, _Pid3]) -> {"Regrabbing with a call in another queue", fun() ->
+		{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+		{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+		call_queue:add(Pid1, MPid1),
+		call_queue:add(Pid2, MPid2),
+		{ok, DPid} = dispatcher:start(),
+		Queuedcall = dispatcher:bound_call(DPid),
+		dispatcher:regrab(DPid),
+		Regrabbed = dispatcher:bound_call(DPid),
+		?assert(is_record(Regrabbed, queued_call)),
+		?assertNot(Queuedcall =:= Regrabbed)
+	end} end,
+	fun([Pid1, _Pid2, _Pid3]) -> {"Regrabbing with a call in the same queue", fun() ->
+		{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+		{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+		call_queue:add(Pid1, MPid1),
+		call_queue:add(Pid1, MPid2),
+		{ok, DPid} = dispatcher:start(),
+		Queuedcall = dispatcher:bound_call(DPid),
+		dispatcher:regrab(DPid),
+		Regrabbed = dispatcher:bound_call(DPid),
+		?assertEqual(none, Regrabbed)
+	end} end,
+	fun([Pid1, _Pid2, _Pid3]) -> {"loop_queues test", fun() ->
+			?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))
+	end} end ]}}.
 
 bias_to_test() ->
 	?assertEqual(none, biased_to([], 0, 20)).
 
--define(MYSERVERFUNC, fun() ->
+-define(GEN_SERVER_TEST(), begin
+	util:start_testnode(),
+	N = util:start_testnode(dispatcher_gen_server_tests),
+	Start = fun() ->
+		mnesia:stop(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
@@ -567,14 +556,17 @@ bias_to_test() ->
 		?debugFmt("~p~n", [mnesia:system_info(tables)]),
 		{ok, _Pid2} = queue_manager:start([node()]),
 		{ok, Pid} = start(),
-		{Pid, fun() ->
-			queue_manager:stop(),
-			Ref = stop(Pid, true),
-			mnesia:stop(),
-			mnesia:delete_schema([node]),
-			Ref
-		end}
-	end).
+		Pid
+	end,
+	Stop = fun(DahPid) ->
+		queue_manager:stop(),
+		Ref = stop(DahPid, true),
+		mnesia:stop(),
+		mnesia:delete_schema([node]),
+		Ref
+	end,
+	{N, Start, Stop}
+end).
 
 -include("gen_server_test.hrl").
 

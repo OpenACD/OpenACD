@@ -219,28 +219,28 @@ balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agent
 		_ ->
 			balance(State)
 	end;
-balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
-	%?DEBUG("Killing a dispatcher",[]),
-	%[Pid | Dispatchers] = State#state.dispatchers,
-	%?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
-	%try dispatcher:stop(Pid) of
-		%ok ->
-			% if it dies, we'll get the exit message.
-			%balance(State#state{dispatchers=Dispatchers});
-		%_ ->
-			%balance(State#state{dispatchers=[Pid | Dispatchers]})
-	%catch
-		%_:_ ->
-			%balance(State#state{dispatchers=Dispatchers})
-	%end;
-	Diff = length(State#state.dispatchers) - length(State#state.agents),
-	case Diff of
-		_ when Diff > 10 ->
-			Dispatchers = balance_down([], lists:reverse(State#state.dispatchers), Diff, false),
-			State#state{dispatchers = Dispatchers};
-		_ ->
-			State
-	end;
+%balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
+%	%?DEBUG("Killing a dispatcher",[]),
+%	%[Pid | Dispatchers] = State#state.dispatchers,
+%	%?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
+%	%try dispatcher:stop(Pid) of
+%		%ok ->
+%			% if it dies, we'll get the exit message.
+%			%balance(State#state{dispatchers=Dispatchers});
+%		%_ ->
+%			%balance(State#state{dispatchers=[Pid | Dispatchers]})
+%	%catch
+%		%_:_ ->
+%			%balance(State#state{dispatchers=Dispatchers})
+%	%end;
+%	Diff = length(State#state.dispatchers) - length(State#state.agents),
+%	case Diff of
+%		_ when Diff > 10 ->
+%			Dispatchers = balance_down([], lists:reverse(State#state.dispatchers), Diff, false),
+%			State#state{dispatchers = Dispatchers};
+%		_ ->
+%			State
+%	end;
 balance(State) -> 
 	?DEBUG("It is fully balanced!",[]),
 	State.

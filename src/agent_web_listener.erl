@@ -412,6 +412,7 @@ send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
 %% <pre> {
 %% 	"login":     string(),
 %% 	"profile":   string(),
+%%	"securityLevel":	 "agent" | "supervisor" | "admin",
 %% 	"state":     string(),
 %% 	"statedata": any(),
 %% 	"statetime": timestamp(),
@@ -421,10 +422,11 @@ send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
 -spec(check_cookie/1 :: (Cookie :: cookie_res()) -> web_reply()).
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
-	Agentrec = agent_web_connection:dump_agent(Conn),
+	{Agentrec, Security} = agent_web_connection:dump_agent(Conn),
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
+		{<<"securityLevel">>, Security},
 		{<<"state">>, Agentrec#agent.state},
 		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
 		{<<"statetime">>, Agentrec#agent.lastchange},
@@ -569,6 +571,7 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% A result is:
 %% `{
 %% 	"profile":   string(),
+%%	"securityLevel":  "agent" | "supervisor" | "admin",
 %% 	"statetime": timestamp(),
 %% 	"timestamp": timestamp()
 %% }'
@@ -618,13 +621,14 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
-									#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
+									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
 											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"securityLevel">>, Security},
 											{<<"statetime">>, StateTime},
 											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->

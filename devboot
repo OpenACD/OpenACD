@@ -10,12 +10,23 @@
 # and still be able to run rebar and reload the resulting code.
 # 
 # The ironic twist is this will only work if you've done a rebar generate.
+
+function help_dump {
+	echo "usage:  devboot [-c cookiename] [-s shortname | -n longname] [-f configfile] [-nb | -b bootfile]"
+	echo ""
+	echo "-c defaults to \"OpenACDDev\""
+	echo "-s and -n override each nother.  Defaults to \"-s openacddev\""
+	echo "-b defaults to rel/openacd/releases/1/openacd"
+	echo "-nb disables use of a boot file.  -b and -nb override eachother."
+	echo "-f defaults to \"single\""
+}
+
 EBIN="ebin"
 COOKIE="OpenACDDev"
 NAMETYPE="-sname"
 NODENAME="openacddev"
 CONFIG="single"
-BOOT="rel/openacd/releases/1/openacd"
+BOOT="-boot rel/openacd/releases/1/openacd"
 
 deps=`ls deps`
 morepa=""
@@ -25,8 +36,42 @@ do
 	morepa="$morepa -pa deps/$deps_file/ebin"
 done
 
-CMD="erl +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG -boot $BOOT"
+args=("$@")
+argstring=""
+i=0
+while [ $i -lt ${#args[@]} ]
+do
+	case ${args[${i}]} in
+		"-s")
+			NAMETYPE="-sname"
+			let i=$i+1
+			NODENAME="${args[${i}]}";;
+		"-n")
+			NAMETYPE="-name"
+			let i=$i+1
+			NODENAME="${args[${i}]}";;
+		"-b")
+			let i=$i+1
+			BOOT="-boot ${args[${i}]}";;
+		"-nb")
+			BOOT="";;
+		"-c")
+			let i=$i+1
+			COOKIE="${args[${i}]}";;
+		"-f")
+			let i=$i+1
+			CONFIG="${args[${i}]}";;
+		*)
+			help_dump
+			exit 0
+	esac
+	argstring="$argstring ${args[${i}]}"
+	let i=$i+1
+done
 
+CMD="erl +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG $BOOT"
+
+#echo $CMD
 exec $CMD
 
 exit 0

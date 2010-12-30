@@ -56,12 +56,12 @@
 -type(time() :: integer() | {integer(), integer(), integer()}).
 %-type(set_event_payload() :: {data_key(), proplist(), node()}).
 %-type(drop_event_payload() :: data_key()),
-%-type(info_event_payload() :: proplist())
+%-type(info_event_payload() :: any()}).
 %-type(event_struct() :: {data_key(), proplist()}).
 %-type(event_message() :: 
 %	{'set', time(), set_event_payload()} | 
 %	{'drop', time(), data_key()} | 
-%	{'info', time(), proplist()}).
+%	{'info', time(), info_event_payload()}).
 %-type(item_monitored() :: 'none' | pid() | atom() | {atom(), atom()}).
 %-type(monitor_reference() :: reference()).
 %-type(cached_event() :: {data_key(), proplist(), node(), time(), item_monitored(), monitor_reference()}).
@@ -186,7 +186,7 @@ drop({_Type, _Name} = Key) ->
 
 %% @doc Forward a general message to the subscribers.  There is no caching
 %% or monitoring done for this.
--spec(info/1 :: (Params :: proplist()) -> 'ok').
+-spec(info/1 :: (Params :: any()) -> 'ok').
 info(Params) ->
 	%?DEBUG("infoing initial:  ~p", [Params]),
 	gen_leader:leader_cast(?MODULE, {info, os:timestamp(), Params}).
@@ -288,7 +288,12 @@ add_drop(Key) ->
 add_info(Params) ->
 	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
 		fun({info, _Time, TheParams}, _State, _Election) ->
-			lists:all(fun(E) -> lists:memeber(E, TheParams) end, Params),
+			case {is_list(TheParams), is_list(Params)} of
+				{true, true} ->
+					lists:all(fun(E) -> lists:member(E, TheParams) end, Params);
+				{X, X} ->
+					Params = TheParams
+			end,
 			ok
 		end
 	).
@@ -907,6 +912,18 @@ subscribers_test_() ->
 		after 20 ->
 			?assert("timeout")
 		end 
+	end} end,
+	fun(ok) -> {"simpler info", fun() ->
+		cpx_monitor:subscribe(),
+		cpx_monitor:info(<<"funk initiated">>),
+		receive
+			{cpx_monitor_event, {info, _Time, <<"funk initiated">>}} ->
+				?assert(true);
+			{cpx_monitor_event, Other} ->
+				?assert(Other)
+		after 20 ->
+			?assert("timeout")
+		end
 	end} end,
 	fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:subscribe(),

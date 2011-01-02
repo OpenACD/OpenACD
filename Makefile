@@ -1,3 +1,5 @@
+PREFIX := /opt/OpenACD/
+
 compile:
 	rm -rf rel/openacd
 	@./rebar get-deps update-deps compile generate
@@ -8,4 +10,8 @@ clean:
 run: compile
 	./rel/openacd/bin/openacd console
 
-.PHONY: compile clean
+install: compile
+	mkdir -p ${PREFIX}
+	cp -r rel/openacd/* ${PREFIX}
+
+.PHONY: compile clean run prefix

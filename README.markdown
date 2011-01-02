@@ -21,7 +21,7 @@ Feature Highlights
 Participants
 ============
 
-Development is sponsored by [Fused Solutions](http://www.fusedsolutions.com) and
+Development is sponsored by [KGB](http://kgb.com) and
 the 2 main developers are:
 
 + Andrew Thompson (andrew AT hijacked.us)

@@ -14,7 +14,7 @@ Feature Highlights
 + Skill based routing
 + Priority and unified queueing
 + Web-based administration and agent interaction
-+ Supervisory drag and drop interface for managing agents/call flow
++ Supervisory interface for managing agents/call flow
 + Support for handling voice calls (inbound and outbound), voicemails and emails
 + Detailed CDRs and agent state recording
 

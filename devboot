@@ -28,6 +28,9 @@ NODENAME="openacddev"
 CONFIG="single"
 BOOT="-boot rel/openacd/releases/1/openacd"
 
+OPENACD_RUN_DIR="rel/openacd/run"
+export OPENACD_RUN_DIR
+
 deps=`ls deps`
 morepa=""
 

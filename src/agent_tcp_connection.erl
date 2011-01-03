@@ -121,17 +121,23 @@ handle_call(Request, _From, State) ->
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
 	?DEBUG("starting negotiation...", []),
-	inet:setopts(State#state.socket, [{packet, raw}, binary]),
+	inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
 	gen_tcp:send(State#state.socket, <<"AgentServer">>),
 	?DEBUG("SENT", []),
-	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
-	?DEBUG("packet: ~p.~n", [Packet]),
-	case recv(Packet) of
-		{[], <<>>} ->
-			{noreply, State};
-		{Bins, <<>>} ->
-			NewState = service_requests(Bins, State),
-			{noreply, NewState}
+	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
+	case O of
+		{ok, Packet} ->
+			?DEBUG("packet: ~p.~n", [Packet]),
+			case recv(Packet) of
+				{[], <<>>} ->
+					{noreply, State};
+				{Bins, <<>>} ->
+					NewState = service_requests(Bins, State),
+					{noreply, NewState}
+			end;
+		Else ->
+			?DEBUG("O was ~p", [Else]),
+			{noreply, State}
 	end;
 
 
@@ -167,9 +173,11 @@ handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
 	case recv(Packet) of
 		{[], <<>>} ->
+			inet:setopts(Socket, [{active, once}]),
 			{noreply, State};
 		{Bins, <<>>} ->
 			service_requests(Bins, State),
+			inet:setopts(Socket, [{active, once}]),
 			{noreply, State}
 	end;
 handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
@@ -291,39 +299,42 @@ service_requests([Head | Tail], State) ->
 	NewState = service_request(Head, State),
 	service_requests(Tail, NewState).
 
-service_request(Bin, State) ->
+service_request(Bin, State) when is_binary(Bin) ->
 	#agentrequest{request_id = ReqId, request_hint = Hint} = Request = cpx_agent_pb:decode_agentrequest(Bin),
 	BaseReply = #serverreply{
 		request_id = ReqId,
 		request_hinted = Hint,
 		success = false
 	},
-	NewReply = case Hint of
-		'CHECK_VERSION' ->
-			Reply = case Request#agentrequest.agent_client_version of
-				#agentclientversion{major = ?Major, minor = ?Minor} ->
-					BaseReply#serverreply{success = true};
-				#agentclientversion{major = ?Major, minor = _} ->
-					?WARNING("A client is connecting with a minor version mismatch.", []),
-					BaseReply#serverreply{
-						success = true,
-						error_message = "minor version mismatch"
-					};
-				_ ->
-					?ERROR("A client is connection with a major version mismtach", []),
-					BaseReply#serverreply{
-						error_message = "major version mismatch",
-						error_code = "VERSION_MISMatch"
-					}
-			end
-	end,
+	NewReply = service_request(Request, BaseReply, State),
 	Message = #servermessage{
 		type_hint = 'REPLY',
 		reply = NewReply
 	},
 	send(State#state.socket, Message).
-			
-					
+
+service_request(#agentrequest{request_hint = 'CHECK_VERSION', agent_client_version = Ver} = Request, BaseReply, State) ->
+	case Ver of
+		#agentclientversion{major = ?Major, minor = ?Minor} ->
+			BaseReply#serverreply{success = true};
+		#agentclientversion{major = ?Major} ->
+			?WARNING("A client is connecting with a minor version mismatch.", []),
+			BaseReply#serverreply{
+				success = true,
+				error_message = "minor version mismatch"
+			};
+		_ ->
+			?ERROR("A client is connection with a major version mismtach", []),
+			BaseReply#serverreply{
+				error_message = "major version mismatch",
+				error_code = "VERSION_MISMATCH"
+			}
+	end;
+service_request(#agentrequest{request_hint = 'GET_SALT'}, BaseReply, State) ->
+	BaseReply#serverreply{
+		error_message = "nyi",
+		error_code = "NYI"
+	}.
 
 %handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
 %	State2 = State#state{salt=crypto:rand_uniform(0, 4294967295)}, %bounds of number

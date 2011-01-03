@@ -492,6 +492,7 @@ dojo.addOnLoad(function(){
 	var seedUI = function(confobj){
 		var confs = {
 			username:'',
+			securityLevel:'agent',
 			elapsed:'',
 			skew:0,
 			profile:'',
@@ -504,6 +505,7 @@ dojo.addOnLoad(function(){
 			timestamp:false
 		};
 		dojo.mixin(confs, confobj);
+		console.log("confs", confs);
 		dojo.byId("main").style.display="block";
 		dojo.byId("main").style.visibility = "visible";
 		dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
@@ -548,6 +550,11 @@ dojo.addOnLoad(function(){
 				loadTab(settings.tabs[i]);
 			}
 		}
+		if(confs.securityLevel == 'agent'){
+			dijit.byId("tabsmenubutton").set('disabled', true);
+		} else {
+			dijit.byId("tabsmenubutton").set('disabled', false);
+		}
 		dojo.cookie('agentui-settings', dojo.toJson(settings));
 	}
 	
@@ -558,6 +565,7 @@ dojo.addOnLoad(function(){
 		success:function(result){
 			var seedConf = dojo.clone(result);
 			seedConf.username = seedConf.login;
+			seedConf.securityLevel = result.securityLevel;
 			seedConf.elapsed = parseInt(result.statetime, 10);
 			seedConf.skew = result.timestamp;
 			seedUI(seedConf);
@@ -927,6 +935,7 @@ dojo.addOnLoad(function(){
 							var seedSettings = dojo.clone(attrs);
 							seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
 							seedSettings.profile = response2.profile;
+							seedSettings.securityLevel = response2.securityLevel;
 							seedSettings.timestamp = response2.timestamp;
 							seedUI(seedSettings);
 						},

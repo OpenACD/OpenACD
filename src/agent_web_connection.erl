@@ -503,7 +503,7 @@ api(Pid, Apicall) ->
 	gen_server:call(Pid, Apicall).
 
 %% @doc Dump the state of agent associated with the passed connection.
--spec(dump_agent/1 :: (Pid :: pid()) -> #agent{}).
+-spec(dump_agent/1 :: (Pid :: pid()) -> {#agent{}, 'agent' | 'supervisor' | 'admin'}).
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
 
@@ -689,7 +689,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
-	{reply, Astate, State};
+	{reply, {Astate, State#state.securitylevel}, State};
 handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
 	handle_call({agent_transfer, Agentname}, From, State);

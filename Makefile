@@ -1,8 +1,7 @@
 PREFIX := /opt/OpenACD/
 
 compile:
-	rm -rf rel/openacd
-	@./rebar get-deps update-deps compile generate
+	@./rebar get-deps update-deps compile generate force=1
 
 clean:
 	@./rebar clean

@@ -441,7 +441,7 @@ api(_Apirequest, badcookie, _Post) ->
 api(getsalt, {Reflist, _Salt, Login}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(cpx_management_logins, {Reflist, Newsalt, Login}),
-	[E, N] = get_pubkey(),
+	[E, N] = util:get_pubkey(),
 	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
@@ -2376,23 +2376,6 @@ check_cookie(Allothers) ->
 			end
 	end.
 
-get_pubkey() ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			"../key";
-		Val ->
-			filename:join(Val, "key")
-	end,
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	[E, N].
-
 -spec(parse_posted_skills/1 :: (PostedSkills :: [string()]) -> [atom() | {atom(), string()}]).
 parse_posted_skills(PostedSkills) ->
 	parse_posted_skills(PostedSkills, []).
@@ -2425,12 +2408,7 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			"./key";
-		Val ->
-			filename:join(Val, "key")
-	end,
+	Key = util:get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then
 	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->

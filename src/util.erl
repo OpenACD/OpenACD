@@ -80,7 +80,9 @@
 	floor/1,
 	priv_dir/0,
 	priv_dir/1,
-	run_dir/0
+	run_dir/0,
+	get_pubkey/0,
+	get_keyfile/0
 ]).
 %% time tracking util functions
 -export([
@@ -556,6 +558,31 @@ run_dir() ->
 		Dir ->
 			Dir
 	end.
+
+get_pubkey() ->
+	Key = get_keyfile(),
+	% TODO - this is going to break again for R15A, fix before then
+	Entry = case public_key:pem_to_der(Key) of
+		{ok, [Ent]} ->
+			Ent;
+		[Ent] ->
+			Ent
+	end,
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	[E, N].
+
+-ifdef(TEST).
+get_keyfile() ->
+	"../key".
+-else.
+get_keyfile() ->
+	case os:getenv("OPENACD_RUN_DIR") of
+		false ->
+			"./key";
+		Val ->
+			filename:join(Val, "key")
+	end.
+-endif.
 
 -ifdef(TEST).
 

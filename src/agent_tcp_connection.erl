@@ -384,7 +384,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 										queues = Queues,
 										brands = Brands
 									},
-									{Reply, State};
+									{Reply, State#state{agent_fsm = Pid}};
 								{exists, _Pid} ->
 									Reply = BaseReply#serverreply{
 										error_message = "Multiple login detected",
@@ -408,8 +408,38 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 				error_code = "DECRYPT_FAILED"
 			},
 			{Reply, State}
+	end;
+service_request(#agentrequest{request_hint = 'GO_IDLE'}, BaseReply, State) ->
+	case agent:set_state(State#state.agent_fsm, idle) of
+		ok ->
+			Reply = BaseReply#serverreply{success = true},
+			{Reply, State};
+		invalid ->
+			Reply = BaseReply#serverreply{
+				error_message = "Invalid state change",
+				error_code = "INVALID_STATE_CHANGE"
+			},
+			{Reply, State}
+	end;
+service_request(#agentrequest{request_hint = 'GO_RELEASED', go_released_request = ReleaseReq}, BaseReply, State) ->
+	ReleaseReason = case ReleaseReq#goreleasedrequest.use_default of
+		false ->
+			Release = ReleaseReq#goreleasedrequest.release_opt,
+			{Release#release.id, Release#release.name, Release#release.bias};
+		true ->
+			default
+	end,
+	case agent:set_state(State#state.agent_fsm, released, ReleaseReason) of
+		ok ->
+			{BaseReply#serverreply{success = true}, State};
+		invalid ->
+			Reply = BaseReply#serverreply{
+				error_message = "invalid state change",
+				error_code = "INVALID_STATE_CHANGE"
+			},
+			{Reply, State}
 	end.
-
+			
 decrypt_password(Password) ->
 	Key = util:get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then

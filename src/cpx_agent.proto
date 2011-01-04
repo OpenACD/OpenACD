@@ -24,6 +24,7 @@ enum RequestHint {
 	MEDIA_COMMAND = 21;
 	QUEUE_TRANSFER = 23;
 	INIT_OUTBOUND = 24;
+	MEDIA_ANSWER = 25;
 }
 
 message AgentRequest {
@@ -211,7 +212,7 @@ message WarmTransferRequest {
 
 message GoReleasedRequest {
 	optional bool use_default = 1;
-	optional string release_opt_id = 2;
+	optional Release release_opt = 2;
 }
 
 message SaltReply {

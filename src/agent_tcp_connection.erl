@@ -54,6 +54,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("queue.hrl").
 -include("cpx_agent_pb.hrl").
 
 % {Counter, Event, Data, now()}
@@ -121,7 +122,7 @@ handle_call(Request, _From, State) ->
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
 	?DEBUG("starting negotiation...", []),
-	inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
+	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
 	gen_tcp:send(State#state.socket, <<"AgentServer">>),
 	?DEBUG("SENT", []),
 	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
@@ -173,12 +174,12 @@ handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
 	case recv(Packet) of
 		{[], <<>>} ->
-			inet:setopts(Socket, [{active, once}]),
+			ok = inet:setopts(Socket, [{active, once}]),
 			{noreply, State};
 		{Bins, <<>>} ->
-			service_requests(Bins, State),
-			inet:setopts(Socket, [{active, once}]),
-			{noreply, State}
+			NewState = service_requests(Bins, State),
+			ok = inet:setopts(Socket, [{active, once}]),
+			{noreply, NewState}
 	end;
 handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
 	{stop, tcp_closed, State};
@@ -255,6 +256,7 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 
 send(Socket, Record) ->
+	?DEBUG("pre encode:  ~p", [Record]),
 	Bin = cpx_agent_pb:encode(Record),
 	?DEBUG("post encode:  ~p", [Bin]),
 	Size = list_to_binary(integer_to_list(size(Bin))),
@@ -288,7 +290,7 @@ read_tcp_string(<<$:, Bin/binary>>, RevSize) ->
 		_ ->
 			nostring
 	end;
-read_tcp_string(<<>>, Acc) ->
+read_tcp_string(<<>>, _Acc) ->
 	nostring;
 read_tcp_string(<<Char/integer, Rest/binary>>, Acc) ->
 	read_tcp_string(Rest, [Char | Acc]).
@@ -306,17 +308,18 @@ service_request(Bin, State) when is_binary(Bin) ->
 		request_hinted = Hint,
 		success = false
 	},
-	NewReply = service_request(Request, BaseReply, State),
+	{NewReply, NewState} = service_request(Request, BaseReply, State),
 	Message = #servermessage{
 		type_hint = 'REPLY',
 		reply = NewReply
 	},
-	send(State#state.socket, Message).
+	send(State#state.socket, Message),
+	NewState.
 
-service_request(#agentrequest{request_hint = 'CHECK_VERSION', agent_client_version = Ver} = Request, BaseReply, State) ->
+service_request(#agentrequest{request_hint = 'CHECK_VERSION', agent_client_version = Ver} = _Request, BaseReply, State) ->
 	case Ver of
 		#agentclientversion{major = ?Major, minor = ?Minor} ->
-			BaseReply#serverreply{success = true};
+			{BaseReply#serverreply{success = true}, State};
 		#agentclientversion{major = ?Major} ->
 			?WARNING("A client is connecting with a minor version mismatch.", []),
 			BaseReply#serverreply{
@@ -325,16 +328,106 @@ service_request(#agentrequest{request_hint = 'CHECK_VERSION', agent_client_versi
 			};
 		_ ->
 			?ERROR("A client is connection with a major version mismtach", []),
-			BaseReply#serverreply{
+			{BaseReply#serverreply{
 				error_message = "major version mismatch",
 				error_code = "VERSION_MISMATCH"
-			}
+			}, State}
 	end;
 service_request(#agentrequest{request_hint = 'GET_SALT'}, BaseReply, State) ->
-	BaseReply#serverreply{
-		error_message = "nyi",
-		error_code = "NYI"
-	}.
+	Salt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	[E, N] = util:get_pubkey(),
+	SaltReply = #saltreply{
+		salt = Salt,
+		pubkey_e = integer_to_list(E),
+		pubkey_n = integer_to_list(N)
+	},
+	Reply = BaseReply#serverreply{
+		success = true,
+		salt_and_key = SaltReply
+	},
+	{Reply, State#state{salt = Salt}};
+service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, State) ->
+	Salt = State#state.salt,
+	case decrypt_password(LoginRequest#loginrequest.password) of
+		{ok, Decrypted} ->
+			case string:substr(Decrypted, 1, length(Salt)) of
+				Salt ->
+					DecryptedPass = string:substr(Decrypted, length(Salt) + 1),
+					case agent_auth:auth(LoginRequest#loginrequest.username, DecryptedPass) of
+						deny ->
+							Reply = BaseReply#serverreply{
+								error_message = "invalid username or password",
+								error_code = "INVALID_LOGIN"
+							},
+							{Reply, State};
+						{allow, Id, Skills, Security, Profile} ->
+							Agent = #agent{
+								id = Id, 
+								defaultringpath = outband, 
+								login = LoginRequest#loginrequest.username, 
+								skills = Skills, 
+								profile=Profile, 
+								password=DecryptedPass
+							},
+							case agent_manager:start_agent(Agent) of
+								{ok, Pid} ->
+									ok = agent:set_connection(Pid, self()),
+									RawQueues = call_queue_config:get_queues(),
+									RawBrands = call_queue_config:get_clients(),
+									RawReleases = agent_auth:get_releases(),
+									Releases = [{release, X#release_opt.id, X#release_opt.label, X#release_opt.bias} || X <- RawReleases],
+									Queues = [{simplekeyvalue, X#call_queue.name, X#call_queue.name} || X <- RawQueues],
+									Brands = [{simplekeyvalue, X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined],
+									Reply = BaseReply#serverreply{
+										success = true,
+										release_opts = Releases,
+										queues = Queues,
+										brands = Brands
+									},
+									{Reply, State};
+								{exists, _Pid} ->
+									Reply = BaseReply#serverreply{
+										error_message = "Multiple login detected",
+										error_code = "MULTIPLE_LOGINS"
+									},
+									{Reply, State}
+							end
+					end;
+				NotSalt ->
+					?WARNING("Salt matching failed (~s)", [NotSalt]),
+					Reply = BaseReply#serverreply{
+						error_message = "Invalid username or password",
+						error_code = "INVALID_LOGIN"
+					},
+					{Reply, State}
+			end;
+		{error, decrypt_failed} ->
+			?WARNING("decrypt of ~p failed", [LoginRequest#loginrequest.password]),
+			Reply = BaseReply#serverreply{
+				error_message = "decrypt_failed",
+				error_code = "DECRYPT_FAILED"
+			},
+			{Reply, State}
+	end.
+
+decrypt_password(Password) ->
+	Key = util:get_keyfile(),
+	% TODO - this is going to break again for R15A, fix before then
+	Entry = case public_key:pem_to_der(Key) of
+		{ok, [Ent]} ->
+			Ent;
+		[Ent] ->
+			Ent
+	end,
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
+	try crypto:rsa_private_decrypt(Password, PrivKey, rsa_pkcs1_padding) of
+		Bar ->
+			{ok, binary_to_list(Bar)}
+	catch
+		error:decrypt_failed ->
+			{error, decrypt_failed}
+	end.
 
 %handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
 %	State2 = State#state{salt=crypto:rand_uniform(0, 4294967295)}, %bounds of number

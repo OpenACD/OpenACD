@@ -58,13 +58,14 @@ message ServerReply {
 	optional string error_message = 4; //default english error message
 	optional string error_code = 5; //suitable for localization.
 	repeated Release release_opts = 6;
-	repeated SimpleKeyValue agents = 7;
+	repeated AvailAgent agents = 7;
 	repeated SimpleKeyValue queues = 8;
 	repeated SimpleKeyValue brands = 9;
 	repeated string profiles = 10;
 	optional QueueTransferOptions queue_transfer_opts = 11;
 	optional MediaCommandReply media_command_reply = 12;
 	optional SaltReply salt_and_key = 13;
+	optional MediaEvent media_event = 14;
 }
 
 enum ServerCommand {
@@ -85,6 +86,12 @@ enum AgentState {
 	RELEASED = 7;
 	WARMTRANSFER = 8;
 	WRAPUP = 9;
+}
+
+message AvailAgent {
+	required string name = 1;
+	required string profile = 2;
+	required AgentState state = 3;
 }
 
 message ServerEvent {

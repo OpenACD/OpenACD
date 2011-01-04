@@ -63,13 +63,16 @@
 -record(state, {
 		salt :: pos_integer(),
 		socket :: port(),
+		agent_login :: string(),
 		agent_fsm :: pid(),
 		send_queue = [] :: [string()],
 		counter = 1 :: pos_integer(),
 		unacked = [] :: [unacked_event()],
 		resent = [] :: [unacked_event()],
 		resend_counter = 0 :: non_neg_integer(),
-		securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
+		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
+		state,
+		statedata
 	}).
 
 -type(state() :: #state{}).
@@ -384,7 +387,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 										queues = Queues,
 										brands = Brands
 									},
-									{Reply, State#state{agent_fsm = Pid}};
+									{Reply, State#state{agent_login = LoginRequest#loginrequest.username, agent_fsm = Pid}};
 								{exists, _Pid} ->
 									Reply = BaseReply#serverreply{
 										error_message = "Multiple login detected",
@@ -438,8 +441,285 @@ service_request(#agentrequest{request_hint = 'GO_RELEASED', go_released_request 
 				error_code = "INVALID_STATE_CHANGE"
 			},
 			{Reply, State}
-	end.
-			
+	end;
+service_request(#agentrequest{request_hint = 'GET_BRAND_LIST'}, BaseReply, State) ->
+	RawBrands = call_queue_config:get_clients(),
+	Brands = [#simplekeyvalue{key = X#client.id, value = X#client.label} || X <- RawBrands],
+	Reply = BaseReply#serverreply{
+		brands = Brands,
+		success = true
+	},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'GET_QUEUE_LIST'}, BaseReply, State) ->
+	RawQueues = call_queue_config:get_queues(),
+	Queues = [#simplekeyvalue{key = Name, value = Name} || #call_queue{name = Name} <- RawQueues],
+	Reply = BaseReply#serverreply{
+		queues = Queues,
+		success = true
+	},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'GET_QUEUE_TRANSFER_OPTS'}, BaseReply, State) ->
+	{ok, {Prompts, Skills}} = cpx_supervisor:get_value(transferprompt, {[], []}),
+	Opts = [{simplekeyvalue, Name, Label} || {Name, Label, _} <- Prompts],
+	SkillOpts = [case X of
+		{Skill, Expand} ->
+			#skill{atom = Skill, expanded = Expand};
+		Skill ->
+			#skill{atom = Skill}
+	end || X <- Skills],
+	TransferOpts = #queuetransferoptions{
+		options = Opts,
+		skills = SkillOpts
+	},
+	Reply = BaseReply#serverreply{
+		success = true,
+		queue_transfer_opts = TransferOpts
+	},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'GET_PROFILES'}, BaseReply, State) ->
+	RawProfiles = agent_auth:get_profiles(),
+	Profiles = [X#agent_profile.name || X <- RawProfiles],
+	Reply = BaseReply#serverreply{
+		success = true,
+		profiles = Profiles
+	},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, State) ->
+	RawAgents = agent_manager:list(),
+	AgentStates = [agent:dump_state(Pid) || {_K, {Pid, _Id, _Time, _Skills}} <- RawAgents],
+	Agents = [{availagent, X#agent.login, X#agent.profile, X#agent.state} || X <- AgentStates],
+	Reply = BaseReply#serverreply{
+		agents = Agents
+	},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+	C#call.source ! call_hangup,
+	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "invalid state change",
+				error_code = "INVALID_STATE_CHANGE"
+			};
+		ok ->
+			BaseReply#serverreply{
+				success = true
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
+	Reply = case whereis(freeswitch_media_manager) of
+		undefined ->
+			BaseReply#serverreply{
+				error_message = "freeswtich isn't available",
+				error_code = "MEDIA_NOEXISTS"
+			};
+		Pid ->
+			case agent:dump_state(State#state.agent_fsm) of
+				#agent{state = released} = AgentRec ->
+					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
+					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
+						{ok, _} ->
+							BaseReply#serverreply{success = true};
+						{error, Error} ->
+							BaseReply#serverreply{
+								error_message = io_lib:format("ring test failed:  ~p", [Error]),
+								error_code = "UNKNOWN_ERROR"
+							}
+					end;
+				_ ->
+					BaseReply#serverreply{
+						error_message = "must be released to do a ring test",
+						error_code = "INVALID_STATE"
+					}
+			end
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
+	Number = WarmTransRequest#warmtransferrequest.number,
+	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
+		ok ->
+			BaseReply#serverreply{success = true};
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "media denied transfer",
+				error_code = "INVALID_MEDIA_CALL"
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
+	Call = State#state.statedata,
+	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
+		ok ->
+			BaseReply#serverreply{success = true};
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "media denied transfer",
+				error_code = "INVALID_MEDIA_CALL"
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
+	Call = State#state.statedata,
+	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
+		ok ->
+			BaseReply#serverreply{success = true};
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "media denied transfer",
+				error_code = "INVALID_MEDIA_CALL"
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
+	gen_tcp:close(State#state.socket),
+	%% TODO Not a very elegant shutdown from this point onward...
+	Reply = BaseReply#serverreply{success = true},
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, BaseReply, #state{state = precall} = State) ->
+	Call = State#state.statedata,
+	Reply = case Call#call.direction of
+		outbound ->
+			case gen_media:call(Call#call.source, {dial, number}) of
+				ok ->
+					BaseReply#serverreply{success = true};
+				{error, Error} ->
+					?NOTICE("Outbound call error ~p", [Error]),
+					BaseReply#serverreply{
+						error_message = io_lib:format("Error:  ~p", [Error]),
+						error_code = "UNKNOWN_ERROR"
+					}
+			end;
+		_ ->
+			BaseReply#serverreply{
+				error_message = "invalid call direction",
+				error_code = "INVALID_MEDIA_CALL"
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'AGENT_TRANSFER', agent_transfer = Transfer}, BaseReply, #state{state = oncall, statedata = Call} = State) ->
+	case Transfer#agenttransferrequest.other_data of
+		undefined ->
+			ok;
+		Caseid ->
+			gen_media:cast(Call#call.source, {set_caseid, Caseid})
+	end,
+	Reply = case agent_manager:query_agent(Transfer#agenttransferrequest.agent_id) of
+		{true, Target} ->
+			case agent:agent_transfer(State#state.agent_fsm, Target) of
+				ok ->
+					BaseReply#serverreply{success = true};
+				invalid ->
+					BaseReply#serverreply{
+						error_message = "invalid state change",
+						error_code = "INVALID_STATE_CHANGE"
+					}
+			end;
+		false ->
+			BaseReply#serverreply{
+				error_message = "no such agent",
+				error_code = "AGENT_NOEXISTS"
+			}
+	end,
+	{Reply, State};
+service_request(
+	#agentrequest{
+		request_hint = 'MEDIA_COMMAND', 
+		media_command_request = Command}, 
+	BaseReply, 
+	#state{statedata = C} = State) when is_record(C, call) ->
+	Reply = case Command#mediacommandrequest.need_reply of
+		true ->
+			try gen_media:call(C#call.source, Command) of
+				invalid ->
+					BaseReply#serverreply{
+						error_message = "invalid media call",
+						error_code = "INVALID_MEDIA_CALL"
+					};
+				Response when is_tuple(Response) andalso element(1, Response) == mediacommandreply ->
+					BaseReply#serverreply{
+						success = true,
+						media_command_reply = Response
+					}
+			catch
+				exit:{noproc, _} ->
+					?DEBUG("Media no longer exists", []),
+					BaseReply#serverreply{
+						error_message = "media no longer exists",
+						error_code = "MEDIA_NOEXISTS"
+					}
+			end;
+		false ->
+			gen_media:cast(C#call.source, Command),
+			BaseReply#serverreply{success = true}
+	end;
+service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+	TransOpts = Trans#queuetransferrequest.transfer_options,
+	gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
+	Skills = convert_skills(TransOpts#queuetransferoptions.skills),
+	gen_media:add_skills(C#call.source, Skills),
+	Reply = case agent:queue_transfer(State#state.agent_fsm, Trans#queuetransferrequest.queue_name) of
+		ok ->
+			BaseReply#serverreply{success = true};
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "invalid state change",
+				error_code = "INVALID_STATE_CHANGE"
+			}
+	end,
+	{Reply, State};
+service_request(
+	#agentrequest{request_hint = 'INIT_OUTBOUND', 
+		init_outbound_request = Request}, 
+	BaseReply, 
+	#state{state = S} = State) when S =:= released; S =:= idle ->
+	Reply = case Request#initoutboundrequest.media_type of
+		"freeswitch" ->
+			case whereis(freeswitch_media_manager) of
+				undefined ->
+					BaseReply#serverreply{
+						error_message = "freeswitch not available",
+						error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+					};
+				Pid ->
+					case freeswitch_media_manager:make_outbound_call(Request#initoutboundrequest.client_id, State#state.agent_fsm, State#state.agent_login) of
+						{ok, Pid} ->
+							Call = gen_media:get_call(Pid),
+							% yes, This should die horribly if it fails.
+							ok = agent:set_state(State#state.agent_fsm, precal, Call),
+							BaseReply#serverreply{success = true};
+						{error, Reason} ->
+							BaseReply#serverreply{
+								error_message = io_lib:format("initializing outbound call failed (~p)", [Reason]),
+								error_code = "UNKNOWN_ERROR"
+							}
+					end
+			end;
+		OtherMedia ->
+			?INFO("Media ~s not yet available for outboundiness.", [OtherMedia]),
+			BaseReply#serverreply{
+				error_message = "Media not available for outbound",
+				error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+			}
+	end,
+	{Reply, State};
+service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{state = ringing} = State) ->
+	Reply = case agent:set_state(State#state.agent_fsm, oncall) of
+		ok ->
+			BaseReply#serverreply{success = true};
+		invalid ->
+			BaseReply#serverreply{
+				error_message = "invalid state change",
+				error_code = "INVALID_STATE_CHANGE"
+			}
+	end,
+	{Reply, State};
+service_request(_, BaseReply, State) ->
+	Reply = BaseReply#serverreply{
+		error_message = "request not implemented",
+		error_code = "INVALID_REQUEST"
+	},
+	{Reply, State}.
+
 decrypt_password(Password) ->
 	Key = util:get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then
@@ -457,6 +737,25 @@ decrypt_password(Password) ->
 	catch
 		error:decrypt_failed ->
 			{error, decrypt_failed}
+	end.
+
+convert_skills(Skills) ->
+	convert_skills(Skills, []).
+
+convert_skills([], Acc) ->
+	lists:reverse(Acc);
+convert_skills([Head | Tail], Acc) ->
+	try list_to_existing_atom(Head#skill.atom) of
+		A ->
+			case Head#skill.expanded of
+				undefined ->
+					convert_skills(Tail, [A | Acc]);
+				X ->
+					convert_skills(Tail, [{A, X} | Acc])
+			end
+	catch
+		error:badarg ->
+			convert_skills(Tail, Acc)
 	end.
 
 -ifdef(TEST_DEPRICATED).

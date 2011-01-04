@@ -103,6 +103,8 @@ message ServerEvent {
 	optional string number_dialed = 7;
 	optional ClientRecord client = 8;
 	optional string url = 9;
+	optional string url_window = 10;
+	optional MediaEvent media_event = 11;
 }
 
 message MediaCommandRequest {

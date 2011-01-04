@@ -72,7 +72,8 @@
 		resend_counter = 0 :: non_neg_integer(),
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 		state,
-		statedata
+		statedata,
+		mediaload
 	}).
 
 -type(state() :: #state{}).
@@ -143,29 +144,101 @@ handle_cast(negotiate, State) ->
 			?DEBUG("O was ~p", [Else]),
 			{noreply, State}
 	end;
-
-
-
-
-
-%handle_cast({change_state, ringing, #call{} = Call}, State) ->
-%	?DEBUG("change_state to ringing with call ~p", [Call]),
-%	Counter = State#state.counter,
-%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
-%	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ lists:flatten(tuple_to_list(Call#call.callerid))  ++ "\r\n"),
-%	{noreply, State#state{counter = Counter + 2}};
-%
-%handle_cast({change_state, AgState, _Data}, State) ->
-%	Counter = State#state.counter,
-%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
-%	{noreply, State#state{counter = Counter + 1}};
-%
-%handle_cast({change_state, AgState}, State) ->
-%	Counter = State#state.counter,
-%	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
-%	{noreply, State#state{counter = Counter + 1}};
-
-handle_cast(_Msg, State) ->
+handle_cast({change_state, Statename, Statedata}, State) ->
+	Statechange = case Statename of
+		idle -> #statechange{ agent_state = 'IDLE'};
+		ringing -> #statechange{
+			agent_state = 'RINGING',
+			call_record = call_to_protobuf(Statedata)
+		};
+		oncall -> #statechange{
+			agent_state = 'ONCALL',
+			call_record = call_to_protobuf(Statedata)
+		};
+		wrapup -> #statechange{
+			agent_state = 'WRAPUP',
+			call_record = call_to_protobuf(Statedata)
+		};
+		warmtransfer -> #statechange{
+			agent_state = 'WARMTRANSFER',
+			call_record = call_to_protobuf(element(2, Statedata)),
+			warm_transfer_number = call_to_protobuf(element(4, Statedata))
+		};
+		precall -> #statechange{
+			agent_state = 'PRECALL',
+			client = call_to_protobuf(Statedata)
+		};
+		outgoing -> #statechange{
+			agent_state = 'OUTGOING',
+			call_record = call_to_protobuf(Statedata)
+		}
+	end,
+	Command = #serverevent{
+		command = 'ASTATE',
+		state_change = Statechange
+	},
+	server_event(State#state.socket, Command),
+	{noreply, State#state{state = Statename, statedata = Statedata}};
+handle_cast({change_state, Statename}, State) ->
+	Statechange = case Statename of
+		idle -> #statechange{ agent_state = 'IDLE'};
+		ringing -> #statechange{ agent_state = 'RINGING' };
+		oncall -> #statechange{ agent_state = 'ONCALL' };
+		wrapup -> #statechange{ agent_state = 'WRAPUP' };
+		warmtransfer -> #statechange{ agent_state = 'WARMTRANSFER' };
+		precall -> #statechange{ agent_state = 'PRECALL' };
+		outgoing -> #statechange{ agent_state = 'OUTGOING' }
+	end,
+	Command = #serverevent{
+		command = 'ASTATE',
+		state_change = Statechange
+	},
+	server_event(State#state.socket, Command),
+	{noreply, State#state{state = Statename}};
+handle_cast({mediaload, Callrec}, State) ->
+	% TODO implement
+	{noreply, State#state{mediaload = []}};
+handle_cast({mediaload, Callrec, Options}, State) ->
+	{noreply, State#state{mediaload = Options}};
+handle_cast({mediapush, Callrec, Data}, State) when is_tuple(Data) ->
+	case element(1, Data) of
+		mediaevent ->
+			Command = #serverevent{
+				command = 'MEDIA_EVENT',
+				media_event = Data
+			},
+			server_event(State#state.socket, Command);
+		Else ->
+			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
+			ok
+	end,
+	{noreply, State};
+handle_cast({set_salt, Salt}, State) ->
+	{noreply, State};
+handle_cast({change_profile, Profile}, State) ->
+	Command = #serverevent{
+		command = 'APROFILE',
+		profile = Profile
+	},
+	server_event(State#state.socket, Command),
+	{noreply, State};
+handle_cast({url_pop, Url, Name}, State) ->
+	Command = #serverevent{
+		command = 'AURLPOP',
+		url = Url,
+		url_window = Name
+	},
+	server_event(State#state.socket, Command),
+	{noreply, State};
+handle_cast({blab, Text}, State) ->
+	Command = #serverevent{
+		command = 'ABLAB',
+		text_message = Text
+	},
+	server_event(State#state.socket, Command),
+	{noreply, State};
+handle_cast(Msg, State) ->
+	?DEBUG("Unhandled msg:  ~p", [Msg]),
 	{noreply, State}.
 
 % =====
@@ -257,6 +330,55 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+call_to_protobuf(Call) ->
+	#callrecord{
+		id = Call#call.id,
+		type = Call#call.type,
+		caller_id = Call#call.callerid,
+		dnis = Call#call.dnis,
+		client = client_to_protobuf(Call#call.client),
+		ring_path = case Call#call.ring_path of
+			outband -> 'OUTBAND_RING';
+			inband -> 'INBAND_RING';
+			any -> 'ANY_RING'
+		end,
+		media_path = case Call#call.media_path of
+			outband -> 'OUTBAND_PATH';
+			inband -> 'INBAND_PATH'
+		end,
+		direction = case Call#call.direction of
+			inbound -> 'INBOUND';
+			outbound -> 'OUTBOUND'
+		end
+	}.
+
+client_to_protobuf(Client) ->
+	#clientrecord{
+		is_default = case Client#client.id of undefined -> true; _ -> false end,
+		name = Client#client.label,
+		id = Client#client.id,
+		options = proplist_to_protobuf(Client#client.options)
+	}.
+
+proplist_to_protobuf(List) ->
+	proplist_to_protobuf(List, []).
+
+proplist_to_protobuf([], Acc) ->
+	lists:reverse(Acc);
+proplist_to_protobuf([{Key, Value} | Tail], Acc) ->
+	Rec = #simplekeyvalue{key = Key, value = Value},
+	proplist_to_protobuf(Tail, [Rec | Acc]);
+proplist_to_protobuf([Key | Tail], Acc) when is_atom(Key) ->
+	Rec = #simplekeyvalue{key = Key, value = "true"},
+	proplist_to_protobuf(Tail, [Rec, Acc]).
+
+server_event(Socket, Record) ->
+	Outrec = #servermessage{
+		type_hint = 'EVENT',
+		event = Record
+	},
+	send(Socket, Outrec).
 
 send(Socket, Record) ->
 	?DEBUG("pre encode:  ~p", [Record]),

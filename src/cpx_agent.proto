@@ -56,7 +56,7 @@ message ServerReply {
 	required bool success = 3;
 	optional string error_message = 4; //default english error message
 	optional string error_code = 5; //suitable for localization.
-	optional Release release_opts = 6;
+	repeated Release release_opts = 6;
 	repeated SimpleKeyValue agents = 7;
 	repeated SimpleKeyValue queues = 8;
 	repeated SimpleKeyValue brands = 9;

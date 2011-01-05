@@ -171,6 +171,23 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		outgoing -> #statechange{
 			agent_state = 'OUTGOING',
 			call_record = call_to_protobuf(Statedata)
+		};
+		released -> #statechange{
+			agent_state = 'RELEASED',
+			release = case Statedata of
+				default ->
+					#release{
+						id = "default",
+						name = "Default",
+						bias = 0
+					};
+				{Id, Name, Bias} ->
+					#release{
+						id = Id,
+						name = Name,
+						bias = Bias
+					}
+			end
 		}
 	end,
 	Command = #serverevent{
@@ -187,7 +204,8 @@ handle_cast({change_state, Statename}, State) ->
 		wrapup -> #statechange{ agent_state = 'WRAPUP' };
 		warmtransfer -> #statechange{ agent_state = 'WARMTRANSFER' };
 		precall -> #statechange{ agent_state = 'PRECALL' };
-		outgoing -> #statechange{ agent_state = 'OUTGOING' }
+		outgoing -> #statechange{ agent_state = 'OUTGOING' };
+		released -> #statechange{ agent_state = 'RELEASED' }
 	end,
 	Command = #serverevent{
 		command = 'ASTATE',

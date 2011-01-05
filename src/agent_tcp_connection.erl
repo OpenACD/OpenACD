@@ -278,53 +278,6 @@ handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
 	{stop, tcp_closed, State};
 
-%handle_info({tcp, Socket, Packet}, State) ->
-%	%?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
-%	Ev = parse_event(Packet),
-%	case handle_event(Ev, State) of
-%		{Reply, State2} ->
-%			%?CONSOLE("response: ~p", [Reply]),
-%			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
-%			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
-%			% Flow control: enable forwarding of next TCP message
-%			ok = inet:setopts(Socket, [{active, once}]),
-%			%?CONSOLE("leaving info", []),
-%			{noreply, State3};
-%		State2 ->
-%			% Flow control: enable forwarding of next TCP message
-%			ok = inet:setopts(Socket, [{active, once}]),
-%			{noreply, State2}
-%	end;
-%
-%handle_info({tcp_closed, _Socket}, State) ->
-%	?NOTICE("Client disconnected", []),
-%	case is_pid(State#state.agent_fsm) of
-%		true ->
-%			gen_fsm:send_all_state_event(State#state.agent_fsm, stop);
-%		false ->
-%			ok
-%	end,
-%	{stop, normal, State};
-%
-%handle_info(do_tick, #state{resend_counter = Resends} = State) when Resends > 2 ->
-%	?NOTICE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
-%	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
-%	{stop, normal, State};
-%handle_info(do_tick, State) ->
-%	ExpiredEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 60000000 end, State#state.resent),
-%	ResendEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 10000000 end, State#state.unacked),
-%	lists:foreach(fun({Counter, Event, Data, _Time}) ->
-%		?NOTICE("Expired event ~s ~p ~s", [Event, Counter, Data])
-%	end, ExpiredEvents),
-%	State2 = State#state{unacked = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 10000000 end, State#state.unacked)},
-%	State3 = State2#state{resent = lists:append(lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 60000000 end, State#state.resent), ResendEvents)},
-%	case length(ResendEvents) of
-%		0 ->
-%			{noreply, State3};
-%		_Else ->
-%			{noreply, resend_events(ResendEvents, State3)}
-%	end;
-
 handle_info(Info, State) ->
 	?DEBUG("Unhandled info ~p", [Info]),
 	{noreply, State}.

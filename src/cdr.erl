@@ -172,7 +172,7 @@ ringing(Call, Agent) when is_pid(Agent) ->
 ringing(Call, Agent) ->
 	event({ringing, Call, util:now(), Agent}).
 
-%% @_doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
+%% @doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
 -spec(ringout/2 :: (Call :: #call{}, Args :: {atom(), string() | pid()}) -> 'ok').
 ringout(Call, {Reason, Agent}) when is_pid(Agent) ->
 	ringout(Call, {Reason, agent_manager:find_by_pid(Agent)});

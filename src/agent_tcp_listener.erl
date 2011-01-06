@@ -42,17 +42,18 @@
 %% <pre>	[len]":"[protobuf]","</pre>
 %%
 %% "len" being the the stringification of the length of the protobuf.  So,
-%% a netstring of the binary <<"hello">> would look like <<"5:hello,">>.
-%% For a long discussion, {@link http://cr.yp.to/proto/netstrings.txt}.
+%% a netstring of the binary `<<"hello">>' would look like `<<"5:hello,">>'.
+%% For a long discussion, [http://cr.yp.to/proto/netstrings.txt].
 %%
-%% When a client first connects, they will get the binary <<"AgentServer">>.
+%% When a client first connects, they will get the binary 
+%% `<<"AgentServer">>'.
 %% That is the signal to start the login in ernest.  After that an agent
 %% should:
 %% <ol>
 %% <li>Verify it's version</li>
 %% <li>Request a salt</li>
 %% <li>Request to login</li>
-%% <ol>
+%% </ol>
 %%
 %% The version verification will reply an error if the major version doesn't
 %% match.  If only the minor version part doesn't match, success is 

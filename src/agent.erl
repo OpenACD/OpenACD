@@ -311,17 +311,17 @@ has_successful_ring(Pid) ->
 	MediaPid = self(),
 	gen_fsm:send_event(Pid, {has_successful_ring, MediaPid}).
 
-%% @_doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
+%% doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
 %-spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
 %warm_transfer_begin(Pid, Target) ->
 	%gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
 
-%% @_doc Cancel the warm_transfer procedure.  Gernally the media will handle it from here.
+%% doc Cancel the warm_transfer procedure.  Gernally the media will handle it from here.
 %-spec(warm_transfer_cancel/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
 %warm_transfer_cancel(Pid) ->
 	%gen_fsm:sync_send_event(Pid, warm_transfer_cancel).
 
-%% @_doc Complete the warm_transfer procedure.  Gernally the media will handle it from here.
+%% doc Complete the warm_transfer procedure.  Gernally the media will handle it from here.
 %-spec(warm_transfer_complete/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
 %warm_transfer_complete(Pid) ->
 	%gen_fsm:sync_send_event(Pid, warm_transfer_complete).

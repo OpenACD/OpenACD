@@ -162,7 +162,7 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		warmtransfer -> #statechange{
 			agent_state = 'WARMTRANSFER',
 			call_record = call_to_protobuf(element(2, Statedata)),
-			warm_transfer_number = call_to_protobuf(element(4, Statedata))
+			warm_transfer_number = element(4, Statedata)
 		};
 		precall -> #statechange{
 			agent_state = 'PRECALL',
@@ -311,8 +311,11 @@ code_change(_OldVsn, State, _Extra) ->
 call_to_protobuf(Call) ->
 	#callrecord{
 		id = Call#call.id,
-		type = Call#call.type,
-		caller_id = Call#call.callerid,
+		type = atom_to_list(Call#call.type),
+		caller_id = #callerid{
+			name = element(1, Call#call.callerid),
+			data = element(2, Call#call.callerid)
+		},
 		dnis = Call#call.dnis,
 		client = client_to_protobuf(Call#call.client),
 		ring_path = case Call#call.ring_path of

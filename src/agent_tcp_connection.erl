@@ -181,6 +181,12 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 						name = "Default",
 						bias = 0
 					};
+				{Id, default, Bias} ->
+					#release{
+						id = Id,
+						name = "Default",
+						bias = Bias
+					};
 				{Id, Name, Bias} ->
 					#release{
 						id = Id,
@@ -537,7 +543,7 @@ service_request(#agentrequest{request_hint = 'GO_RELEASED', go_released_request 
 	end;
 service_request(#agentrequest{request_hint = 'GET_BRAND_LIST'}, BaseReply, State) ->
 	RawBrands = call_queue_config:get_clients(),
-	Brands = [#simplekeyvalue{key = X#client.id, value = X#client.label} || X <- RawBrands],
+	Brands = [#simplekeyvalue{key = X#client.id, value = X#client.label} || X <- RawBrands, X#client.label =/= undefined],
 	Reply = BaseReply#serverreply{
 		brands = Brands,
 		success = true
@@ -580,8 +586,9 @@ service_request(#agentrequest{request_hint = 'GET_PROFILES'}, BaseReply, State) 
 service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, State) ->
 	RawAgents = agent_manager:list(),
 	AgentStates = [agent:dump_state(Pid) || {_K, {Pid, _Id, _Time, _Skills}} <- RawAgents],
-	Agents = [{availagent, X#agent.login, X#agent.profile, X#agent.state} || X <- AgentStates],
+	Agents = [{availagent, X#agent.login, X#agent.profile, state_to_pb(X#agent.state)} || X <- AgentStates],
 	Reply = BaseReply#serverreply{
+		success = true,
 		agents = Agents
 	},
 	{Reply, State};
@@ -831,6 +838,26 @@ decrypt_password(Password) ->
 		error:decrypt_failed ->
 			{error, decrypt_failed}
 	end.
+
+state_to_pb(idle) ->
+	'IDLE';
+state_to_pb(ringing) ->
+	'RINGING';
+state_to_pb(precall) ->
+	'PRECALL';
+state_to_pb(oncall) ->
+	'ONCALL';
+state_to_pb(outgoing) ->
+	'OUTGOING';
+state_to_pb(released) ->
+	'RELEASED';
+state_to_pb(warmtransfer) ->
+	'WARMTRANSFER';
+state_to_pb(wrapup) ->
+	'WRAPUP';
+state_to_pb(_) ->
+	'PRELOGIN'.
+
 
 convert_skills(Skills) ->
 	convert_skills(Skills, []).

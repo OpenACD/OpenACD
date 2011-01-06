@@ -558,7 +558,7 @@ service_request(#agentrequest{request_hint = 'GET_QUEUE_LIST'}, BaseReply, State
 	},
 	{Reply, State};
 service_request(#agentrequest{request_hint = 'GET_QUEUE_TRANSFER_OPTS'}, BaseReply, State) ->
-	{ok, {Prompts, Skills}} = cpx_supervisor:get_value(transferprompt, {[], []}),
+	{ok, {Prompts, Skills}} = cpx:get_env(transferprompt, {[], []}),
 	Opts = [{simplekeyvalue, Name, Label} || {Name, Label, _} <- Prompts],
 	SkillOpts = [case X of
 		{Skill, Expand} ->

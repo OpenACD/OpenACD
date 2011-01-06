@@ -2,6 +2,9 @@ import "cpx_base.proto";
 
 package openacd.agent;
 
+// The list of requests the server supports.
+// Media commands are forwarded to media modules,
+// thus they are not defined here.
 enum RequestHint {
 	CHECK_VERSION = 1;
 	GET_SALT = 2;
@@ -29,8 +32,13 @@ enum RequestHint {
 	MEDIA_ANSWER = 25;
 }
 
+// The wrapper for agent requests.  These are sent by the agent,
+// and consumed by the server.  The server will never send one of thse
+// out.
 message AgentRequest {
+	// reference number used by the server when replying.
 	required int64 request_id = 1;
+	// type of request
 	required RequestHint request_hint = 2;
 	optional LoginRequest login_request = 3;
 	optional AgentTransferRequest agent_transfer = 4;
@@ -43,6 +51,10 @@ message AgentRequest {
 	optional AgentClientVersion agent_client_version = 12;
 }
 
+// The wrapper for messages coming from the server to the client.
+// Since message can either be in reply to a request (see above)
+// or concerning new events (like an agent starts ringing), the 
+// type hint here is event vs reply.
 message ServerMessage {
 	enum TypeHint {
 		REPLY = 1;
@@ -53,23 +65,36 @@ message ServerMessage {
 	optional ServerEvent event = 3;
 }
 
+// This message is in reference to a request made by an agent earlier.
 message ServerReply {
+	// The id the agent provided for it's request.
 	required int64 request_id = 1;
+	// the request hint the agent provided.
 	required RequestHint request_hinted = 2;
+	// if the request was successfuly carried out.
 	required bool success = 3;
+	// if there was problem, this is the english human message.
 	optional string error_message = 4; //default english error message
-	optional string error_code = 5; //suitable for localization.
+	// A localization type code on what the error is.
+	// May lack the details the error_message has.
+	optional string error_code = 5;
 	repeated Release release_opts = 6;
 	repeated AvailAgent agents = 7;
 	repeated SimpleKeyValue queues = 8;
 	repeated SimpleKeyValue brands = 9;
 	repeated string profiles = 10;
 	optional QueueTransferOptions queue_transfer_opts = 11;
+	// Very media dependant.
 	optional MediaCommandReply media_command_reply = 12;
 	optional SaltReply salt_and_key = 13;
+	// Very media dependant
 	optional MediaEvent media_event = 14;
 }
 
+// An agent client MUST at least understand the A* commands.  Event 
+// media_event, because those will only occur while the agent is oncall.
+// If the agent could not handle that media inband, it should not have 
+// answered the call.
 enum ServerCommand {
 	ASTATE = 1;
 	APROFILE = 2;
@@ -84,6 +109,7 @@ message AvailAgent {
 	required AgentState state = 3;
 }
 
+// Events the agent did not ask about, like going ringing.
 message ServerEvent {
 	required ServerCommand command = 1;
 	optional string profile = 2;

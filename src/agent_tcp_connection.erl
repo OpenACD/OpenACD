@@ -27,13 +27,9 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc WARNING!  This module is known to be broken, and will likely never be
-%% fixed!  It is here only as a (once was) function example.  We strongly 
-%% recommend using the web interface instead, as that is (at this point) more
-%% feature rich.
-%%
-%% The connection handler that communicates with a client UI; in this case the 
-%% desktop client.
+%% @doc The connection handler that communicates with a client UI; in this 
+%% case the a tcp client using the protobufs defined in cpx_agent.proto.
+%% @see agent_tcp_listener
 
 -module(agent_tcp_connection).
 
@@ -58,18 +54,21 @@
 -include("cpx_agent_pb.hrl").
 
 % {Counter, Event, Data, now()}
--type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
+% TODO if unacked events become and issue, worry.  For now there are many
+% other systems that catch deadified agents, killing the fsm, which will
+% kill this.
+%-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
 
 -record(state, {
 		salt :: pos_integer(),
 		socket :: port(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
-		send_queue = [] :: [string()],
-		counter = 1 :: pos_integer(),
-		unacked = [] :: [unacked_event()],
-		resent = [] :: [unacked_event()],
-		resend_counter = 0 :: non_neg_integer(),
+		%send_queue = [] :: [string()],
+		%counter = 1 :: pos_integer(),
+		%unacked = [] :: [unacked_event()],
+		%resent = [] :: [unacked_event()],
+		%resend_counter = 0 :: non_neg_integer(),
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 		state,
 		statedata,
@@ -94,9 +93,7 @@ start(Socket) ->
 start_link(Socket) ->
 	gen_server:start_link(?MODULE, [Socket], []).
 
-
-
-%% @doc negotiate the client's protocol and version before login.
+%% @doc Notify the client that it should begin the login proceedure.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).

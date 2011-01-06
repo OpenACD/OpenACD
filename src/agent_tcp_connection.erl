@@ -592,6 +592,15 @@ service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, Sta
 		agents = Agents
 	},
 	{Reply, State};
+service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, State) ->
+	RawOpts = agent_auth:get_releases(),
+	Opts = [#release{id = Id, name = Label, bias = Bias} || 
+		#release_opt{id = Id, label = Label, bias = Bias} <- RawOpts],
+	Reply = BaseReply#serverreply{
+		success = true,
+		release_opts = [#release{id = "default", name = "Default", bias = 0} | Opts]
+	},
+	{Reply, State};
 service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
 	C#call.source ! call_hangup,
 	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of

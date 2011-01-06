@@ -1,4 +1,6 @@
-package openacd;
+import "cpx_base.proto";
+
+package openacd.agent;
 
 enum RequestHint {
 	CHECK_VERSION = 1;
@@ -76,18 +78,6 @@ enum ServerCommand {
 	MEDIA_EVENT = 5;
 }
 
-enum AgentState {
-	PRELOGIN = 1;
-	IDLE = 2;
-	RINGING = 3;
-	PRECALL = 4;
-	ONCALL = 5;
-	OUTGOING = 6;
-	RELEASED = 7;
-	WARMTRANSFER = 8;
-	WRAPUP = 9;
-}
-
 message AvailAgent {
 	required string name = 1;
 	required string profile = 2;
@@ -123,59 +113,6 @@ message MediaEvent {
 message AgentClientVersion {
 	required int32 major = 1 [default=0];
 	required int32 minor = 2 [default=1];
-}
-
-// use this repeated to make a proplist.
-message SimpleKeyValue {
-	required string key = 1;
-	required string value = 2;
-}
-
-message Skill {
-	required string atom = 1;
-	optional string expanded = 2;
-}
-
-message ClientRecord {
-	required bool is_default = 1;
-	optional string name = 2;
-	optional string id = 3;
-	repeated SimpleKeyValue options = 4;
-}
-
-message CallerId {
-	optional string name = 1 [default="Unknown"];
-	optional string data = 2 [default="Unknown"];
-}
-
-message CallRecord {
-	required string id = 1;
-	required string type = 2 [default="voice"];
-	optional CallerId caller_id = 3;
-	optional string dnis = 4;
-	optional ClientRecord client = 5;
-	enum RingPath {
-		OUTBAND_RING  = 1;
-		INBAND_RING = 2;
-		ANY_RING = 3;
-	}
-	optional RingPath ring_path = 6 [default=OUTBAND_RING]; 
-	enum MediaPath { 
-		OUTBAND_PATH = 1;
-		INBAND_PATH = 2;
-	}
-	optional MediaPath media_path = 7 [default=OUTBAND_PATH];
-	enum Direction {
-		INBOUND = 1;
-		OUTBOUND = 2;
-	}
-	optional Direction direction = 8 [default=INBOUND];
-}
-
-message Release {
-	required string id = 1;
-	required string name = 2;
-	required int32 bias = 3;
 }
 
 message LoginRequest {

@@ -1528,7 +1528,11 @@ handle_info(poll_flush, State) ->
 		{Pid, []} ->
 			{noreply, State#state{poll_flush_timer = undefined}};
 		{Pid, PollQueue} when is_pid(Pid) ->
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(State#state.poll_queue)}]})}},
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [
+				{success, true},
+				{<<"data">>, lists:reverse(State#state.poll_queue)},
+				{<<"result">>, lists:reverse(State#state.poll_queue)}
+			]})}},
 			unlink(Pid),
 			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined}}
 	end;

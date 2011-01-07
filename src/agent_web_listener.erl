@@ -445,7 +445,7 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	end,
 	Json = {struct, [
 		{<<"success">>, true},
-		{<<"result">>, Fulljson} |
+		{<<"result">>, {struct, Fulljson}} |
 		Fulljson
 	]},
 	{200, [], mochijson2:encode(Json)};

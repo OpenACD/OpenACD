@@ -101,24 +101,24 @@
 %% @doc starts the cdr event server.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	Nodes = cpx:get_env(nodes, [node()]),
+	{ok, Nodes} = cpx:get_env(nodes, [node()]),
 	start(Nodes).
 
 %% @doc starts the cdr event server with mnesia on specified nodes.
 start(Nodes) ->
-	build_tables(Nodes),
+	ok = build_tables(Nodes),
 	gen_event:start({local, ?MODULE}).
 
 %% @doc Starts the cdr event server linked.
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
-	Nodes = cpx:get_env(nodes, [node()]),
+	{ok, Nodes} = cpx:get_env(nodes, [node()]),
 	start_link(Nodes).
 
 %% @doc Starts the cdr event server with mnesia on specified nodes.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	build_tables(Nodes),
+	ok = build_tables(Nodes),
 	gen_event:start_link({local, ?MODULE}).
 
 %% @doc Create a handler specifically for `#call{} Call' with default options.

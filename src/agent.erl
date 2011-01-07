@@ -1327,7 +1327,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 				Now = util:now(),
 				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, oldstate = login, state=State,
 						start = Now, ended = Now, profile= Profile, nodes = Nodes}),
-				mnesia:dirty_write(#agent_state{agent = Agentname, oldstate = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, start = Now, nodes = Nodes}),
 				gen_cdr_dumper:update_notify(agent_state),
 				ok
 			end,

@@ -130,13 +130,9 @@ handle_cast(negotiate, State) ->
 	case O of
 		{ok, Packet} ->
 			?DEBUG("packet: ~p.~n", [Packet]),
-			case recv(Packet) of
-				{[], <<>>} ->
-					{noreply, State};
-				{Bins, <<>>} ->
-					NewState = service_requests(Bins, State),
-					{noreply, NewState}
-			end;
+			{_Rest, Bins} = protobuf_util:netsting_to_bins(Packet),
+			NewState = service_requests(Bins, State),
+			{noreply, NewState};
 		Else ->
 			?DEBUG("O was ~p", [Else]),
 			{noreply, State}
@@ -146,51 +142,32 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		idle -> #statechange{ agent_state = 'IDLE'};
 		ringing -> #statechange{
 			agent_state = 'RINGING',
-			call_record = call_to_protobuf(Statedata)
+			call_record = protobuf_util:call_to_protobuf(Statedata)
 		};
 		oncall -> #statechange{
 			agent_state = 'ONCALL',
-			call_record = call_to_protobuf(Statedata)
+			call_record = protobuf_util:call_to_protobuf(Statedata)
 		};
 		wrapup -> #statechange{
 			agent_state = 'WRAPUP',
-			call_record = call_to_protobuf(Statedata)
+			call_record = protobuf_util:call_to_protobuf(Statedata)
 		};
 		warmtransfer -> #statechange{
 			agent_state = 'WARMTRANSFER',
-			call_record = call_to_protobuf(element(2, Statedata)),
+			call_record = protobuf_util:call_to_protobuf(element(2, Statedata)),
 			warm_transfer_number = element(4, Statedata)
 		};
 		precall -> #statechange{
 			agent_state = 'PRECALL',
-			client = call_to_protobuf(Statedata)
+			client = protobuf_util:call_to_protobuf(Statedata)
 		};
 		outgoing -> #statechange{
 			agent_state = 'OUTGOING',
-			call_record = call_to_protobuf(Statedata)
+			call_record = protobuf_util:call_to_protobuf(Statedata)
 		};
 		released -> #statechange{
 			agent_state = 'RELEASED',
-			release = case Statedata of
-				default ->
-					#release{
-						id = "default",
-						name = "Default",
-						bias = 0
-					};
-				{Id, default, Bias} ->
-					#release{
-						id = Id,
-						name = "Default",
-						bias = Bias
-					};
-				{Id, Name, Bias} ->
-					#release{
-						id = Id,
-						name = Name,
-						bias = Bias
-					}
-			end
+			release = protobuf_util:release_to_protobuf(Statedata)
 		}
 	end,
 	Command = #serverevent{
@@ -200,16 +177,9 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 	server_event(State#state.socket, Command),
 	{noreply, State#state{state = Statename, statedata = Statedata}};
 handle_cast({change_state, Statename}, State) ->
-	Statechange = case Statename of
-		idle -> #statechange{ agent_state = 'IDLE'};
-		ringing -> #statechange{ agent_state = 'RINGING' };
-		oncall -> #statechange{ agent_state = 'ONCALL' };
-		wrapup -> #statechange{ agent_state = 'WRAPUP' };
-		warmtransfer -> #statechange{ agent_state = 'WARMTRANSFER' };
-		precall -> #statechange{ agent_state = 'PRECALL' };
-		outgoing -> #statechange{ agent_state = 'OUTGOING' };
-		released -> #statechange{ agent_state = 'RELEASED' }
-	end,
+	Statechange = #statechange{
+		agent_state = protobuf_util:statename_to_enum(Statename)
+	},
 	Command = #serverevent{
 		command = 'ASTATE',
 		state_change = Statechange
@@ -269,15 +239,10 @@ handle_cast(Msg, State) ->
 %% @hidden
 handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
-	case recv(Packet) of
-		{[], <<>>} ->
-			ok = inet:setopts(Socket, [{active, once}]),
-			{noreply, State};
-		{Bins, <<>>} ->
-			NewState = service_requests(Bins, State),
-			ok = inet:setopts(Socket, [{active, once}]),
-			{noreply, NewState}
-	end;
+	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet),
+	NewState = service_requests(Bins, State),
+	ok = inet:setopts(Socket, [{active, once}]),
+	{noreply, NewState};
 handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
 	{stop, tcp_closed, State};
 
@@ -305,51 +270,6 @@ code_change(_OldVsn, State, _Extra) ->
 % Internal functions
 % =====
 
-call_to_protobuf(Call) ->
-	#callrecord{
-		id = Call#call.id,
-		type = atom_to_list(Call#call.type),
-		caller_id = #callerid{
-			name = element(1, Call#call.callerid),
-			data = element(2, Call#call.callerid)
-		},
-		dnis = Call#call.dnis,
-		client = client_to_protobuf(Call#call.client),
-		ring_path = case Call#call.ring_path of
-			outband -> 'OUTBAND_RING';
-			inband -> 'INBAND_RING';
-			any -> 'ANY_RING'
-		end,
-		media_path = case Call#call.media_path of
-			outband -> 'OUTBAND_PATH';
-			inband -> 'INBAND_PATH'
-		end,
-		direction = case Call#call.direction of
-			inbound -> 'INBOUND';
-			outbound -> 'OUTBOUND'
-		end
-	}.
-
-client_to_protobuf(Client) ->
-	#clientrecord{
-		is_default = case Client#client.id of undefined -> true; _ -> false end,
-		name = Client#client.label,
-		id = Client#client.id,
-		options = proplist_to_protobuf(Client#client.options)
-	}.
-
-proplist_to_protobuf(List) ->
-	proplist_to_protobuf(List, []).
-
-proplist_to_protobuf([], Acc) ->
-	lists:reverse(Acc);
-proplist_to_protobuf([{Key, Value} | Tail], Acc) ->
-	Rec = #simplekeyvalue{key = Key, value = Value},
-	proplist_to_protobuf(Tail, [Rec | Acc]);
-proplist_to_protobuf([Key | Tail], Acc) when is_atom(Key) ->
-	Rec = #simplekeyvalue{key = Key, value = "true"},
-	proplist_to_protobuf(Tail, [Rec, Acc]).
-
 server_event(Socket, Record) ->
 	Outrec = #servermessage{
 		type_hint = 'EVENT',
@@ -361,41 +281,12 @@ send(Socket, Record) ->
 	?DEBUG("pre encode:  ~p", [Record]),
 	Bin = cpx_agent_pb:encode(Record),
 	?DEBUG("post encode:  ~p", [Bin]),
-	Size = list_to_binary(integer_to_list(size(Bin))),
-	?DEBUG("Das size:  ~p", [Size]),
-	Outbin = <<Size/binary, $:, Bin/binary, $,>>,
+	%Size = list_to_binary(integer_to_list(size(Bin))),
+	%?DEBUG("Das size:  ~p", [Size]),
+	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
+	Outbin = protobuf_util:bin_to_netstring(Bin),
 	?DEBUG("Das outbin:  ~p", [Outbin]),
 	ok = gen_tcp:send(Socket, Outbin).
-
-recv(Bin) ->
-	read_tcp_strings(Bin).
-
-read_tcp_strings(Bin) ->
-	read_tcp_strings(Bin, []).
-
-read_tcp_strings(Bin, Acc) ->
-	case read_tcp_string(Bin) of
-		nostring ->
-			{lists:reverse(Acc), Bin};
-		{String, Rest} ->
-			read_tcp_strings(Rest, [String | Acc])
-	end.
-
-read_tcp_string(Bin) ->
-	read_tcp_string(Bin, []).
-
-read_tcp_string(<<$:, Bin/binary>>, RevSize) ->
-	Size = list_to_integer(lists:reverse(RevSize)),
-	case Bin of
-		<<String:Size/binary, ",", Rest/binary>> ->
-			{String, Rest};
-		_ ->
-			nostring
-	end;
-read_tcp_string(<<>>, _Acc) ->
-	nostring;
-read_tcp_string(<<Char/integer, Rest/binary>>, Acc) ->
-	read_tcp_string(Rest, [Char | Acc]).
 
 service_requests([], State) ->
 	State;
@@ -477,9 +368,9 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 									RawQueues = call_queue_config:get_queues(),
 									RawBrands = call_queue_config:get_clients(),
 									RawReleases = agent_auth:get_releases(),
-									Releases = [{release, X#release_opt.id, X#release_opt.label, X#release_opt.bias} || X <- RawReleases],
-									Queues = [{simplekeyvalue, X#call_queue.name, X#call_queue.name} || X <- RawQueues],
-									Brands = [{simplekeyvalue, X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined],
+									Releases = [protobuf_util:release_to_protobuf({X#release_opt.id, X#release_opt.label, X#release_opt.bias}) || X <- RawReleases],
+									Queues = protbuf_util:proplist_to_protobuf([{X#call_queue.name, X#call_queue.name} || X <- RawQueues]),
+									Brands = protobuf_util:proplist_to_protobuf([{X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined]),
 									Reply = BaseReply#serverreply{
 										success = true,
 										release_opts = Releases,
@@ -560,12 +451,7 @@ service_request(#agentrequest{request_hint = 'GET_QUEUE_LIST'}, BaseReply, State
 service_request(#agentrequest{request_hint = 'GET_QUEUE_TRANSFER_OPTS'}, BaseReply, State) ->
 	{ok, {Prompts, Skills}} = cpx:get_env(transferprompt, {[], []}),
 	Opts = [{simplekeyvalue, Name, Label} || {Name, Label, _} <- Prompts],
-	SkillOpts = [case X of
-		{Skill, Expand} ->
-			#skill{atom = Skill, expanded = Expand};
-		Skill ->
-			#skill{atom = Skill}
-	end || X <- Skills],
+	SkillOpts = [protobuf_util:skill_to_protobuf(X) || X <- Skills],
 	TransferOpts = #queuetransferoptions{
 		options = Opts,
 		skills = SkillOpts
@@ -594,11 +480,10 @@ service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, Sta
 	{Reply, State};
 service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, State) ->
 	RawOpts = agent_auth:get_releases(),
-	Opts = [#release{id = Id, name = Label, bias = Bias} || 
-		#release_opt{id = Id, label = Label, bias = Bias} <- RawOpts],
+	Opts = [protobuf_util:release_to_protobuf(X) || X <- RawOpts],
 	Reply = BaseReply#serverreply{
 		success = true,
-		release_opts = [#release{id = "default", name = "Default", bias = 0} | Opts]
+		release_opts = [protobuf_util:release_to_protobuf(default) | Opts]
 	},
 	{Reply, State};
 service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->

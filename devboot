@@ -94,6 +94,18 @@ if [ ! -f $CONFIG ] && [ ! -f "${CONFIG}.config" ]; then
 single.config
 fi
 
+if [ ! -f "key" ]; then
+	echo "RSA key does not exist, generating..."
+	ssh-keygen -t rsa -f key -N ""
+	RES=$?
+	if [ $RES != 0 ]; then
+		echo "Key generation failed with error $RES!"
+		exit $RES
+	fi
+fi
+
+export OPENACD_RUN_DIR=`pwd`
+
 CMD="erl +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG $BOOT"
 
 #echo $CMD

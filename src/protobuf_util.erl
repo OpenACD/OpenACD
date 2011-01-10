@@ -37,6 +37,9 @@
 -include("agent.hrl").
 -include("cpx_base_pb.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 -export([
 	call_to_protobuf/1,
 	client_to_protobuf/1,
@@ -158,7 +161,7 @@ skill_to_protobuf(Atom) when is_atom(Atom) ->
 	#skill{atom = atom_to_list(Atom)}.
 
 bin_to_netstring(Bin) ->
-	Size = integer_to_list(size(Bin)),
+	Size = list_to_binary(integer_to_list(size(Bin))),
 	<<Size/binary, $:, Bin/binary, $,>>.
 
 bins_to_netstring(Bins) ->
@@ -175,7 +178,30 @@ netstring_to_bins(<<>>, NumberAcc, Acc) ->
 	{Rest, lists:reverse(Acc)};
 netstring_to_bins(<<$:, Rest/binary>>, NumberAcc, Acc) ->
 	Size = list_to_integer(lists:reverse(NumberAcc)),
-	<<NetBin:Size/binary, $,, NewRest/binary>> = Rest,
-	netstring_to_bins(NewRest, [], [NetBin | Acc]);
+	case Rest of
+		<<NetBin:Size/binary, $,, NewRest/binary>> ->
+			netstring_to_bins(NewRest, [], [NetBin | Acc]);
+		_ ->
+			Top = list_to_binary(lists:reverse([$: | NumberAcc])),
+			{<<Top/binary, Rest/binary>>, lists:reverse(Acc)}
+	end;
 netstring_to_bins(<<N/integer, Rest/binary>>, NumAcc, Acc) ->
 	netstring_to_bins(Rest, [N | NumAcc], Acc).
+
+-ifdef(TEST).
+bin_to_netstring_test_() ->
+	[?_assertEqual(<<"3:hi!,">>, bin_to_netstring(<<"hi!">>)),
+	?_assertEqual(<<"6:3:hi!,,">>, bin_to_netstring(<<"3:hi!,">>))].
+
+bins_to_netstring_test_() ->
+	[?_assertEqual(<<"3:hi!,3:hi!,">>, bins_to_netstring([<<"hi!">>, <<"hi!">>])),
+	?_assertEqual(<<"6:3:hi!,,3:hi!,">>, bins_to_netstring([<<"3:hi!,">>, <<"hi!">>]))].
+
+netstring_to_bins_test_() ->
+	[?_assertEqual({<<>>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,">>)),
+	?_assertEqual({<<>>, [<<"3:hi!,">>]}, netstring_to_bins(<<"6:3:hi!,,">>)),
+	?_assertEqual({<<>>, [<<"hi!">>, <<"3:hi!,">>]}, netstring_to_bins(<<"3:hi!,6:3:hi!,,">>)),
+	?_assertEqual({<<"123:rest">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,123:rest">>)),
+	?_assertEqual({<<"1">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,1">>))].
+
+-endif.

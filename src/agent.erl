@@ -1325,10 +1325,29 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 		{Agentname, login, State, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, oldstate = login, state=State,
-						start = Now, ended = Now, profile= Profile, nodes = Nodes}),
-				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				Login = #agent_state{
+					id = Id, 
+					agent = Agentname, 
+					oldstate = login, 
+					state=State,
+					start = Now, 
+					ended = Now, 
+					profile= Profile, 
+					nodes = Nodes
+				},
+				StateRow = #agent_state{
+					id = Id,
+					agent = Agentname,
+					oldstate = State,
+					statedata = Statedata,
+					start = Now,
+					nodes = Nodes
+				},
+				mnesia:dirty_write(Login),
+				mnesia:dirty_write(StateRow),
 				gen_cdr_dumper:update_notify(agent_state),
+				cpx_monitor:info({agent_state, Login}),
+				cpx_monitor:info({agent_state, StateRow}),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
@@ -1343,7 +1362,9 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 				lists:foreach(
 					fun(Untermed) ->
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now, state = logout})
+						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
+						cpx_monitor:info({agent_state, Termed}),
+						mnesia:write(Termed)
 					end,
 					Recs
 				),
@@ -1375,13 +1396,16 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 				Recs = qlc:e(QH),
 				lists:foreach(
 					fun(Untermed) -> 
-						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now, state = State})
+						mnesia:delete_object(Untermed),
+						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
+						cpx_monitor:info({agent_state, Termed}),
+						mnesia:write(Termed)
 					end,
 					Recs
 				),
 				gen_cdr_dumper:update_notify(agent_state),
 				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
+				cpx_monitor:info({agent_state, Newrec}),
 				mnesia:write(Newrec),
 				ok
 			end,

@@ -34,7 +34,7 @@
 
 -module(cdr_tcp_pusher).
 -author(micahw).
--behavior(gen_cdr_dumper).
+-behavior(gen_server).
 
 -include("log.hrl").
 -include("call.hrl").
@@ -45,28 +45,47 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+% API
+-export([
+	start/1,
+	start_link/1,
+	resend/0
+]).
+
+% gen_server callbacks
 -export([
 	init/1,
+	handle_call/3,
+	handle_cast/2,
+	handle_info/2,
 	terminate/2,
-	code_change/3,
-	dump/2,
-	commit/1,
-	rollback/1
+	code_change/3
 ]).
 
 -record(state, {
-	tcp_minion :: pid()
-}).
-
--record(loop_state, {
+	port,
+	server = "localhost",
 	socket,
 	ack_queue = dict:new(),
 	last_id = 0
 }).
 
 -type(state() :: #state{}).
--define(GEN_CDR_DUMPER, true).
+-define(GEN_SERVER, true).
 -include("gen_spec.hrl").
+
+% =====
+% API
+% =====
+
+start(Opts) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, Opts, []).
+
+start_link(Opts) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
+
+resend() ->
+	gen_server:cast(?MODULE, resend).
 
 % =====
 % Callbacks
@@ -75,84 +94,149 @@
 init(Opts) ->
 	Port = proplists:get_value(port, Opts),
 	Server = proplists:get_value(server, Opts, "localhost"),
-	Minion = start_tcp_loop(Server, Port),
-	{ok, #state{tcp_minion = Minion}}.
+	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}, {atcive, once}]),
+	cpx_monitor:subscribe(fun cpx_msg_filter/1),
+	{ok, #state{
+		port = Port,
+		server = Server,
+		socket = Socket
+	}}.
 
+% =====
+% handle_call
+% =====
+
+handle_call(Msg, _From, State) ->
+	?DEBUG("Unhandled call ~p", [Msg]),
+	{reply, unknown_call, State}.
+
+% =====
+% handle cast
+% =====
+
+handle_cast(Msg, State) ->
+	?DEBUG("Unhandled cast ~p", [Msg]),
+	{noreply, State}.
+
+% =====
+% handle info
+% =====
+
+handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
+	{_Rest, Acks} = protobuf_util:netstring_to_bins(Packet),
+	NewAckq = remove_acked(Acks, State#state.ack_queue),
+	{noreply, State#state{ack_queue = NewAckq}};
+handle_info({tcp_closted, Socket}, #state{socket = Socket} = State) ->
+	{noreply, State#state{socket = undefined}};
+handle_info({cpx_monitor_event, {info, _Time, {agent_state, Astate}}}, State) ->
+	NewState = send(Astate, State),
+	{noreply, NewState};
+handle_info({cpx_monitor_event, {info, _Time, {cdr_raw, CdrRaw}}}, State) ->
+	NewState = send(CdrRaw, State),
+	{noreply, NewState};
+handle_info(resend, #state{socket = undefined} = State) ->
+	case gen_tcp:connect(State#state.server, State#state.port, [binary, {packet, raw}, {atcive, once}]) of
+		{ok, Socket} ->
+			NewState = resend(State#state.ack_queue, State#state{socket = Socket}),
+			{noreply, NewState};
+		Else ->
+			?WARNING("Could not reconnect for resend:  ~p", [Else]),
+			{noreply, State}
+	end;
+handle_info(resend, State) ->
+	?WARNING("Resending even though I think my socket is up.", []),
+	NewState = resend(State#state.ack_queue, State),
+	{noreply, NewState};
+handle_info({cpx_monitor_event, {info, _Time, {cdr_rec, CdrRec}}}, State) ->
+	NewState = send(CdrRec, State),
+	{noreply, NewState};
+
+
+handle_info(Msg, State) ->
+	?DEBUG("Unhandled Info ~p", [Msg]),
+	{noreply, State}.
+
+% =====
+% Terminate
+% =====
 terminate(_Reason, _State) ->
 	ok.
 
+% =====
+% code_change
+% =====
+
 code_change(_Oldvsn, State, _Extra) ->
-	{ok, State}.
-
-dump(Rec, #state{tcp_minion = Pid} = State) when is_record(Rec, agent_state); is_record(Rec, cdr_rec) ->
-	Pid ! {send, Rec},
-	{ok, State}.
-
-commit(State) ->
-	{ok, State}.
-
-rollback(State) ->
 	{ok, State}.
 
 % =====
 % Internal functions
 % =====
 
+cpx_msg_filter({cpx_monitor_event, {info, _, {agent_state, _}}}) ->
+	true;
+cpx_msg_filter({cpx_monitor_event, {info, _, {cdr_rec, _}}}) ->
+	true;
+cpx_msg_filter({cpx_monitor_event, {info, _, {cdr_raw, _}}}) ->
+	true;
+cpx_msg_filter(_) ->
+	false.
+
+send(Astate, State) when is_record(Astate, agent_state) ->
+	NewId = next_id(State#state.last_id),
+	Send = #cdrdumpmessage{
+		message_id = NewId,
+		message_hint = 'AGENT_STATE',
+		agent_state_change = agent_state_to_protobuf(Astate)
+	},
+	NewDict = dict:store(NewId, Send, State#state.ack_queue),
+	try_send(Send, State#state{last_id = NewId, ack_queue = NewDict});
+send(CdrRaw, State) when is_record(CdrRaw, cdr_raw) ->
+	NewId = next_id(State#state.last_id),
+	Send = #cdrdumpmessage{
+		message_id = NewId,
+		message_hint = 'CDR_RAW',
+		cdr_raw = cdr_raw_to_protobuf(CdrRaw)
+	},
+	NewDict = dict:store(NewId, Send, State#state.ack_queue),
+	try_send(Send, State#state{last_id = NewId, ack_queue = NewDict});
+send(CdrRec, State) when is_record(CdrRec, cdr_rec) ->
+	NewId = next_id(State#state.last_id),
+	Send = #cdrdumpmessage{
+		message_id = NewId,
+		message_hint = 'CDR_REC',
+		cdr_rec = cdr_rec_to_protobuf(CdrRec)
+	},
+	NewDict = dict:store(NewId, Send, State#state.ack_queue),
+	try_send(Send, State#state{last_id = NewId, ack_queue = NewDict}).
+
+resend([], State) ->
+	State;
+resend([Send | Tail], State) ->
+	case try_send(Send, State) of
+		#state{socket = undefined} = Out ->
+			Out;
+		NewState ->
+			resend(Tail, NewState)
+	end.
+
+try_send(_Send, #state{socket = undefined} = State) ->
+	State;
+try_send(Send, #state{socket = Socket} = State) ->
+	Bin = protobuf_util:bin_to_netstring(cpx_cdr_pb:encode(Send)),
+	case gen_tcp:send(Socket, Bin) of
+		ok ->
+			State;
+		{error, Else} ->
+			?WARNING("Could not send data (queued only) due to ~p", [Else]),
+			State#state{socket = undefined}
+	end.
+
 next_id(LastId) when LastId > 999998 ->
 	1;
 next_id(LastId) ->
 	LastId + 1.
 
-start_tcp_loop(Server, Port) ->
-	Fun = fun() ->
-		case gen_tcp:connect(Server, Port, [binary, {packet, raw}, {active, once}]) of
-			{ok, Socket} ->
-				tcp_loop(#loop_state{socket = Socket});
-			Else ->
-				exit(Else)
-		end
-	end,
-	spawn_link(Fun).
-
-tcp_loop(#loop_state{socket = Socket} = State) ->
-	receive
-		{tcp, Socket, Packet} ->
-			{_Rest, Acks} = protobuf_util:netstring_to_bins(Packet),
-			NewAckq = remove_acked(Acks, State#loop_state.ack_queue),
-			tcp_loop(State#loop_state{ack_queue = NewAckq});
-		{send, Astate} when is_record(Astate, agent_state) ->
-			NewId = next_id(State#loop_state.last_id),
-			Send = #cdrdumpmessage{
-				message_id = NewId,
-				message_hint = 'AGENT_STATE',
-				agent_state_change = agent_state_to_protobuf(Astate)
-			},
-			Bin = protobuf_util:bin_to_netstring(cpx_cdr_pb:encode(Send)),
-			ok = gen_tcp:send(Socket, Bin),
-			NewDict = dict:store(NewId, Send, State#loop_state.ack_queue),
-			tcp_loop(State#loop_state{last_id = NewId, ack_queue = NewDict});
-		{send, Cdr} when is_record(Cdr, cdr_rec) ->
-			NewId = next_id(State#loop_state.last_id),
-			Send = #cdrdumpmessage{
-				message_id = NewId,
-				message_hint = 'CDR',
-				cdr = cdr_rec_to_protobuf(Cdr)
-			},
-			Bin = protobuf_util:bin_to_netstring(cpx_cdr_pb:encode(Send)),
-			ok = gen_tcp:send(Socket, Bin),
-			NewDict = dict:store(NewId, Send, State#loop_state.ack_queue),
-			tcp_loop(State#loop_state{last_id = NewId, ack_queue = NewDict});
-		resend ->
-			Proplist = dict:to_list(State#loop_state.ack_queue),
-			Bins = [cpx_cdr_pb:encode(Send) || {_Key, Send} <- Proplist],
-			Bin = protobu_util:bins_to_netstring(Bins),
-			ok = gen_tcp:send(Socket, Bin),
-			tcp_loop(State);
-		Else ->
-			?WARNING("unhandlable message ~p", [Else]),
-			tcp_loop(State)
-	end.
-	
 remove_acked([], Dict) ->
 	Dict;
 remove_acked([Bin | Tail], Dict) ->

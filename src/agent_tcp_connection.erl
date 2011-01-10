@@ -124,8 +124,12 @@ handle_call(Request, _From, State) ->
 handle_cast(negotiate, State) ->
 	?DEBUG("starting negotiation...", []),
 	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
-	gen_tcp:send(State#state.socket, <<"AgentServer">>),
-	?DEBUG("SENT", []),
+	Statechange = #statechange{ agent_state = 'PRELOGIN'},
+	Command = #serverevent{
+		command = 'ASTATE',
+		state_change = Statechange
+	},
+	server_event(State#state.socket, Command),
 	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
 	case O of
 		{ok, Packet} ->
@@ -369,7 +373,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 									RawBrands = call_queue_config:get_clients(),
 									RawReleases = agent_auth:get_releases(),
 									Releases = [protobuf_util:release_to_protobuf({X#release_opt.id, X#release_opt.label, X#release_opt.bias}) || X <- RawReleases],
-									Queues = protbuf_util:proplist_to_protobuf([{X#call_queue.name, X#call_queue.name} || X <- RawQueues]),
+									Queues = protobuf_util:proplist_to_protobuf([{X#call_queue.name, X#call_queue.name} || X <- RawQueues]),
 									Brands = protobuf_util:proplist_to_protobuf([{X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined]),
 									Reply = BaseReply#serverreply{
 										success = true,

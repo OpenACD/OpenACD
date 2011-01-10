@@ -374,20 +374,9 @@ handle_cast(_, State) ->
 % =====
 
 %% @hidden
-handle_info({tcp, Socket, <<"AgentServer">>}, #state{requests = Reqs} = State) ->
-	?DEBUG("Got signal to start login in ernest.", []),
-	Ver = #agentclientversion{
-		major = ?Major,
-		minor = ?Minor
-	},
-	{NewId, Bin} = make_bin(Ver, State#state.last_req_id),
-	ok = gen_tcp:send(Socket, Bin),
-	?DEBUG("post send", []),
-	{noreply, State#state{last_req_id = NewId, requests = [{NewId, 'CHECK_VERSION'} | Reqs]}};
 handle_info({tcp, Socket, Bin}, State) ->
 	?DEBUG("In bin:  ~p", [Bin]),
 	{Replys, _} = decode_bin(Bin),
-	?DEBUG("post consume.", []),
 	{NewRequests, TruReplys} = consume_replys(Replys, State#state.requests),
 	Midstate = State#state{requests = NewRequests},
 	NewState = handle_server_messages(TruReplys, Midstate),
@@ -624,11 +613,23 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, State) ->
 			?DEBUG("nothing much to be done for other events", []),
 			State
 	end;
-handle_server_message(#serverevent{command = 'ASTATE'} = Event, State) ->
+handle_server_message(Event, State) ->
 	case Event#serverevent.command of
 		'ASTATE' ->
 			?INFO("State change to ~p", [Event#serverevent.state_change]),
-			State;
+			case Event#serverevent.state_change of
+				#statechange{ agent_state = 'PRELOGIN'} ->
+					Ver = #agentclientversion{
+						major = ?Major,
+						minor = ?Minor
+					},
+					{NewId, Bin} = make_bin(Ver, State#state.last_req_id),
+					ok = gen_tcp:send(State#state.socket, Bin),
+					?DEBUG("post send", []),
+					State#state{last_req_id = NewId, requests = [{NewId, 'CHECK_VERSION'} | State#state.requests]};
+			_ ->
+				State
+			end;
 		'APROFILE' ->
 			?INFO("Profile change to ~s", [Event#serverevent.profile]),
 			State;

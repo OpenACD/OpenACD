@@ -45,10 +45,9 @@
 %% a netstring of the binary `<<"hello">>' would look like `<<"5:hello,">>'.
 %% For a long discussion, [http://cr.yp.to/proto/netstrings.txt].
 %%
-%% When a client first connects, they will get the binary 
-%% `<<"AgentServer">>'.
-%% That is the signal to start the login in ernest.  After that an agent
-%% should:
+%% When a client first connects, they will get a message stating the agent
+%% is in the state `PRELOGIN'.  That is the signal to start the login 
+%% in ernest.  After that an agent should:
 %% <ol>
 %% <li>Verify it's version</li>
 %% <li>Request a salt</li>

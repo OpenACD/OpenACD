@@ -118,15 +118,17 @@ message AgentStateChange {
 }
 
 enum CdrDumpMessageHint {
-	CDR = 1;
-	AGENT_STATE = 2;
+	CDR_RAW = 1;
+	CDR_REC = 2;
+	AGENT_STATE = 3;
 }
 
 message CdrDumpMessage {
 	required int32 message_id = 1;
 	required CdrDumpMessageHint message_hint = 1;
-	optional CpxCdrRecord cdr = 2;
-	optional AgentStateChange agent_state_change = 3;
+	optional CpxCdrRaw cdr_raw = 2;
+	optional CpxCdrRecord cdr_rec = 3;
+	optional AgentStateChange agent_state_change = 4;
 }
 
 message CdrDumpAck {

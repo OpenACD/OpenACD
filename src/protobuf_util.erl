@@ -114,7 +114,7 @@ proplist_to_protobuf([{Key, Value} | Tail], Acc) ->
 	end;
 proplist_to_protobuf([Key | Tail], Acc) when is_atom(Key) ->
 	Rec = #simplekeyvalue{key = atom_to_list(Key), value = "true"},
-	proplist_to_protobuf(Tail, [Rec, Acc]).
+	proplist_to_protobuf(Tail, [Rec | Acc]).
 
 release_to_protobuf(default) ->
 	release_to_protobuf({"default", default, 0});
@@ -203,5 +203,27 @@ netstring_to_bins_test_() ->
 	?_assertEqual({<<>>, [<<"hi!">>, <<"3:hi!,">>]}, netstring_to_bins(<<"3:hi!,6:3:hi!,,">>)),
 	?_assertEqual({<<"123:rest">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,123:rest">>)),
 	?_assertEqual({<<"1">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,1">>))].
+
+proplist_to_protobuf_test_() ->
+	[{"list key, list val", fun() ->
+		Expected = [#simplekeyvalue{key = "key", value= "value"}],
+		In = [{"key", "value"}],
+		?assertEqual(Expected, proplist_to_protobuf(In))
+	end},
+	{"binary key, binary val", fun() ->
+		Expected = [#simplekeyvalue{key = "key", value="value"}],
+		In = [{<<"key">>, <<"value">>}],
+		?assertEqual(Expected, proplist_to_protobuf(In))
+	end},
+	{"atom key, no value", fun() ->
+		Expected = [#simplekeyvalue{key = "key", value = "true"}],
+		In = [key],
+		?assertEqual(Expected, proplist_to_protobuf(In))
+	end},
+	{"atom key, complex value", fun() ->
+		Expected = [],
+		In = [{key, {"This", "is", "too", "complex"}}],
+		?assertEqual(Expected, proplist_to_protobuf(In))
+	end}].
 
 -endif.

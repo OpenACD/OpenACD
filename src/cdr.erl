@@ -530,7 +530,9 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 		end,
 		lists:foreach(Terminate, Untermed),
 		%?DEBUG("Writing ~p", [Trans]),
-		mnesia:write(Trans#cdr_raw{terminates = lists:map(fun({T, _}) -> T end, Termedatoms)}),
+		FullTrans = Trans#cdr_raw{terminates = lists:map(fun({T, _}) -> T end, Termedatoms)},
+		cpx_monitor:info({cdr, raw, FullTrans}),
+		mnesia:write(FullTrans),
 		Termedatoms
 	end,
 	mnesia:transaction(F).
@@ -706,21 +708,18 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		Transactions = lists:sort(Sort, UsortedTransactions),
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
+		{ok, Nodes} = cpx:get_evn(nodes, [node()]),
+		CdrRec = #cdr_rec{
+			media = Callrec,
+			summary = Summary,
+			transactions = Transactions,
+			nodes = Nodes
+		},
 		F = fun() ->
-			Nodes = case application:get_env('OpenACD', nodes) of
-				undefined ->
-					[node()];
-				{ok, List} ->
-					List
-			end,
 			mnesia:delete({cdr_rec, Callrec}),
-			mnesia:write(#cdr_rec{
-				media = Callrec,
-				summary = Summary,
-				transactions = Transactions,
-				nodes = Nodes
-			}),
+			mnesia:write(CdrRec),
 			mnesia:delete({cdr_raw, CallID}),
+			cpx_monitor:info({cdr, rec, CdrRec}),
 			gen_cdr_dumper:update_notify(cdr_rec)
 		end,
 		mnesia:transaction(F)

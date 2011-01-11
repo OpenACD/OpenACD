@@ -167,12 +167,7 @@ queues.refreshTree = function(node){
 	dojo.publish("queues/tree/refreshed", []);
 };
 
-queues.setGroup = function(form, reciper, refreshnode){
-	var vals = form.get('value');
-	if(! vals.name){
-		vals.name = vals.oldname;
-	}
-	vals.recipe = dojo.toJson(reciper.getValue());
+queues.setGroup = function(vals, refreshnode){
 	dojo.xhrPost({
 		url:"/queues/groups/" + vals.oldname + "/update",
 		handleAs:"json",

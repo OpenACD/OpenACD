@@ -174,13 +174,20 @@ dojo.addOnLoad(function(){
 				
 				var skillsCallback = function(select){
 					select.name = 'skills';
+					select.id = "queueGroupSkills";
 					dojo.place(select, dojo.byId('queueGroupSkillsDiv'), 'only');
 				};
 				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_profile']);
 				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe'));
 				dijit.byId("queueGroupName").set('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
-					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
+					var base = dijit.byId("editQueueGroupForm").get('value');
+					base.recipe = dojo.toJson(dijit.byId("queueGroupRecipe").getValue());
+					base.skills = dojo.byId("queueGroupSkills").getValues();
+					if(! base.name){
+						base.name = base.oldname;
+					}
+					queues.setGroup(base, "queuesList");
 				};
 				dijit.byId("queueDropButton").onClick = function(){
 					queues.deleteGroup(queues.tree.store.getValue(item, 'name'), "queuesList");

@@ -80,6 +80,7 @@
 	new_queue/5,
 	destroy_queue/1,
 	get_queue/1,
+	get_merged_queue/1,
 	get_queues/0,
 	get_queues/1,
 	set_queue/2

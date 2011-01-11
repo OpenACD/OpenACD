@@ -73,6 +73,8 @@ skills.createSelect = function(callback, selected, hidden, expand){
 dojo.registerModulePath("openacd", "../../openacd");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
+dojo.require('dijit.layout.TabContainer');
+dojo.require('dijit.layout.ContentPane');
 
 dojo.addOnLoad(function(){
 	dijit.byId('setEmpty').setValue([]);
@@ -99,6 +101,18 @@ dojo.addOnLoad(function(){
 		comment:'McFast',
 		runs:'run_once'}
 	]);
+	dijit.byId("hidden2").setValue([
+		{actions:[
+			{'action':'prioritize'}
+		],
+		conditions:[
+			{property:'ticks',
+			comparison:'=',
+			value:15}
+		],
+		comment:'hidden?',
+		runs:'run_many'}
+	]);
 });
 		</script>
 	</head>
@@ -109,5 +123,15 @@ dojo.addOnLoad(function(){
 		<p><div dojoType="RecipeEditor" id="setEmpty"></div></p>
 		<p>Set to something after load</p>
 		<p><div dojoType="RecipeEditor" id="setUsual"></div></p>
+		<p>Set values when hidden<p>
+		<p><div dojoType="dijit.layout.TabContainer" style="width:100%;height:200px">
+			<div dojoType="dijit.layout.ContentPane" tile="1">I hide the goods</div>
+			<div title="2">
+				<div dojoType="RecipeEditor" id="hidden1"></div>
+			</div>
+			<div title="3">
+				<div dojoType="RecipeEditor" id="hidden2"></div>
+			</div>
+		</div></p>
 	</body>
 </html>

@@ -987,6 +987,7 @@ api({queues, "groups", Group, "get"}, ?COOKIE, _Post) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Qgroup#queue_group.name)},
 		{<<"sort">>, Qgroup#queue_group.sort},
+		{<<"skills">>, stringify_skills(Qgroup#queue_group.skills)},
 		{<<"protected">>, Qgroup#queue_group.protected},
 		{<<"recipe">>, Jrecipe}
 	]},
@@ -1000,7 +1001,15 @@ api({queues, "groups", Group, "update"}, ?COOKIE, Post) ->
 		Else ->
 			decode_recipe(Else)
 	end,
-	call_queue_config:set_queue_group(Group, Newname, Sort, Recipe),
+	Postedskills = proplists:get_all_values("skills", Post),
+	FixedSkills = parse_posted_skills(Postedskills),
+	Rec = #queue_group{
+		name = Newname,
+		sort = Sort,
+		recipe = Recipe,
+		skills = FixedSkills
+	},
+	call_queue_config:set_queue_group(Group, Rec),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({queues, "groups", "new"}, ?COOKIE, Post) ->
 	Name = proplists:get_value("name", Post), 
@@ -1011,7 +1020,14 @@ api({queues, "groups", "new"}, ?COOKIE, Post) ->
 		Else ->
 			decode_recipe(Else)
 	end,
-	call_queue_config:new_queue_group(Name, Sort, Recipe),
+	Skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
+	Rec = #queue_group{
+		name = Name,
+		sort = Sort,
+		recipe = Recipe,
+		skills = Skills
+	},
+	call_queue_config:new_queue_group(Rec),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({queues, "groups", Group, "delete"}, ?COOKIE, _Post) ->
 	case call_queue_config:destroy_queue_group(Group) of
@@ -2549,6 +2565,18 @@ encode_queue(Queue) ->
 			]}},
 			{group, list_to_binary(Queue#call_queue.group)}]}.
 
+-spec(stringify_skills/1 :: ([any()]) -> [string()]).
+stringify_skills(List) ->
+	stringify_skills(List, []).
+
+stringify_skills([], Acc) ->
+	lists:reverse(Acc);
+stringify_skills([{Atom, Val} | Tail], Acc) ->
+	H = list_to_binary([${, atom_to_list(Atom), $,, Val, $}]),
+	stringify_skills(Tail, [H | Acc]);
+stringify_skills([Atom | Tail], Acc) ->
+	stringify_skills(Tail, [Atom | Acc]).
+
 -spec(encode_queues/1 :: (Queues :: [#call_queue{}]) -> [simple_json()]).
 encode_queues(Queues) ->
 	encode_queues(Queues, []).
@@ -2573,6 +2601,7 @@ encode_queues_with_groups([Group | Groups], Acc) ->
 			{<<"_value">>, encode_recipe(Group#queue_group.recipe)}
 		]}},
 		{sort, Group#queue_group.sort},
+		{skills, stringify_skills(Group#queue_group.skills)},
 		{protected, Group#queue_group.protected},
 		{<<"type">>, <<"group">>},
 		{queues, encode_queues(Queues)}]},

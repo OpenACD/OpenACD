@@ -144,10 +144,11 @@ dojo.addOnLoad(function(){
 					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
 					var scb = function(select){
 						select.name = 'qgSkills';
+						select.id = "qgSkills";
 						dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
-						select.enabled = false;
+						select.disabled = true;
 					}
-					var qgSkillsSelected = queues.req.store.getValues(gitem, 'skills');
+					var qgSkillsSelected = req.store.getValues(gitem, 'skills');
 					skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
 				};
 				queues.store.fetch({

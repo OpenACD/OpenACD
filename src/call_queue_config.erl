@@ -230,6 +230,29 @@ get_queue(Queue) ->
 			{noexists, Else}
 	end.
 
+%% @doc Get the configureation for the passed `string()' `Queue' name and
+%% merge it with the queue group's skills and recipe.
+-spec(get_merged_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
+get_merged_queue(Queue) ->
+	?DEBUG("bing", []),
+	case get_queue(Queue) of
+		QueueRec when is_record(QueueRec, call_queue) ->
+			?DEBUG("BANG", []),
+			case get_queue_group(QueueRec#call_queue.group) of
+				{atomic, [GroupRec]} when is_record(GroupRec, queue_group) ->
+					?DEBUG("Bonk", []),
+					Recipe = correct_recipe(lists:append(QueueRec#call_queue.recipe, GroupRec#queue_group.recipe)),
+					Skills = lists:umerge(lists:sort(QueueRec#call_queue.skills), lists:sort(GroupRec#queue_group.skills)),
+					QueueRec#call_queue{skills = Skills, recipe = Recipe};
+				NoGroup ->
+					?WARNING("no group ~s, returning raw queue", [QueueRec#call_queue.group]),
+					QueueRec
+			end;
+		NoQueue ->
+			?DEBUG("kersplattle", []),
+			NoQueue
+	end.
+
 %% @doc Get all the queues that are members of the specified Group (`string()').
 -spec(get_queues/1 :: (Group :: string()) -> [#call_queue{}]).
 get_queues(Group) ->
@@ -254,7 +277,7 @@ get_queues(Group) ->
 %% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_queues/0 :: () -> [#call_queue{}]).
 get_queues() -> 
-	QH = qlc:q([{X, G#queue_group.recipe} || 
+	QH = qlc:q([{X, G#queue_group.recipe, G#queue_group.skills} || 
 		X <- mnesia:table(call_queue), 
 		G <- mnesia:table(queue_group), 
 		G#queue_group.name =:= X#call_queue.group
@@ -263,9 +286,12 @@ get_queues() ->
 		qlc:e(QH)
 	end,
 	{atomic, Reply} = mnesia:transaction(F),
-	Mergereci = fun({#call_queue{recipe = Qreci} = Queue, Groupreci}) ->
+	Mergereci = fun({#call_queue{recipe = Qreci} = Queue, Groupreci, Gskills}) ->
 		Newreci = lists:append([Qreci, Groupreci]),
-		Queue#call_queue{recipe = correct_recipe(Newreci)}
+		Queue#call_queue{
+			recipe = correct_recipe(Newreci),
+			skills = lists:umerge(lists:sort(Queue#call_queue.skills), lists:sort(Gskills))
+		}
 	end,
 	lists:map(Mergereci, Reply).
 
@@ -1025,6 +1051,26 @@ call_queue_test_() ->
 					end,
 					{atomic, [Out | _]} = mnesia:transaction(F),
 					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], Out)
+				end
+			},
+			{
+				"Get a queue merged with it's group settings",
+				fun() ->
+					BaseQueue = test_queue(),
+					Group = #queue_group{
+						name = "Default",
+						skills = [testskill, uberskill],
+						recipe = [{[{ticks, 4}], [{add_skills, [superskill]}], run_once}]
+					},
+					mnesia:transaction(fun() -> mnesia:write(Group) end),
+					?DEBUG("Did it get there?  ~p", [get_queue_group("Default")]),
+					Queue = get_merged_queue("test queue"),
+					?DEBUG("Queue:  ~p", [Queue]),
+					?assertEqual([testskill, uberskill], Queue#call_queue.skills),
+					?assertEqual([
+						{[{ticks, 2}], [{add_skills, [true]}], run_once},
+						{[{ticks, 4}], [{add_skills, [superskill]}], run_once}
+					], Queue#call_queue.recipe)
 				end
 			}
 		]

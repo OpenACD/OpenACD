@@ -71,14 +71,12 @@ skills.createSelect = function(callback, selected, hidden, expand){
 };
 
 dojo.registerModulePath("openacd", "../../openacd");
-dojo.registerModulePath("openacd.PredicateEditor", "../../openacd/PredicateEditor");
-dojo.registerModulePath("openacd.RecipeEditor", "../../openacd/RecipeEditor");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
 
-/*
 dojo.addOnLoad(function(){
-	dijit.byId('r').setValue([
+	dijit.byId('setEmpty').setValue([]);
+	dijit.byId('setUsual').setValue([
 		{actions:[
 			{'action':'add_skills',
 			'arguments':['_magic']}
@@ -89,15 +87,27 @@ dojo.addOnLoad(function(){
 			value:15}
 		],
 		comment:'ouch',
-		runs:'run_many'}
+		runs:'run_many'},
+		{actions:[
+			{'action':'prioritize'}
+		],
+		conditions:[
+			{property:'calls_queued',
+			comparison:'<',
+			value:500}
+		],
+		comment:'McFast',
+		runs:'run_once'}
 	]);
 });
-*/
-
-
 		</script>
 	</head>
 	<body class="tundra">
-		<div dojoType="RecipeEditor" id="r"></div>
+		<p>Default setup</p>
+		<p><div dojoType="RecipeEditor" id="basicCreate"></div></p>
+		<p>Set to emtpy value after load</p>
+		<p><div dojoType="RecipeEditor" id="setEmpty"></div></p>
+		<p>Set to something after load</p>
+		<p><div dojoType="RecipeEditor" id="setUsual"></div></p>
 	</body>
 </html>

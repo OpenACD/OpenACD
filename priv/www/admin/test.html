@@ -75,6 +75,7 @@ dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
 dojo.require('dijit.layout.TabContainer');
 dojo.require('dijit.layout.ContentPane');
+dojo.require('dijit.form.Form');
 
 dojo.addOnLoad(function(){
 	dijit.byId('setEmpty').setValue([]);
@@ -133,5 +134,15 @@ dojo.addOnLoad(function(){
 				<div dojoType="RecipeEditor" id="hidden2"></div>
 			</div>
 		</div></p>
+		<p>Put inside a form</p>
+		<p><form>
+				<div id="inForm" dojoType="RecipeEditor"></div>
+		</form></p>
+		<p>Put in a dijit form</p>
+		<p>
+			<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post">
+				<div id="inDijitForm" dojoType="RecipeEditor"></div>
+			</form>
+		</p>
 	</body>
 </html>

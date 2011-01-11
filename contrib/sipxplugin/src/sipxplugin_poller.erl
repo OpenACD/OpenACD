@@ -139,7 +139,6 @@ process_profile(Profile, Command) ->
 	{_, Name} = lists:nth(2, Profile),
 	{_, Skills} = lists:nth(3, Profile),
 	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
-	?WARNING("HAI SA SETAM NISTE SKILLURI ~p", [SkillsList]),
 	if Command =:= "ADD" ->
 		agent_auth:new_profile(erlang:binary_to_list(Name), SkillsList);
 	Command =:= "DELETE" ->

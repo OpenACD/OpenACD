@@ -22,6 +22,9 @@ agents.updateModule = function(subform){
 };
 
 agents.getModules = function(targetform){
+	if(!!targetform == false){
+		return;
+	}
 	dojo.xhrGet({
 		url:"agents/modules/get",
 		handleAs:"json",
@@ -39,6 +42,9 @@ agents.getModules = function(targetform){
 };
 
 agents.getSpiceIntegration = function(targetform){
+	if(!!targetform == false){
+		return;
+	}
 	dojo.xhrGet({
 		url:"agents/spiceintegration/get",
 		handleAs:"json",

@@ -138,14 +138,16 @@ process_agent(Agent, Command) ->
 process_profile(Profile, Command) ->
 	{_, Name} = lists:nth(2, Profile),
 	{_, Skills} = lists:nth(3, Profile),
+	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+	?WARNING("HAI SA SETAM NISTE SKILLURI ~p", [SkillsList]),
 	if Command =:= "ADD" ->
-		agent_auth:new_profile(erlang:binary_to_list(Name), erlang:binary_to_list(Skills));
+		agent_auth:new_profile(erlang:binary_to_list(Name), SkillsList);
 	Command =:= "DELETE" ->
 		agent_auth:destroy_profile(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
 		{_, Oldname} = lists:nth(4, Profile),
 		Old = agent_auth:get_profile(erlang:binary_to_list(Oldname)),
-		agent_auth:set_profile(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), element(6, Old));
+		agent_auth:set_profile(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), SkillsList);
 	true -> ?WARNING("Unrecognized command", [])
 	end.
 

@@ -94,7 +94,7 @@ resend() ->
 init(Opts) ->
 	Port = proplists:get_value(port, Opts),
 	Server = proplists:get_value(server, Opts, "localhost"),
-	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}, {atcive, once}]),
+	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}, {active, once}]),
 	cpx_monitor:subscribe(fun cpx_msg_filter/1),
 	{ok, #state{
 		port = Port,

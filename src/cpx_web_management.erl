@@ -1076,6 +1076,12 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
+			{cdr_tcp_pusher, #cpx_conf{
+				id = cdr_tcp_pusher,
+				module_name = cdr_tcp_pusher,
+				start_function = start_link,
+				start_args = []
+			}},
 			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
 			{cpx_monitor_odbc_supervisor, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor], 2000)},
 			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)},
@@ -1125,6 +1131,50 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 %% modules -> node -> modules
 %% =====
 
+api({modules, Node, "cdr_tcp_pusher", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cdr_tcp_pusher]) of
+		#cpx_conf{start_args = Props} ->
+			FixedProps = [case X of
+				{server, S} ->
+					{server, list_to_binary(S)};
+				_ ->
+					X
+			end || X <- Props],
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true} | FixedProps]})};
+		_ ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})}
+	end;
+api({modules, Node, "cdr_tcp_pusher", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			FixProps = fun
+				({"port", Val}, Acc) ->
+					[{port, list_to_integer(Val)} | Acc];
+				({"server", Val}, Acc) ->
+					[{server, Val} | Acc];
+				(_, Acc) ->
+					Acc
+			end,
+			StartArgs = lists:foldl(FixProps, [], Post),
+			Conf = #cpx_conf{
+				id = cdr_tcp_pusher,
+				module_name = cdr_tcp_pusher,
+				start_function = start_link,
+				start_args = [StartArgs]
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cdr_tcp_pusher, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				Else ->
+					?WARNING("Updating cdr_tcp_pusher failed:  ~p", [Else]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start cdr_tcp_pusher">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cdr_tcp_pusher]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
 api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of

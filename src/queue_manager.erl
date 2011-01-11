@@ -102,7 +102,7 @@ add_queue(Name, Opts) when is_list(Name) ->
 %% @doc load a queue from call_queue_config and start it
 -spec(load_queue/1 :: (Name :: string()) -> 'ok' | 'noexists').
 load_queue(Name) ->
-	case call_queue_config:get_queue(Name) of
+	case call_queue_config:get_merged_queue(Name) of
 		Qrec when is_record(Qrec, call_queue) ->
 			case get_queue(Name) of
 				Qpid when is_pid(Qpid) ->

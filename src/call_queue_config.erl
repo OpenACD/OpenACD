@@ -240,9 +240,9 @@ get_merged_queue(Queue) ->
 			case get_queue_group(QueueRec#call_queue.group) of
 				{atomic, [GroupRec]} when is_record(GroupRec, queue_group) ->
 					Recipe = correct_recipe(lists:append(QueueRec#call_queue.recipe, GroupRec#queue_group.recipe)),
-					Skills = lists:umerge(lists:sort(QueueRec#call_queue.skills), lists:sort(GroupRec#queue_group.skills)),
+					Skills = util:merge_skill_lists(GroupRec#queue_group.skills, QueueRec#call_queue.skills),
 					QueueRec#call_queue{skills = Skills, recipe = Recipe};
-				NoGroup ->
+				_NoGroup ->
 					?WARNING("no group ~s, returning raw queue", [QueueRec#call_queue.group]),
 					QueueRec
 			end;

@@ -235,13 +235,10 @@ get_queue(Queue) ->
 %% merge it with the queue group's skills and recipe.
 -spec(get_merged_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
 get_merged_queue(Queue) ->
-	?DEBUG("bing", []),
 	case get_queue(Queue) of
 		QueueRec when is_record(QueueRec, call_queue) ->
-			?DEBUG("BANG", []),
 			case get_queue_group(QueueRec#call_queue.group) of
 				{atomic, [GroupRec]} when is_record(GroupRec, queue_group) ->
-					?DEBUG("Bonk", []),
 					Recipe = correct_recipe(lists:append(QueueRec#call_queue.recipe, GroupRec#queue_group.recipe)),
 					Skills = lists:umerge(lists:sort(QueueRec#call_queue.skills), lists:sort(GroupRec#queue_group.skills)),
 					QueueRec#call_queue{skills = Skills, recipe = Recipe};
@@ -250,7 +247,6 @@ get_merged_queue(Queue) ->
 					QueueRec
 			end;
 		NoQueue ->
-			?DEBUG("kersplattle", []),
 			NoQueue
 	end.
 

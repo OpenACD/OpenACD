@@ -118,6 +118,7 @@ process_agent(Agent, Command) ->
 	{_, Firstname} = lists:nth(7, Agent),
 	{_, Lastname} = lists:nth(8, Agent),
 	{_, Security} = lists:nth(10, Agent),
+	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
 	if Security =:= <<"SUPERVISOR">> ->
 		SecurityAtom = supervisor;
 	Security =:= <<"ADMIN">> ->
@@ -125,13 +126,13 @@ process_agent(Agent, Command) ->
 	true -> SecurityAtom = agent
 	end,
 	if Command =:= "ADD" ->
-		agent_auth:add_agent(erlang:binary_to_list(Name), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname), erlang:binary_to_list(Pin), erlang:binary_to_list(Skills), SecurityAtom, erlang:binary_to_list(Group));
+		agent_auth:add_agent(erlang:binary_to_list(Name), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname), erlang:binary_to_list(Pin), SkillsList, SecurityAtom, erlang:binary_to_list(Group));
 	Command =:= "DELETE" ->
 		agent_auth:destroy(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
 		{_, Oldname} = lists:nth(9, Agent),
 		{_, [Old]} = agent_auth:get_agent(erlang:binary_to_list(Oldname)),
-		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), element(5, Old), SecurityAtom, erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
+		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), SkillsList, SecurityAtom, erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
 	true -> ?WARNING("Unrecognized command", [])
 	end.
 

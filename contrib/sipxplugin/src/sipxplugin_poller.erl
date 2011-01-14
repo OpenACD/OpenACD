@@ -103,6 +103,8 @@ get_command_values(Data, Mong) ->
 					process_profile(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"skill">> ->
 					process_skill(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"client">> ->
+					process_client(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -166,5 +168,17 @@ process_skill(Skill, Command) ->
 		call_queue_config:destroy_skill(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
 		call_queue_config:set_skill(list_to_atom(erlang:binary_to_list(Atom)), erlang:binary_to_list(Name), Descr, erlang:binary_to_list(Group));
+	true -> ?WARNING("Unrecognized command", [])
+	end.
+
+process_client(Client, Command) ->
+	{_, Name} = lists:nth(2, Client),
+	{_, Identity} = lists:nth(3, Client),
+	if Command =:= "ADD" ->
+		call_queue_config:new_client(erlang:binary_to_list(Name), erlang:binary_to_list(Identity), []);
+	Command =:= "DELETE" ->
+		call_queue_config:destroy_client(erlang:binary_to_list(Identity));
+	Command =:= "UPDATE" ->
+		call_queue_config:set_client(erlang:binary_to_list(Identity), erlang:binary_to_list(Name), []);
 	true -> ?WARNING("Unrecognized command", [])
 	end.

@@ -82,7 +82,8 @@
 	get_queue/1,
 	get_queues/0,
 	get_queues/1,
-	set_queue/2
+	set_queue/2,
+	set_queue/6
 	]).
 -export([
 	new_queue_group/1,
@@ -300,6 +301,16 @@ new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weigh
 		recipe = Recipe,
 		group = Group},
 	new_queue(Rec).
+
+-spec(set_queue/6 :: (OldName :: string(), Name :: string(), Weight :: pos_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
+set_queue(OldName, Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
+	Rec = #call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Skills,
+		recipe = Recipe,
+		group = Group},
+	set_queue(OldName, Rec).
 
 %% @doc Sets the queue name `Queue' to the passed `#call_queue{}'.
 -spec(set_queue/2 :: (Queue :: string(), Rec :: #call_queue{}) -> {'atomic', 'ok'} | {'aborted', any()}).

@@ -34,6 +34,7 @@
 -import(application).
 -import(agent_auth).
 -import(call_queue_config).
+-import(queue_manager).
 -export([start/0, stop/0, init/1, loop/2]).
 
 -include("../../../include/log.hrl").
@@ -105,6 +106,10 @@ get_command_values(Data, Mong) ->
 					process_skill(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"client">> ->
 					process_client(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"queueGroup">> ->
+					process_queue_group(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"queue">> ->
+					process_queue(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -182,3 +187,47 @@ process_client(Client, Command) ->
 		call_queue_config:set_client(erlang:binary_to_list(Identity), erlang:binary_to_list(Name), []);
 	true -> ?WARNING("Unrecognized command", [])
 	end.
+
+process_queue_group(QueueGroup, Command) ->
+	{_, Name} = lists:nth(2, QueueGroup),
+	{_, Skills} = lists:nth(3, QueueGroup),
+	{_, Sort} = lists:nth(4, QueueGroup),
+	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+	if Command =:= "ADD" ->
+		call_queue_config:new_queue_group(erlang:binary_to_list(Name), binary_to_number(Sort), []);
+	Command =:= "DELETE" ->
+		call_queue_config:destroy_queue_group(erlang:binary_to_list(Name));
+	Command =:= "UPDATE" ->
+		{_, Oldname} = lists:nth(5, QueueGroup),
+		{_, [{_, _, OldRecipe, _, _, _}]} = call_queue_config:get_queue_group(erlang:binary_to_list(Oldname)),
+		call_queue_config:set_queue_group(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Sort), OldRecipe);
+	true -> ?WARNING("Unrecognized command", [])
+	end.
+
+process_queue(Queue, Command) ->
+	{_, Name} = lists:nth(2, Queue),
+	{_, QueueGroup} = lists:nth(3, Queue),
+	{_, Skills} = lists:nth(4, Queue),
+	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+	{_, Weight} = lists:nth(5, Queue),
+	if Command =:= "ADD" ->
+		call_queue_config:new_queue(erlang:binary_to_list(Name), binary_to_number(Weight), SkillsList, [], erlang:binary_to_list(QueueGroup)),
+		queue_manager:load_queue(erlang:binary_to_list(Name));
+	Command =:= "DELETE" ->
+		call_queue_config:destroy_queue(erlang:binary_to_list(Name));
+	Command =:= "UPDATE" ->
+		{_, Oldname} = lists:nth(6, Queue),
+		OldRecipe = element(5, call_queue_config:get_queue(erlang:binary_to_list(Oldname))),
+		call_queue_config:set_queue(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Weight), SkillsList, OldRecipe, erlang:binary_to_list(QueueGroup));
+	true -> ?WARNING("Unrecognized command", [])
+	end.
+
+binary_to_number(B) ->
+    list_to_number(binary_to_list(B)).
+
+list_to_number(L) ->
+    try list_to_float(L)
+    catch
+        error:badarg ->
+            list_to_integer(L)
+    end.

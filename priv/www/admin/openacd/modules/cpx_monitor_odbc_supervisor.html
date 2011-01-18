@@ -1,0 +1,117 @@
+<div id="cpx_module" class="wide">
+<form dojoType="dijit.form.Form" action="javascrpt:void(0)" id="odbcSupervisorForm">
+	<script type="dojo/method" event="postCreate">
+		dojo.xhrGet({
+			url:"/modules/" + escape(modules.activeNode) + "/cpx_monitor_odbc_supervisor/get",
+			handleAs:"json",
+			load:function(res){
+				if(res.success){
+					dijit.byId("odbcSupervisorEnabled").set("checked", res.enabled);
+					if(res.enabled){
+						dijit.byId("odbcTrace").set("disabled", false);
+						dijit.byId("odbcTrace").set("checked", res.trace);
+						dijit.byId("odbcMaxR").set("disabled", false);
+						dijit.byId("odbcMaxR").set("value", res.max_r);
+						dijit.byId("odbcMaxT").set("disabled", false);
+						dijit.byId("odbcMaxT").set("value", res.max_t);
+						dijit.byId("odbcDsn").set("disabled", false);
+						dijit.byId("odbcDsn").set("value", res.dsn);
+					} else {
+						dijit.byId("odbcTrace").set("disabled", true);
+						dijit.byId("odbcMaxR").set("disabled", true);
+						dijit.byId("odbcMaxT").set("disabled", true);
+						dijit.byId("odbcDsn").set("disabled", true);
+					}
+				} else {
+					errMessage(["getting cpx_monitor_odbc_supervisor settings failed", res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(["gettting cpx_monitor_odbc_supervisor settings errored", res]);
+			}
+		});
+	</script>
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="true" id="odbcSupervisorEnabled" name="enabled" type="checkbox">
+		<script type="dojo/connect" method="onChange">
+			console.log(this.get("checked"));
+		</script>
+	</input>
+	<span class="translate">ENABLED</span>
+</p>
+
+<p>
+	<label for="odbcSupervisorDsn" class="translatecol">DSN</label>
+	<input dojoType="dijit.form.TextBox" id="odbcDsn" name="dsn" />
+</p>
+
+<p>
+	<label>&nbsp</label>
+	<span class="translate">MAX_RESTARTS</span>
+	<input dojoType="dijit.form.TextBox" id="odbcMaxR" name="maxR" placeholder="3" style="width:2em" />
+	<span class="translate">IN</span>
+	<input dojoType="dijit.form.TextBox" id="odbcMaxT" name="maxT" placeholder="5" style="width:2em" />
+	<span class="translate">SECONDS</span>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="true" id="odbcTrace" name="trace" type="checkbox" />
+	<span class="translate">TRACE</span>
+</p>
+	
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT">
+		<script type="dojo/method" event="postCreate">
+			dojo.query(".translate", "cpx_module").forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization("admin", "labels")[node.innerHTML];
+			});
+			dojo.query(".translatecol", "cpx_module").forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization("admin", "labels")[node.innerHTML] + ":";
+			});
+			this.set("label", dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			dijit.byId("odbcSupervisorEnabled").onClick = function(){
+				var disabled = ! this.get("checked");
+				dijit.byId("odbcTrace").set("disabled", disabled);
+				dijit.byId("odbcMaxR").set("disabled", disabled);
+				dijit.byId("odbcMaxT").set("disabled", disabled);
+				dijit.byId("odbcDsn").set("disabled", disabled);
+				return true;
+			};
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var vals = {
+				enabled: dijit.byId("odbcSupervisorEnabled").get("checked")
+			};
+			if(vals.enabled){
+				vals.dsn = dijit.byId("odbcDsn").get("value");
+				if(dijit.byId("odbcTrace").get("checked")){
+					vals.trace = "true";
+				}
+				if(dijit.byId("odbcMaxR").get("value")){
+					vals.maxR = dijit.byId("odbcMaxR").get("value");
+				}
+				if(dijit.byId("odbcMaxT").get("value")){
+					vals.maxT = dijit.byId("odbcMaxT").get("value");
+				}
+			}
+			dojo.xhrPost({
+				url:"/modules/" + escape(modules.activeNode) + "/cpx_monitor_odbc_supervisor/update",
+				content:vals,
+				handleAs:"json",
+				load:function(res){
+					if(! res.success){
+						errMessage(["Updating cpx_monitor_obdc_supervisor failed", res.message]);
+					}
+				},
+				error:function(res){
+					errMessage(["updating cpx_monitor_obdc_supervisor errored", res]);
+				}
+			});
+		</script>
+	</button>
+</p>
+
+</div>

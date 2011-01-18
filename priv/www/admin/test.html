@@ -71,14 +71,15 @@ skills.createSelect = function(callback, selected, hidden, expand){
 };
 
 dojo.registerModulePath("openacd", "../../openacd");
-dojo.registerModulePath("openacd.PredicateEditor", "../../openacd/PredicateEditor");
-dojo.registerModulePath("openacd.RecipeEditor", "../../openacd/RecipeEditor");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
+dojo.require('dijit.layout.TabContainer');
+dojo.require('dijit.layout.ContentPane');
+dojo.require('dijit.form.Form');
 
-/*
 dojo.addOnLoad(function(){
-	dijit.byId('r').setValue([
+	dijit.byId('setEmpty').setValue([]);
+	dijit.byId('setUsual').setValue([
 		{actions:[
 			{'action':'add_skills',
 			'arguments':['_magic']}
@@ -89,15 +90,59 @@ dojo.addOnLoad(function(){
 			value:15}
 		],
 		comment:'ouch',
+		runs:'run_many'},
+		{actions:[
+			{'action':'prioritize'}
+		],
+		conditions:[
+			{property:'calls_queued',
+			comparison:'<',
+			value:500}
+		],
+		comment:'McFast',
+		runs:'run_once'}
+	]);
+	dijit.byId("hidden2").setValue([
+		{actions:[
+			{'action':'prioritize'}
+		],
+		conditions:[
+			{property:'ticks',
+			comparison:'=',
+			value:15}
+		],
+		comment:'hidden?',
 		runs:'run_many'}
 	]);
 });
-*/
-
-
 		</script>
 	</head>
 	<body class="tundra">
-		<div dojoType="RecipeEditor" id="r"></div>
+		<p>Default setup</p>
+		<p><div dojoType="RecipeEditor" id="basicCreate"></div></p>
+		<p>Set to emtpy value after load</p>
+		<p><div dojoType="RecipeEditor" id="setEmpty"></div></p>
+		<p>Set to something after load</p>
+		<p><div dojoType="RecipeEditor" id="setUsual"></div></p>
+		<p>Set values when hidden<p>
+		<p><div dojoType="dijit.layout.TabContainer" style="width:100%;height:200px">
+			<div dojoType="dijit.layout.ContentPane" tile="1">I hide the goods</div>
+			<div title="2">
+				<div dojoType="RecipeEditor" id="hidden1"></div>
+			</div>
+			<div title="3">
+				<div dojoType="RecipeEditor" id="hidden2"></div>
+			</div>
+		</div></p>
+		<p>Put inside a form</p>
+		<p><form>
+				<div id="inForm" dojoType="RecipeEditor"></div>
+		</form></p>
+		<p>Put in a dijit form</p>
+		<p>
+			<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post">
+				<div id="inDijitForm" dojoType="RecipeEditor"></div>
+			</form>
+		</p>
 	</body>
 </html>

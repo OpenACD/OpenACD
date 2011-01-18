@@ -147,7 +147,7 @@ start_link(Nodes) ->
 	%load_specs(),
 	%supervisor:start_child(management_sup, Cpxmonitorspec),
 
-	supervisor:start_child(Pid, Routingspec),
+	{ok, _} = supervisor:start_child(Pid, Routingspec),
 	
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
@@ -155,22 +155,22 @@ start_link(Nodes) ->
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	
-	supervisor:start_child(routing_sup, Cpxlogspec),
-	supervisor:start_child(routing_sup, Cpxmonitorspec),
-	supervisor:start_child(routing_sup, DispatchSpec),
-	supervisor:start_child(routing_sup, QueueManagerSpec),
-	supervisor:start_child(routing_sup, Cdrspec),
+	{ok, _} = supervisor:start_child(routing_sup, Cpxlogspec),
+	{ok, _} = supervisor:start_child(routing_sup, Cpxmonitorspec),
+	{ok, _} = supervisor:start_child(routing_sup, DispatchSpec),
+	{ok, _} = supervisor:start_child(routing_sup, QueueManagerSpec),
+	{ok, _} = supervisor:start_child(routing_sup, Cdrspec),
 	
-	supervisor:start_child(Pid, Mediamanagerspec),
+	{ok, _} = supervisor:start_child(Pid, Mediamanagerspec),
 		
-	supervisor:start_child(Pid, Agentspec),
+	{ok, _} = supervisor:start_child(Pid, Agentspec),
 	
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
-	supervisor:start_child(agent_sup, AgentManagerSpec),
-	supervisor:start_child(agent_sup, Agentconnspec),
+	{ok, _} = supervisor:start_child(agent_sup, AgentManagerSpec),
+	{ok, _} = supervisor:start_child(agent_sup, Agentconnspec),
 	
-	supervisor:start_child(Pid, Managementspec),
+	{ok, _} = supervisor:start_child(Pid, Managementspec),
 	
 	{ok, Pid}.
 	
@@ -221,13 +221,13 @@ set_value(Key, Value) ->
 	F = fun() ->
 		mnesia:write(#cpx_value{key = Key, value = Value})
 	end,
-	{ok, Locked} = application:get_env(cpx, locked_env),
+	{ok, Locked} = application:get_env('OpenACD', locked_env),
 	case lists:member(Key, Locked) of
 		true ->
 			?WARNING("Env ~s only changed in database due to being in static config file.", [Key]),
 			ok;
 		false ->
-			application:set_env(cpx, Key, Value)
+			application:set_env('OpenACD', Key, Value)
 	end,
 	mnesia:transaction(F).
 
@@ -256,13 +256,13 @@ drop_value(Key) ->
 	F = fun() ->
 		mnesia:delete({cpx_value, Key})
 	end,
-	{ok, Locked} = application:get_env(cpx, locked_env),
+	{ok, Locked} = application:get_env('OpenACD', locked_env),
 	case lists:member(Key, Locked) of
 		true ->
 			?WARNING("Setting ~s only removed from database since it also exists in static config.", [Key]),
 			ok;
 		false ->
-			application:unset_env(cpx, Key)
+			application:unset_env('OpenACD', Key)
 	end,
 	mnesia:transaction(F).
 	
@@ -579,7 +579,7 @@ submit_bug_report(Options) when is_list(Options) ->
 -ifdef(TEST).
 
 config_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() -> 
@@ -815,7 +815,9 @@ murder_test_() ->
 		?assertNot(Where == Newwhere)
 	end}]}.
 
-mutlinode_test_() ->
+% TODO to be re-enabled with either rebar can have eunit run on a node or
+% can be re-written to not require a live node.
+mutlinode_test_d() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,

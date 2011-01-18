@@ -46,9 +46,9 @@ function inArray(needle, haystack){
 
 dojo.addOnLoad(function(){
 	dojo.query(".translate").forEach(function(node){
-		var key = node.innerHTML;
-		if(dojo.i18n.getLocalization('admin','labels')[key]){
-			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key];
+		var key = node.text;
+		if(!!dojo.i18n.getLocalization('admin','labels')[key]){
+			node.text= dojo.i18n.getLocalization('admin','labels')[key];
 		}
 	});
 	dojo.query(".translatecol").forEach(function(node){
@@ -142,6 +142,14 @@ dojo.addOnLoad(function(){
 					var gitem = gitems[0];
 					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
 					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
+					var scb = function(select){
+						select.name = 'qgSkills';
+						select.id = "qgSkills";
+						dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
+						select.disabled = true;
+					}
+					var qgSkillsSelected = req.store.getValues(gitem, 'skills');
+					skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
 				};
 				queues.store.fetch({
 					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
@@ -162,10 +170,24 @@ dojo.addOnLoad(function(){
 				dijit.byId("queueGroupName").set('value', queues.tree.store.getValue(item, 'name'));
 				dijit.byId("queueGroupSort").set('value', queues.tree.store.getValue(item, 'sort'));
 				//var rec = queues.fromStoreToObj(item.recipe);
+				var skillsSelected = queues.tree.store.getValues(item, 'skills');
+				
+				var skillsCallback = function(select){
+					select.name = 'skills';
+					select.id = "queueGroupSkills";
+					dojo.place(select, dojo.byId('queueGroupSkillsDiv'), 'only');
+				};
+				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_profile']);
 				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe'));
 				dijit.byId("queueGroupName").set('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
-					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
+					var base = dijit.byId("editQueueGroupForm").get('value');
+					base.recipe = dojo.toJson(dijit.byId("queueGroupRecipe").getValue());
+					base.skills = dojo.byId("queueGroupSkills").getValues();
+					if(! base.name){
+						base.name = base.oldname;
+					}
+					queues.setGroup(base, "queuesList");
 				};
 				dijit.byId("queueDropButton").onClick = function(){
 					queues.deleteGroup(queues.tree.store.getValue(item, 'name'), "queuesList");
@@ -177,35 +199,14 @@ dojo.addOnLoad(function(){
 	var moduleTreeRefreshHandle = dojo.subscribe("modules/tree/refreshed", function(data){
 		dojo.connect(modules.tree, "onClick", function(item){
 			modules.activeNode = modules.store.getValue(item, 'node');
-			var node = modules.store.getValue(item, 'node');
-			/*dijit.byId("mediaConf").onDownloadEnd = function(){
-				dijit.byId("mediaSubmit").onClick = function(){
-					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").get('value'), 'mediaList');
-				};
-				dojo.publish("media/node/changed", [node]);
-				dojo.xhrGet({
-					url:"medias/" + node + "/" + medias.store.getValue(item, 'name') + "/get",
-					handleAs:"json",
-					load:function(resp, ioargs){
-						if(resp.success){
-							dijit.byId("mediaForm").set('value', resp);
-							dijit.byId("mediaEnabled").set('value', resp.enabled);
-						}
-						else{
-							//onsole.log(resp.message);
-						}
-					},
-					error:function(resp){
-						console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
-					}
-				});
-			};*/
-		
+			var node = modules.store.getValue(item, 'node');		
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", modules.store.getValue(item, 'name'));
 				dijit.byId("moduleConf").set('href', "openacd/modules/" + modules.store.getValue(item, 'name') + ".html");
+				dijit.byId("moduleMain").selectChild("moduleConf");
+			} else {
+				dijit.byId("moduleMain").selectChild("moduleNodeInfo");
 			}
-			dijit.byId("moduleMain").selectChild("moduleConf");
 		});
 		dojo.connect(modules.tree, 'onOpen', function(item, node){
 			dijit.byId('moduleTab').layout();
@@ -382,6 +383,7 @@ dojo.addOnLoad(function(){
 									dojo.byId("loginerrspan").innerHTML = '';
 									dojo.byId('loginerrp').style.display = 'none';
 									agents.getModules(dijit.byId('editAgentModuleForm'));
+									modules.getNodeStatus("moduleNodeInfo");
 								} else {
 									dojo.byId("loginerrp").style.display = "block";
 									dojo.byId("loginerrspan").innerHTML = response2.message;
@@ -420,6 +422,7 @@ dojo.addOnLoad(function(){
 					modules.refreshTree('moduleList');
 					clients.init();
 					releaseOpts.init();
+					modules.getNodeStatus("moduleNodeInfo");
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 				}
 				else{

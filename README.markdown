@@ -14,18 +14,18 @@ Feature Highlights
 + Skill based routing
 + Priority and unified queueing
 + Web-based administration and agent interaction
-+ Supervisory drag and drop interface for managing agents/call flow
++ Supervisory interface for managing agents/call flow
 + Support for handling voice calls (inbound and outbound), voicemails and emails
 + Detailed CDRs and agent state recording
 
 Participants
 ============
 
-Development is sponsored by [Fused Solutions](http://www.fusedsolutions.com) and
+Development is sponsored by [KGB](http://kgb.com) and
 the 2 main developers are:
 
-+ Andrew Thompson (andrew@hijacked.us)
-+ Micah Warren (micahw@fusedsolutions.com)
++ Andrew Thompson (andrew AT hijacked.us)
++ Micah Warren (micahw AT lordnull.com)
 
 Other contributions are welcome.
 
@@ -44,11 +44,9 @@ know why not. Also feel free to contribute documentation, translations or report
 Project Status
 ==============
 
-The project is approaching a 1.0 release (which indicates that Fused Solutions
-will be able to use it internally). We expect to have the 1.0 milestone reached
-by late March 2010. After 1.0 we intend to add more features such as chat
-support and the ability for an agent to handle more than one email/chat
-simultaneously.
+The project is (still) approaching a 1.0. The OpenACD developers are working
+with [eZuce](http://www.ezuce.com) and [KGB](http://kgb.com) to integrate OpenACD
+as the new sipXecs ACD.
 
 More Info
 =========

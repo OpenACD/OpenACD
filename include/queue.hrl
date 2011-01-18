@@ -95,6 +95,7 @@
 -record(queue_group, {
 	name = erlang:error({undefined, name}) :: string(),
 	recipe = [] :: recipe(),
+	skills = [] :: [atom()],
 	sort = 10 :: non_neg_integer(),
 	protected = false :: 'true' | 'false',
 	timestamp = util:now() :: pos_integer()

@@ -1,18 +1,6 @@
-[submodule "contrib/gen_smtp"]
-	path = contrib/gen_smtp
-	url = git://github.com/Vagabond/gen_smtp.git
 [submodule "contrib/gen_server_mock"]
 	path = contrib/gen_server_mock
 	url = git://github.com/lordnull/gen_server_mock.git
-[submodule "contrib/errd"]
-	path = contrib/errd
-	url = git://github.com/Vagabond/errd.git
-[submodule "contrib/gen_leader_revival"]
-	path = contrib/gen_leader_revival
-	url = git://github.com/Vagabond/gen_leader_revival.git
-[submodule "contrib/mochiweb"]
-	path = contrib/mochiweb
-	url = git://github.com/mochi/mochiweb.git
 [submodule "priv/www/contrib/dojo/dojo"]
 	path = priv/www/contrib/dojo/dojo
 	url = http://github.com/dojo/dojo.git

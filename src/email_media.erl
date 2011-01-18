@@ -40,7 +40,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
-%-include_lib("kernel/include/file.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -include("log.hrl").
 -include("queue.hrl").
@@ -753,7 +753,13 @@ scrub_send_html_test_() ->
 	end}].
 
 getmail(File) ->
-	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
+	Pre = case file:read_file_info("deps/gen_smtp/testdata") of
+		{ok, #file_info{type = directory}} ->
+			[];
+		_ ->
+			"../"
+	end,
+	{ok, Bin} = file:read_file(Pre ++ "deps/gen_smtp/testdata/" ++ File),
 	%Email = binary_to_list(Bin),
 	mimemail:decode(Bin).
 	

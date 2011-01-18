@@ -106,5 +106,25 @@
 	</button>
 </p>
 </form>
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setMaxRingoutsForm">
+<p class="translate">MAX_RINGOUTS_EXPLANATION</p>
+<p>
+	<label for="maxRingouts" class="translatecol">MAX_RINGOUTS</label>
+	<input dojoType="dijit.form.ValidationTextBox"  regExp="^infinity$|^\d+$" name="value" placeHoldler="infinity" id="maxRingouts" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId("maxRingouts").get('value');
+			if(newVal  && newVal != ''){
+				CPXSupervisor.setMaxRingout(newVal);
+			} else {
+				CPXSupervisor.setMaxRingout(false);
+			}
+		</script>
+	</button>
+</p>
+</form>
 <script type="text/javascript" src="openacd/modules/cpx_supervisor.js"></script>
 </div>

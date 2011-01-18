@@ -35,6 +35,39 @@
 %% This tries to enforce valid returns from the integration server.  If it
 %% detects an invalid reply, it will throw an exection with a tuple; the first
 %% element being `badreturn'.
+%%
+%% A module attempting to act as an integration point MUST respond properly
+%% to handle_call, otherwise it might as well not event run.
+%% <table border="1">
+%%	<tr>
+%% 		<th>Message</th>
+%%		<th>Reply</th>
+%%	</tr>
+%% 	<tr>
+%%		<td>`{agent_exists, LoginName :: string()}'</td>
+%%		<td>`true | false'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{agent_auth, LoginName :: string(), PlainPassword :: string(), Extended :: [any()]}'</td>
+%%		<td>`deny | destroy | {ok, Id :: string(), Profile :: string(), agent | admin | supervisor, Extended :: [any()]}'</td>
+%%	</tr>
+%%	<tr>
+%% 		<td>`{client_exists, id, Id :: string()}'</td>
+%%		<td>`true | false'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{client_exists, label, Label :: string()}'</td>
+%%		<td>`true | false'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{get_client, id, Id :: string()}'</td>
+%%		<td>`none | {ok, Id :: string(), Label :: string(), Options :: [any()]}'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{get_client, label, Label :: string()}'</td>
+%%		<td>`none | {ok, Id :: string(), Label :: string(), Options :: [any()]}'</td>
+%%	</tr>
+%% </table>
 
 -module(integration).
 -author(micahw).

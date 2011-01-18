@@ -1,0 +1,19 @@
+% This file is a list of agents and clients for use with integration_file.
+% This is here only for referece, and the integration_file module is only
+% a reference implementation of the integration system.  See the 
+% documentation for the integration_file for more info.
+%
+% agent_tuple() :: {'agent', id(), name(), 
+%		password(), security(), profile(), options()}
+% client_typle() :: {'client', id(), name(), options()}
+% id(), name(), profile() :: string().
+% password() :: erlang:md5([name() ++ ":" ++ password()])
+% security() :: 'agent' | 'admin' | 'supervisor'
+% options() :: [option()]
+% option() :: atom() | {any(), any()}.
+
+{agent, "1", "agent", <<164,177,31,84,5,102,95,166,47,125,235,102,137,17,101,21>>, agent, "Default", []}.
+{agent, "2", "administrator", <<128,215,69,86,213,17,109,62,23,93,49,178,80,75,223,106>>, admin, "Default", []}.
+{agent, "3", "supervisor", <<157,130,152,43,61,172,140,8,134,170,186,205,72,129,214,173>>, supervisor, "Default", []}.
+{client, "1", "Client1", []}.
+{client, "2", "Client2", []}.

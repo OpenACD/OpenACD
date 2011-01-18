@@ -1,13 +1,14 @@
-Name: @PACKAGE@
-Version: @PACKAGE_VERSION@
+Name: openacd
+Version: 0.9.5
 Summary: OpenACD Call Center
-Release: 1
+Release: %{?buildno:%buildno}%{!?buildno:1}
 Group: Applications/Communications
 Vendor: Fused Solutions Inc.
 Packager: SIPfoundry
 License: GPL
 AutoReqProv: no
 URL: http://github.com/Vagabond/OpenACD/wiki
+Source: %{name}-%{version}.tar.gz
 
 # openssh for ssh-keygen command
 BuildRequires: openssh
@@ -15,27 +16,27 @@ BuildRequires: openssh
 BuildRequires: automake
 BuildRequires: gcc-c++
 BuildRequires: erlang
-BuildRequires: rubygem-rake
+
+# Required for rebar. Would like to get rid of this, git doesn't come on centos 5
+# and build should not be contacting any git servers to compile, but unfortunately it does
+BuildRequires: git
 
 # unclear how to express >= R13B04 or >= R13B-04 ?
 Requires: erlang
 
-Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_builddir}/%{name}-root
 
 %description
 OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in erlang.
 
 %prep
-%setup
+%setup -n OpenACD
 
 %build
-%configure
-make
+make compile 
 
 %install
-mkdir -p -m 755 $RPM_BUILD_ROOT/opt/openacd
-cp -r contrib boot.rb ebin LICENSE misc priv key key.pub $RPM_BUILD_ROOT/opt/openacd
+make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -45,14 +46,12 @@ rm -rf $RPM_BUILD_ROOT
 %post
 
 %files
-%dir /opt/openacd
-%attr (755,root,root) /opt/openacd/boot.rb
-/opt/openacd/key
-/opt/openacd/key.pub
-/opt/openacd/contrib
-/opt/openacd/ebin
-/opt/openacd/LICENSE
-/opt/openacd/misc
-/opt/openacd/priv
-
-
+%dir /opt/OpenACD
+%dir /opt/OpenACD/bin
+%attr (755,root,root) /opt/OpenACD/bin/openacd
+/opt/OpenACD/erts-*
+/opt/OpenACD/etc
+/opt/OpenACD/lib
+/opt/OpenACD/log
+/opt/OpenACD/releases
+/opt/OpenACD/run

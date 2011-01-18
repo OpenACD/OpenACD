@@ -56,12 +56,12 @@
 -type(time() :: integer() | {integer(), integer(), integer()}).
 %-type(set_event_payload() :: {data_key(), proplist(), node()}).
 %-type(drop_event_payload() :: data_key()),
-%-type(info_event_payload() :: proplist())
+%-type(info_event_payload() :: any()}).
 %-type(event_struct() :: {data_key(), proplist()}).
 %-type(event_message() :: 
 %	{'set', time(), set_event_payload()} | 
 %	{'drop', time(), data_key()} | 
-%	{'info', time(), proplist()}).
+%	{'info', time(), info_event_payload()}).
 %-type(item_monitored() :: 'none' | pid() | atom() | {atom(), atom()}).
 %-type(monitor_reference() :: reference()).
 %-type(cached_event() :: {data_key(), proplist(), node(), time(), item_monitored(), monitor_reference()}).
@@ -145,13 +145,13 @@
 -spec(start_link/1 :: (Args :: options()) -> {'ok', pid()}).
 start_link(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-    gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Args, []).
 
 %% @doc See {@link start_link/1}
 -spec(start/1 :: (Args :: options()) -> {'ok', pid()}).
 start(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}, {vardir, util:run_dir()}], ?MODULE, Args, []).
 
 %% @doc Stops the monitor.
 -spec(stop/0 :: () -> any()).
@@ -186,7 +186,7 @@ drop({_Type, _Name} = Key) ->
 
 %% @doc Forward a general message to the subscribers.  There is no caching
 %% or monitoring done for this.
--spec(info/1 :: (Params :: proplist()) -> 'ok').
+-spec(info/1 :: (Params :: any()) -> 'ok').
 info(Params) ->
 	%?DEBUG("infoing initial:  ~p", [Params]),
 	gen_leader:leader_cast(?MODULE, {info, os:timestamp(), Params}).
@@ -288,7 +288,12 @@ add_drop(Key) ->
 add_info(Params) ->
 	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
 		fun({info, _Time, TheParams}, _State, _Election) ->
-			lists:all(fun(E) -> lists:memeber(E, TheParams) end, Params),
+			case {is_list(TheParams), is_list(Params)} of
+				{true, true} ->
+					lists:all(fun(E) -> lists:member(E, TheParams) end, Params);
+				{X, X} ->
+					Params = TheParams
+			end,
 			ok
 		end
 	).
@@ -828,7 +833,7 @@ tell_cands(Message, [Node | Tail], Leader) ->
 	State = #state{}, 
 	% This is an election record, see gen_leader to find out what it is
 	% as the copy/pasta record below may be out of date
-	Election = {election, node(), none, ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
+	Election = {election, node(), ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
 	handle_DOWN("deadnode", State, Election),
 	?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
 	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
@@ -836,15 +841,14 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 %-record(election, {
 %          leader = none,
-%          previous_leader = none,
 %          name,
 %          leadernode = none,
 %          candidate_nodes = [],
 %          worker_nodes = [],
+%          alive = [],
 %          down = [],
 %          monitored = [],
 %          buffered = [],
-%          seed_node = none,
 %          status,
 %          elid,
 %          acks = [],
@@ -854,9 +858,8 @@ tell_cands(Message, [Node | Tail], Leader) ->
 %          pendack,
 %          incarn,
 %          nextel,
-%          %% all | one. When `all' each election event
+%          bcast_type              %% all | one. When `all' each election event
 %          %% will be broadcast to all candidate nodes.
-%          bcast_type
 %         }).
 
 sub_mock() ->
@@ -885,15 +888,20 @@ mock_test_then_die([H | T]) ->
 	mock_test_then_die(T).
 
 subscribers_test_() ->
-	{foreach,
+	util:start_testnode(),
+	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
+	{spawn, SubscribeNode, {foreach, 
 	fun() ->
 		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
+		timer:sleep(5), % time for it to start up
 		ok
 	end,
 	fun(ok) ->
-		cpx_monitor:stop()
+		cpx_monitor:stop(),
+		timer:sleep(5) % time to die
 	end,
 	[fun(ok) -> {"simple info", fun() ->
+		timer:sleep(5), % fails unless cpx_mon is given time to wake up.
 		cpx_monitor:subscribe(),
 		cpx_monitor:info([{<<"key">>, <<"value">>}]),
 		receive
@@ -905,6 +913,18 @@ subscribers_test_() ->
 			?assert("timeout")
 		end 
 	end} end,
+	fun(ok) -> {"simpler info", fun() ->
+		cpx_monitor:subscribe(),
+		cpx_monitor:info(<<"funk initiated">>),
+		receive
+			{cpx_monitor_event, {info, _Time, <<"funk initiated">>}} ->
+				?assert(true);
+			{cpx_monitor_event, Other} ->
+				?assert(Other)
+		after 20 ->
+			?assert("timeout")
+		end
+	end} end,
 	fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:subscribe(),
 		cpx_monitor:set({media, "media1"}, [{<<"key">>, <<"val">>}]),
@@ -913,7 +933,7 @@ subscribers_test_() ->
 				?assert(true);
 			{cpx_monitor_event, Other} ->
 				?assert(Other)
-		after 20 ->
+		after 50 ->
 			?assert("timeout")
 		end
 	end} end,
@@ -925,7 +945,7 @@ subscribers_test_() ->
 				?assert(true);
 			{cpx_monitor_event, Other} ->
 				?assert(Other)
-		after 20 ->
+		after 50 ->
 			?assert("timeout")
 		end
 	end} end,
@@ -992,20 +1012,27 @@ subscribers_test_() ->
 		gen_server_mock:stop(Watched),
 		timer:sleep(10),
 		mock_test_then_die([Watcher])
-	end} end]}.
+	end} end]}}.
 
 ets_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(cpx_monitor_ets_tests),
+	{spawn,
+	N,
 	{foreach,
 	fun() ->
 		{ok, _} = cpx_monitor:start([{nodes, node()}]),
+		timer:sleep(5),
 		ok
 	end,
 	fun(ok) ->
-		cpx_monitor:stop()
+		cpx_monitor:stop(),
+		timer:sleep(5)
 	end,
 	[fun(ok) -> {"simple set", fun() ->
 		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
-		timer:sleep(10),
+		timer:sleep(15),
+		?DEBUG("Whereis:  ~p", [whereis(cpx_monitor)]),
 		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
 		Node = node(),
 		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)
@@ -1030,20 +1057,36 @@ ets_test_() ->
 	end} end,
 	fun(ok) -> {"set, reset, die", fun() ->
 		{ok, Mock} = gen_server_mock:new(),
+		cpx_monitor:subscribe(),
 		cpx_monitor:set({media, "hi"}, [], none),
-		timer:sleep(10),
-		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
+		receive
+			{cpx_monitor_event, {set, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("initial set timed out")
+		end,
+		[Time] = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
 		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),
-		timer:sleep(10),
+		receive
+			{cpx_monitor_event, {set, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("reset timed out")
+		end,
 		[{_Key, NewProps, _, NewTime, Mock, _Ref}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
 		gen_server_mock:stop(Mock),
-		timer:sleep(10),
+		receive
+			{cpx_monitor_event, {drop, _, _}} ->
+				ok
+		after 1000 ->
+			?assert("die timed out")
+		end,
 		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
 		Node = node(),
 		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
 		?assertNot(Time =:= NewTime),
 		?assertEqual([], Res)
-	end} end]}.
+	end} end]}}.
 		
 multinode_test_d() ->
 	{foreach,

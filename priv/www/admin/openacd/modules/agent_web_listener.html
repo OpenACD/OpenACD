@@ -1,0 +1,74 @@
+<div id="agent_web_listener" class="wide">
+<form dojoType="dijit.form.Form" id="agentWebListenerForm">
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="enabled" value="enabled" id="agentWebListenerEnabled"/><span class="translate">ENABLED</span>
+</p>
+
+<p>
+	<label class="translatecol" for="port">PORT</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="port" id="agentWebListenerPort" regExp="[\d]+" />
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" name="submit" label="submit">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization('admin', 'labels')['SUBMIT']);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var postUrl = '/modules/' + modules.activeNode + '/agent_web_listener/update';
+			dojo.xhrPost({
+				url: postUrl,
+				content:{
+					enabled:dijit.byId('agentWebListenerEnabled').get('checked'),
+					port:dijit.byId('agentWebListenerPort').get('value')
+				},
+				handleAs:'json',
+				load:function(res){
+					if(res.success == true){
+						return;
+					}
+					errMessage('Modifying agent web listener failed:  ' + res.message);
+				},
+				error:function(res){
+					errMessage('Modifying agent_web_listener error:  ' + res);
+				}
+			});
+		</script>
+	</button>
+</p>
+</form>
+<script type="text/javascript">
+	var transNodes = dojo.query('.translate, .translatecol', 'agent_web_listener');
+
+	for(var i = 0; i < transNodes.length; i++){
+		var trans = dojo.i18n.getLocalization('admin', 'labels')[transNodes[i].innerHTML];
+		if(dojo.hasClass(transNodes[i], 'translatecol')){
+			trans = trans + ':';
+		}
+		transNodes[i].innerHTML = trans;
+	}
+
+	dojo.xhrGet({
+		url:'/modules/' + modules.activeNode + '/agent_web_listener/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success == false){
+				errMessage('getting settings failed:  ' + res.message);
+				return;
+			}
+			dijit.byId('agentWebListenerEnabled').set('checked', true);
+			if(res.enabled == false){
+				dijit.byId('agentWebListenerEnabled').set('checked', false);
+			}
+			if(res.port){
+				dijit.byId('agentWebListenerPort').set('value', res.port);
+			}
+		},
+		error:function(res){
+			errMessage('getting settings errored:  ' + res);
+		}
+	});
+</script>
+</div>

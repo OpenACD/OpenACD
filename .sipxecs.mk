@@ -14,5 +14,11 @@ OpenACD.dist :
 	cd $(SRC)/OpenACD; \
 	  git archive --format tar --prefix OpenACD/ HEAD > $(abspath $(OpenACD_TAR:.tar.gz=.tar))
 	make -C $(SRC)/OpenACD deps
-	tar -C $(SRC) -rf $(abspath $(OpenACD_TAR:.tar.gz=.tar)) OpenACD/deps
+	# tar up the source in the git submodules
+	tar -C $(SRC) -rf $(abspath $(OpenACD_TAR:.tar.gz=.tar)) \
+	  OpenACD/deps \
+	  OpenACD/contrib/gen_server_mock \
+	  OpenACD/priv/www/contrib/dojo/dojo \
+	  OpenACD/priv/www/contrib/dojo/dojox \
+	  OpenACD/priv/www/contrib/dojo/dijit
 	cat $(OpenACD_TAR:.tar.gz=.tar) | gzip > $(OpenACD_TAR)

@@ -17,10 +17,6 @@ BuildRequires: automake
 BuildRequires: gcc-c++
 BuildRequires: erlang
 
-# Required for rebar. Would like to get rid of this, git doesn't come on centos 5
-# and build should not be contacting any git servers to compile, but unfortunately it does
-BuildRequires: git
-
 # unclear how to express >= R13B04 or >= R13B-04 ?
 Requires: erlang
 
@@ -33,10 +29,10 @@ OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in
 %setup -n OpenACD
 
 %build
-make compile 
+make compile GIT_UPDATE_DISABLED=1
 
 %install
-make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD
+make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD GIT_UPDATE_DISABLED=1
 
 %clean
 rm -rf $RPM_BUILD_ROOT

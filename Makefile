@@ -4,6 +4,8 @@ all: deps compile
 
 deps:
 	./rebar get-deps update-deps force=1
+	git submodule init
+	git submodule update
 
 compile:
 	./rebar compile generate force=1

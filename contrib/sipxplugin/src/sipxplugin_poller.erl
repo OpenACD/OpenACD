@@ -35,9 +35,11 @@
 -import(agent_auth).
 -import(call_queue_config).
 -import(queue_manager).
+-import(cpx_supervisor).
 -export([start/0, stop/0, init/1, loop/2]).
 
 -include("../../../include/log.hrl").
+-include("../../../include/cpx.hrl").
 
 start() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -110,6 +112,8 @@ get_command_values(Data, Mong) ->
 					process_queue_group(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"queue">> ->
 					process_queue(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"freeswitch_media_manager">> ->
+					process_fs_media_manager(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -234,6 +238,19 @@ process_queue(Queue, Command) ->
 		call_queue_config:set_queue(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Weight), AllSkills, OldRecipe, erlang:binary_to_list(QueueGroup));
 	true -> ?WARNING("Unrecognized command", [])
 	end.
+
+process_fs_media_manager(Config, Command) ->
+        {_, Enabled} = lists:nth(2, Config),
+        {_, CNode} = lists:nth(3, Config),
+        {_, DialString} = lists:nth(4, Config),
+        if Enabled =:= <<"true">> ->
+		Conf = #cpx_conf{id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, start_args = [list_to_atom(erlang:binary_to_list(CNode)), [{h323,[]}, {iax2,[]}, {sip,[]}, {dialstring,erlang:binary_to_list(DialString)}]], supervisor = mediamanager_sup},
+                cpx_supervisor:update_conf(freeswitch_media_manager, Conf);
+        Enabled =:= <<"false">> ->
+                cpx_supervisor:destroy(freeswitch_media_manager);
+        true -> ?WARNING("Unrecognized command", [])
+        end.
+
 
 binary_to_number(B) ->
     list_to_number(binary_to_list(B)).

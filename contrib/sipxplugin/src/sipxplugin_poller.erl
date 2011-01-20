@@ -114,6 +114,8 @@ get_command_values(Data, Mong) ->
 					process_queue(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"freeswitch_media_manager">> ->
 					process_fs_media_manager(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"agent_configuration">> ->
+					process_agent_configuration(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -248,6 +250,16 @@ process_fs_media_manager(Config, Command) ->
                 cpx_supervisor:update_conf(freeswitch_media_manager, Conf);
         Enabled =:= <<"false">> ->
                 cpx_supervisor:destroy(freeswitch_media_manager);
+        true -> ?WARNING("Unrecognized command", [])
+        end.
+
+process_agent_configuration(Config, Command) ->
+        {_, ListenerEnabled} = lists:nth(2, Config),
+        if ListenerEnabled =:= <<"true">> ->
+		Conf = #cpx_conf{id = agent_dialplan_listener, module_name = agent_dialplan_listener, start_function = start_link, start_args = [], supervisor = agent_connection_sup},
+                cpx_supervisor:update_conf(agent_dialplan_listener, Conf);
+        ListenerEnabled =:= <<"false">> ->
+                cpx_supervisor:destroy(agent_dialplan_listener);
         true -> ?WARNING("Unrecognized command", [])
         end.
 

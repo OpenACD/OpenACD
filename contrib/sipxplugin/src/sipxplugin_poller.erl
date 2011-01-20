@@ -35,9 +35,11 @@
 -import(agent_auth).
 -import(call_queue_config).
 -import(queue_manager).
+-import(cpx_supervisor).
 -export([start/0, stop/0, init/1, loop/2]).
 
 -include("../../../include/log.hrl").
+-include("../../../include/cpx.hrl").
 
 start() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -110,6 +112,10 @@ get_command_values(Data, Mong) ->
 					process_queue_group(Object, erlang:binary_to_list(CmdValue));
 				Type =:= <<"queue">> ->
 					process_queue(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"freeswitch_media_manager">> ->
+					process_fs_media_manager(Object, erlang:binary_to_list(CmdValue));
+				Type =:= <<"agent_configuration">> ->
+					process_agent_configuration(Object, erlang:binary_to_list(CmdValue));
 				true -> ?WARNING("Unrecognized type", [])
 				end
 			end, Objects),
@@ -122,10 +128,14 @@ process_agent(Agent, Command) ->
 	{_, Group} = lists:nth(4, Agent),
 	{_, Skills} = lists:nth(5, Agent),
 	{_, Queues} = lists:nth(6, Agent),
-	{_, Firstname} = lists:nth(7, Agent),
-	{_, Lastname} = lists:nth(8, Agent),
-	{_, Security} = lists:nth(10, Agent),
+	{_, Clients} = lists:nth(7, Agent),
+	{_, Firstname} = lists:nth(8, Agent),
+	{_, Lastname} = lists:nth(9, Agent),
+	{_, Security} = lists:nth(11, Agent),
 	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+	QueuesList = lists:flatmap(fun(X)->[{'_queue',X}] end, string:tokens((erlang:binary_to_list(Queues)), ", ")),
+        ClientsList = lists:flatmap(fun(X)->[{'_brand',X}] end, string:tokens((erlang:binary_to_list(Clients)), ", ")),
+        AllSkills = lists:merge(lists:merge(QueuesList, ClientsList), SkillsList),
 	if Security =:= <<"SUPERVISOR">> ->
 		SecurityAtom = supervisor;
 	Security =:= <<"ADMIN">> ->
@@ -133,28 +143,33 @@ process_agent(Agent, Command) ->
 	true -> SecurityAtom = agent
 	end,
 	if Command =:= "ADD" ->
-		agent_auth:add_agent(erlang:binary_to_list(Name), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname), erlang:binary_to_list(Pin), SkillsList, SecurityAtom, erlang:binary_to_list(Group));
+		agent_auth:add_agent(erlang:binary_to_list(Name), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname), erlang:binary_to_list(Pin), AllSkills, SecurityAtom, erlang:binary_to_list(Group));
 	Command =:= "DELETE" ->
 		agent_auth:destroy(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
-		{_, Oldname} = lists:nth(9, Agent),
+		{_, Oldname} = lists:nth(10, Agent),
 		{_, [Old]} = agent_auth:get_agent(erlang:binary_to_list(Oldname)),
-		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), SkillsList, SecurityAtom, erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
+		agent_auth:set_agent(element(2, Old), erlang:binary_to_list(Name), erlang:binary_to_list(Pin), AllSkills, SecurityAtom, erlang:binary_to_list(Group), erlang:binary_to_list(Firstname), erlang:binary_to_list(Lastname));
 	true -> ?WARNING("Unrecognized command", [])
 	end.
 
 process_profile(Profile, Command) ->
 	{_, Name} = lists:nth(2, Profile),
 	{_, Skills} = lists:nth(3, Profile),
-	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+        {_, Queues} = lists:nth(4, Profile),
+        {_, Clients} = lists:nth(5, Profile),
+        SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
+	QueuesList = lists:flatmap(fun(X)->[{'_queue',X}] end, string:tokens((erlang:binary_to_list(Queues)), ", ")),
+	ClientsList = lists:flatmap(fun(X)->[{'_brand',X}] end, string:tokens((erlang:binary_to_list(Clients)), ", ")),
+	AllSkills = lists:merge(lists:merge(QueuesList, ClientsList), SkillsList),
 	if Command =:= "ADD" ->
-		agent_auth:new_profile(erlang:binary_to_list(Name), SkillsList);
+		agent_auth:new_profile(erlang:binary_to_list(Name), AllSkills);
 	Command =:= "DELETE" ->
 		agent_auth:destroy_profile(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
-		{_, Oldname} = lists:nth(4, Profile),
+		{_, Oldname} = lists:nth(6, Profile),
 		Old = agent_auth:get_profile(erlang:binary_to_list(Oldname)),
-		agent_auth:set_profile(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), SkillsList);
+		agent_auth:set_profile(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), AllSkills);
 	true -> ?WARNING("Unrecognized command", [])
 	end.
 
@@ -191,14 +206,15 @@ process_client(Client, Command) ->
 process_queue_group(QueueGroup, Command) ->
 	{_, Name} = lists:nth(2, QueueGroup),
 	{_, Skills} = lists:nth(3, QueueGroup),
-	{_, Sort} = lists:nth(4, QueueGroup),
+	{_, Profiles} = lists:nth(4, QueueGroup),
+	{_, Sort} = lists:nth(5, QueueGroup),
 	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
 	if Command =:= "ADD" ->
 		call_queue_config:new_queue_group(erlang:binary_to_list(Name), binary_to_number(Sort), []);
 	Command =:= "DELETE" ->
 		call_queue_config:destroy_queue_group(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
-		{_, Oldname} = lists:nth(5, QueueGroup),
+		{_, Oldname} = lists:nth(6, QueueGroup),
 		{_, [{_, _, OldRecipe, _, _, _}]} = call_queue_config:get_queue_group(erlang:binary_to_list(Oldname)),
 		call_queue_config:set_queue_group(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Sort), OldRecipe);
 	true -> ?WARNING("Unrecognized command", [])
@@ -208,19 +224,45 @@ process_queue(Queue, Command) ->
 	{_, Name} = lists:nth(2, Queue),
 	{_, QueueGroup} = lists:nth(3, Queue),
 	{_, Skills} = lists:nth(4, Queue),
+	{_, Profiles} = lists:nth(5, Queue),
 	SkillsList = lists:flatmap(fun(X)->[list_to_atom(X)] end, string:tokens((erlang:binary_to_list(Skills)), ", ")),
-	{_, Weight} = lists:nth(5, Queue),
+	ProfilesList = lists:flatmap(fun(X)->[{'_profile',X}] end, string:tokens((erlang:binary_to_list(Profiles)), ", ")),
+	AllSkills = lists:merge(SkillsList, ProfilesList),
+	{_, Weight} = lists:nth(6, Queue),
 	if Command =:= "ADD" ->
-		call_queue_config:new_queue(erlang:binary_to_list(Name), binary_to_number(Weight), SkillsList, [], erlang:binary_to_list(QueueGroup)),
+		call_queue_config:new_queue(erlang:binary_to_list(Name), binary_to_number(Weight), AllSkills, [], erlang:binary_to_list(QueueGroup)),
 		queue_manager:load_queue(erlang:binary_to_list(Name));
 	Command =:= "DELETE" ->
 		call_queue_config:destroy_queue(erlang:binary_to_list(Name));
 	Command =:= "UPDATE" ->
-		{_, Oldname} = lists:nth(6, Queue),
+		{_, Oldname} = lists:nth(7, Queue),
 		OldRecipe = element(5, call_queue_config:get_queue(erlang:binary_to_list(Oldname))),
-		call_queue_config:set_queue(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Weight), SkillsList, OldRecipe, erlang:binary_to_list(QueueGroup));
+		call_queue_config:set_queue(erlang:binary_to_list(Oldname), erlang:binary_to_list(Name), binary_to_number(Weight), AllSkills, OldRecipe, erlang:binary_to_list(QueueGroup));
 	true -> ?WARNING("Unrecognized command", [])
 	end.
+
+process_fs_media_manager(Config, Command) ->
+        {_, Enabled} = lists:nth(2, Config),
+        {_, CNode} = lists:nth(3, Config),
+        {_, DialString} = lists:nth(4, Config),
+        if Enabled =:= <<"true">> ->
+		Conf = #cpx_conf{id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, start_args = [list_to_atom(erlang:binary_to_list(CNode)), [{h323,[]}, {iax2,[]}, {sip,[]}, {dialstring,erlang:binary_to_list(DialString)}]], supervisor = mediamanager_sup},
+                cpx_supervisor:update_conf(freeswitch_media_manager, Conf);
+        Enabled =:= <<"false">> ->
+                cpx_supervisor:destroy(freeswitch_media_manager);
+        true -> ?WARNING("Unrecognized command", [])
+        end.
+
+process_agent_configuration(Config, Command) ->
+        {_, ListenerEnabled} = lists:nth(2, Config),
+        if ListenerEnabled =:= <<"true">> ->
+		Conf = #cpx_conf{id = agent_dialplan_listener, module_name = agent_dialplan_listener, start_function = start_link, start_args = [], supervisor = agent_connection_sup},
+                cpx_supervisor:update_conf(agent_dialplan_listener, Conf);
+        ListenerEnabled =:= <<"false">> ->
+                cpx_supervisor:destroy(agent_dialplan_listener);
+        true -> ?WARNING("Unrecognized command", [])
+        end.
+
 
 binary_to_number(B) ->
     list_to_number(binary_to_list(B)).

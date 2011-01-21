@@ -40,6 +40,7 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
 -export([
 	call_to_protobuf/1,
 	client_to_protobuf/1,
@@ -136,7 +137,7 @@ statename_to_enum(Statename) ->
 		oncall -> 'ONCALL';
 		outgoing -> 'OUTGOING';
 		released -> 'RELEASED';
-		warm_transfer -> 'WARMTRANSFER';
+		warmtransfer -> 'WARMTRANSFER';
 		wrapup -> 'WRAPUP';
 		_ -> undefined
 	end.
@@ -225,5 +226,35 @@ proplist_to_protobuf_test_() ->
 		In = [{key, {"This", "is", "too", "complex"}}],
 		?assertEqual(Expected, proplist_to_protobuf(In))
 	end}].
+
+skill_to_protobuf_test_() ->
+	[?_assertEqual(#skill{atom = "skill1"}, skill_to_protobuf(skill1)),
+	?_assertEqual(#skill{atom = "_skill1", expanded = "Expanded"}, skill_to_protobuf({'_skill1', "Expanded"}))].
+
+statename_enum_translates_test_() ->
+	TransTable = [
+		{idle, 'IDLE'},
+		{ringing, 'RINGING'},
+		{precall, 'PRECALL'},
+		{oncall, 'ONCALL'},
+		{outgoing, 'OUTGOING'},
+		{released, 'RELEASED'},
+		{warmtransfer, 'WARMTRANSFER'},
+		{wrapup, 'WRAPUP'}
+	],
+	Tests1 = [[?_assertEqual(A, enum_to_statename(B)),
+	?_assertEqual(B, statename_to_enum(A))] ||
+	{A, B} <- TransTable],
+	Tests2 = [
+	?_assertEqual(undefined, statename_to_enum(otherAtom)),
+	?_assertEqual(prelogin, enum_to_statename('PRELOGIN')),
+	?_assertEqual(undefined, enum_to_statename('OTHERENUM'))
+	],
+	lists:append(Tests1, Tests2).
+
+release_to_protobuf_test_() ->
+	[?_assertEqual(#release{id = "default", name = "Default", bias = 0}, release_to_protobuf(default)),
+	?_assertEqual(#release{id = "id", name = "nom", bias = -1}, release_to_protobuf({"id", "nom", -1})),
+	?_assertEqual(#release{id = "id", name = "nom", bias = -1}, release_to_protobuf(#release_opt{id = "id", label = "nom", bias = -1}))].
 
 -endif.

@@ -7,11 +7,12 @@ RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
 RUNNER_RUN_DIR=$RUNNER_BASE_DIR/run
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
-RUNNER_USER=
 
-# XXX Change thse if you want other behaviour
-OPENACD_LOG_DIR=$RUNNER_LOG_DIR
-OPENACD_RUN_DIR=$RUNNER_RUN_DIR
+# To change these, set these env vars before running this script
+# RUNNER_USER - is undefined by default which means any user is legal as long as file permissions are set
+#               accordingly. Root is usually a bad idea but works.
+: ${OPENACD_LOG_DIR:=$RUNNER_LOG_DIR}
+: ${OPENACD_RUN_DIR:=$RUNNER_RUN_DIR}
 
 export OPENACD_LOG_DIR
 export OPENACD_RUN_DIR

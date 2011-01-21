@@ -17,7 +17,8 @@ OpenACD.dist :
 	# tar up the source in the git submodules
 	tar -C $(SRC) -rf $(abspath $(OpenACD_TAR:.tar.gz=.tar)) \
 	  OpenACD/deps \
-	  OpenACD/contrib/gen_server_mock \
+	  OpenACD/contrib/sipxplugin \
+	  OpenACD/contrib/erlmongo \
 	  OpenACD/priv/www/contrib/dojo/dojo \
 	  OpenACD/priv/www/contrib/dojo/dojox \
 	  OpenACD/priv/www/contrib/dojo/dijit

@@ -127,7 +127,7 @@ start(_Type, StartArgs) ->
 		{ok, Pid} ->
 			application:set_env('OpenACD', uptime, util:now()),
 			?NOTICE("Application OpenACD started sucessfully!", []),
-			start_plugins(os:getenv("OPENACD_PLUGIN_DIR")),
+			start_plugins(application:get_env('OpenACD', plugin_dir)),
 			{ok, Pid}
 	catch
 		What:Why ->
@@ -884,10 +884,10 @@ find_cdr_test(_, _) ->
 % cpx:start_spec
 
 
-start_plugins(false) ->
+start_plugins(undefined) ->
 	?NOTICE("No plugin directory configured", []),
 	ok;
-start_plugins(Dir) ->
+start_plugins({ok, Dir}) ->
 	case filelib:is_dir(Dir) of
 		false ->
 			?WARNING("Plugin directory ~p is not a directory!", [Dir]),

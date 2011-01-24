@@ -127,6 +127,7 @@ start(_Type, StartArgs) ->
 		{ok, Pid} ->
 			application:set_env('OpenACD', uptime, util:now()),
 			?NOTICE("Application OpenACD started sucessfully!", []),
+			start_plugins(application:get_env('OpenACD', plugin_dir)),
 			{ok, Pid}
 	catch
 		What:Why ->
@@ -881,6 +882,49 @@ find_cdr_test(_, _) ->
 % cdr:pending_states (agent/cdr), global/node
 % start_spec pretty print.
 % cpx:start_spec
+
+
+start_plugins(undefined) ->
+	?NOTICE("No plugin directory configured", []),
+	ok;
+start_plugins({ok, Dir}) ->
+	case filelib:is_dir(Dir) of
+		false ->
+			?WARNING("Plugin directory ~p is not a directory!", [Dir]),
+			ok;
+		true ->
+			case filelib:is_dir(filename:join([Dir, "deps"])) of
+				true ->
+					lists:foreach(fun(Dep) ->
+								case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
+									true ->
+										?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
+										true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
+									false ->
+										ok
+								end
+						end,
+						element(2, file:list_dir(filename:join([Dir, "deps"]))));
+				false ->
+					ok
+			end,
+			lists:foreach(fun("deps") ->
+						ok;
+					(Plugin) ->
+						case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
+							true ->
+								?INFO("Adding plugin ~p to code path", [Plugin]),
+								true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
+								{ok, [{application, _, Properties}|_]} = file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])),
+								lists:foreach(fun(App) -> application:start(App) end, proplists:get_value(applications, Properties, [])),
+								?INFO("starting plugin ~p:  ~p", [Plugin, application:start(list_to_atom(Plugin))]);
+							false ->
+								ok
+						end
+				end,
+				element(2, file:list_dir(Dir)))
+	end.
+
 
 -ifdef(TEST).
 

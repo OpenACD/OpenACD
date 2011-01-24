@@ -77,7 +77,7 @@
 -record(state, {
 	odbc_pid :: 'undefined' | pid(),
 	odbc_sup_pid :: 'undefiend' | pid(),
-	event_cache = [] :: [#event_log_row{}],
+	event_cache = [] :: [{reference(), #event_log_row{}}],
 	max_r :: non_neg_integer(),
 	max_t :: non_neg_integer(),
 	dsn :: string(),
@@ -309,7 +309,8 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, State) ->
 					Event = build_event_log(call_terminate, Timestamp, UseableProps),
 					send_events(State#state.odbc_pid, [Event], State#state.event_cache);
 				error ->
-					?ERROR("unknown call ~p abandoned", [Key])
+					?ERROR("unknown call ~p abandoned", [Key]),
+					State#state.event_cache
 			end;
 		{ok, _Agent} ->
 			State#state.event_cache

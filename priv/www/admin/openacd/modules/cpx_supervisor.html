@@ -126,5 +126,38 @@
 	</button>
 </p>
 </form>
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setPluginDirForm">
+<p>Tells OpenACD to start "plugin applications".  A plugin application is an
+ erlang app the runs on the same node as OpenACD.  They are responsible for 
+supervising themselves, and should expect no help from OpenACD.  They can 
+assume OpenACD is running when they are launched.</p>
+<p>Place erlang applications in {plugin_dir}/{plugin_name} using the usual 
+erlang application structure ({plugin_name}/ebin, {plugin_name}/src, etc).  
+Place any non-plugin dependacies in {plugin_dir}/deps.  These must also be 
+application directories.  The functions of non-plugin dependcies to to allow
+ plugin apps to have the apps they need available in a proper erlang manner.
+</p>
+<p>OpenACD will add all the directories in the plugin path to the code path
+ (as well as anything in deps) and for each application directly under the 
+plugin dir, it will read the application file and try to launch any listed 
+application dependancies and then call application:start/1 on the plugin 
+itself.</p>
+<p>
+	<label for="pluginDir" class="translatecol">PLUGIN_DIR</label>
+	<input dojoType="dijit.form.TextBox" name="value" placeHolder="Do not load plugins" id="pluginDir" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId("pluginDir").get('value');
+			if(newVal && newVal != ''){
+				CPXSupervisor.setPluginDir(newVal);
+			} else {
+				CPXSupervisor.setPluginDir(false);
+			}
+		</script>
+	</button>
+</p>
 <script type="text/javascript" src="openacd/modules/cpx_supervisor.js"></script>
 </div>

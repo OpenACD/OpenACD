@@ -55,5 +55,25 @@
 	% Maximum number of times an agent can ringout in a row before 
 	% a forced logout occurs.  if undefined, an agent is never forced to
 	% logout.
-	{max_ringouts, 3}
+	{max_ringouts, 3},
+
+	% Tells OpenACD to start "plugin applications".  A plugin application
+	% is an erlang app the runs on the same node as OpenACD.  They are 
+	% responsible for supervising themselves, and should expect no help
+	% from OpenACD.  They can assume OpenACD is running when they are 
+	% launched.
+	%
+	% Place erlang applications in {plugin_dir}/{plugin_name} using the 
+	% usual erlang application structure ({plugin_name}/ebin, {plugin_name}/
+	% src, etc).  Place any non-plugin dependacies in 
+	% {plugin_dir}/deps.  These must also be application directories.  The 
+	% functions of non-plugin dependcies to to allow plugin apps to have 
+	% the apps they need available in a proper erlang manner.
+	%
+	% OpenACD will add all the directories in the plugin path to the 
+	% code path (as well as anything in deps) and for each application 
+	% directly under the plugin dir, it will read the application file and 
+	% try to launch any listed application dependancies and then call
+	% application:start/1 on the plugin itself.
+	{plugin_dir, "plugins"}
 ]}].

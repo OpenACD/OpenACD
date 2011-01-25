@@ -1,11 +1,79 @@
 % A sample config file.
 % when invoking the erl shell, pass -config file-basename
 % (for this file, -config gen-cpx
+% for use with the devboot script, pass -f gen-cpx.
+% to use this after doing rebar generate, copy this to
+% "rel/openacd/etc/app.config"
 % To use this file, remove .sample from the end.
 % Change the nodes to those you plan to use, adding or 
 % removing as needed.
-[{cpx, [
+[{'OpenACD', [
+	% required
 	{nodes, [node1@host1, node2@host2]},
-	% The following is option, default shown.
-	{webdir_dynamic, "www/dynamic"}
+
+	% the following should be here.
+	{console_loglevel, info},
+	{logfiles, [{"full.log", debug}, {"console.log", info}]}
+
+	% everything else is entirely optional.
+	% when OpenACD starts, these are compared to what is in the cpx_value
+	% mnesia table.  This file wins.  Anything not here can be configured
+	% via the web gui, which is stored in the mnesia table.
+
+	% The folder (relative to priv) to find static web content
+	{webdir_dynamic, "www/dynamic"},
+
+	% How long a call should ring to an agent before swapping agents
+	{default_ringout, 60}
+
+	% The rest of these default to undefined.
+
+	% Where to put media archives (like voice call recordings).
+	% The archive path uses ruby-style interpoation for variables. Anything 
+	% of form #{variable_name} is replaced.  A media appends the file 
+	% extension to this path; this path should point to the actual file to 
+	% create (not just a directory).
+	% available variables:
+	%	year - The full 4 digit year
+	%	month - 2 digit month
+	%	day - 2 digit day
+	%	callid - The full call id (_not_ caller id)
+	%	calltype - email, voice, voicemail ...
+	%	calldirection - inbound or outbound
+	{archivepath, "/#{year}/#{month}/#{day}/#{calltype}-#{callid}"},
+
+	% To get the 'bug' button to work in the agent interface, fill this
+	% in with the url path to a mantis installation.
+	{mantispath, "http://example.com/mantis"},
+
+	% Options to present to an agent attempting to transfer a call to queue.
+	{transferprompt, {
+		[{"hiddenName", "Visible Label", "regex|\d+"}],
+		['_queue', {'_profile', "Default"}, skill1]
+	}},
+
+	% Maximum number of times an agent can ringout in a row before 
+	% a forced logout occurs.  if undefined, an agent is never forced to
+	% logout.
+	{max_ringouts, 3},
+
+	% Tells OpenACD to start "plugin applications".  A plugin application
+	% is an erlang app the runs on the same node as OpenACD.  They are 
+	% responsible for supervising themselves, and should expect no help
+	% from OpenACD.  They can assume OpenACD is running when they are 
+	% launched.
+	%
+	% Place erlang applications in {plugin_dir}/{plugin_name} using the 
+	% usual erlang application structure ({plugin_name}/ebin, {plugin_name}/
+	% src, etc).  Place any non-plugin dependacies in 
+	% {plugin_dir}/deps.  These must also be application directories.  The 
+	% functions of non-plugin dependcies to to allow plugin apps to have 
+	% the apps they need available in a proper erlang manner.
+	%
+	% OpenACD will add all the directories in the plugin path to the 
+	% code path (as well as anything in deps) and for each application 
+	% directly under the plugin dir, it will read the application file and 
+	% try to launch any listed application dependancies and then call
+	% application:start/1 on the plugin itself.
+	{plugin_dir, "plugins"}
 ]}].

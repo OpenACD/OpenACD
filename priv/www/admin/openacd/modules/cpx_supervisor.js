@@ -147,6 +147,30 @@ CPXSupervisor.setMaxRingout = function(newVal, callback){
 	});
 }
 
+CPXSupervisor.setPluginDir = function(newVal, callback){
+	var contentObj = {};
+	if(newVal){
+		contentObj.value = newVal;
+	}
+	dojo.xhrPost({
+		url:"/modules/" + modules.activeNode + "/cpx_supervisor/update/plugin_dir",
+		handleAs:'json',
+		content:contentObj,
+		load:function(res){
+			if(res.success){
+				if(callback){
+					callback(res);
+				}
+				return;
+			}
+			errMessage(["Setting plugin_dir failed", res.message]);
+		},
+		error:function(res){
+			errMessage(["Setting plugin_dir errored", res]);
+		}
+	});
+}
+
 dojo.query(".translate, .translatecol", 'cpx_module').forEach(function(node){
 	var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
 	if(trans){

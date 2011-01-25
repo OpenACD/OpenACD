@@ -1,11 +1,15 @@
  ***********************************************************************
  * Build succeeded!                                                    *
  *                                                                     *
- * To get started, run ./boot.rb and browse to http://localhost:9999   *
- * to get to the configuration interface. You can login using          *
- * administrator/Password123 An agent interface is also started by     *
- * default on port 5050, you can login to that using the administrator *
- * credential or the other default account of agent/Password123        *
+ * To get started, run:                                                *
+ *    ./rebar generate                                                 *
+ *    ./rel/openacd/bin/openacd console                                *
+ *                                                                     *
+ * Next, browse to http://localhost:9999 to get to the configuration   *
+ * interface. You can login using administrator/Password123 .  An      *
+ * agent interface is also started by default on port 5050, you can    *
+ * login to that using the administrator credential or the other       *
+ * default account of agent/Password123                                *
  *                                                                     *
  * In the shell, you can get a list of helpful commands by running     *
  * cpx:help().                                                         *

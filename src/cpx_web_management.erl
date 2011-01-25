@@ -1133,7 +1133,7 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 	end || {Node, Uptime, Confs} <- DataRaw],
 	Json = {struct, [
 		{success, true},
-		{nodes, {struct, Jsonable}}
+		{nodes, {struct, Jsonable}} | Error
 	]},
 	{200, [], mochijson2:encode(Json)};
 
@@ -1186,7 +1186,7 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, Post) ->
+api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
 		#cpx_conf{start_args = Port} ->
@@ -1230,7 +1230,7 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_tcp_listener]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, Post) ->
+api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_dialplan_listener]) of
 		undefined ->

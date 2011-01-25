@@ -59,7 +59,7 @@
 % z lacking.  So, the gb tree will sort the a's first.
 -type(skill_list_length() :: non_neg_integer()).
 -type(went_avail_at() :: {pos_integer(), non_neg_integer(), non_neg_integer()}).
--type(sort_key() :: {rotations(), all_skill_flag(), skill_list_length(), went_avail_at()}).
+%-type(sort_key() :: {rotations(), all_skill_flag(), skill_list_length(), went_avail_at()}).
 
 -record(state, {
 agents = dict:new() :: dict(),
@@ -168,7 +168,7 @@ filtered_route_list(Skills) ->
 -spec(filter_avail_agents_by_skill/2 :: (Agents :: [any()], Skills :: [atom()]) -> [any()]).
 filter_avail_agents_by_skill(Agents, Skills) ->
 	AvailSkilledAgents = [O || 
-		{K, {V, Aid, AgSkills}} = O <- Agents,
+		{_K, {_V, _Aid, AgSkills}} = O <- Agents,
 		( % check if either the call or the agent has the _all skill
 			lists:member('_all', AgSkills) orelse
 			lists:member('_all', Skills)
@@ -182,22 +182,22 @@ filter_avail_agents_by_skill(Agents, Skills) ->
 sort_agents_by_elegibility(AvailSkilledAgents) ->
 	lists:keysort(1, AvailSkilledAgents).
 
-help_sort(E1, E2) when size(E1) == 4, size(E2) == 4 ->
-	help_sort(erlang:append_element(E1, ignored), erlang:append_element(E2, ignored));
-help_sort({_K1, _V1, Time1, Skills1, _}, {_K2, _V2, Time2, Skills2, _}) ->
-	case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
-		{true, false} ->
-			false;
-		{false, true} ->
-			true;
-		_Else ->
-			if
-				length(Skills1) == length(Skills2) ->
-					Time1 =< Time2;
-				true ->
-					length(Skills1) =< length(Skills2)
-			end
-	end.
+%help_sort(E1, E2) when size(E1) == 4, size(E2) == 4 ->
+%	help_sort(erlang:append_element(E1, ignored), erlang:append_element(E2, ignored));
+%help_sort({_K1, _V1, Time1, Skills1, _}, {_K2, _V2, Time2, Skills2, _}) ->
+%	case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
+%		{true, false} ->
+%			false;
+%		{false, true} ->
+%			true;
+%		_Else ->
+%			if
+%				length(Skills1) == length(Skills2) ->
+%					Time1 =< Time2;
+%				true ->
+%					length(Skills1) =< length(Skills2)
+%			end
+%	end.
 
 
 %% @doc To keep the first agent on a given node from being flooded with 
@@ -424,8 +424,8 @@ handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills}, #state{agents =
 			{noreply, State}
 	end;
 handle_leader_cast({update_notify, Login, {Pid, Id, Time, Skills} = Value}, #state{agents = Agents} = State, _Election) ->
-	NewAgents = dict:update(Login, fun(Old) -> Value end, Value, Agents),
-	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _Id, Skills}}) ->
+	NewAgents = dict:update(Login, fun(_Old) -> Value end, Value, Agents),
+	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _FunId, _FunSkills}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
 	Routelist = case Time of
@@ -508,7 +508,7 @@ handle_call(list_agents, _From, #state{agents = Agents} = State, _Election) ->
 	{reply, dict:to_list(Agents), State};
 handle_call(list_avail_agents, _From, State, _Election) ->
 	{reply, gb_trees:to_list(State#state.route_list), State};
-handle_call(route_list_agents, _From, #state{agents = Agents, lists_requested = Count, route_list = Routelist} = State, _Election) ->		
+handle_call(route_list_agents, _From, #state{agents = _Agents, lists_requested = Count, route_list = Routelist} = State, _Election) ->		
 	List = gb_trees:to_list(Routelist),
 	NewRoutelist = case gb_trees:is_empty(Routelist) of
 		true ->

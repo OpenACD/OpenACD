@@ -1525,9 +1525,9 @@ handle_info(poll_flush, State) ->
 	case {State#state.poll_pid, State#state.poll_queue} of
 		{undefined, _} ->
 			{noreply, State#state{poll_flush_timer = undefined}};
-		{Pid, []} ->
+		{_Pid, []} ->
 			{noreply, State#state{poll_flush_timer = undefined}};
-		{Pid, PollQueue} when is_pid(Pid) ->
+		{Pid, _PollQueue} when is_pid(Pid) ->
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [
 				{success, true},
 				{<<"data">>, lists:reverse(State#state.poll_queue)},

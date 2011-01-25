@@ -372,7 +372,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{Key, {Apid, Aid, _Skills, _Node}} | Tail], Call) ->
+offer_call([{_Key, {Apid, Aid, _Skills, _Node}} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, element(2, cpx:get_env(default_reingout, ?TICK_LENGTH * ?RINGOUT))) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),

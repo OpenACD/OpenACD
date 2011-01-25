@@ -9,4 +9,5 @@ if [ ! -d OpenACD ]; then
 	ln -sf ../ebin OpenACD/ebin
 	ln -sf ../src OpenACD/src
 	ln -sf ../include OpenACD/include
+	ln -sf ../priv OpenACD/priv
 fi

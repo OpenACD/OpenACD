@@ -54,6 +54,9 @@
 	netstring_to_bins/1
 ]).
 
+%% @doc Turn a non protobuf `#call{}' into a protobuf friendly 
+%% `#callrecord{}'.
+-spec(call_to_protobuf/1 :: (Call :: #call{}) -> #callrecord{}).
 call_to_protobuf(Call) ->
 	#callrecord{
 		id = Call#call.id,
@@ -79,6 +82,8 @@ call_to_protobuf(Call) ->
 		end
 	}.
 
+%% @doc From `#client{}' to protobuf friendly `#clientrecord{}'.
+-spec(client_to_protobuf/1 :: (Client :: #client{}) -> #clientrecord{}).
 client_to_protobuf(Client) ->
 	#clientrecord{
 		is_default = case Client#client.id of undefined -> true; _ -> false end,
@@ -87,6 +92,14 @@ client_to_protobuf(Client) ->
 		options = proplist_to_protobuf(Client#client.options)
 	}.
 
+%% @doc Turns a simple proplist into a list of `#simplekeyvalue{}', which
+%% is protobuf friendly.  The proplist can only have atoms, binaries, or
+%% strings as the key.  The value can only be atoms, binary, or lists.  If
+%% the value to anything else, it emits a warning and is skipped.
+-type(simple_key() :: atom() | binary() | string()).
+-type(simple_value() :: atom() | binary() | string()).
+-type(simple_proplist() :: [{simple_key(), simple_value()}]).
+-spec(proplist_to_protobuf/1 :: (List :: simple_proplist()) -> [#simplekeyvalue{}]).
 proplist_to_protobuf(List) ->
 	proplist_to_protobuf(List, []).
 
@@ -117,6 +130,9 @@ proplist_to_protobuf([Key | Tail], Acc) when is_atom(Key) ->
 	Rec = #simplekeyvalue{key = atom_to_list(Key), value = "true"},
 	proplist_to_protobuf(Tail, [Rec | Acc]).
 
+%% @doc Turn a release tuple or `#release_opt{}' into a protobuf friendly
+%% `#release{}'.
+-spec(release_to_protobuf/1 :: (Release :: 'default' | #release_opt{} | {string(), 'default' | string(), -1 | 0 | 1}) -> #release{}).
 release_to_protobuf(default) ->
 	release_to_protobuf({"default", default, 0});
 release_to_protobuf(R) when is_record(R, release_opt) ->
@@ -129,6 +145,8 @@ release_to_protobuf({Id, RawLabel, Bias}) ->
 		bias = Bias
 	}.
 
+%% @doc Turns an agent statename into a protobuf enum.
+-spec(statename_to_enum/1 :: (Statename :: atom()) -> atom()).
 statename_to_enum(Statename) ->
 	case Statename of
 		idle -> 'IDLE';
@@ -142,6 +160,8 @@ statename_to_enum(Statename) ->
 		_ -> undefined
 	end.
 
+%% @doc Turns a protobuf enum of an agent statename into the internal atom.
+-spec(enum_to_statename/1 :: (Enum :: atom()) -> atom()).
 enum_to_statename(Enum) ->
 	case Enum of
 		'PRELOGIN' -> prelogin;
@@ -156,15 +176,23 @@ enum_to_statename(Enum) ->
 		_ -> undefined
 	end.
 
+%% @doc Turn a skill tuple or atom into a protobuf friendly `#skill{}'.
+-spec(skill_to_protobuf/1 :: 
+	({Atom :: atom(), Expanded :: string()}) -> #skill{};
+	(Atom :: atom()) -> #skill{}).
 skill_to_protobuf({Atom, Expanded}) when is_list(Expanded) ->
 	#skill{atom = atom_to_list(Atom), expanded = Expanded};
 skill_to_protobuf(Atom) when is_atom(Atom) ->
 	#skill{atom = atom_to_list(Atom)}.
 
+%% @doc Wraps the given binary in a base 10 netstring.
+-spec(bin_to_netstring/1 :: (Bin :: binary()) -> binary()).
 bin_to_netstring(Bin) ->
 	Size = list_to_binary(integer_to_list(size(Bin))),
 	<<Size/binary, $:, Bin/binary, $,>>.
 
+%% @doc Produces a series of netstrings in one big bin.
+-spec(bins_to_netstring/1 :: (Bins :: binary()) -> binary()).
 bins_to_netstring(Bins) ->
 	list_to_binary([bin_to_netstring(X) || X <- Bins]).
 

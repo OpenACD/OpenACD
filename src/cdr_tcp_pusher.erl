@@ -27,10 +27,10 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A CDR dumper that sends cdr's to a tcp port.  The cdr's are 
+%% @doc A gen_server that sends cdr's to a tcp port.  The cdr's are 
 %% converted to protobufs and sent in a netstring format.  It expects an
 %% ack back for each cdr sent so that it can act as a true dumper (and not
-%% just a dispatcher.
+%% just a dispatcher).
 
 -module(cdr_tcp_pusher).
 -author(micahw).
@@ -78,12 +78,24 @@
 % API
 % =====
 
+-type(port_opt() :: {port, pos_integer()}).
+-type(server_opt() :: {server, string()}).
+-type(start_opt() :: port_opt() | server_opt()).
+-type(start_opts() :: [start_opt()]).
+
+%% @doc Start unlinked.
+-spec(start/1 :: (Opts :: start_opts()) -> {'ok', pid()}).
 start(Opts) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, Opts, []).
 
+%% @doc Start linked.
+-spec(start_link/1 :: (Opts :: start_opts()) -> {'ok', pid()}).
 start_link(Opts) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
 
+%% @doc Resend any cdr/agent state protobufs that have not yet gotten an
+%% ack.
+-spec(resend/0 :: () -> ok).
 resend() ->
 	gen_server:cast(?MODULE, resend).
 
@@ -91,6 +103,7 @@ resend() ->
 % Callbacks
 % =====
 
+%% @hidden
 init(Opts) ->
 	Port = proplists:get_value(port, Opts),
 	Server = proplists:get_value(server, Opts, "localhost"),
@@ -106,6 +119,7 @@ init(Opts) ->
 % handle_call
 % =====
 
+%% @hidden
 handle_call(Msg, _From, State) ->
 	?DEBUG("Unhandled call ~p", [Msg]),
 	{reply, unknown_call, State}.
@@ -114,6 +128,7 @@ handle_call(Msg, _From, State) ->
 % handle cast
 % =====
 
+%% @hidden
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled cast ~p", [Msg]),
 	{noreply, State}.
@@ -122,6 +137,7 @@ handle_cast(Msg, State) ->
 % handle info
 % =====
 
+%% @hidden
 handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 	{_Rest, Acks} = protobuf_util:netstring_to_bins(Packet),
 	NewAckq = remove_acked(Acks, State#state.ack_queue),
@@ -159,6 +175,8 @@ handle_info(Msg, State) ->
 % =====
 % Terminate
 % =====
+
+%% @hidden
 terminate(_Reason, _State) ->
 	ok.
 
@@ -166,6 +184,7 @@ terminate(_Reason, _State) ->
 % code_change
 % =====
 
+%% @hidden
 code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
 

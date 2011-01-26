@@ -27,8 +27,44 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A non-blocking tcp listener.  based on the tcp_listener module by Serge Aleynikov
-%% [http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles]
+%% @doc A non-blocking tcp listener for agent tcp clients.  Based on the 
+%% tcp_listener module by %% Serge Aleynikov [http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles].
+%% Similar in concept to {@link agent_web_listener}.  Advantage over web is
+%% the ability for the server to push to the client without a messy poll.
+%% However, this is still not as feature complete as the web interface, 
+%% primarily due to lack of an official client.  {@link agent_tcp_client} is
+%% a reference implementation built in erlang.
+%% 
+%% To create a client cablable of logging in, use the cpx_base.proto and
+%% cpx_agent.proto files (found in src/).  Communication is done by 
+%% placing a protobuf message in a netstring.  A netstring is a binary:
+%% 
+%% <pre>	[len]":"[protobuf]","</pre>
+%%
+%% "len" being the the stringification of the length of the protobuf.  So,
+%% a netstring of the binary `<<"hello">>' would look like `<<"5:hello,">>'.
+%% For a long discussion, [http://cr.yp.to/proto/netstrings.txt].
+%%
+%% When a client first connects, they will get a message stating the agent
+%% is in the state `PRELOGIN'.  That is the signal to start the login 
+%% in ernest.  After that an agent should:
+%% <ol>
+%% <li>Verify it's version</li>
+%% <li>Request a salt</li>
+%% <li>Request to login</li>
+%% </ol>
+%%
+%% The version verification will reply an error if the major version doesn't
+%% match.  If only the minor version part doesn't match, success is 
+%% returned, but error_message is populated with a message stating as much.
+%% A perfect match is, well, perfect.
+%% 
+%% The request for a salt gets a nonce to use for salting the password, as 
+%% well as the E and N parts of a public key to rsa encrypt the password.
+%% 
+%% Using the information from the get salt step, encrypt the password.  
+%% Then send a login request.  If successful, the server will reply as such,
+%% and an event stating which state the agent is in should also arrive.
 
 -module(agent_tcp_listener).
 
@@ -37,9 +73,6 @@
 -else.
 -define(PORT, 1337).
 -endif.
-
-%% depends on agent_tcp_connection, util, agent
-
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -85,11 +118,10 @@ start() ->
 %% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 
-	gen_server:call(Pid, stop).
+	gen_server:cast(Pid, stop).
 
 %% @hidden
 init([Port]) ->
-	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 %	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -97,20 +129,20 @@ init([Port]) ->
 		{ok, Listen_socket} ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
+			?INFO("Started on port ~p", [Port]),
 			{ok, #state{listener = Listen_socket, acceptor = Ref}};
 		{error, Reason} ->
-			?DEBUG("Could not start gen_tcp:  ~p", [Reason]),
+			?WARNING("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
 	end.
 
 %% @hidden
-handle_call(stop, _From, State) ->
-	{stop, normal, ok, State};
-
-handle_call(Request, _From, State) ->
-	{reply, {unknown_call, Request}, State}.
+handle_call(Msg, _From, State) ->
+	{reply, {unknown_call, Msg}, State}.
 
 %% @hidden
+handle_cast(stop, State) ->
+	{stop, normal, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -128,8 +160,6 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		?DEBUG("new client connection.~n", []),
 		{ok, Pid} = agent_tcp_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
-
-		?DEBUG("negiotiating protocol.~n", []),
 		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection
@@ -146,11 +176,6 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		{stop, Why, State}
 end;
 
-% TODO - why?  trying to close on shutdown w/ reason shutdown, which it does anyway.
-% remove the trap exit process flag, see what happens.
-handle_info({'EXIT', _From, shutdown}, State) ->
-	{stop, shutdown, State};
-	
 handle_info({inet_async, ListSock, Ref, Error}, #state{listener=ListSock, acceptor=Ref} = State) ->
 	error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
 	{stop, Error, State};
@@ -205,7 +230,7 @@ async_listsock_test() ->
 -define(MYSERVERFUNC, 
 	fun() -> 
 		{ok, Pid} = start_link(?PORT), 
-		{Pid, fun() -> stop(Pid) end} 
+		{Pid, fun() -> stop(Pid),timer:sleep(10) end} 
 	end).
 
 -include("gen_server_test.hrl").

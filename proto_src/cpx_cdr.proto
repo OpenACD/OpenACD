@@ -1,0 +1,136 @@
+//	The contents of this file are subject to the Common Public Attribution
+//	License Version 1.0 (the “License”); you may not use this file except
+//	in compliance with the License. You may obtain a copy of the License at
+//	http://opensource.org/licenses/cpal_1.0. The License is based on the
+//	Mozilla Public License Version 1.1 but Sections 14 and 15 have been
+//	added to cover use of software over a computer network and provide for
+//	limited attribution for the Original Developer. In addition, Exhibit A
+//	has been modified to be consistent with Exhibit B.
+//
+//	Software distributed under the License is distributed on an “AS IS”
+//	basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+//	License for the specific language governing rights and limitations
+//	under the License.
+//
+//	The Original Code is OpenACD.
+//
+//	The Initial Developers of the Original Code is 
+//	Andrew Thompson and Micah Warren.
+//
+//	All portions of the code written by the Initial Developers are Copyright
+//	(c) 2008-2009 SpiceCSM.
+//	All Rights Reserved.
+//
+//	Contributor(s):
+//
+//	Andrew Thompson <andrew at hijacked dot us>
+//	Micah Warren <micahw at lordnull dot com>
+//
+
+import "cpx_base.proto";
+
+enum CdrTransactionType {
+	CDRINIT = 1;
+	INIVR = 2;
+	DIALOUTGOING = 3;
+	INQUEUE = 4;
+	RINGING = 5;
+	PRECALL = 6;
+	ONCALL = 7;
+	FAILEDOUTGOING = 8;
+	AGENT_TRANSFER = 9;
+	QUEUE_TRANSFER = 10;
+	WARMXFER_CANCEL = 11;
+	WARMXFER_COMPLETE = 12;
+	WARMXFER_FAILED = 13;
+	WARMXFER_BEGIN = 14;
+	WRAPUP = 15;
+	ENDWRAPUP = 16;
+	ABANDONQUEUE = 17;
+	ABANDONIVR = 18;
+	RINGOUT = 19;
+	VOICEMAIL = 20;
+	HANGUP = 21;
+	ANNOUNCE = 22;
+	CDREND = 23;
+	INFOEVENT = 24;
+}
+
+message CpxCdrRaw {
+	required string call_id = 1;
+	required CdrTransactionType transaction = 2;
+	required int64 start_time = 3;
+	required int64 stop_time = 4;
+	repeated CdrTransactionType terminates = 5;
+	optional string dnis = 6;
+	optional string client = 7;
+	optional string queue = 8;
+	optional string number_dialed = 9;
+	optional string agent = 10;
+	optional string ringout_reason = 11;
+	optional string hangup_by = 12;
+	optional string transfer_to = 13;
+	optional string agent_transfer_recipient = 14;
+	
+}
+
+// A more precise version of SimpleKeyValue
+message CpxCdrKeyTime {
+	required string key = 1;
+	required int32 value = 2;
+}
+
+message CpxCdrSummary {
+	optional int32 inqueue = 1;
+	repeated CpxCdrKeyTime inqueue_breakdown = 2;
+	optional int32 ringing = 3;
+	repeated CpxCdrKeyTime ringing_breakdown = 4;
+	optional int32 oncall = 5;
+	repeated CpxCdrKeyTime oncall_breakdown = 6;
+	optional int32 warmxfer_begin = 7;
+	repeated CpxCdrKeyTime warmxfer_begin_breakdown = 8;
+	optional int32 warmxfer_fail = 9;
+	repeated CpxCdrKeyTime warmxfer_fail_breakdown = 10;
+	optional int32 wrapup = 11;
+	repeated CpxCdrKeyTime wrapup_breakdown = 12;
+}
+
+message CpxCdrRecord {
+	required CallRecord call_record = 1;
+	required CpxCdrSummary details = 2;
+	repeated CpxCdrRaw raw_transactions = 3;
+}
+
+message AgentStateChange {
+	required string agent_id = 1;
+	required string agent_login = 2;
+	optional bool is_login = 3;
+	optional bool is_logout = 4;
+	optional AgentState new_state = 5;
+	optional AgentState old_state = 6;
+	optional CallRecord call_record = 7;
+	optional ClientRecord client_record = 8;
+	optional Release released = 9;
+	optional int32 start_time = 10;
+	optional int32 stop_time = 11;
+	optional string profile = 12;
+	optional string dialed_number = 13;
+}
+
+enum CdrDumpMessageHint {
+	CDR_RAW = 1;
+	CDR_REC = 2;
+	AGENT_STATE = 3;
+}
+
+message CdrDumpMessage {
+	required int32 message_id = 1;
+	required CdrDumpMessageHint message_hint = 1;
+	optional CpxCdrRaw cdr_raw = 2;
+	optional CpxCdrRecord cdr_rec = 3;
+	optional AgentStateChange agent_state_change = 4;
+}
+
+message CdrDumpAck {
+	required int32 message_id = 1;
+}

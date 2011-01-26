@@ -21,8 +21,11 @@ This would normally be put in the public context dialplan.
 			<action application="set" data="brand=00990099" />
 			<!-- Set if the caller is allowed to go to voicemail -->
 			<action application="set" data="allow_voicemail=true" />
-			<!-- Set the music on hold that while in OpenACD's queue. -->
-			<action application="set" data="queue_mod=$${muzak}" />
+			<!-- Set the music on hold that while in OpenACD's queue.
+			If $${muzak} is 'silence', OpenACD will not send a playback
+			message to the freeswitch at all.  In this case, erlang_answer
+			must be set to true.  -->
+			<action application="set" data="queue_moh=$${muzak}" />
 			<!-- Set the priority the call will have.  Lower is more
 			important (think 1st place, 2nd place, 3rd place in a race) -->
 			<action application="set" data="queue_priority=5" />

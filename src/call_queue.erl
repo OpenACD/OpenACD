@@ -350,7 +350,7 @@ expand_magic_skills(State, Call, Skills) ->
 migrate(Qpid, Node) ->
 	gen_server:cast(Qpid, {migrate, Node}).
 
-%% @doc Retrieve info used to sory queues for dispatcher binding.
+%% @doc Retrieve info used to sort queues for dispatcher binding.
 -spec(selection_info/1 :: (Qpid :: pid()) -> {{key(), #queued_call{}} | 'none', pos_integer(), non_neg_integer()}).
 selection_info(Qpid) ->
 	gen_server:call(Qpid, selection_info).

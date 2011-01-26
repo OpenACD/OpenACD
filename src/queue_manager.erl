@@ -171,7 +171,7 @@ queues() ->
 
 %% @doc Sort queues containing a bindable call.  The queues are sorted from most important to
 %% least by weight, priority of first bindable call, then by the time the first bindable call
-%% has been in queue, influenced by queue service level.
+%% has been in queue, influenced by queue service time.
 -spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {any(), #queued_call{}} | 'none', pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),

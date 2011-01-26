@@ -101,7 +101,7 @@
 	warm_transfer_uuid = undefined :: string() | 'undefined',
 	ivroption :: string() | 'undefined',
 	caseid :: string() | 'undefined',
-	moh = "moh" :: string(),
+	moh = "moh" :: string() | 'none',
 	record_path :: 'undefined' | string(),
 	dial_vars :: list()
 	}).
@@ -364,10 +364,15 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 				freeswitch_ring:get_uuid(State#state.ringchannel) ++ Dialplan), 
 
 			% play musique d'attente 
-			freeswitch:sendmsg(Node, Call#call.id,
-				[{"call-command", "execute"},
-					{"execute-app-name", "playback"},
-					{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
+			case State#state.moh of
+				none ->
+					ok;
+				_MohMusic ->
+					freeswitch:sendmsg(Node, Call#call.id,
+						[{"call-command", "execute"},
+							{"execute-app-name", "playback"},
+							{"execute-app-arg", "local_stream://" ++ State#state.moh}])
+			end,
 			{ok, NewUUID, State#state{warm_transfer_uuid = NewUUID}};
 		Else ->
 			?ERROR("bgapi call failed for ~p with ~p", [Call#call.id, Else]),
@@ -469,10 +474,15 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 	freeswitch:api(Fnode, uuid_park, Call#call.id),
 	% play musique d'attente
 	% TODO this can generate an annoying warning in FS, but I don't care right now
-	freeswitch:sendmsg(Fnode, Call#call.id,
-		[{"call-command", "execute"},
-			{"execute-app-name", "playback"},
-			{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
+	case State#state.moh of
+		none ->
+			ok;
+		_MohMusak ->
+			freeswitch:sendmsg(Fnode, Call#call.id,
+				[{"call-command", "execute"},
+					{"execute-app-name", "playback"},
+					{"execute-app-arg", "local_stream://" ++ State#state.moh}])
+	end,
 	{ok, State#state{queued = true, agent_pid = undefined}}.
 
 %%--------------------------------------------------------------------
@@ -602,7 +612,12 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
-					Moh = proplists:get_value("variable_queue_moh", Rawcall, "moh"),
+					Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
+						"silence" ->
+							none;
+						MohMusak ->
+							MohMusak
+					end,
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
 					Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 					SkillList = proplists:get_value("variable_skills", Rawcall, ""),
@@ -635,10 +650,18 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					end,
 					freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " hangup_after_bridge true"),
 					% play musique d'attente
-					freeswitch:sendmsg(State#state.cnode, UUID,
-						[{"call-command", "execute"},
-							{"execute-app-name", "playback"},
-							{"execute-app-arg", "local_stream://"++Moh}]),
+					case Moh of
+						none ->
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", "silence"}]);
+						_MohMusak ->
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", "local_stream://"++Moh}])
+					end,
 						%% tell gen_media to (finally) queue the media
 					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt}};
 				_Otherwise ->

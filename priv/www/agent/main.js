@@ -501,6 +501,7 @@ dojo.addOnLoad(function(){
 			voipendpoint:false,
 			voipendpointdata:false,
 			useoutbandring:true,
+			usepersistantchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -545,6 +546,7 @@ dojo.addOnLoad(function(){
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
+		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);
@@ -928,12 +930,15 @@ dojo.addOnLoad(function(){
 					debug("n: " + n);
 					debug("password: " + attrs.password);
 					values.password = rsa.encrypt(salt + attrs.password);
+					values.usepersistantringchannel = ! (values.usepersistantringchannel.toString == "");
+					values.useoutbandring = ! (values.useoutbandring.toString() == "");
 					var loginOpts = {
 						success:function(response2){
 							EventLog.log("Logged in");
 							dijit.byId("loginpane").hide();
 							var seedSettings = dojo.clone(attrs);
 							seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
+							seedSettings.usepersistantchannel = dijit.byId('usepersistantringchannel').attr('checked');
 							seedSettings.profile = response2.profile;
 							seedSettings.securityLevel = response2.securityLevel;
 							seedSettings.timestamp = response2.timestamp;

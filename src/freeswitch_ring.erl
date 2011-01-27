@@ -82,7 +82,7 @@ start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Ca
 -type(call_opt() :: {'call', #call{}}).
 -type(caller_name() :: string()).
 -type(caller_id() :: string()).
--type(caller_id_opt() :: {'caller_id', {string(), string()}}).
+-type(caller_id_opt() :: {'caller_id', {caller_name(), caller_id()}}).
 -type(ringout_opt() :: {'ringout', pos_integer()}).
 -type(persistant_opt() :: 'persistant').
 -type(dial_vars_opt() :: {'dial_vars', [{string(), string()}]}).
@@ -90,15 +90,12 @@ start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Ca
 -type(dnis_opt() :: {'dnis', string()}).
 -type(no_oncall_on_bridge_opt() :: 'no_oncall_on_bridge').
 -type(start_opt() :: 
-	fs_node_opt() |
-	agent_opt() |
 	call_opt() |
 	caller_id_opt() |
 	ringout_opt() |
-	originate_callback_opt() |
-	perisistant_opt() |
+	persistant_opt() |
 	dial_vars_opt() |
-	dailstring_opt() |
+	dialstring_opt() |
 	dnis_opt() |
 	no_oncall_on_bridge_opt()
 ).
@@ -121,7 +118,7 @@ start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_reco
 -spec(start/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
 	Opts = [{call, Call}, {ringout, Ringout} | Options],
-	start(Fnode, AgentRec, Apid, Opts).
+	start(Fnode, AgentRec, Apid, Fun, Opts).
 	%gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
 -spec(start_link/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
@@ -147,12 +144,12 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			{CallerName, CallerNumber, Dnis} = case proplists:get_value(call, Options) of
-				#call{callerid = {Cname, Cnumber}, dnis = Dnis} ->
-					{Cname, Cnumber, Dnis};
+				#call{callerid = {Cname, Cnumber}, dnis = TheDnis} ->
+					{Cname, Cnumber, TheDnis};
 				undefined ->
-					Dnis = proplists:get_value(dnis, Options, "0000000"),
+					TheDnis = proplists:get_value(dnis, Options, "0000000"),
 					{Cname, Cnumber} = proplists:get_value(caller_id, Options, {"noname", "nonumber"}),
-					{Cname, Cnumber, Dnis}
+					{Cname, Cnumber, TheDnis}
 			end,
 			%Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
 			Ringout = case proplists:get_value(ringout, Options) of
@@ -168,7 +165,7 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 			DialStringOpts = [
 					"origination_caller_id_name='"++CallerName++"'",
 					"origination_caller_id_number="++CallerNumber,
-					"hangup_after_bridge="++HangupAfterBridge++,
+					"hangup_after_bridge="++HangupAfterBridge,
 					"origination_uuid="++UUID,
 					"originate_timeout="++integer_to_list(Ringout),
 					"sip_h_X-DNIS='"++Dnis++"'"
@@ -182,8 +179,12 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 					%% usually this is set by calls to freeswitch_ring:start that pass through freeswitch_media_manager
 					freeswitch_media_manager:do_dial_string(String, AgentRec#agent.login, DialStringOpts)
 			end,
-
-			?INFO("originating ring channel for ~p with args: ~p", [Call#call.id, DialString ++ " &park()"]),
+			case proplists:get_value(call, Options) of
+				undefined ->
+					?INFO("originating ring channel with args:  ~s", [DialString ++ " &park()"]);
+				#call{id = CallId} ->
+					?INFO("originating ring channel for ~p with args: ~p", [CallId, DialString ++ " &park()"])
+			end,
 			case freeswitch:bgapi(Fnode, originate, DialString ++ " &park()", Fun(UUID)) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->

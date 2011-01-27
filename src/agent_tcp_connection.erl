@@ -192,10 +192,11 @@ handle_cast({change_state, Statename}, State) ->
 	{noreply, State#state{state = Statename}};
 handle_cast({mediaload, Callrec}, State) ->
 	% TODO implement
+	?INFO("mediaload nyi (~p)", [Callrec]),
 	{noreply, State#state{mediaload = []}};
-handle_cast({mediaload, Callrec, Options}, State) ->
+handle_cast({mediaload, _Callrec, Options}, State) ->
 	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, Callrec, Data}, State) when is_tuple(Data) ->
+handle_cast({mediapush, _Callrec, Data}, State) when is_tuple(Data) ->
 	case element(1, Data) of
 		mediaevent ->
 			Command = #serverevent{
@@ -203,13 +204,13 @@ handle_cast({mediapush, Callrec, Data}, State) when is_tuple(Data) ->
 				media_event = Data
 			},
 			server_event(State#state.socket, Command);
-		Else ->
+		_Else ->
 			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
 			ok
 	end,
 	{noreply, State};
 handle_cast({set_salt, Salt}, State) ->
-	{noreply, State};
+	{noreply, State#state{salt = Salt}};
 handle_cast({change_profile, Profile}, State) ->
 	Command = #serverevent{
 		command = 'APROFILE',
@@ -381,7 +382,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 										queues = Queues,
 										brands = Brands
 									},
-									{Reply, State#state{agent_login = LoginRequest#loginrequest.username, agent_fsm = Pid}};
+									{Reply, State#state{agent_login = LoginRequest#loginrequest.username, agent_fsm = Pid, securitylevel = Security}};
 								{exists, _Pid} ->
 									Reply = BaseReply#serverreply{
 										error_message = "Multiple login detected",
@@ -511,7 +512,7 @@ service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
 				error_message = "freeswtich isn't available",
 				error_code = "MEDIA_NOEXISTS"
 			};
-		Pid ->
+		_Pid ->
 			case agent:dump_state(State#state.agent_fsm) of
 				#agent{state = released} = AgentRec ->
 					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
@@ -577,7 +578,7 @@ service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, Bas
 	Call = State#state.statedata,
 	Reply = case Call#call.direction of
 		outbound ->
-			case gen_media:call(Call#call.source, {dial, number}) of
+			case gen_media:call(Call#call.source, {dial, Number}) of
 				ok ->
 					BaseReply#serverreply{success = true};
 				{error, Error} ->
@@ -649,7 +650,8 @@ service_request(
 		false ->
 			gen_media:cast(C#call.source, Command),
 			BaseReply#serverreply{success = true}
-	end;
+	end,
+	{Reply, State};
 service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
 	TransOpts = Trans#queuetransferrequest.transfer_options,
 	gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),

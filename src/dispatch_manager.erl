@@ -245,24 +245,24 @@ balance(State) ->
 	?DEBUG("It is fully balanced!",[]),
 	State.
 
-balance_down(Out, _In, 0, _Force) ->
-	lists:reverse(Out);
-balance_down(Out, [], _Count, true) ->
-	lists:reverse(Out);
-balance_down(Out, [], Count, false) ->
-	?DEBUG("switching to hard kill mode; ~p holdouts", [Count]),
-	balance_down([], lists:reverse(Out), Count, true);
-balance_down(Out, [D | In], Count, Force) ->
-	try dispatcher:stop(D, Force) of
-		ok ->
-			balance_down(Out, In, Count - 1, Force);
-		_ ->
-			?DEBUG("dispatcher declined to die", []),
-			balance_down([D | Out], In, Count, Force)
-	catch
-		_:_ ->
-			balance_down(Out, In, Count - 1, Force)
-	end.
+%balance_down(Out, _In, 0, _Force) ->
+%	lists:reverse(Out);
+%balance_down(Out, [], _Count, true) ->
+%	lists:reverse(Out);
+%balance_down(Out, [], Count, false) ->
+%	?DEBUG("switching to hard kill mode; ~p holdouts", [Count]),
+%	balance_down([], lists:reverse(Out), Count, true);
+%balance_down(Out, [D | In], Count, Force) ->
+%	try dispatcher:stop(D, Force) of
+%		ok ->
+%			balance_down(Out, In, Count - 1, Force);
+%		_ ->
+%			?DEBUG("dispatcher declined to die", []),
+%			balance_down([D | Out], In, Count, Force)
+%	catch
+%		_:_ ->
+%			balance_down(Out, In, Count - 1, Force)
+%	end.
 
 -ifdef(TEST).
 

@@ -54,11 +54,11 @@
 -type(skills() :: [skill()]).
 -type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills()}).
 
--type(rotations() :: non_neg_integer()).
--type(all_skill_flag() :: 'a' | 'z'). % a < z, a meaning it has the all flag,
+%-type(rotations() :: non_neg_integer()).
+%-type(all_skill_flag() :: 'a' | 'z'). % a < z, a meaning it has the all flag,
 % z lacking.  So, the gb tree will sort the a's first.
--type(skill_list_length() :: non_neg_integer()).
--type(went_avail_at() :: {pos_integer(), non_neg_integer(), non_neg_integer()}).
+%-type(skill_list_length() :: non_neg_integer()).
+%-type(went_avail_at() :: {pos_integer(), non_neg_integer(), non_neg_integer()}).
 %-type(sort_key() :: {rotations(), all_skill_flag(), skill_list_length(), went_avail_at()}).
 
 -record(state, {
@@ -441,7 +441,7 @@ handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Elect
 		error ->
 			State#state.route_list;
 		{ok, {Pid, _Id, _Time, _}} ->
-			gb_trees_filter(fun({_Key, {Apid, _Id, _Skills}}) ->
+			gb_trees_filter(fun({_Key, {Apid, _FunId, _Skills}}) ->
 				Apid =/= Pid
 			end, State#state.route_list)
 	end,
@@ -636,7 +636,7 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 		_ ->
 			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist)
 	end,
-	F = fun({Pid, Id, Time, _OldSkills}) ->
+	F = fun({_FunPid, _FunId, _FunTime, _OldSkills}) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
 				ok;
@@ -705,7 +705,7 @@ gb_trees_filter(Fun, Tree) ->
 	Itor = gb_trees:iterator(Tree),
 	gb_trees_filter(Fun, gb_trees:next(Itor), Tree).
 
-gb_trees_filter(Fun, none, Tree) ->
+gb_trees_filter(_Fun, none, Tree) ->
 	Tree;
 gb_trees_filter(Fun, {Key, Val, Itor}, Tree) ->
 	case Fun({Key, Val}) of

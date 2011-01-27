@@ -110,7 +110,7 @@ init([Dsn, Trace]) ->
 % handle_call
 % =====
 
-handle_call(Msg, _From, State) ->
+handle_call(_Msg, _From, State) ->
 	{reply, invalid, State}.
 
 % =====

@@ -138,7 +138,6 @@ handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
 handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
-	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
@@ -176,7 +175,7 @@ handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State)
 	?DEBUG("Monitor'ed cook (~p) exited cleanly, going down", [Pid]),
 	{stop, Reason, State};
 handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) ->
-	?DEBUG("Monitored cook (~p) died messily, moving onto another call.", [Pid]),
+	?DEBUG("Monitored cook (~p) died messily (~p), moving onto another call.", [Pid, Reason]),
 	handle_cast(regrab, State);
 handle_info(Info, State) ->
 	?DEBUG("unexpected info ~p", [Info]),

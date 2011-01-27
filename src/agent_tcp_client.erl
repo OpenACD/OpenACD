@@ -133,7 +133,7 @@
 	voipendpoint_data_option() |
 	silent_option()
 ).
--type(start_options() :: [start_options()]).
+-type(start_options() :: [start_option()]).
 
 %% @doc Start the agent with the given options unlinked to a process.
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
@@ -374,7 +374,7 @@ handle_cast(_, State) ->
 % =====
 
 %% @hidden
-handle_info({tcp, Socket, Bin}, State) ->
+handle_info({tcp, Socket, Bin}, #state{socket = Socket} = State) ->
 	?DEBUG("In bin:  ~p", [Bin]),
 	{Replys, _} = decode_bin(Bin),
 	{NewRequests, TruReplys} = consume_replys(Replys, State#state.requests),
@@ -523,7 +523,7 @@ read_tcp_string(<<$:, Bin/binary>>, RevSize) ->
 		_ ->
 			nostring
 	end;
-read_tcp_string(<<>>, Acc) ->
+read_tcp_string(<<>>, _Acc) ->
 	nostring;
 read_tcp_string(<<Char/integer, Rest/binary>>, Acc) ->
 	read_tcp_string(Rest, [Char | Acc]).

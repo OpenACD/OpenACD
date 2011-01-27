@@ -30,7 +30,7 @@
 %% @hidden
 -type(voice_type() :: 'sip_registration' | 'sip' | 'iax2' | 'h323' | 'pstn').
 %% first is before it's establish, second is once it's established.
--type(endpointtype() :: {'persistant', voice_type()} | {pid(), voice_type()} | endpointtype()}).
+-type(endpointtype() :: {'persistant', voice_type()} | {pid(), voice_type()} | endpointtype()).
 -type(release_bias() :: -1 | 0 | 1).
 -type(release_label() :: default | string()).
 -type(release_id() :: string()).

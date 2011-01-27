@@ -274,6 +274,19 @@
 			</div>
 		</p>
 		<p>
+			<label>&nbsp;</label>
+			<input type="checkbox" name="usePersistantRingChannel" id="usePersistantRingChannel", value="true" dojoType="dijit.form.CheckBox" />
+			<span class="translate" id="usePersistantRingChannelLabel">USE_PERSISTANT_RING_CHANNEL</span>
+			<script type="text/javascript">
+				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
+			</script>
+			<div dojoType="dijit.Tooltip" connectId="usePersistantRingChannel" label="PERSISTANT_RING_CHANNEL_TIP">
+				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
+					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);
+				</script>
+			</div>
+		<p>
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
 				<script type="dojo/method" event="postCreate">

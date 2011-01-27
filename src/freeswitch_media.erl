@@ -188,9 +188,22 @@ handle_answer(Apid, Callrec, State) ->
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}}.
 
-handle_ring(Apid, Callrec, State) ->
+handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
-	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login
+	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login,
+	handle_ring({Apid, AgentRec}, Callrec, State);
+handle_ring({_Apid, #agent{endpointtype = {persistant, _}} = Agent}, _Callrec, State) ->
+	?WARNING("Agent (~p) does not have it's persistant channel up yet", [Agent#agent.login]),
+	{invalid, State};
+handle_ring({Apid, #agent{endpointtype = {EndpointPid, _EndPointType}}} = Agent, Callrec, State) ->
+	case freeswitch_ring:ring(EndpointPid, Callrec#call.id, 600) of
+		ok ->
+			{ok, [{"itext", State#state.ivroption}], STate#state{ringchannel = EndpointPid, agent_pid = Apid}};
+		{error, Else} ->
+			?ERROR("Error ringing agent ~p.  Agent:  ~s;  call:  ~s", [Error, Agent#agent.login, Callrec#call.id]),
+			{invalid, State}
+	end;
+handle_ring({Apid, Agent}, Callrec, State) ->
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->
 			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);

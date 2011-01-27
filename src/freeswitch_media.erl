@@ -198,12 +198,12 @@ handle_ring({_Apid, #agent{endpointtype = {persistant, _}} = Agent}, _Callrec, S
 handle_ring({Apid, #agent{endpointtype = {EndpointPid, _EndPointType}}} = Agent, Callrec, State) ->
 	case freeswitch_ring:ring(EndpointPid, Callrec#call.id, 600) of
 		ok ->
-			{ok, [{"itext", State#state.ivroption}], STate#state{ringchannel = EndpointPid, agent_pid = Apid}};
-		{error, Else} ->
+			{ok, [{"itext", State#state.ivroption}], State#state{ringchannel = EndpointPid, agent_pid = Apid}};
+		{error, Error} ->
 			?ERROR("Error ringing agent ~p.  Agent:  ~s;  call:  ~s", [Error, Agent#agent.login, Callrec#call.id]),
 			{invalid, State}
 	end;
-handle_ring({Apid, Agent}, Callrec, State) ->
+handle_ring({Apid, AgentRec}, Callrec, State) ->
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->
 			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);

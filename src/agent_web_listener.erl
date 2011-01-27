@@ -194,7 +194,7 @@ linkto(Ref, Salt, Pid) ->
 %%====================================================================
 
 init([Port]) ->
-	?DEBUG("Starting on port ~p", [Port]),
+	?INFO("Starting on port ~p", [Port]),
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),

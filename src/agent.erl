@@ -168,7 +168,7 @@ stop(Pid) ->
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 
--spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpoints(), string()}) -> ok).
+-spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpointtype(), string()}) -> ok).
 set_endpoint(Pid, Endpoint) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
 

@@ -61,7 +61,8 @@
 	cnode :: atom(),
 	uuid :: string(),
 	agent_pid :: pid(),
-	callrec :: #call{},
+	callrec :: #call{} | 'undefined',
+	persistant :: undefined | true,
 	options = [] :: [any()]
 	}).
 
@@ -74,19 +75,60 @@
 %%====================================================================
 -spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
+	Opts = [{call, Call}, {ringout, Ringout}],
+	start(Fnode, AgentRec, Apid, Fun, Opts).
+	%gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Fun, Opts], []).
+
+-type(call_opt() :: {'call', #call{}}).
+-type(caller_name() :: string()).
+-type(caller_id() :: string()).
+-type(caller_id_opt() :: {'caller_id', {string(), string()}}).
+-type(ringout_opt() :: {'ringout', pos_integer()}).
+-type(persistant_opt() :: 'persistant').
+-type(dial_vars_opt() :: {'dial_vars', [{string(), string()}]}).
+-type(dialstring_opt() :: {'dialstring', string()}).
+-type(dnis_opt() :: {'dnis', string()}).
+-type(no_oncall_on_bridge_opt() :: 'no_oncall_on_bridge').
+-type(start_opt() :: 
+	fs_node_opt() |
+	agent_opt() |
+	call_opt() |
+	caller_id_opt() |
+	ringout_opt() |
+	originate_callback_opt() |
+	perisistant_opt() |
+	dial_vars_opt() |
+	dailstring_opt() |
+	dnis_opt() |
+	no_oncall_on_bridge_opt()
+).
+-type(start_opts() :: [start_opt()]).
+
+-spec(start/5 :: (Fsnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), OrigCb :: fun(), Opts :: start_opts()) -> {'ok', pid()} | {'error', any()}).
+start(Fsnode, AgentRec, Apid, OrigCb, Opts) ->
+	gen_server:start(?MODULE, [Fsnode, AgentRec, Apid, OrigCb, Opts], []).
+
+-spec(start_link/5 :: (Fsnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), OrigCb :: fun(), Opts :: start_opts()) -> {'ok', pid()} | {'error', any()}).
+start_link(Fsnode, AgentRec, Apid, OrigCb, Opts) ->
+	gen_server:start_link(?MODULE, [Fsnode, AgentRec, Apid, OrigCb, Opts], []).
 
 -spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
+	Opts = [{call, Call}, {ringout, Ringout}],
+	start_link(Fnode, AgentRec, Apid, Fun, Opts).
+	%gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
 
 -spec(start/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
+	Opts = [{call, Call}, {ringout, Ringout} | Options],
+	start(Fnode, AgentRec, Apid, Opts).
+	%gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
 -spec(start_link/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
+	Opts = [{call, Call}, {ringout, Ringout} | Options],
+	start_link(Fnode, AgentRec, Apid, Fun, Opts).
+	%gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -100,18 +142,36 @@ get_uuid(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
+init([Fnode, AgentRec, Apid, Fun, Options]) ->
+%init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			{CallerName, CallerNumber} = Call#call.callerid,
+			{CallerName, CallerNumber, Dnis} = case proplists:get_value(call, Options) of
+				#call{callerid = {Cname, Cnumber}, dnis = Dnis} ->
+					{Cname, Cnumber, Dnis};
+				undefined ->
+					Dnis = proplists:get_value(dnis, Options, "0000000"),
+					{Cname, Cnumber} = proplists:get_value(caller_id, Options, {"noname", "nonumber"}),
+					{Cname, Cnumber, Dnis}
+			end,
 			%Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
+			Ringout = case proplists:get_value(ringout, Options) of
+				undefined ->
+					cpx:get_env(default_ringout, 60);
+				RingoutElse ->
+					RingoutElse
+			end,
+			HangupAfterBridge = case proplists:get_value(persistant, Options) of
+				true -> "false";
+				_ -> "true"
+			end,
 			DialStringOpts = [
 					"origination_caller_id_name='"++CallerName++"'",
 					"origination_caller_id_number="++CallerNumber,
-					"hangup_after_bridge=true",
+					"hangup_after_bridge="++HangupAfterBridge++,
 					"origination_uuid="++UUID,
 					"originate_timeout="++integer_to_list(Ringout),
-					"sip_h_X-DNIS='"++Call#call.dnis++"'"
+					"sip_h_X-DNIS='"++Dnis++"'"
 					| proplists:get_value(dial_vars, Options, [])],
 
 			DialString = case proplists:get_value(dialstring, Options) of
@@ -149,7 +209,14 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 							{stop, normal};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, options = Options}}
+							{ok, #state{
+								cnode = Fnode, 
+								uuid = UUID, 
+								agent_pid = Apid, 
+								callrec = proplists:get_value(call, Options),
+								persistant = proplists:get_value(persistant, Options),
+								options = Options
+							}}
 					end;
 				Else ->
 					?ERROR("originate failed with ~p  when calling ~p", [Else, AgentRec#agent.login]),
@@ -172,6 +239,12 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(hangup, #state{uuid = UUID, persistant = true} = State) ->
+	Callback = fun(Res) ->
+		?DEBUG("hungup persistant callback fun res:  ~p", [Res])
+	end,
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " -both 'park' inline", Callback),
+	{noreply, State};
 handle_cast(hangup, #state{uuid = UUID} = State) ->
 	freeswitch:sendmsg(State#state.cnode, UUID,
 		[{"call-command", "hangup"},
@@ -280,7 +353,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 		ReturnVal ->
 			ReturnVal
 	end;
-handle_info(call_hangup, State) ->
+handle_info(call_hangup, #state{persistant = undefined} = State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
 handle_info(Info, State) ->

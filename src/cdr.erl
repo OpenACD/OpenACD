@@ -710,7 +710,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		Transactions = lists:sort(Sort, UsortedTransactions),
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
-		{ok, Nodes} = cpx:get_evn(nodes, [node()]),
+		{ok, Nodes} = cpx:get_env(nodes, [node()]),
 		CdrRec = #cdr_rec{
 			media = Callrec,
 			summary = Summary,

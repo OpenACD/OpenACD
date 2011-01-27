@@ -112,6 +112,7 @@
 	record_outage/3,
 	fetch_domain_user/2,
 	new_voicemail/5,
+	ring_agent/3,
 	ring_agent/4,
 	ring_agent_echo/4,
 	get_media/1,
@@ -211,6 +212,14 @@ stop() ->
 ring_agent(AgentPid, Agent, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
 
+%% @doc This functions primary use is to create a persistant ring channel to
+%% the agent; ie:  off hook agent.  `Opts' is the same as what 
+%% {@link freeswitch_ring:start/5} takes.
+%% @see freeswitch_ring:start/5
+-spec(ring_agent/3 :: (Apid :: pid(), Agent :: #agent{}, Opts :: [any()]) -> {'ok', pid()} | {'error', any()}).
+ring_agent(Apid, Agent, Opts) ->
+	gen_server:call(?MODULE, {ring_agent, Apid, Agent, Opts}).
+
 %% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
 %% Yes, this is a prank call function.
 -spec(ring_agent_echo/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
@@ -270,12 +279,14 @@ init([Nodename, Options]) ->
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
+			application:set_env('OpenACD', ring_manager, ?MODULE),
 			link(Pid),
 			{Lpid, Pid, StrippedOpts};
 		_ ->
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{undefined, undefined, StrippedOpts}
 	end,
+	?INFO("Started for node ~p", [Nodename]),
 	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true, fetch_domain_user = FetchUserOpts}}.
 
 %%--------------------------------------------------------------------
@@ -323,6 +334,16 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 handle_call(stop, _From, State) ->
 	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
+handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
+	Fun = fun(_) ->
+		fun(_, _) -> ok end
+	end,
+	DialString = get_agent_dial_string(Agent, [], State),
+	Options = [{dialstring, DialString} | Opts],
+	Out = freeswitch_ring:start(Node, Agent, Apid, Fun, Options),
+	{reply, Out, State};
 handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->
@@ -490,6 +511,7 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
 handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
+	application:unset('OpenACD', ring_manager),
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
 	case is_pid(Pid) of
 		true -> exit(Pid, kill);
@@ -510,6 +532,7 @@ handle_info(freeswitch_ping, #state{nodename = Nodename, fetch_domain_user = Fop
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+			application:set('OpenACD', ring_manager, freeswitch_media_manager),
 			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
@@ -524,6 +547,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(_Reason, _State) ->
+	application:unset('OpenACD', ring_manager),
     ok.
 
 %%--------------------------------------------------------------------
@@ -686,6 +710,8 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
+get_agent_dial_string(#agent{endpointtype = {_, Endpointtype}} = Agent, Opts, State) ->
+	get_agent_dial_string(Agent#agent{endpointtype = Endpointtype}, Opts, State);
 get_agent_dial_string(AgentRec, Options, State) ->
 	case AgentRec#agent.endpointtype of
 		sip_registration ->

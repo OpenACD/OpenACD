@@ -1057,6 +1057,21 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
+handle_sync_event({set_endpoint, {{persistant, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	case cpx:get_env(ring_manager) of
+		undefined ->
+			?WARNING("No ring manager with perisistant ring defined; this agent may not be able to take outband media calls", []),
+			{reply, {error, no_ring_manager}, StateName, State};
+		{ok, Mod} ->
+			case Mod:ring_agent(self(), Agent, [persistant]) of
+				{ok, Pid} ->
+					link(Pid),
+					{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, Endpointtype}, endpointdata = Endpointdata}}};
+				{error, Error} ->
+					?ERROR("Couldn't start persistant channel:  ~p", [Error]),
+					{reply, {error, Error}, StateName, State}
+			end
+	end;
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}}};
 handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_rec = #agent{connection=Connection} = _Agent} = State) when is_pid(Connection) ->

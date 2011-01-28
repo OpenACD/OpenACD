@@ -52,7 +52,8 @@
 	start/6,
 	start/7,
 	hangup/1,
-	get_uuid/1
+	get_uuid/1,
+	ring/3
 	]).
 
 %% gen_server callbacks
@@ -136,6 +137,12 @@ hangup(Pid) ->
 -spec(get_uuid/1 :: (Pid :: pid()) -> string()).
 get_uuid(Pid) ->
 	gen_server:call(Pid, get_uuid).
+
+%% @doc In the case of a persistant ring channel, send tones to the agent
+%% to indicate the phone is ringing.
+-spec(ring/3 :: (RingPid :: pid(), CallId :: string(), Ringout :: pos_integer()) -> 'ok').
+ring(RingPid, CallId, Ringout) ->
+	gen_server:call(RingPid, {ring, CallId, Ringout}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -235,6 +242,11 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 %%--------------------------------------------------------------------
 handle_call(get_uuid, _From, #state{uuid = UUID} = State) ->
 	{reply, UUID, State};
+handle_call({ring, _OtherLeg, Ringout}, _From, #state{uuid = UUID, persistant = true} = State) ->
+	% TODO Ringout useful?  Like, at all?  Prolly not since gen_media 
+	% usually handles that timing.
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++integer_to_list(Ringout)++"' inline"),
+	{reply, ok, State};
 handle_call(Request, _From, State) ->
 	Reply = {unknown, Request},
 	{reply, Reply, State}.

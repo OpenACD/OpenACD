@@ -532,7 +532,7 @@ handle_info(freeswitch_ping, #state{nodename = Nodename, fetch_domain_user = Fop
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			application:set('OpenACD', ring_manager, freeswitch_media_manager),
+			application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
 			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),

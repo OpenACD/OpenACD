@@ -243,9 +243,14 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 handle_call(get_uuid, _From, #state{uuid = UUID} = State) ->
 	{reply, UUID, State};
 handle_call({ring, _OtherLeg, Ringout}, _From, #state{uuid = UUID, persistant = true} = State) ->
-	% TODO Ringout useful?  Like, at all?  Prolly not since gen_media 
-	% usually handles that timing.
-	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++integer_to_list(Ringout)++"' inline"),
+	TrueRing = case round(Ringout / 100) of
+		0 ->
+			"1";
+		R ->
+			integer_to_list(R)
+	end,
+	Callback = fun bgapi_handler/2,
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++TrueRing++",park' inline", Callback),
 	{reply, ok, State};
 handle_call(Request, _From, State) ->
 	Reply = {unknown, Request},
@@ -255,8 +260,8 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(hangup, #state{uuid = UUID, persistant = true} = State) ->
-	Callback = fun(Res) ->
-		?DEBUG("hungup persistant callback fun res:  ~p", [Res])
+	Callback = fun(OkErr, Res) ->
+		?DEBUG("hungup persistant callback fun res:  ~p:~p", [OkErr,Res])
 	end,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " -both 'park' inline", Callback),
 	{noreply, State};
@@ -398,3 +403,10 @@ format_status(terminate, [_PDict, #state{callrec = Call} = State]) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+bgapi_handler(ok, Res) ->
+	?DEBUG("Default bgapi handler:  ~p", [Res]),
+	ok;
+bgapi_handler(error, Res) ->
+	?WARNING("bgapi errors:  ~p", [Res]),
+	ok.

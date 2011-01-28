@@ -86,7 +86,6 @@ if [ ! -f $CONFIG ] && [ ! -f "${CONFIG}.config" ]; then
 [{'OpenACD', [
 	{nodes, ['$NODENAME']},
 	{console_loglevel, info},
-	{goober, pants},
 	{logfiles, [{"full.log", debug}, {"console.log", info}]}
 ]},
 {sasl, [

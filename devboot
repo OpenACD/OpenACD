@@ -74,6 +74,7 @@ done
 
 if [ ! -f $CONFIG ] && [ ! -f "${CONFIG}.config" ]; then
 	SUFFIX=`echo "${CONFIG}" | awk -F . '{print $NF}'`
+	CONFIGNODENAME=`erl -eval "io:format(\"~s\",[node()]),halt(1)" $NAMETYPE $NODENAME -noshell`
 	if [ $SUFFIX = 'config' ]; then
 		FILE=$CONFIG
 	else
@@ -84,7 +85,7 @@ if [ ! -f $CONFIG ] && [ ! -f "${CONFIG}.config" ]; then
 %% If you are comfortable editing erlang application configuration scripts
 %% there is no harm in editing the file.
 [{'OpenACD', [
-	{nodes, ['$NODENAME']},
+	{nodes, ['$CONFIGNODENAME']},
 	{console_loglevel, info},
 	{logfiles, [{"full.log", debug}, {"console.log", info}]}
 ]},

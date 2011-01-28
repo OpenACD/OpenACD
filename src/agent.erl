@@ -1058,19 +1058,14 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = A
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {{persistant, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	case cpx:get_env(ring_manager) of
-		undefined ->
-			?WARNING("No ring manager with perisistant ring defined; this agent may not be able to take outband media calls", []),
-			{reply, {error, no_ring_manager}, StateName, State};
-		{ok, Mod} ->
-			case Mod:ring_agent(self(), Agent, [persistant]) of
-				{ok, Pid} ->
-					link(Pid),
-					{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, Endpointtype}, endpointdata = Endpointdata}}};
-				{error, Error} ->
-					?ERROR("Couldn't start persistant channel:  ~p", [Error]),
-					{reply, {error, Error}, StateName, State}
-			end
+	case create_persistant_endpoint(Agent) of
+		{ok, Pid} ->
+			link(Pid),
+			?INFO("Linking to ~p", [Pid]),
+			{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, Endpointtype}, endpointdata = Endpointdata}}};
+		{error, Error} ->
+			?ERROR("Couldn't start persistant channel:  ~p", [Error]),
+			{reply, {error, Error}, StateName, State}
 	end;
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}}};
@@ -1131,6 +1126,16 @@ handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid
 	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
 	Newagent = Agent#agent{log_pid = Pid},
 	{next_state, Statename, State#state{agent_rec = Newagent}};
+handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, Endpointtype}, endpointdata = _Endpointdata} = Agent} = State) ->
+	?ERROR("Persistant endpoint ~p died due to ~p", [From, Reason]),
+	case create_persistant_endpoint(Agent) of
+		{ok, Pid} ->
+			link(Pid),
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {Pid, Endpointtype}}}};
+		{error, Error} ->
+			?ERROR("Cound not recreate persistant ring channel:  ~p", [Error]),
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {persistant, Endpointtype}}}}
+	end;
 handle_info({'EXIT', From, Reason}, oncall, #state{agent_rec = #agent{connection = From, statedata = Call} = Agent} = State) ->
 	?WARNING("agent connection died while ~w with ~w media", [oncall, Call#call.media_path]),
 	case Call#call.media_path of
@@ -1305,6 +1310,14 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 %% =====
 %% Internal functions
 %% =====
+
+create_persistant_endpoint(Agent) ->
+	case cpx:get_env(ring_manager) of
+		undefined ->
+			{error, no_ring_manager};
+		{ok, Mod} ->
+			Mod:ring_agent(self(), Agent, [persistant])
+	end.
 
 set_cpx_monitor(State, Otherdeatils)->
 	set_cpx_monitor(State, Otherdeatils, ignore).

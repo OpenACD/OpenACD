@@ -376,6 +376,9 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 handle_info(call_hangup, #state{persistant = undefined} = State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
+handle_info(call_hangup, State) ->
+	?WARNING("Call hangup when this is supposed to be persistant; ending messily", []),
+	{stop, call_hangup, State};
 handle_info(Info, State) ->
 	?DEBUG("unhandled info ~p", [Info]),
 	{noreply, State}.

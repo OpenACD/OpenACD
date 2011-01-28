@@ -45,9 +45,11 @@
 
 %% API
 -export([
+	start_link/5,
 	start_link/6,
-	start/6,
 	start_link/7,
+	start/5,
+	start/6,
 	start/7,
 	hangup/1,
 	get_uuid/1
@@ -152,7 +154,7 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 					{Cname, Cnumber, TheDnis}
 			end,
 			%Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
-			Ringout = case proplists:get_value(ringout, Options) of
+			{ok, Ringout} = case proplists:get_value(ringout, Options) of
 				undefined ->
 					cpx:get_env(default_ringout, 60);
 				RingoutElse ->

@@ -511,7 +511,7 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
 handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
-	application:unset('OpenACD', ring_manager),
+	application:unset_env('OpenACD', ring_manager),
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
 	case is_pid(Pid) of
 		true -> exit(Pid, kill);
@@ -547,7 +547,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(_Reason, _State) ->
-	application:unset('OpenACD', ring_manager),
+	application:unset_env('OpenACD', ring_manager),
     ok.
 
 %%--------------------------------------------------------------------

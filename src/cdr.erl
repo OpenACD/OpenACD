@@ -69,7 +69,8 @@
 	merge/3,
 	get_raws/1,
 	get_summaries/1,
-	get_unsummarized/0
+	get_unsummarized/0,
+	spawn_summarizer/1
 ]).
 
 -export([

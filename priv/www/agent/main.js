@@ -131,11 +131,15 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + res + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'yesAction':function(){ Agent.queuetransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Errored'
 			});
 		},
 		success:function(res){
+			if(res.prompts.length + res.skills.length == 0){
+				Agent.queuetransfer(queueNom, [], {});
+				return true;
+			}
 			createDialog(res);
 		},
 		failure:function(errcode, message){

@@ -706,8 +706,8 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("transferToQueueMenu").logout = dojo.subscribe("agent/logout", function(data){
-		var menu = dijit.byId("transferToQueueMenu");
+	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("agent/logout", function(data){
+		var menu = dijit.byId("transferToQueueMenuDyn");
 		menu.destroyDescendants();
 	});
 
@@ -1058,7 +1058,7 @@ dojo.addOnLoad(function(){
 	};
 
 	buildQueueMenu = function(agent){
-		var menu = dijit.byId("transferToQueueMenu");
+		var menu = dijit.byId("transferToQueueMenuDyn");
 		var qListOpts = {
 			error:function(response, ioargs){
 				debug(response);

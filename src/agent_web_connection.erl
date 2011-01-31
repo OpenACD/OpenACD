@@ -1192,7 +1192,7 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_r
 	end;
 handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),
-	{ok, {Prompts, Skills}} = cpx_supervisor:get_value(transferprompt),
+	{ok, {Prompts, Skills}} = cpx:get_env(transferprompt, {[], []}),
 	Varslist = [begin
 		Newkey = case is_list(Key) of
 			true ->

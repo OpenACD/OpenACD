@@ -19,5 +19,6 @@ run: compile
 install: compile
 	mkdir -p ${PREFIX}
 	cp -r rel/openacd/* ${PREFIX}
+	mkdir -p ${PREFIX}/plugin.d/deps
 
 .PHONY: all deps compile clean run install

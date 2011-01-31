@@ -4,8 +4,8 @@ Summary: OpenACD Call Center
 Release: %{?buildno:%buildno}%{!?buildno:1}
 Group: Applications/Communications
 Vendor: Fused Solutions Inc.
-Packager: SIPfoundry
-License: GPL
+Packager: Douglas Hubler
+License: CPAL
 AutoReqProv: no
 URL: http://github.com/Vagabond/OpenACD/wiki
 Source: %{name}-%{version}.tar.gz
@@ -51,3 +51,8 @@ rm -rf $RPM_BUILD_ROOT
 /opt/OpenACD/log
 /opt/OpenACD/releases
 /opt/OpenACD/run
+/opt/OpenACD/plugin.d/deps
+
+%changelog
+* Thu Jan 27 2011 Douglas Hubler <douglas@hubler.us>
+- Initial release

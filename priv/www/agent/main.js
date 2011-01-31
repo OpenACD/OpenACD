@@ -821,6 +821,8 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dijit.byId('transferToAgentMenu').startup();
+	dijit.byId('transferToQueueMenu').startup();
 	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants();

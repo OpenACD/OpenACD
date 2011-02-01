@@ -687,18 +687,22 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 	end;
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
-handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = Call, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
-	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
-	case set_agent_state(Apid, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
+handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = CachedCall, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
+	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, CachedCall#call.id, Timeout]),
+	case set_agent_state(Apid, [ringing, CachedCall#call{cook=QCall#queued_call.cook}]) of
 		ok ->
 			% TODO update callbacks to accept {string(), pid()} structure.
 			case Callback:handle_ring(Apid, State#state.callrec, State#state.substate) of
 				Success when element(1, Success) == ok ->
-					Popopts = case Success of
+					{Popopts, Call} = case Success of
 						{ok, Substate} ->
-							GenPopopts;
+							{GenPopopts, CachedCall};
+						{ok, RetCall, Substate} when is_record(RetCall, call) ->
+							{GenPopopts, RetCall};
 						{ok, Opts, Substate} ->
-							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
+							{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), CachedCall};
+						{ok, Opts, RetCall, Substate} ->
+							{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), RetCall}
 					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
@@ -707,7 +711,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					Self = self(),
 					spawn(fun() -> % do this in a subprocess so we don't block
 						Arec = agent:dump_state(Apid),
-						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
+						case {Arec#agent.defaultringpath, CachedCall#call.ring_path, whereis(freeswitch_media_manager)} of
 							{outband, inband, Pid} when is_pid(Pid) ->
 								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
 									{ok, RingChanPid} ->
@@ -729,7 +733,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
-			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
+			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, CachedCall#call.id]),
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_ring', {_Agent, Apid}, QCall, _Timeout}, _From, #state{callrec = _Call, callback = _Callback, ring_pid = undefined} = State) ->

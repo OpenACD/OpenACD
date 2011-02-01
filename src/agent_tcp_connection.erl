@@ -39,7 +39,7 @@
 
 -behaviour(gen_server).
 
--export([start/1, start_link/1, negotiate/1]).
+-export([start/2, start_link/2, negotiate/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
@@ -62,6 +62,7 @@
 -record(state, {
 		salt :: pos_integer(),
 		socket :: port(),
+		radix :: integer(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
 		%send_queue = [] :: [string()],
@@ -84,14 +85,14 @@
 % =====
 
 %% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start/1 :: (Socket :: port()) -> {'ok', pid()}).
-start(Socket) ->
-	gen_server:start(?MODULE, [Socket], []).
+-spec(start/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
+start(Socket, Radix) ->
+	gen_server:start(?MODULE, [Socket, Radix], []).
 
 %% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start_link/1 :: (Socket :: port()) -> {'ok', pid()}).
-start_link(Socket) ->
-	gen_server:start_link(?MODULE, [Socket], []).
+-spec(start_link/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
+start_link(Socket, Radix) ->
+	gen_server:start_link(?MODULE, [Socket, Radix], []).
 
 %% @doc Notify the client that it should begin the login proceedure.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
@@ -103,9 +104,9 @@ negotiate(Pid) ->
 % =====
 
 %% @hidden
-init([Socket]) ->
+init([Socket, Radix]) ->
 	%timer:send_interval(10000, do_tick),
-	{ok, #state{socket=Socket}}.
+	{ok, #state{socket=Socket, radix = Radix}}.
 
 % =====
 % handle_call
@@ -129,7 +130,7 @@ handle_cast(negotiate, State) ->
 		command = 'ASTATE',
 		state_change = Statechange
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
 	case O of
 		{ok, Packet} ->
@@ -178,7 +179,7 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		command = 'ASTATE',
 		state_change = Statechange
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State#state{state = Statename, statedata = Statedata}};
 handle_cast({change_state, Statename}, State) ->
 	Statechange = #statechange{
@@ -188,7 +189,7 @@ handle_cast({change_state, Statename}, State) ->
 		command = 'ASTATE',
 		state_change = Statechange
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State#state{state = Statename}};
 handle_cast({mediaload, Callrec}, State) ->
 	% TODO implement
@@ -203,7 +204,7 @@ handle_cast({mediapush, _Callrec, Data}, State) when is_tuple(Data) ->
 				command = 'MEDIA_EVENT',
 				media_event = Data
 			},
-			server_event(State#state.socket, Command);
+			server_event(State#state.socket, Command, State#state.radix);
 		_Else ->
 			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
 			ok
@@ -216,7 +217,7 @@ handle_cast({change_profile, Profile}, State) ->
 		command = 'APROFILE',
 		profile = Profile
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
 handle_cast({url_pop, Url, Name}, State) ->
 	Command = #serverevent{
@@ -224,14 +225,14 @@ handle_cast({url_pop, Url, Name}, State) ->
 		url = Url,
 		url_window = Name
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
 handle_cast({blab, Text}, State) ->
 	Command = #serverevent{
 		command = 'ABLAB',
 		text_message = Text
 	},
-	server_event(State#state.socket, Command),
+	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled msg:  ~p", [Msg]),
@@ -244,7 +245,7 @@ handle_cast(Msg, State) ->
 %% @hidden
 handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
-	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet),
+	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet, State#state.radix),
 	NewState = service_requests(Bins, State),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{noreply, NewState};
@@ -275,21 +276,21 @@ code_change(_OldVsn, State, _Extra) ->
 % Internal functions
 % =====
 
-server_event(Socket, Record) ->
+server_event(Socket, Record, Radix) ->
 	Outrec = #servermessage{
 		type_hint = 'EVENT',
 		event = Record
 	},
-	send(Socket, Outrec).
+	send(Socket, Outrec, Radix).
 
-send(Socket, Record) ->
+send(Socket, Record, Radix) ->
 	?DEBUG("pre encode:  ~p", [Record]),
 	Bin = cpx_agent_pb:encode(Record),
 	?DEBUG("post encode:  ~p", [Bin]),
 	%Size = list_to_binary(integer_to_list(size(Bin))),
 	%?DEBUG("Das size:  ~p", [Size]),
 	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
-	Outbin = protobuf_util:bin_to_netstring(Bin),
+	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
 	?DEBUG("Das outbin:  ~p", [Outbin]),
 	ok = gen_tcp:send(Socket, Outbin).
 
@@ -311,7 +312,7 @@ service_request(Bin, State) when is_binary(Bin) ->
 		type_hint = 'REPLY',
 		reply = NewReply
 	},
-	send(State#state.socket, Message),
+	send(State#state.socket, Message, State#state.radix),
 	NewState.
 
 service_request(#agentrequest{request_hint = 'CHECK_VERSION', agent_client_version = Ver} = _Request, BaseReply, State) ->

@@ -437,7 +437,17 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = State) ->
 	?INFO("~s rejected a ring request due to ring_locked.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
-idle({ringing, Call = #call{}}, _From, #state{agent_rec = Agent} = State) ->
+idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {perisistant, _}} = Agent} = State) ->
+	?INFO("~s rejected a ring request since persistant ring channel is not yet established.", [Agent#agent.login]),
+	{reply, invalid, idle, State};
+idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
+	?ERROR("Dah agent endpoint!  ~p", [Agent#agent.endpointtype]),
+	Call = case Agent#agent.endpointtype of
+		{P, _} when is_pid(P) ->
+			RecievedCall#call{ring_path = inband};
+		_ ->
+			RecievedCall
+	end,
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},

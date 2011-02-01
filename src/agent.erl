@@ -441,7 +441,6 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {perisist
 	?INFO("~s rejected a ring request since persistant ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
 idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
-	?ERROR("Dah agent endpoint!  ~p", [Agent#agent.endpointtype]),
 	Call = case Agent#agent.endpointtype of
 		{P, _} when is_pid(P) ->
 			RecievedCall#call{ring_path = inband};

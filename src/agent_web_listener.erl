@@ -333,14 +333,14 @@ determine_language([]) ->
 	"";
 determine_language(String) ->
 	[Head | Other] = util:string_split(String, ",", 2),
-	[Lang |_Junk] = util:string_split(Head, ";"),
-	case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/agent/application/nls/"), Lang), "/labels.js")) of
+	[Lang | _Junk] = util:string_split(Head, ";"),
+	case filelib:is_regular(filename:join([util:priv_dir("www/agent/application/nls/"), Lang, "labels.js"])) of
 		true ->
 			Lang;
 		false ->
 			% try the "super language" (eg en vs en-us) in case it's not in the list itself
 			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
-			case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/agent/application/nls/"), SuperLang), "/labels.js")) of
+			case filelib:is_regular(filename:join([util:priv_dir("www/agent/application/nls/"), SuperLang, "labels.js"])) of
 				true ->
 					SuperLang;
 				false ->

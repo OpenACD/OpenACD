@@ -131,11 +131,15 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + res + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'yesAction':function(){ Agent.queuetransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Errored'
 			});
 		},
 		success:function(res){
+			if(res.prompts.length + res.skills.length == 0){
+				Agent.queuetransfer(queueNom, [], {});
+				return true;
+			}
 			createDialog(res);
 		},
 		failure:function(errcode, message){
@@ -706,8 +710,8 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("transferToQueueMenu").logout = dojo.subscribe("agent/logout", function(data){
-		var menu = dijit.byId("transferToQueueMenu");
+	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("agent/logout", function(data){
+		var menu = dijit.byId("transferToQueueMenuDyn");
 		menu.destroyDescendants();
 	});
 
@@ -821,6 +825,8 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dijit.byId('transferToAgentMenu').startup();
+	dijit.byId('transferToQueueMenu').startup();
 	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants();
@@ -1056,7 +1062,7 @@ dojo.addOnLoad(function(){
 	};
 
 	buildQueueMenu = function(agent){
-		var menu = dijit.byId("transferToQueueMenu");
+		var menu = dijit.byId("transferToQueueMenuDyn");
 		var qListOpts = {
 			error:function(response, ioargs){
 				debug(response);

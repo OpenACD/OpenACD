@@ -587,7 +587,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 		{undefined, _} ->
 			{sip_registration, Username};
 		{sip_registration, undefined} ->
-			{sip_registation, Username};
+			{sip_registration, Username};
 		{EndpointType, _} ->
 			{EndpointType, Endpointdata}
 	end,

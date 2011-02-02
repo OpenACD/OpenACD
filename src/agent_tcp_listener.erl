@@ -92,8 +92,9 @@
 		code_change/3]).
 
 -record(state, {
-		listener :: port(),       % Listening socket
-		acceptor :: any()       % Asynchronous acceptor's internal reference
+		listener :: port(), % Listening socket
+		acceptor :: any(), % Asynchronous acceptor's internal reference
+		radix :: integer()
 		}).
 
 -type(state() :: #state{}).
@@ -103,12 +104,25 @@
 %% @doc Start the listener on port `Port' linked to the calling process.
 -spec(start_link/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->
-	gen_server:start_link(?MODULE, [Port], []).
+	start_link(Port, 10).
+
+%% @doc Start the listener on the port `Port' linked to the calling process.
+%% agent_tcp_connections will using the given `Radix' for it's netstring 
+%% encodings.
+-spec(start_link/2 :: (Port :: integer(), Radix :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Port, Radix) ->
+	gen_server:start_link(?MODULE, [Port, Radix], []).
 
 %% @doc Start the listener on port `Port' linked to no process.
 -spec(start/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Port) when is_integer(Port) -> 
-	gen_server:start(?MODULE, [Port], []).
+start(Port) when is_integer(Port) ->
+	start(Port, 10).
+
+%% @doc Start the listener on port `Port' linked to no process.  Listeners
+%% will send and decode netstrings using the given `Radix'
+-spec(start/2 :: (Port :: integer(), Radix :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Port, Radix) ->
+	gen_server:start(?MODULE, [Port, Radix], []).
 
 %% @doc Start the listener on the default port of 1337 linked to no process.
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
@@ -121,7 +135,7 @@ stop(Pid) ->
 	gen_server:cast(Pid, stop).
 
 %% @hidden
-init([Port]) ->
+init([Port, Radix]) ->
 %	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -130,7 +144,7 @@ init([Port]) ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
 			?INFO("Started on port ~p", [Port]),
-			{ok, #state{listener = Listen_socket, acceptor = Ref}};
+			{ok, #state{listener = Listen_socket, acceptor = Ref, radix = Radix}};
 		{error, Reason} ->
 			?WARNING("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
@@ -158,7 +172,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 
 		%% New client connected
 		?DEBUG("new client connection.~n", []),
-		{ok, Pid} = agent_tcp_connection:start(CliSocket),
+		{ok, Pid} = agent_tcp_connection:start(CliSocket, State#state.radix),
 		gen_tcp:controlling_process(CliSocket, Pid),
 		agent_tcp_connection:negotiate(Pid),
 	

@@ -50,8 +50,11 @@
 	enum_to_statename/1,
 	skill_to_protobuf/1,
 	bin_to_netstring/1,
+	bin_to_netstring/2,
 	bins_to_netstring/1,
-	netstring_to_bins/1
+	bins_to_netstring/2,
+	netstring_to_bins/1,
+	netstring_to_bins/2
 ]).
 
 %% @doc Turn a non protobuf `#call{}' into a protobuf friendly 
@@ -188,50 +191,70 @@ skill_to_protobuf(Atom) when is_atom(Atom) ->
 %% @doc Wraps the given binary in a base 10 netstring.
 -spec(bin_to_netstring/1 :: (Bin :: binary()) -> binary()).
 bin_to_netstring(Bin) ->
-	Size = list_to_binary(integer_to_list(size(Bin))),
+	bin_to_netstring(Bin, 10).
+
+%% @doc Wraps the given binary in a netstring using the given radix.
+bin_to_netstring(Bin, Radix) ->
+	Size = list_to_binary(erlang:integer_to_list(size(Bin), Radix)),
 	<<Size/binary, $:, Bin/binary, $,>>.
 
-%% @doc Produces a series of netstrings in one big bin.
+%% @doc Produces a series of netstrings in one big bin using the default 
+%% radix of 10.
 -spec(bins_to_netstring/1 :: (Bins :: binary()) -> binary()).
 bins_to_netstring(Bins) ->
-	list_to_binary([bin_to_netstring(X) || X <- Bins]).
+	bins_to_netstring(Bins, 10).
 
-%% @doc Gather the binaries separated by netstrings.  Returns left over
-%% binary and the binaries extracted.
+%% @doc Produces a series of netstrings in one big bin using the given 
+%% radix.
+bins_to_netstring(Bins, Radix) ->
+	list_to_binary([bin_to_netstring(X, Radix) || X <- Bins]).
+
+%% @doc Gather the binaries separated by netstrings encoded using the radix
+%% of 10.  Returns left over binary and the binaries extracted.
 -spec(netstring_to_bins/1 :: (Bin :: binary()) -> {binary(), [binary()]}).
 netstring_to_bins(Bin) ->
-	netstring_to_bins(Bin, [], []).
+	netstring_to_bins(Bin, 10).
 
-netstring_to_bins(<<>>, NumberAcc, Acc) ->
+%% @doc Gather the binaries separated by netstrings encoded using the given
+%% radix.  Returns left over binary and the binaries extracted.
+netstring_to_bins(Bin, Radix) ->
+	netstring_to_bins(Bin, Radix, [], []).
+
+netstring_to_bins(<<>>, _Radix, NumberAcc, Acc) ->
 	Rest = list_to_binary(lists:reverse(NumberAcc)),
 	{Rest, lists:reverse(Acc)};
-netstring_to_bins(<<$:, Rest/binary>>, NumberAcc, Acc) ->
-	Size = list_to_integer(lists:reverse(NumberAcc)),
+netstring_to_bins(<<$:, Rest/binary>>, Radix, NumberAcc, Acc) ->
+	Size = erlang:list_to_integer(lists:reverse(NumberAcc), Radix),
 	case Rest of
 		<<NetBin:Size/binary, $,, NewRest/binary>> ->
-			netstring_to_bins(NewRest, [], [NetBin | Acc]);
+			netstring_to_bins(NewRest, Radix, [], [NetBin | Acc]);
 		_ ->
 			Top = list_to_binary(lists:reverse([$: | NumberAcc])),
 			{<<Top/binary, Rest/binary>>, lists:reverse(Acc)}
 	end;
-netstring_to_bins(<<N/integer, Rest/binary>>, NumAcc, Acc) ->
-	netstring_to_bins(Rest, [N | NumAcc], Acc).
+netstring_to_bins(<<N/integer, Rest/binary>>, Radix, NumAcc, Acc) ->
+	netstring_to_bins(Rest, Radix, [N | NumAcc], Acc).
 
 -ifdef(TEST).
 bin_to_netstring_test_() ->
 	[?_assertEqual(<<"3:hi!,">>, bin_to_netstring(<<"hi!">>)),
-	?_assertEqual(<<"6:3:hi!,,">>, bin_to_netstring(<<"3:hi!,">>))].
+	?_assertEqual(<<"6:3:hi!,,">>, bin_to_netstring(<<"3:hi!,">>)), 
+	?_assertEqual(<<"G:this is the life,">>, bin_to_netstring(<<"this is the life">>, 36))].
 
 bins_to_netstring_test_() ->
 	[?_assertEqual(<<"3:hi!,3:hi!,">>, bins_to_netstring([<<"hi!">>, <<"hi!">>])),
-	?_assertEqual(<<"6:3:hi!,,3:hi!,">>, bins_to_netstring([<<"3:hi!,">>, <<"hi!">>]))].
+	?_assertEqual(<<"6:3:hi!,,3:hi!,">>, bins_to_netstring([<<"3:hi!,">>, <<"hi!">>])),
+	?_assertEqual(<<"3:hi!,G:This is the life,">>, bins_to_netstring([<<"hi!">>, <<"This is the life">>], 36))].
 
 netstring_to_bins_test_() ->
 	[?_assertEqual({<<>>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,">>)),
 	?_assertEqual({<<>>, [<<"3:hi!,">>]}, netstring_to_bins(<<"6:3:hi!,,">>)),
 	?_assertEqual({<<>>, [<<"hi!">>, <<"3:hi!,">>]}, netstring_to_bins(<<"3:hi!,6:3:hi!,,">>)),
 	?_assertEqual({<<"123:rest">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,123:rest">>)),
-	?_assertEqual({<<"1">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,1">>))].
+	?_assertEqual({<<"1">>, [<<"hi!">>]}, netstring_to_bins(<<"3:hi!,1">>)),
+	?_assertEqual({<<>>, [<<"this is the life">>]}, netstring_to_bins(<<"G:this is the life,">>, 36)),
+	?_assertEqual({<<"1">>, [<<"this is the life">>]}, netstring_to_bins(<<"G:this is the life,1">>, 36)),
+	?_assertEqual({<<"123:rest">>, [<<"this is the life">>, <<"hi!">>]}, netstring_to_bins(<<"G:this is the life,3:hi!,123:rest">>, 36))].
 
 proplist_to_protobuf_test_() ->
 	[{"list key, list val", fun() ->

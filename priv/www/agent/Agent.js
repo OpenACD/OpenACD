@@ -195,7 +195,7 @@ Agent.prototype.initOutbound = function(Client, Type) {
 			EventLog.log("init outbound success");
 		}
 	};
-	Agent.webApi("init_outbound", Options, Client, Type);
+	Agent.webApi("init_outbound", options, Client, Type);
 };
 
 Agent.prototype.logout = function(/*callback*/){

@@ -69,7 +69,8 @@
 	merge/3,
 	get_raws/1,
 	get_summaries/1,
-	get_unsummarized/0
+	get_unsummarized/0,
+	spawn_summarizer/1
 ]).
 
 -export([
@@ -710,7 +711,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		Transactions = lists:sort(Sort, UsortedTransactions),
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
-		{ok, Nodes} = cpx:get_evn(nodes, [node()]),
+		{ok, Nodes} = cpx:get_env(nodes, [node()]),
 		CdrRec = #cdr_rec{
 			media = Callrec,
 			summary = Summary,

@@ -605,13 +605,13 @@
 					<div dojoType="dijit.Menu" id="transferToAgentMenuDyn">
 					</div>
 				</div>
-				<div dojoType="dijit.PopupMenuItem">
+				<div dojoType="dijit.PopupMenuItem" id="transferToQueueMenu">
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").QUEUE);
 					</script>
 					<span>QUEUE</span>
-					<div dojoType="dijit.Menu" id="transferToQueueMenu">
+					<div dojoType="dijit.Menu" id="transferToQueueMenuDyn">
 					</div>
 				</div>
 				<div dojoType="dijit.MenuItem" label="Transfer to 3rd Party">

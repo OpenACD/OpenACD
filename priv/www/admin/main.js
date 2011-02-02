@@ -54,7 +54,7 @@ function flashSuccess(parentNode){
 			dojo.fadeOut({
 				node:'successNode',
 				duration:1000,
-				delay:3000
+				delay:1500
 			}).play();
 		}
 	}).play();

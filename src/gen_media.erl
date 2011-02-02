@@ -1195,7 +1195,10 @@ format_status(terminate, [PDict, #state{callback = Mod, substate = SubState, cal
 
 set_agent_state(Apid, Args) ->
 	try apply(agent, set_state, [Apid | Args]) of
+		ok ->
+			ok;
 		Res ->
+			?ERROR("Agent set state wasn't okay:  ~p", [Res]),
 			Res
 	catch
 		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->

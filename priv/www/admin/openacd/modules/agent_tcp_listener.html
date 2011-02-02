@@ -17,6 +17,7 @@
 			this.set('label', dojo.i18n.getLocalization('admin', 'labels')['SUBMIT']);
 		</script>
 		<script type="dojo/connect" event="onClick">
+			buttonRef = this;
 			var postUrl = '/modules/' + modules.activeNode + '/agent_tcp_listener/update';
 			dojo.xhrPost({
 				url: postUrl,
@@ -27,6 +28,8 @@
 				handleAs:'json',
 				load:function(res){
 					if(res.success == true){
+						console.log('yay!');
+						flashSuccess(buttonRef.domNode.parentNode);
 						return;
 					}
 					errMessage('Modifying agent tcp listener failed:  ' + res.message);

@@ -443,7 +443,8 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {perisist
 idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
 	Call = case Agent#agent.endpointtype of
 		{P, _} when is_pid(P) ->
-			RecievedCall#call{ring_path = inband};
+			% TODO this feels really hacky and icky and gross.
+			RecievedCall#call{ring_path = inband, media_path = inband};
 		_ ->
 			RecievedCall
 	end,

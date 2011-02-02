@@ -207,7 +207,7 @@ handle_ring({_Apid, #agent{endpointtype = {persistant, _}} = Agent}, _Callrec, S
 handle_ring({Apid, #agent{endpointtype = {EndpointPid, _EndPointType}}} = Agent, Callrec, State) ->
 	case freeswitch_ring:ring(EndpointPid, Callrec#call.id, 600) of
 		ok ->
-			{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
+			{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("Error ringing agent ~p.  Agent:  ~s;  call:  ~s", [Error, Agent#agent.login, Callrec#call.id]),
 			{invalid, State}
@@ -480,6 +480,10 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 
+handle_wrapup(#call{ring_path = inband, media_path = inband} = Call, State) ->
+	% TODO This could prolly stand to be a bit more elegant.
+	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
+	{hangup, State};
 handle_wrapup(_Call, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent

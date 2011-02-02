@@ -169,6 +169,15 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
+handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
+	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
+		{ok, _} ->
+			handle_answer(Apid, Callrec#call{ring_path = outband}, State);
+		{error, Error} ->
+			?WARNING("Could not do answer:  ~p", [Error]),
+			{invalid, State}
+	end;
 handle_answer(Apid, Callrec, State) ->
 	RecPath = case cpx_supervisor:get_archive_path(Callrec) of
 		none ->

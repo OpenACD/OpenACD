@@ -160,7 +160,6 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 					{Cname, Cnumber} = proplists:get_value(caller_id, Options, {"noname", "nonumber"}),
 					{Cname, Cnumber, TheDnis}
 			end,
-			%Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
 			{ok, Ringout} = case proplists:get_value(ringout, Options) of
 				undefined ->
 					cpx:get_env(default_ringout, 60);
@@ -171,10 +170,15 @@ init([Fnode, AgentRec, Apid, Fun, Options]) ->
 				true -> "false";
 				_ -> "true"
 			end,
+			ParkAfterBridge = case proplists:get_value(persistant, Options) of
+				true -> "park_after_bridge=true";
+				_ -> ""
+			end,
 			DialStringOpts = [
 					"origination_caller_id_name='"++CallerName++"'",
 					"origination_caller_id_number="++CallerNumber,
 					"hangup_after_bridge="++HangupAfterBridge,
+					ParkAfterBridge,
 					"origination_uuid="++UUID,
 					"originate_timeout="++integer_to_list(Ringout),
 					"sip_h_X-DNIS='"++Dnis++"'"

@@ -83,7 +83,8 @@
 	get_merged_queue/1,
 	get_queues/0,
 	get_queues/1,
-	set_queue/2
+	set_queue/2,
+	set_queue/6
 	]).
 -export([
 	new_queue_group/1,
@@ -102,6 +103,7 @@
 	get_skills/0,
 	get_skills/1,
 	set_skill/2,
+	set_skill/4,
 	rename_skill_group/2,
 	destroy_skill/1
 	]).
@@ -323,6 +325,16 @@ new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weigh
 		group = Group},
 	new_queue(Rec).
 
+-spec(set_queue/6 :: (OldName :: string(), Name :: string(), Weight :: pos_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
+set_queue(OldName, Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
+	Rec = #call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Skills,
+		recipe = Recipe,
+		group = Group},
+	set_queue(OldName, Rec).
+
 %% @doc Sets the queue name `Queue' to the passed `#call_queue{}'.
 -spec(set_queue/2 :: (Queue :: string(), Rec :: #call_queue{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_queue(Queue, Rec) ->
@@ -519,6 +531,11 @@ get_skill(Skill) when is_atom(Skill) ->
 		{atomic, [Skillrec]} ->
 			Skillrec
 	end.
+
+-spec(set_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
+set_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_list(Group) ->
+	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, group = Group},
+	set_skill(Skillatom, Rec).
 
 %% @doc updates the skill Old skill with the data in the Newrec; the atom remains unchanged
 -spec(set_skill/2 :: (Oldskill :: atom(), Newrec :: #skill_rec{}) -> {'atomic', 'ok'} | {'atomic', 'undefined'}).

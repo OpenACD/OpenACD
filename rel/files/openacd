@@ -7,11 +7,13 @@ RUNNER_ETC_DIR=$RUNNER_BASE_DIR/etc
 RUNNER_LOG_DIR=$RUNNER_BASE_DIR/log
 RUNNER_RUN_DIR=$RUNNER_BASE_DIR/run
 PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
-RUNNER_USER=
 
-# XXX Change thse if you want other behaviour
-OPENACD_LOG_DIR=$RUNNER_LOG_DIR
-OPENACD_RUN_DIR=$RUNNER_RUN_DIR
+# To change these, set these env vars before running this script
+# RUNNER_USER - is undefined by default which means any user is legal as long as file permissions are set
+#               accordingly. Root is usually a bad idea but works.
+: ${OPENACD_LOG_DIR:=$RUNNER_LOG_DIR}
+: ${OPENACD_RUN_DIR:=$RUNNER_RUN_DIR}
+: ${OPENACD_ETC_DIR:=$RUNNER_ETC_DIR}
 
 export OPENACD_LOG_DIR
 export OPENACD_RUN_DIR
@@ -29,14 +31,14 @@ mkdir -p $RUNNER_LOG_DIR
 mkdir -p $RUNNER_RUN_DIR
 
 # Extract the target node name from node.args
-NAME_ARG=`grep -e '-[s]*name' $RUNNER_ETC_DIR/vm.args`
+NAME_ARG=`grep -e '-[s]*name' $OPENACD_ETC_DIR/vm.args`
 if [ -z "$NAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
 
 # Extract the target cookie
-COOKIE_ARG=`grep -e '-setcookie' $RUNNER_ETC_DIR/vm.args`
+COOKIE_ARG=`grep -e '-setcookie' $OPENACD_ETC_DIR/vm.args`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
     exit 1
@@ -135,7 +137,7 @@ case "$1" in
         BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
         EMU=beam
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$SCRIPT -embedded -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -- ${1+"$@"}"
+        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$SCRIPT -embedded -config $OPENACD_ETC_DIR/app.config -args_file $OPENACD_ETC_DIR/vm.args -- ${1+"$@"}"
         export EMU
         export ROOTDIR
         export BINDIR

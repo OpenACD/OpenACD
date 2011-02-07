@@ -418,9 +418,9 @@ api(dialer, _, Post) ->
 	Vars = util:string_split(proplists:get_value("vars", Post, ""), ","),
 
 	try
+		?DEBUG("starting dialer w/ args ~p", [[NodeString, Number, Exten, SkillStrings, Client, Vars]]),
 		Node = list_to_existing_atom(NodeString),
 		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
-		?DEBUG("starting dialer", []),
 		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
 			{ok, _Pid} ->
 				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
@@ -430,7 +430,8 @@ api(dialer, _, Post) ->
 	of
 		Res -> Res
 	catch
-		_:_ ->
+		What:Why ->
+			?DEBUG("dialer failed: ~p:~p", [What, Why]),
 			{500, [], mochijson2:encode({struct, [{success, false}, {message, bad_params}]})}
 	end;
 api(_Apirequest, badcookie, _Post) ->

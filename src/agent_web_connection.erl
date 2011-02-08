@@ -1048,7 +1048,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 						none ->
 							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}]});
 						{_Key, #queued_call{media = Mpid} = Qcall} ->
-							case gen_media:ring(Mpid, Apid, Qcall, element(2, cpx:get_env(default_ringout, 30000))) of
+							case gen_media:ring(Mpid, Apid, Qcall, ?getRingout) of
 								deferred ->
 									mochijson2:encode({struct, [{success, true}]});
 								 _ ->

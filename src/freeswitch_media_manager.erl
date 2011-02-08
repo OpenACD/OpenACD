@@ -302,7 +302,7 @@ handle_call({record_outage, Client, AgentPid, Agent}, _From, #state{nodename = N
 					end
 			end,
 			DialString = get_agent_dial_string(Agent, [], State),
-			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge, {dialstring, DialString}]) of
+			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, ?getRingout, F, [no_oncall_on_bridge, {dialstring, DialString}]) of
 				{ok, _Pid} ->
 					{reply, ok, State};
 				{error, Reason} ->

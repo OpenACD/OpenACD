@@ -1878,14 +1878,14 @@ api({modules, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) 
 	end;
 api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	Truedefault = ?DEFAULT_RINGOUT * 1000,
+	Truedefault = ?DEFAULT_RINGOUT,
 	case rpc:call(Atomnode, cpx, get_env, [default_ringout]) of
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		{ok, Truedefault} ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		{ok, Val} ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val / 1000}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
@@ -1958,8 +1958,8 @@ api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Pos
 		Else ->
 			list_to_integer(Else)
 	end,
-	case rpc:call(Atomnode, application, set_env, [cpx, default_ringout, Val * 1000]) of
-		ok ->
+	case rpc:call(Atomnode, cpx_supervisor, set_value, [default_ringout, Val]) of
+		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Err ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}]})}

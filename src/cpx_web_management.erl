@@ -1847,6 +1847,14 @@ api({modules, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+api({modules, Node, "cpx_supervisor", "get", "exit_on_max_ring_fails"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [exit_on_max_ring_fails]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"value">>, false}]})};
+		{ok, _} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"value">>, true}]})}
+	end;
 api({modules, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [mantispath]) of
@@ -1922,6 +1930,18 @@ api({modules, Node, "cpx_supervisor", "update", "plugin_dir"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, set_value, [plugin_dir, Dir])
 	end,
 	case Res of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "update", "exit_on_max_ring_fails"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	{Func, Args} = case proplists:get_value("value", Post) of
+		"true" -> {set_value, [exit_on_max_ring_fails, true]};
+		_ -> {drop_value, [exit_on_max_ring_fails]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->

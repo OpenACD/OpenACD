@@ -574,6 +574,8 @@ encode_statedata({onhold, Holdcall, calling, Calling}) ->
 		{<<"calling">>, Callingjson}]};
 encode_statedata({_, default, _}) ->
 	{struct, [{<<"reason">>, default}]};
+encode_statedata({_, ring_fail, _}) ->
+	{struct, [{<<"reason">>, ring_fail}]};
 encode_statedata({_, Reason, _}) ->
 	{struct, [{<<"reason">>, list_to_binary(Reason)}]};
 encode_statedata(List) when is_list(List) ->

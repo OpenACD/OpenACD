@@ -441,18 +441,46 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {perisist
 	?INFO("~s rejected a ring request since persistant ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
 idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
-	Call = case Agent#agent.endpointtype of
-		{P, _} when is_pid(P) ->
-			% TODO this feels really hacky and icky and gross.
-			RecievedCall#call{ring_path = inband, media_path = inband};
+	Worked = case Agent#agent.endpointtype of
+		{P, _} ->
+			% hardcoded both module and timeout.  Bad, bad man.
+			freeswitch_ring:ring(P, RecievedCall#call.id, 10);
 		_ ->
-			RecievedCall
+			case cpx:get_env(ring_manager) of
+				undefined ->
+					{error, no_ring_manager};
+				RingManager ->
+					% oh goody, more hardcoding.
+					case RingManager:ring(Agent, freeswitch_ring_transient, [
+						{call, RecievedCall}, 
+						{ringout, 10}
+					]) of
+						{ok, _Pid} ->
+							% I'll prolly wanna link to this pid.
+							ok;
+						RingManagerError ->
+							RingManagerError
+					end
+			end
 	end,
-	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
-	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
-	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, []),
-	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+	case Worked of
+		ok ->
+			Call = case Agent#agent.endpointtype of
+				{EndP, _} when is_pid(EndP) ->
+					% TODO this feels really hacky and icky and gross.
+					RecievedCall#call{ring_path = inband, media_path = inband};
+				_ ->
+					RecievedCall
+			end,
+			gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+			gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+			Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
+			set_cpx_monitor(Newagent, []),
+			{reply, ok, ringing, State#state{agent_rec = Newagent}};
+		DidnotWork ->
+			?WARNING("Setting up the ring didn't work:  ~p", [DidnotWork]),
+			{reply, invalid, idle, State}
+	end;
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->

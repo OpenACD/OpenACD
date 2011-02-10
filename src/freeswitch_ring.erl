@@ -39,13 +39,14 @@
 %% 					FsNode = node()
 %% 					UUID = string()
 %% 				Args = [any()]
-%% 				Response = {'ok', State} | 'ignore' | {'stop', Reason}
+%% 				Response = {'ok', Opts, State} | 'ignore' | {'stop', Reason}
+%%					Opts = [string()]
 %%					State = Reason = any()
 %%
-%% 		After the originate is done (freeswitch returns a success to the
-%% 		orignate api call), this function is called.  Args is the list of
-%%		options sent to freeswitch_ring unaltered.  Freeswitch Ring does not
-%%		remove options it doesn't understand.
+%% 		Before the originate is done this function is called.  Args is the 
+%%		list of options sent to freeswitch_ring unaltered.  Freeswitch Ring 
+%%		does not remove options it doesn't understand.  The `Opts' returned
+%% 		is a list of strings used for the dial options in the originate.
 %%
 %% 	<b>handle_call(Msg, From, FsRef, State) -> Result</b>
 %%		types:	Msg = State = any()
@@ -153,7 +154,7 @@
 -type(persistant_opt() :: 'persistant').
 -type(dial_vars_opt() :: {'dial_vars', [{string(), string()}]}).
 -type(dialstring_opt() :: {'dialstring', string()}).
--type(agent_opt() :: {'agent', #agent{}}).
+-type(destination_opt() :: {'destination', string()}).
 -type(dnis_opt() :: {'dnis', string()}).
 -type(no_oncall_on_bridge_opt() :: 'no_oncall_on_bridge').
 -type(start_opt() :: 
@@ -163,7 +164,7 @@
 	persistant_opt() |
 	dial_vars_opt() |
 	dialstring_opt() |
-	agent_opt() |
+	destination_opt() |
 	dnis_opt() |
 	no_oncall_on_bridge_opt()
 ).
@@ -197,12 +198,12 @@ start_link(Fsnode, Callbacks, Options) ->
 	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
 	[{init, 2},
-	{handle_event, 3},
+	{handle_event, 4},
 	{handle_call, 4},
 	{handle_cast, 3},
 	{handle_info, 3},
 	{terminate, 3},
-	{code_change, 4}];
+	{code_change, 3}];
 behaviour_info(_Other) ->
     undefined.
 
@@ -274,7 +275,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 				true -> "park_after_bridge=true";
 				_ -> ""
 			end,
-			DialStringOpts = [
+			PreInitDialStringOpts = [
 					"origination_caller_id_name='"++CallerName++"'",
 					"origination_caller_id_number="++CallerNumber,
 					"hangup_after_bridge="++HangupAfterBridge,
@@ -283,67 +284,66 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					"originate_timeout="++integer_to_list(Ringout),
 					"sip_h_X-DNIS='"++Dnis++"'"
 					| proplists:get_value(dial_vars, Options, [])],
-
-			DialString = case {proplists:get_value(dialstring, Options), proplists:get_value(agent, Options)} of
-				{undefined, AgentRec} when is_record(AgentRec, agent) ->
-					%% warning, this is only safe if freeswitch_media_manager is NOT in the callstack
-					freeswitch_media_manager:get_agent_dial_string(AgentRec, DialStringOpts);
-				{String, AgentRec} when is_record(AgentRec, agent) ->
-					%% usually this is set by calls to freeswitch_ring:start that pass through freeswitch_media_manager
-					freeswitch_media_manager:do_dial_string(String, AgentRec#agent.login, DialStringOpts);
-				{String, undefined} ->
-					String
-			end,
-			case proplists:get_value(call, Options) of
-				undefined ->
-					?INFO("originating ring channel with args:  ~s", [DialString ++ " &park()"]);
-				#call{id = CallId} ->
-					?INFO("originating ring channel for ~p with args: ~p", [CallId, DialString ++ " &park()"])
-			end,
-			case freeswitch:bgapi(Fsnode, originate, DialString ++ " &park()") of
-				ok ->
-					Gethandle = fun(Recusef, Count) ->
-						?DEBUG("Counted ~p", [Count]),
-						case freeswitch:handlecall(Fsnode, UUID) of
-							{error, badsession} when Count > 10 ->
-								{error, badsession};
-							{error, badsession} ->
-								timer:sleep(100),
-								Recusef(Recusef, Count+1);
-							{error, Other} ->
-								{error, Other};
-							Else ->
-								Else
-						end
+			case InitFun({Fsnode, UUID}, Options) of
+				{ok, NewDialStringOpts, CallbackState} ->
+					DialStringOpts = NewDialStringOpts ++ PreInitDialStringOpts,
+					DialString = case {proplists:get_value(dialstring, Options), proplists:get_value(destination, Options)} of
+						{undefined, _} ->
+							exit(bad_dialstring);
+						{BaseDialString, undefined} ->
+							freeswitch_media_manager:do_dial_string(BaseDialString, "", DialStringOpts);
+						{BaseDialstring, Destination} ->
+							% safe because it doesn't dive into fs manager pid
+							freeswitch_media_manager:do_dial_string(BaseDialstring, Destination, DialStringOpts)
 					end,
-					case Gethandle(Gethandle, 0) of
-						{error, badsession} ->
-							?ERROR("bad uuid ~p when calling ~p", [UUID, proplists:get_value(agent, Options)]),
-							{stop, normal};
-						{error, Other} ->
-							?ERROR("other error starting; ~p for ~p", [Other, proplist:get_value(agent, Options)]),
-							{stop, normal};
-						_Else ->
-							?DEBUG("starting for ~p", [UUID]),
-							case InitFun(UUID, Options) of
-								{ok, CallbackState} ->
-									{ok, #state{
-										cnode = Fsnode, 
-										uuid = UUID,
-										options = Options,
-										callbacks = Callbacks#callbacks{state = CallbackState}
-									}};
-								CallbackElse ->
-									CallbackElse
-							end
+					case proplists:get_value(call, Options) of
+						undefined ->
+							?INFO("originating ring channel with args:  ~s", [DialString ++ " &park()"]);
+						#call{id = CallId} ->
+							?INFO("originating ring channel for ~p with args: ~p", [CallId, DialString ++ " &park()"])
+					end,
+					case freeswitch:bgapi(Fsnode, originate, DialString ++ " &park()") of
+						ok ->
+							Gethandle = fun(Recusef, Count) ->
+								?DEBUG("Counted ~p", [Count]),
+								case freeswitch:handlecall(Fsnode, UUID) of
+									{error, badsession} when Count > 10 ->
+										{error, badsession};
+									{error, badsession} ->
+										timer:sleep(100),
+										Recusef(Recusef, Count+1);
+									{error, Other} ->
+										{error, Other};
+									Else ->
+										Else
+								end
+							end,
+							case Gethandle(Gethandle, 0) of
+								{error, badsession} ->
+									?ERROR("bad uuid ~p when calling ~p", [UUID, proplists:get_value(agent, Options)]),
+									{stop, normal};
+								{error, Other} ->
+									?ERROR("other error starting; ~p for ~p", [Other, proplist:get_value(agent, Options)]),
+									{stop, normal};
+								_Else ->
+									?DEBUG("starting for ~p", [UUID]),
+										{ok, #state{
+											cnode = Fsnode, 
+											uuid = UUID,
+											options = Options,
+											callbacks = Callbacks#callbacks{state = CallbackState}
+										}}
+							end;
+						Else ->
+							?ERROR("originate failed with ~p  when calling ~p", [Else, proplists:get_value(agent, Options)]),
+							{stop, normal}
 					end;
 				Else ->
-					?ERROR("originate failed with ~p  when calling ~p", [Else, proplists:get_value(agent, Options)]),
+					?ERROR("create_uuid failed with ~p when trying to call ~p", [Else, proplists:get_value(agent, Options)]),
 					{stop, normal}
 			end;
-		Else ->
-			?ERROR("create_uuid failed with ~p when trying to call ~p", [Else, proplists:get_value(agent, Options)]),
-			{stop, normal}
+		SomeFaile ->
+			{stop, SomeFaile}
 	end.
 
 %%--------------------------------------------------------------------

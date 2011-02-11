@@ -936,7 +936,7 @@ dojo.addOnLoad(function(){
 					debug("n: " + n);
 					debug("password: " + attrs.password);
 					values.password = rsa.encrypt(salt + attrs.password);
-					values.usepersistantringchannel = ! (values.usepersistantringchannel.toString == "");
+					values.usepersistantringchannel = ! (values.usepersistantringchannel.toString() == "");
 					values.useoutbandring = ! (values.useoutbandring.toString() == "");
 					var loginOpts = {
 						success:function(response2){

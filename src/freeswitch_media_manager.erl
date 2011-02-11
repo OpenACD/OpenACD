@@ -347,8 +347,8 @@ handle_call(stop, _From, State) ->
 handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};
 handle_call({ring, sip_registration, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
-	NewOptions = [{dialstring, BaseDialstring}, {destinaton, EndPointData} | Options],
-	Out = freeswitch:ring(State#state.nodename, Callback, NewOptions),
+	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData} | Options],
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
 	{reply, Out, State};
 handle_call({ring, Type, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
@@ -357,9 +357,9 @@ handle_call({ring, Type, EndPointData, Callback, Options}, _From, #state{fetch_d
 		h323 -> "opal/h3232:$1";
 		pstn -> ""
 	end,
-	BaseDialString = proplists:get_value(BaseDialOpts, Type, Default),
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	NewOptions = [{dialstring, BaseDialString}, {destination, EndPointData} | Options],
-	Out = freeswitch:ring(State#state.nodename, Callback, NewOptions),
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
 	{reply, Out, State};
 handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};

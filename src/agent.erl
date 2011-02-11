@@ -443,20 +443,20 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {perisist
 idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
 	Worked = case Agent#agent.endpointtype of
 		{P, _} ->
-			% hardcoded both module and timeout.  Bad, bad man.
+			% TODO hardcoded both module and timeout.  Bad, bad man.
 			freeswitch_ring:ring(P, RecievedCall#call.id, 10);
 		_ ->
 			case cpx:get_env(ring_manager) of
 				undefined ->
 					{error, no_ring_manager};
-				RingManager ->
+				{ok, RingManager} ->
 					% oh goody, more hardcoding.
 					case RingManager:ring(Agent, freeswitch_ring_transient, [
 						{call, RecievedCall}, 
 						{ringout, 10}
 					]) of
 						{ok, _Pid} ->
-							% I'll prolly wanna link to this pid.
+							% TODO I'll prolly wanna link to this pid.
 							ok;
 						RingManagerError ->
 							RingManagerError

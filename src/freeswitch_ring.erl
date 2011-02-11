@@ -239,7 +239,7 @@ init([Fsnode, Module, Options]) when is_atom(Module) ->
 	init([Fsnode, Callbacks, Options]);
 init([Fsnode, CallbackList, Options]) when is_list(CallbackList) ->
 	Callbacks = #callbacks{
-		init = proplists:get_value(init, CallbackList, fun(_, _) -> {ok, undefined} end),
+		init = proplists:get_value(init, CallbackList, fun(_, _) -> {ok, [], <<"dummy_state">>} end),
 		handle_event = proplists:get_value(handle_event, CallbackList, fun(_, _, _, InState) -> {ok, InState} end),
 		handle_call = proplists:get_value(handle_call, CallbackList, fun(_, _, _, InState) -> {reply, ok, InState} end),
 		handle_cast = proplists:get_value(handle_cast, CallbackList, fun(_, _, InState) -> {noreply, InState} end),
@@ -265,7 +265,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 				undefined ->
 					cpx:get_env(default_ringout, 60);
 				RingoutElse ->
-					RingoutElse
+					{ok, RingoutElse}
 			end,
 			HangupAfterBridge = case proplists:get_value(persistant, Options) of
 				true -> "false";
@@ -290,10 +290,11 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					DialString = case {proplists:get_value(dialstring, Options), proplists:get_value(destination, Options)} of
 						{undefined, _} ->
 							exit(bad_dialstring);
-						{BaseDialString, undefined} ->
-							freeswitch_media_manager:do_dial_string(BaseDialString, "", DialStringOpts);
+						{_BaseDialString, undefined} ->
+							exit(bad_destination);
 						{BaseDialstring, Destination} ->
 							% safe because it doesn't dive into fs manager pid
+							?ERROR("ds:  ~s;  dest:  ~s", [BaseDialstring, Destination]),
 							freeswitch_media_manager:do_dial_string(BaseDialstring, Destination, DialStringOpts)
 					end,
 					case proplists:get_value(call, Options) of
@@ -303,7 +304,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 							?INFO("originating ring channel for ~p with args: ~p", [CallId, DialString ++ " &park()"])
 					end,
 					case freeswitch:bgapi(Fsnode, originate, DialString ++ " &park()") of
-						ok ->
+						{ok, _BgApiId} ->
 							Gethandle = fun(Recusef, Count) ->
 								?DEBUG("Counted ~p", [Count]),
 								case freeswitch:handlecall(Fsnode, UUID) of

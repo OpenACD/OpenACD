@@ -708,22 +708,22 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					cdr:ringing(Call, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
-					Self = self(),
-					spawn(fun() -> % do this in a subprocess so we don't block
-						Arec = agent:dump_state(Apid),
-						case {Arec#agent.defaultringpath, CachedCall#call.ring_path, whereis(freeswitch_media_manager)} of
-							{outband, inband, Pid} when is_pid(Pid) ->
-								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
-									{ok, RingChanPid} ->
-										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid});
-									Else ->
-										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
-										undefined
-								end;
-							_ ->
-								undefined
-						end
-					end),
+%					Self = self(),
+%					spawn(fun() -> % do this in a subprocess so we don't block
+%						Arec = agent:dump_state(Apid),
+%						case {Arec#agent.defaultringpath, CachedCall#call.ring_path, whereis(freeswitch_media_manager)} of
+%							{outband, inband, Pid} when is_pid(Pid) ->
+%								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
+%									{ok, RingChanPid} ->
+%										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid});
+%									Else ->
+%										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
+%										undefined
+%								end;
+%							_ ->
+%								undefined
+%						end
+%					end),
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
 					agent:has_successful_ring(Apid),
 					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};

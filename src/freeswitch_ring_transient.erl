@@ -64,7 +64,7 @@
 %% =====
 init(_Fsref, Options) ->
 	{ok, [], #state{
-		call = proplists:get_value(Options, call),
+		call = proplists:get_value(call, Options),
 		no_oncall_on_bridge = proplists:get_value(no_oncall_on_bridge, Options)
 	}}.
 

@@ -83,6 +83,8 @@ handle_cast(_Msg, _FsRef, State) ->
 %% =====
 %% handle_info
 %% =====
+handle_info({stop, Reason}, _FsRef, State) ->
+	{stop, Reason, State};
 handle_info(_Msg, _FsRef, State) ->
 	{noreply, State}.
 
@@ -92,18 +94,25 @@ handle_info(_Msg, _FsRef, State) ->
 handle_event("CHANNEL_ANSWER", _Data, _FsRef, #state{call = undefined} = State) ->
 	{noreply, State};
 handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = Call} = State) ->
-	try gen_media:oncall(Call#call.source) of
-		invalid ->
-			freeswitch:api(FSNode, uuid_park, Call#call.id),
-			{stop, normal, State};
-		ok ->
-			{noreply, State}
-	catch
-		exit:{noproc, _} ->
-			?WARNING("~p died before I could complete the bridge", [Call#call.source]),
-			freeswitch:api(FSNode, uuid_park, Call#call.id),
-			{stop, normal, State}
-	end;
+	%% the freeswitch media will ask self() for some info,
+	%% so the needs to be spawned out.
+	Self = self(),
+	Fun = fun() ->
+		try gen_media:oncall(Call#call.source) of
+			invalid ->
+				freeswitch:api(FSNode, uuid_park, Call#call.id),
+				Self ! {stop, normal};
+			ok ->
+				ok
+		catch
+			exit:{noproc, _} ->
+				?WARNING("~p died before I could complete the bridge", [Call#call.source]),
+				freeswitch:api(FSNode, uuid_park, Call#call.id),
+				Self ! {stop, normal}
+		end
+	end,
+	spawn(Fun),
+	{noreply, State};
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
 	{noreply, State};
 handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = Call} = State) when is_record(Call, call) ->

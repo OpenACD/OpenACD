@@ -169,33 +169,40 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
-handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
+%handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
+%	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+%	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
+%		{ok, _} ->
+%			handle_answer(Apid, Callrec#call{ring_path = outband}, State);
+%		{error, Error} ->
+%			?WARNING("Could not do answer:  ~p", [Error]),
+%			{invalid, State}
+%	end;
+handle_answer(Apid, Callrec, State) ->
 	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
 		{ok, _} ->
-			handle_answer(Apid, Callrec#call{ring_path = outband}, State);
+			RecPath = case cpx_supervisor:get_archive_path(Callrec) of
+				none ->
+					?DEBUG("archiving is not configured for ~p", [Callrec#call.id]),
+					undefined;
+				{error, _Reason, Path} ->
+					?WARNING("Unable to create requested call archiving directory for recording ~p for ~p", [Path, Callrec#call.id]),
+					undefined;
+				Path ->
+					%% get_archive_path ensures the directory is writeable by us and exists, so this
+					%% should be safe to do (the call will be hungup if creating the recording file fails)
+					?DEBUG("archiving ~p to ~s.wav", [Callrec#call.id, Path]),
+					freeswitch:api(State#state.cnode, uuid_setvar, Callrec#call.id ++ " RECORD_APPEND true"),
+					freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
+					Path++".wav"
+			end,
+			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+			{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{invalid, State}
-	end;
-handle_answer(Apid, Callrec, State) ->
-	RecPath = case cpx_supervisor:get_archive_path(Callrec) of
-		none ->
-			?DEBUG("archiving is not configured for ~p", [Callrec#call.id]),
-			undefined;
-		{error, _Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory for recording ~p for ~p", [Path, Callrec#call.id]),
-			undefined;
-		Path ->
-			%% get_archive_path ensures the directory is writeable by us and exists, so this
-			%% should be safe to do (the call will be hungup if creating the recording file fails)
-			?DEBUG("archiving ~p to ~s.wav", [Callrec#call.id, Path]),
-			freeswitch:api(State#state.cnode, uuid_setvar, Callrec#call.id ++ " RECORD_APPEND true"),
-			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
-			Path++".wav"
-	end,
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
-	{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}}.
+	end.
 
 handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -213,15 +220,7 @@ handle_ring({Apid, #agent{endpointtype = {EndpointPid, _EndPointType}}} = Agent,
 			{invalid, State}
 	end;
 handle_ring({Apid, AgentRec}, Callrec, State) ->
-	F = fun(UUID) ->
-		fun(ok, _Reply) ->
-			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
-		(error, Reply) ->
-			?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
-			ok
-		end
-	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [{dial_vars, State#state.dial_vars}]) of
+	case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"itxt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
@@ -229,6 +228,22 @@ handle_ring({Apid, AgentRec}, Callrec, State) ->
 			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
 			{invalid, State}
 	end.
+%	F = fun(UUID) ->
+%		fun(ok, _Reply) ->
+%			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
+%		(error, Reply) ->
+%			?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
+%			ok
+%		end
+%	end,
+%	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [{dial_vars, State#state.dial_vars}]) of
+%		{ok, Pid} ->
+%			link(Pid),
+%			{ok, [{"itxt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
+%		{error, Error} ->
+%			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
+%			{invalid, State}
+%	end.
 
 handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),

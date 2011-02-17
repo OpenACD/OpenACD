@@ -346,11 +346,11 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};
-handle_call({ring, sip_registration, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
+handle_call({ring, {undefined, transient, sip_registration}, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
 	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData} | Options],
 	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
 	{reply, Out, State};
-handle_call({ring, Type, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+handle_call({ring, {undefined, transient, Type}, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";

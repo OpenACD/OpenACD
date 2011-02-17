@@ -30,7 +30,9 @@
 %% @hidden
 -type(voice_type() :: 'sip_registration' | 'sip' | 'iax2' | 'h323' | 'pstn').
 %% first is before it's establish, second is once it's established.
--type(endpointtype() :: {'persistant', voice_type()} | {pid(), voice_type()} | endpointtype()).
+-type(endpointringpid() :: 'undefined' | pid()).
+-type(endpointringpersistance() :: 'transient' | 'persistant').
+-type(endpointtype() :: {endpointringpid(), endpointringpersistance(), voice_type()}).
 -type(release_bias() :: -1 | 0 | 1).
 -type(release_label() :: default | string()).
 -type(release_id() :: string()).
@@ -52,7 +54,7 @@
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchange = util:now() :: pos_integer(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
-	endpointtype = sip_registration :: endpointtype(),
+	endpointtype = {undefined, transient, sip_registration} :: endpointtype(),
 	% data used either to dial the agent on demand or start a perisistant
 	% connection
 	endpointdata = undefined :: 'undefined' | string(),

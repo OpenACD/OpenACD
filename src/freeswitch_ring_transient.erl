@@ -97,7 +97,7 @@ handle_info(_Msg, _FsRef, State) ->
 %% =====
 handle_event("CHANNEL_ANSWER", _Data, _FsRef, #state{call = undefined} = State) ->
 	{noreply, State};
-handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = Call} = State) ->
+handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
 	%% the freeswitch media will ask self() for some info,
 	%% so the needs to be spawned out.
 	Self = self(),
@@ -117,9 +117,22 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = Call} = Sta
 	end,
 	spawn(Fun),
 	{noreply, State};
+handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = State) ->
+	% Ah, this is not a freeswitch call.  If the oncall works, I can die.
+	try gen_media:oncall(Call#call.source) of
+		invalid ->
+			{noreply, State};
+		ok ->
+			freeswitch:api(FsNode, uuid_kill, UUID),
+			{stop, normal, State}
+	catch
+		exit:{noproc, _} ->
+			freeswitch:api(FsNode, uuid_kill, UUID),
+			{stop, normal, State}
+	end;
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
 	{noreply, State};
-handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = Call} = State) when is_record(Call, call) ->
+handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
 	try gen_media:oncall(Call#call.source) of
 		invalid ->
 			freeswitch:api(Fsnode, uuid_park, Call#call.id),
@@ -139,7 +152,8 @@ handle_event(_, _, _, State) ->
 %% terminate
 %% =====
 
-terminate(_Reason, _Fsref, _State) ->
+terminate(Reason, _Fsref, _State) ->
+	?NOTICE("Going down:  ~p", [Reason]),
 	ok.
 
 %% =====

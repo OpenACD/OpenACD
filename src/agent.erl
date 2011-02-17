@@ -440,54 +440,55 @@ idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = 
 idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefined, persistant, _}} = Agent} = State) ->
 	?INFO("~s rejected a ring request since persistant ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
-idle({ringing, RecievedCall = #call{}}, _From, #state{agent_rec = Agent} = State) ->
-	Worked = case Agent#agent.endpointtype of
-		{P, persisitant, _} when is_pid(P) ->
-			% TODO hardcoded both module and timeout.  Bad, bad man.
-			RingWork = freeswitch_ring:ring(P, RecievedCall#call.id, 10),
-			{RingWork, P};
-		{undefined, transient, _} ->
-			case cpx:get_env(ring_manager) of
-				undefined ->
-					{error, no_ring_manager};
-				{ok, RingManager} ->
-					% oh goody, more hardcoding.
-					case RingManager:ring(Agent, freeswitch_ring_transient, [
-						{call, RecievedCall}, 
-						{ringout, 10}
-					]) of
-						{ok, RingPid} ->
-							% TODO I'll prolly wanna link to this pid.
-							{ok, RingPid};
-						RingManagerError ->
-							RingManagerError
-					end
+idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
+	case cpx:get_env(ring_manager) of
+		undefined ->
+			{reply, invalid, idle, State}
+		{ok, RingMan} ->
+			case gen_server:call(RingMan, {ring, Agent, InCall}) of
+				{ok, RingPid, Paths} ->
+					Call = case Paths of
+						both ->
+							InCall#call{ring_path = inband, media_path = inband};
+						answer ->
+							InCall#call{ring_path = inband};
+						hangup ->
+							InCall#call{media_path = inband};
+						neither ->
+							InCall
+					end,
+					NewEp = {RingPid, transient, EpType},
+					gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+					gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+					Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEndPointType},
+					set_cpx_monitor(Newagent, []),
+					{reply, ok, ringing, State#state{agent_rec = Newagent}};
+				Else ->
+					?WARNING("Trying to get ring chan didn't work:  ~p", [Else]),
+					{reply, invalid, idle, State}
+			end
+	end;
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
+	RingPid = case cpx:get_env(ring_manager) of
+		undefined ->
+			undefined;
+		{ok, RingMan} ->
+			case gen_server:call(RingMan, {ring, Agent, InCall}) of
+				{ok, NewRingPid, Paths} ->
+					% TODO do something w/ paths?
+					NewRingPid
+				RingManErr ->
+					?INFO("non-vital failure of the ring manager ~s:  ~p", [RingMan, RingManErr]),
+					undefined
 			end
 	end,
-	case Worked of
-		{ok, WorkingRingPid} ->
-			Call = case Agent#agent.endpointtype of
-				{EndP, persistant, _} when is_pid(EndP) ->
-					% TODO this feels really hacky and icky and gross.
-					RecievedCall#call{ring_path = inband, media_path = inband};
-				_ ->
-					RecievedCall
-			end,
-			NewEndPointType = case Agent#agent.endpointtype of
-				{undefined, transient, Epdata} ->
-					{WorkingRingPid, transient, Epdata};
-				AnyEndPointData ->
-					AnyEndPointData
-			end,
-			gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
-			gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
-			Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEndPointType},
-			set_cpx_monitor(Newagent, []),
-			{reply, ok, ringing, State#state{agent_rec = Newagent}};
-		DidnotWork ->
-			?WARNING("Setting up the ring didn't work:  ~p", [DidnotWork]),
-			{reply, invalid, idle, State}
-	end;
+	NewEp = {RingPid, transient, EpType},
+	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEndPointType},
+	set_cpx_monitor(Newagent, []),
+	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+%% TODO persistant ring channel support
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->

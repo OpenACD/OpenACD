@@ -49,7 +49,9 @@
 		client = undefined :: 'undefined' | #client{}, %#client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: ,
 		skills = [] :: [atom()],
 		cook :: pid() | 'undefined', % gen_media uses this
+		% ring_path really means if the agent fsm can send an answer
 		ring_path = outband :: 'inband' | 'outband' | 'any',
+		% media_path really means if the agent fsm can send a hangup
 		media_path = outband :: 'inband' | 'outband',
 		direction = inbound :: 'inbound' | 'outbound',
 		priority = 40 :: non_neg_integer()

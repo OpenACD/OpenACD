@@ -443,7 +443,7 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefine
 idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
 	case cpx:get_env(ring_manager) of
 		undefined ->
-			{reply, invalid, idle, State}
+			{reply, invalid, idle, State};
 		{ok, RingMan} ->
 			case gen_server:call(RingMan, {ring, Agent, InCall}) of
 				{ok, RingPid, Paths} ->
@@ -460,7 +460,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 					NewEp = {RingPid, transient, EpType},
 					gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 					gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
-					Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEndPointType},
+					Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEp},
 					set_cpx_monitor(Newagent, []),
 					{reply, ok, ringing, State#state{agent_rec = Newagent}};
 				Else ->
@@ -473,19 +473,19 @@ idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefin
 		undefined ->
 			undefined;
 		{ok, RingMan} ->
-			case gen_server:call(RingMan, {ring, Agent, InCall}) of
-				{ok, NewRingPid, Paths} ->
+			case gen_server:call(RingMan, {ring, Agent, Incall}) of
+				{ok, NewRingPid, _Paths} ->
 					% TODO do something w/ paths?
-					NewRingPid
+					NewRingPid;
 				RingManErr ->
 					?INFO("non-vital failure of the ring manager ~s:  ~p", [RingMan, RingManErr]),
 					undefined
 			end
 	end,
 	NewEp = {RingPid, transient, EpType},
-	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+	gen_server:cast(Agent#agent.connection, {change_state, ringing, Incall}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
-	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEndPointType},
+	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Incall, lastchange = util:now(), endpointtype = NewEp},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
 %% TODO persistant ring channel support

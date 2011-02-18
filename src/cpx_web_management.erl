@@ -2057,7 +2057,8 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 						[{RealKey, Else} | Acc]
 				end
 			end,
-			Options = lists:foldl(Builder, [], PostToProp),
+			MidOptions = lists:foldl(Builder, [], PostToProp),
+			Options = [X || {_K, Val} = X <- MidOptions, Val =/= ""],
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), Options],
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,

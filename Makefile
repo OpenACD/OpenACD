@@ -25,7 +25,7 @@ install: compile
 dist: deps
 	GIT_UPDATE_DISABLED=1 ./pre_compile.sh
 	git archive --format tar --prefix OpenACD/ HEAD > $(TARBALL:.gz=)
-	tar -rf $(TARBALL:.gz=) \
+	tar --exclude='*/.git*' -rf $(TARBALL:.gz=) \
 		OpenACD/deps/* \
 		OpenACD/priv/www/contrib/dojo/dojo \
 		OpenACD/priv/www/contrib/dojo/dojox \

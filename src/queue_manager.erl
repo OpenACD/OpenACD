@@ -169,21 +169,23 @@ query_queue(Name) ->
 queues() ->
 	gen_leader:leader_call(?MODULE, queues_as_list).
 
-%% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight,
-%% priority of first bindable call, then by the time the first bindable call has been in queue.
--spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {any(), #queued_call{}}, pos_integer()}]).
+%% @doc Sort queues containing a bindable call.  The queues are sorted from most important to
+%% least by weight, priority of first bindable call, then by the time the first bindable call
+%% has been in queue, influenced by queue service time.
+-spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {any(), #queued_call{}} | 'none', pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),
-	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V)]],
-	% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
-	List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2}) -> T1 =< T2 end, List1),
+	List1 = [{K, V, Call, W, LS} || {K, V} <- List, {Call, W, LS} <- [call_queue:selection_info(V)], Call =/= none],
+	% sort queues by queuetime of first bindable call, longest first - the time the queue was last serviced is taken into account
+	List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1, LS1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2, LS2}) ->
+				(timer:now_diff(T1, LS1) div 1000000)  =< (timer:now_diff(T2, LS2) div 1000000) end, List1),
 	% sort queues by priority of first bindable call, lowest is higher priority
-	List3 = lists:sort(fun({_K1, _V1,{{P1, _T1}, _Call1}, _W1}, {_K2, _V2,{{P2, _T2}, _Call2}, _W2}) -> P1 =< P2 end, List2),
+	List3 = lists:sort(fun({_K1, _V1,{{P1, _T1}, _Call1}, _W1, _LS1}, {_K2, _V2,{{P2, _T2}, _Call2}, _W2, _LS2}) -> P1 =< P2 end, List2),
 	% sort queues by queue weight, highest first and return the result
-	List4 = lists:sort(fun({_K1, _V1,{{_P1, _T1}, _Call1}, W1}, {_K2, _V2,{{_P2, _T2}, _Call2}, W2}) -> W1 >= W2 end, List3),
+	List4 = lists:sort(fun({_K1, _V1,{{_P1, _T1}, _Call1}, W1, _LS1}, {_K2, _V2,{{_P2, _T2}, _Call2}, W2, _LS2}) -> W1 >= W2 end, List3),
 	Len = length(List4),
 	% C is the index/counter
-	util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4).
+	util:list_map_with_index(fun(C, {K, V, Call, Weight, _LS}) -> {K, V, Call, Weight + Len - C} end, List4).
 
 %% @doc Stops the local `queue_manager' for reason `normal'
 -spec(stop/0 :: () -> 'ok').

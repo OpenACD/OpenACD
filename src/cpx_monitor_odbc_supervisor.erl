@@ -521,7 +521,7 @@ build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 				agent_id = Login
 			}
 	end;
-build_event_log(#event_log_row{event_type = call_complete} = E, Props) ->
+build_event_log(#event_log_row{event_type = call_complete} = E, _Props) ->
 	E#event_log_row{
 		acd_name = undefined
 	};
@@ -580,10 +580,10 @@ send_events(_Pid, [Head | Tail], Acc) ->
 	NewAcc = [{make_ref(), Head} | Acc],
 	send_events(undefined, Tail, NewAcc).
 	
--spec monotonic_counter() -> float().
-monotonic_counter() ->
-	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
-	MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000.
+%-spec monotonic_counter() -> float().
+%monotonic_counter() ->
+%	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
+%	MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000.
 
 % generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601
 %-spec iso8601_timestamp() -> string().

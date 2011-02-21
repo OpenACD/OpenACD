@@ -380,13 +380,13 @@ determine_language([]) ->
 	"";
 determine_language([Head | Tail]) ->
 	[Lang |_Junk] = util:string_split(Head, ";"),
-	case filelib:is_regular(string:concat(string:concat(util:priv_dir("www/admin/lang/nls/"), Lang), "/labels.js")) of
+	case filelib:is_regular(filename:join([util:priv_dir("www/admin/lang/nls/"), Lang, "labels.js"])) of
 		true ->
 			Lang;
 		false ->
 			% try the "super language" (eg en vs en-us) in case it's not in the list itself
 			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
-			case filelib:is_regular(string:concat(string:concat(util:priv_dir("/www/admin/lang/nls/"), SuperLang), "/labels.js")) of
+			case filelib:is_regular(filename:join([util:priv_dir("www/admin/lang/nls/"), SuperLang, "labels.js"])) of
 				true ->
 					SuperLang;
 				false ->
@@ -418,9 +418,9 @@ api(dialer, _, Post) ->
 	Vars = util:string_split(proplists:get_value("vars", Post, ""), ","),
 
 	try
+		?DEBUG("starting dialer w/ args ~p", [[NodeString, Number, Exten, SkillStrings, Client, Vars]]),
 		Node = list_to_existing_atom(NodeString),
 		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
-		?DEBUG("starting dialer", []),
 		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
 			{ok, _Pid} ->
 				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
@@ -430,7 +430,8 @@ api(dialer, _, Post) ->
 	of
 		Res -> Res
 	catch
-		_:_ ->
+		What:Why ->
+			?DEBUG("dialer failed: ~p:~p", [What, Why]),
 			{500, [], mochijson2:encode({struct, [{success, false}, {message, bad_params}]})}
 	end;
 api(_Apirequest, badcookie, _Post) ->
@@ -441,7 +442,7 @@ api(_Apirequest, badcookie, _Post) ->
 api(getsalt, {Reflist, _Salt, Login}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(cpx_management_logins, {Reflist, Newsalt, Login}),
-	[E, N] = get_pubkey(),
+	[E, N] = util:get_pubkey(),
 	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
@@ -1092,6 +1093,12 @@ api({modules, "poll"}, ?COOKIE, _Post) ->
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
+			{cdr_tcp_pusher, #cpx_conf{
+				id = cdr_tcp_pusher,
+				module_name = cdr_tcp_pusher,
+				start_function = start_link,
+				start_args = []
+			}},
 			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
 			{cpx_monitor_odbc_supervisor, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_odbc_supervisor], 2000)},
 			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)},
@@ -1133,7 +1140,7 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 	end || {Node, Uptime, Confs} <- DataRaw],
 	Json = {struct, [
 		{success, true},
-		{nodes, {struct, Jsonable}}
+		{nodes, {struct, Jsonable}} | Error
 	]},
 	{200, [], mochijson2:encode(Json)};
 
@@ -1141,6 +1148,50 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 %% modules -> node -> modules
 %% =====
 
+api({modules, Node, "cdr_tcp_pusher", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cdr_tcp_pusher]) of
+		#cpx_conf{start_args = Props} ->
+			FixedProps = [case X of
+				{server, S} ->
+					{server, list_to_binary(S)};
+				_ ->
+					X
+			end || X <- Props],
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true} | FixedProps]})};
+		_ ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})}
+	end;
+api({modules, Node, "cdr_tcp_pusher", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		"true" ->
+			FixProps = fun
+				({"port", Val}, Acc) ->
+					[{port, list_to_integer(Val)} | Acc];
+				({"server", Val}, Acc) ->
+					[{server, Val} | Acc];
+				(_, Acc) ->
+					Acc
+			end,
+			StartArgs = lists:foldl(FixProps, [], Post),
+			Conf = #cpx_conf{
+				id = cdr_tcp_pusher,
+				module_name = cdr_tcp_pusher,
+				start_function = start_link,
+				start_args = [StartArgs]
+			},
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cdr_tcp_pusher, Conf]) of
+				{atomic, {ok, _Pid}} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				Else ->
+					?WARNING("Updating cdr_tcp_pusher failed:  ~p", [Else]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start cdr_tcp_pusher">>}]})}
+			end;
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cdr_tcp_pusher]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
 api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of
@@ -1186,7 +1237,7 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, Post) ->
+api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
 		#cpx_conf{start_args = Port} ->
@@ -1230,7 +1281,7 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_tcp_listener]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, Post) ->
+api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_dialplan_listener]) of
 		undefined ->
@@ -1796,6 +1847,14 @@ api({modules, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+api({modules, Node, "cpx_supervisor", "get", "exit_on_max_ring_fails"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [exit_on_max_ring_fails]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"value">>, false}]})};
+		{ok, _} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"value">>, true}]})}
+	end;
 api({modules, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [mantispath]) of
@@ -1827,14 +1886,14 @@ api({modules, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) 
 	end;
 api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	Truedefault = ?DEFAULT_RINGOUT * 1000,
+	Truedefault = ?DEFAULT_RINGOUT,
 	case rpc:call(Atomnode, cpx, get_env, [default_ringout]) of
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		{ok, Truedefault} ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		{ok, Val} ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val / 1000}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
@@ -1876,6 +1935,18 @@ api({modules, Node, "cpx_supervisor", "update", "plugin_dir"}, ?COOKIE, Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+api({modules, Node, "cpx_supervisor", "update", "exit_on_max_ring_fails"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	{Func, Args} = case proplists:get_value("value", Post) of
+		"true" -> {set_value, [exit_on_max_ring_fails, true]};
+		_ -> {drop_value, [exit_on_max_ring_fails]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
 api({modules, Node, "cpx_supervisor", "update", "max_ringouts"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Val = case proplists:get_value("value", Post) of
@@ -1907,8 +1978,8 @@ api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Pos
 		Else ->
 			list_to_integer(Else)
 	end,
-	case rpc:call(Atomnode, application, set_env, [cpx, default_ringout, Val * 1000]) of
-		ok ->
+	case rpc:call(Atomnode, cpx_supervisor, set_value, [default_ringout, Val]) of
+		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Err ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}]})}
@@ -1986,7 +2057,8 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 						[{RealKey, Else} | Acc]
 				end
 			end,
-			Options = lists:foldl(Builder, [], PostToProp),
+			MidOptions = lists:foldl(Builder, [], PostToProp),
+			Options = [X || {_K, Val} = X <- MidOptions, Val =/= ""],
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), Options],
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
@@ -2418,23 +2490,6 @@ check_cookie(Allothers) ->
 			end
 	end.
 
-get_pubkey() ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			"../key";
-		Val ->
-			filename:join(Val, "key")
-	end,
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	[E, N].
-
 -spec(parse_posted_skills/1 :: (PostedSkills :: [string()]) -> [atom() | {atom(), string()}]).
 parse_posted_skills(PostedSkills) ->
 	parse_posted_skills(PostedSkills, []).
@@ -2467,12 +2522,7 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
-	Key = case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			"./key";
-		Val ->
-			filename:join(Val, "key")
-	end,
+	Key = util:get_keyfile(),
 	% TODO - this is going to break again for R15A, fix before then
 	Entry = case public_key:pem_to_der(Key) of
 		{ok, [Ent]} ->

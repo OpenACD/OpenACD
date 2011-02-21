@@ -35,6 +35,31 @@ function errMessage(message){
 	dijit.byId('errorDialog').show();
 }
 
+function flashSuccess(parentNode){
+	if(! parentNode){
+		parentNode = dojo.doc.body;
+	}
+	if(dojo.byId('successNode') == null){
+		dojo.create('div', {
+			'class':'successBox',
+			'innerHTML':'Success!',
+			'id':'successNode'
+		}, dojo.doc.body, 'last');
+	}
+	dojo.place(dojo.byId('successNode'), parentNode, 'last');
+	dojo.fadeIn({
+		node:'successNode',
+		duration:1000,
+		onEnd:function(){
+			dojo.fadeOut({
+				node:'successNode',
+				duration:1000,
+				delay:1500
+			}).play();
+		}
+	}).play();
+}
+
 function inArray(needle, haystack){
 	for(var i = 0; i < haystack.length; i++){
 		if(haystack[i] == needle){

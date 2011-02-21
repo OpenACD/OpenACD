@@ -155,7 +155,7 @@ handle_ring(Apid, Callrec, State) ->
 			ok
 		end
 	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, ?getRingout, F) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, agent_pid = Apid}};
@@ -279,7 +279,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			AgentState = agent:dump_state(AgentPid),
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, ?getRingout, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
@@ -376,7 +376,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 
 			AgentState = agent:dump_state(AgentPid),
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, []) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, ?getRingout, F, []) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};
@@ -468,7 +468,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 			end,
 			true
 	end,
-	case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
+	case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, ?getRingout, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
 		{ok, Pid} ->
 			link(Pid),
 			cdr:dialoutgoing(Call, Number),

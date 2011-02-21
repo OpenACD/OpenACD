@@ -194,6 +194,9 @@ merge_env() ->
 		{aborted, {no_exists, {cpx_value, index}}} ->
 			application:set_env('OpenACD', locked_env, [uptime]),
 			ok;
+		{aborted, {no_exists, cpx_value}} ->
+			application:set_env('OpenACD', locked_env, [uptime]),
+			ok;
 		{atomic, Cpxdb} ->
 			Locked = [uptime | [Key || {Key, _} <- application:get_all_env('OpenACD')]],
 			application:set_env('OpenACD', locked_env, Locked),

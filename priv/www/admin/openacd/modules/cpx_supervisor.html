@@ -7,7 +7,7 @@
 	config file.  Settings in the config file override these, even if
 	these are changed.  None of them are in the config file by default.
 </p>
-
+<hr />
 <p>
 	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
 	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
@@ -33,7 +33,7 @@
 	<li>calltype - email, voice, voicemail ...</li>
 	<li>calldirection - inbound or outbound</li>
 </ul>
-
+<hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="mantisConnectForm">
 <p>
 	<label for="mantisPath" class="translatecol">MANTISPATH</label>
@@ -48,6 +48,7 @@
 	</button>
 </p>
 </form>
+<hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="transferDialogForm">
 <p class="translate">TRANSFER_OPTIONS_EXPLAINATION</p>
 <p>
@@ -86,6 +87,7 @@
 	</button>
 </p>
 </form>
+<hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setDefaultRingoutForm">
 <p class="translate">DEFAULT_RINGOUT_EXPLANATION</p>
 <p>
@@ -106,6 +108,7 @@
 	</button>
 </p>
 </form>
+<hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setMaxRingoutsForm">
 <p class="translate">MAX_RINGOUTS_EXPLANATION</p>
 <p>
@@ -126,6 +129,25 @@
 	</button>
 </p>
 </form>
+<hr />
+<p>
+	<label for="exitMaxRingFails">&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="exitMaxRingFails" id="exitMaxRingFails" />
+	<span>Agents Exit after max ring failures</span>
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			if(dijit.byId('exitMaxRingFails').get('checked')){
+				CPXSupervisor.setExitMaxRingFails(true);
+			} else {
+				CPXSupervisor.setExitMaxRingFails(false);
+			}
+		</script>
+	</button>
+</p>
+<hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setPluginDirForm">
 <p>Tells OpenACD to start "plugin applications".  A plugin application is an
  erlang app the runs on the same node as OpenACD.  They are responsible for 

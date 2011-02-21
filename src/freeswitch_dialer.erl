@@ -86,7 +86,7 @@ start(Node, Number, Exten, Skills, Client, Vars) ->
 
 -spec(start_fg/6 :: (Node :: atom(), Number :: string(), Exten :: string(), Skills :: skill_list(), Client :: string(), Vars :: [any()]) -> {'ok', pid()}).
 start_fg(Node, Number, Exten, Skills, Client, Vars) ->
-	case gen_server:start_link(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
+	case gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
 		{ok, _Pid} ->
 			receive
 				{dialer_result, Result} ->
@@ -130,7 +130,7 @@ handle_info(reserve_agent, State) ->
 	case reserve_agent(State) of
 		{stop, no_agents} ->
 			erlang:send_after(5000, self(), reserve_agent),
-			{ok, State};
+			{noreply, State};
 		{ok, State} ->
 			{noreply, State};
 		{stop, Reason} ->
@@ -140,20 +140,20 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UU
 	Event = proplists:get_value("Event-Name", Rest),
 	case Event of
 		"CHANNEL_PARK" ->
-			AgentRec = agent:dump_state(element(2, State#state.agent)),
+			AgentRec = agent:dump_state(State#state.agent),
 			?INFO("call got parked, send them to an agent at ~p", [freeswitch_media_manager:get_agent_dial_string(AgentRec, [])]),
 			freeswitch:sendmsg(Node, UUID,
 				[{"call-command", "execute"},
 					{"execute-app-name", "bridge"},
 					{"execute-app-arg",
 						freeswitch_media_manager:get_agent_dial_string(AgentRec, [])}]),
-			%agent:set_state(element(2, State#state.agent), ringing, State#state.call);
+			%agent:set_state(State#state.agent, ringing, State#state.call);
 			{noreply, State};
 		"CHANNEL_BRIDGE" ->
 			%Hey, we bridged to an agent
-			agent:set_state(element(2, State#state.agent), outgoing, State#state.call),
+			agent:set_state(State#state.agent, outgoing, State#state.call),
 			Client = State#state.client,
-			url_pop(element(2, State#state.agent), [{"callid", State#state.uuid}, {"number", State#state.number}, {"clientid", Client#client.id}, {"ivroption", proplists:get_value("variable_ivropt", Rest, "")}]), % the 2rd parameter is the interpolatable variables.
+			url_pop(State#state.agent, [{"callid", State#state.uuid}, {"number", State#state.number}, {"clientid", Client#client.id}, {"ivroption", proplists:get_value("variable_ivropt", Rest, "")}]), % the 2rd parameter is the interpolatable variables.
 			{noreply, State};
 		"CHANNEL_ANSWER" when is_pid(State#state.fg_pid) ->
 			State#state.fg_pid ! {dialer_result, {ok, self()}},
@@ -168,8 +168,8 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UU
 handle_info(call_hangup, State) ->
 	?DEBUG("Call hangup info", []),
 	% channel hungup, set the agent back to a sane state
-	agent:set_state(element(2, State#state.agent), idle),
-	agent:set_state(element(2, State#state.agent), wrapup, State#state.call),
+	agent:set_state(State#state.agent, idle),
+	agent:set_state(State#state.agent, wrapup, State#state.call),
 	{stop, normal, State};
 handle_info(_Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
@@ -183,7 +183,7 @@ code_change(_Oldvsn, State, _Extra) ->
 
 grab_agent([], _Call) ->
 	none;
-grab_agent([{_Login, Pid, _Time, _AgentRec} = Agent | Agents], Call) ->
+grab_agent([{_, {Pid, _ID, _Skills} = Agent} | Agents], Call) ->
 	case agent:set_state(Pid, precall, Call) of
 		ok ->
 			{ok, Agent};
@@ -198,7 +198,7 @@ reserve_agent(State) ->
 	case grab_agent(Agents, Call) of
 		none ->
 			{stop, no_agents};
-		{ok, Agent} ->
+		{ok, {AgentPid, _ID, _Skills} = Agent} ->
 			% so, we've reserved an agent, time to do make an outvound call
 			% sadly freeswitch_ring isn't generic enough to be useful here, so we have to do it ourselves for now
 			Client = State#state.client,
@@ -233,19 +233,19 @@ reserve_agent(State) ->
 					case Gethandle(Gethandle, 0) of
 						{error, badsession} ->
 							?ERROR("bad uuid ~p when calling ~p", [UUID, State#state.number]),
-							agent:set_state(element(2, Agent), idle),
+							agent:set_state(AgentPid, idle),
 							{stop, bad_uuid};
 						{error, Other} ->
 							?ERROR("other error starting; ~p for ~p", [Other, State#state.number]),
-							agent:set_state(element(2, Agent), idle),
+							agent:set_state(AgentPid, idle),
 							{stop, unknown_error};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, State#state{agent = Agent, call = Call}}
+							{ok, State#state{agent = AgentPid, call = Call}}
 					end;
 				Else ->
 					?ERROR("originate failed with ~p  when calling ~p", [Else, State#state.number]),
-					agent:set_state(element(2, Agent), idle),
+					agent:set_state( AgentPid, idle),
 					{stop, originate_failed}
 			end
 	end.

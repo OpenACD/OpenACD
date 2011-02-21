@@ -75,7 +75,8 @@
 	add_skills/3,
 	remove_skills/3,
 	call_count/1,
-	call_count_by_client/2
+	call_count_by_client/2,
+	selection_info/1
 ]).
 
 -type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
@@ -85,7 +86,9 @@
 	name = erlang:error({undefined, name}) :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
-	call_skills = [english, '_node'] :: [atom()]}).
+	call_skills = [english, '_node'] :: [atom()],
+	last_service = os:timestamp() ::{pos_integer(), pos_integer(), pos_integer()}
+}).
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
@@ -347,6 +350,11 @@ expand_magic_skills(State, Call, Skills) ->
 migrate(Qpid, Node) ->
 	gen_server:cast(Qpid, {migrate, Node}).
 
+%% @doc Retrieve info used to sort queues for dispatcher binding.
+-spec(selection_info/1 :: (Qpid :: pid()) -> {{key(), #queued_call{}} | 'none', pos_integer(), non_neg_integer()}).
+selection_info(Qpid) ->
+	gen_server:call(Qpid, selection_info).
+
 %=====
 % gen_server callbacks
 %=====
@@ -438,7 +446,7 @@ handle_call(grab, {From, _Tag}, State) ->
 			{reply, none, State};
 		{Key, Value} ->
 			link(From), % to catch exits from the dispatcher so we can clean out dead pids
-			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue)},
+			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue), last_service=os:timestamp()},
 			Value#queued_call.cook ! grab, % notify the cook that we grabbed
 			{reply, {Key, Value}, State2}
 	end;
@@ -502,6 +510,9 @@ handle_call({call_count_by_client, Client}, _From, State) ->
 				#call{client = Client2} = gen_media:get_call(Qcall#queued_call.media), Client#client.id == Client2#client.id
 		end, gb_trees:values(State#state.queue))),
 	{reply, Count, State};
+
+handle_call(selection_info, {From, _tag}, State) ->
+	{reply, {find_unbound(State#state.queue, From), State#state.weight, State#state.last_service}, State};
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.

@@ -1,0 +1,231 @@
+//	The contents of this file are subject to the Common Public Attribution
+//	License Version 1.0 (the “License”); you may not use this file except
+//	in compliance with the License. You may obtain a copy of the License at
+//	http://opensource.org/licenses/cpal_1.0. The License is based on the
+//	Mozilla Public License Version 1.1 but Sections 14 and 15 have been
+//	added to cover use of software over a computer network and provide for
+//	limited attribution for the Original Developer. In addition, Exhibit A
+//	has been modified to be consistent with Exhibit B.
+//
+//	Software distributed under the License is distributed on an “AS IS”
+//	basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+//	License for the specific language governing rights and limitations
+//	under the License.
+//
+//	The Original Code is OpenACD.
+//
+//	The Initial Developers of the Original Code is 
+//	Andrew Thompson and Micah Warren.
+//
+//	All portions of the code written by the Initial Developers are Copyright
+//	(c) 2008-2009 SpiceCSM.
+//	All Rights Reserved.
+//
+//	Contributor(s):
+//
+//	Andrew Thompson <andrew at hijacked dot us>
+//	Micah Warren <micahw at lordnull dot com>
+//
+
+import "cpx_base.proto";
+
+package openacd.agent;
+
+// The list of requests the server supports.
+// Media commands are forwarded to media modules,
+// thus they are not defined here.
+enum RequestHint {
+	CHECK_VERSION = 1;
+	GET_SALT = 2;
+	LOGIN = 3;
+	GET_BRAND_LIST = 4;
+	GET_QUEUE_LIST = 5;
+	GET_RELEASE_OPTS = 6;
+	GET_QUEUE_TRANSFER_OPTS = 7;
+	GET_PROFILES = 8;
+	GET_AVAIL_AGENTS = 9;
+	GO_IDLE = 10;
+	LOAD_MEDIA = 11;
+	MEDIA_HANGUP = 12;
+	RING_TEST = 13;
+	WARM_TRANSFER_BEGIN = 14;
+	WARM_TRANSFER_COMPLETE = 15;
+	WARM_TRANSFER_CANCEL = 16;
+	GO_RELEASED = 17;
+	LOGOUT = 18;
+	DIAL = 19;
+	AGENT_TRANSFER = 20;
+	MEDIA_COMMAND = 21;
+	QUEUE_TRANSFER = 23;
+	INIT_OUTBOUND = 24;
+	MEDIA_ANSWER = 25;
+}
+
+// The wrapper for agent requests.  These are sent by the agent,
+// and consumed by the server.  The server will never send one of thse
+// out.
+message AgentRequest {
+	// reference number used by the server when replying.
+	required int64 request_id = 1;
+	// type of request
+	required RequestHint request_hint = 2;
+	optional LoginRequest login_request = 3;
+	optional AgentTransferRequest agent_transfer = 4;
+	optional string dial_request = 5;
+	optional InitOutboundRequest init_outbound_request = 6;
+	optional MediaCommandRequest media_command_request = 7;
+	optional QueueTransferRequest queue_transfer_request = 8;
+	optional WarmTransferRequest warm_transfer_request = 9;
+	optional GoReleasedRequest go_released_request = 11;
+	optional AgentClientVersion agent_client_version = 12;
+}
+
+// The wrapper for messages coming from the server to the client.
+// Since message can either be in reply to a request (see above)
+// or concerning new events (like an agent starts ringing), the 
+// type hint here is event vs reply.
+message ServerMessage {
+	enum TypeHint {
+		REPLY = 1;
+		EVENT = 2;
+	}
+	required  TypeHint type_hint = 1;
+	optional ServerReply reply = 2;
+	optional ServerEvent event = 3;
+}
+
+// This message is in reference to a request made by an agent earlier.
+message ServerReply {
+	// The id the agent provided for it's request.
+	required int64 request_id = 1;
+	// the request hint the agent provided.
+	required RequestHint request_hinted = 2;
+	// if the request was successfuly carried out.
+	required bool success = 3;
+	// if there was problem, this is the english human message.
+	optional string error_message = 4; //default english error message
+	// A localization type code on what the error is.
+	// May lack the details the error_message has.
+	optional string error_code = 5;
+	repeated Release release_opts = 6;
+	repeated AvailAgent agents = 7;
+	repeated SimpleKeyValue queues = 8;
+	repeated SimpleKeyValue brands = 9;
+	repeated string profiles = 10;
+	optional QueueTransferOptions queue_transfer_opts = 11;
+	// Very media dependant.
+	optional MediaCommandReply media_command_reply = 12;
+	optional SaltReply salt_and_key = 13;
+	// Very media dependant
+	optional MediaEvent media_event = 14;
+}
+
+// An agent client MUST at least understand the A* commands.  Event 
+// media_event, because those will only occur while the agent is oncall.
+// If the agent could not handle that media inband, it should not have 
+// answered the call.
+enum ServerCommand {
+	ASTATE = 1;
+	APROFILE = 2;
+	ABLAB = 3;
+	AURLPOP = 4;
+	MEDIA_EVENT = 5;
+}
+
+message AvailAgent {
+	required string name = 1;
+	required string profile = 2;
+	required AgentState state = 3;
+}
+
+// Events the agent did not ask about, like going ringing.
+message ServerEvent {
+	required ServerCommand command = 1;
+	optional string profile = 2;
+	optional StateChange state_change = 3;
+	optional CallRecord call_data = 4;
+	optional string text_message = 6;
+	optional string number_dialed = 7;
+	optional ClientRecord client = 8;
+	optional string url = 9;
+	optional string url_window = 10;
+	optional MediaEvent media_event = 11;
+}
+
+message MediaCommandRequest {
+	required bool need_reply = 1;
+	extensions 2000 to max;
+}
+
+message MediaCommandReply {
+	extensions 2000 to max;
+}
+
+message MediaEvent {
+	extensions 2000 to max;
+}
+
+message AgentClientVersion {
+	required int32 major = 1 [default=0];
+	required int32 minor = 2 [default=1];
+}
+
+message LoginRequest {
+	enum VoipEndpoint {
+		SIP = 1;
+		SIP_REGISTRATION = 2;
+		IAX = 3;
+		H323 = 4;
+		PSTN = 5;
+	}
+	required string username = 1;
+	required string password = 2;
+	optional VoipEndpoint voipendpoint = 3 [default=SIP];
+	optional string voipendpointdata = 4;
+}
+
+message AgentTransferRequest {
+	required string agent_id = 1;
+	// eventually the below will be depricated in favor of a more generic 
+	// data exchange structure.  For parity w/ web interface, it's a caseid
+	// for now.
+	optional string other_data = 2;
+}
+
+message InitOutboundRequest {
+	required string client_id = 1;
+	required string media_type = 2;
+}
+
+message QueueTransferRequest {
+	required string queue_name = 1;
+	required QueueTransferOptions transfer_options = 2;
+}
+
+message QueueTransferOptions {
+	repeated SimpleKeyValue options = 1;
+	repeated Skill skills = 2;
+}
+
+message WarmTransferRequest {
+	required string number = 1;
+}
+
+message GoReleasedRequest {
+	optional bool use_default = 1;
+	optional Release release_opt = 2;
+}
+
+message SaltReply {
+	required string salt = 1;
+	required string pubkey_e = 2;
+	required string pubkey_n = 3;
+}
+
+message StateChange {
+	required AgentState agent_state = 1;
+	optional CallRecord call_record = 2;
+	optional Release release = 3;
+	optional ClientRecord client = 4;
+	optional string warm_transfer_number = 5;
+}

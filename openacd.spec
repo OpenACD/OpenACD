@@ -8,7 +8,7 @@ Packager: Douglas Hubler
 License: CPAL
 AutoReqProv: no
 URL: http://github.com/Vagabond/OpenACD/wiki
-Source: %{name}-%{version}.tar.gz
+Source: OpenACD.tar.gz
 
 # openssh for ssh-keygen command
 BuildRequires: openssh

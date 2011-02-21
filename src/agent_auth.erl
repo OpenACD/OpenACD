@@ -73,7 +73,7 @@
 	new_profile/1,
 	new_profile/2,
 	set_profile/2,
-        set_profile/3,
+	set_profile/3,
 	get_profile/1,
 	get_profiles/0,
 	destroy_profile/1
@@ -177,7 +177,7 @@ new_profile(Name, Skills) ->
 
 -spec(set_profile/3 :: (Oldname :: string(), Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Name, Skills) ->
-        Old = agent_auth:get_profile(Oldname),
+	Old = agent_auth:get_profile(Oldname),
 	New = #agent_profile{
 		name = Name,
 		skills = Skills

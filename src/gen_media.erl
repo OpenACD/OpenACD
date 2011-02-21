@@ -27,12 +27,12 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Behaviour module for media types in the Spice-Telephony software.
-%% Gen_media uses gen_server as the underlying framework for what it does.
-%% It has a few specific call, cast, and info callbacks it implements, 
-%% everything else it passes to it's callback module to process.  Replies from 
-%% handle_call, handle_cast, and handle_info are extended to allow for specific 
-%% events only media would need.
+%% @doc Behaviour module for media types.  Gen_media uses gen_server as 
+%% the underlying framework for what it does.  It has a few specific call, 
+%% cast, and info callbacks it implements, everything else it passes to 
+%% it's callback module to process.  Replies from handle_call, handle_cast,
+%% and handle_info are extended to allow for specific events only media 
+%% would need.
 %%
 %%	Callback functions:
 %%
@@ -42,20 +42,21 @@
 %%				Route_hint = {Queue, #call{}} | undefined | #call{}
 %%					Queue = string()
 %%
-%%		When gen_media starts, this function is called.  It should initialize
-%%		all required data.
+%%		When gen_media starts, this function is called.  It should 
+%%		initialize all required data.
 %%
-%%		Some media may not be able to provide a call record on start-up, thus
-%%		allowing the media to finish prepping and then queue later.
+%%		Some media may not be able to provide a call record on start-up, 
+%%		thus allowing the media to finish prepping and then queue later.
+%%
 %%	<b>urlpop_getvars(State) -> UrlOptions</b>
 %%		types:	State = any()
 %%				UrlOptions = [{string(), string()}]
 %%
-%%		When a call rings to an agent, if a pop url is configured, get variables
-%%		are appended to the end.  If this is set, get_url_getvars/1 will 
-%%		call it and merge the results to what will be used when ringing 
-%%		an agent.  Options set via set_url_getvars/2 super-ceede those 
-%%		returned by the callback module.
+%%		When a call rings to an agent, if a pop url is configured, get 
+%%		variables are appended to the end.  If this is set, 
+%%		get_url_getvars/1 will call it and merge the results to what will 
+%%		be used when ringing an agent.  Options set via set_url_getvars/2 
+%%		super-ceede those returned by the callback module.
 %%
 %%		At the time of this doc, the agent web interface prompts the agent
 %%		to adjust the url pop options when doing a queue transfer.
@@ -69,38 +70,38 @@
 %%					UrlOptions = [{string(), string()}]
 %%					NewState = any()
 %%
-%%		When a call must ring to an agent (either due to out of queue or the 
-%%		start of a transfer), this is called.
+%%		When a call must ring to an agent (either due to out of queue or 
+%%		the start of a transfer), this is called.
 %%
-%%		Agent is the pid of the agent that will be set to ringing if Result is
-%%		{ok, NewState} or {ok, UrlOptions, NewState}.
+%%		Agent is the pid of the agent that will be set to ringing if 
+%%		Result is {ok, NewState} or {ok, UrlOptions, NewState}.
 %%
 %%		Call is the #call{} maintained by the gen_media and passed in for 
 %%		Reference.
 %%		
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState} or {ok, UrlOptions, NewState}, Agent is set 
-%%		to ringing, and execution continues with NewState.  A url_pop is sent to
-%%		the agent is the client for the media is set to have one.  In the case
-%%		of {ok, UrlOptions, NewState}, the UrlOptions are appened to the url as
-%%		a query (get) string.
+%%		If Result is {ok, NewState} or {ok, UrlOptions, NewState}, Agent 
+%%		is set to ringing, and execution continues with NewState.  A 
+%%		url_pop is sent to the agent is the client for the media is set to 
+%%		have one.  In the case of {ok, UrlOptions, NewState}, the 
+%%		UrlOptions are appened to the url as a query (get) string.
 %%
-%%		Note that UrlOptions can be set by the agent before a queue transfer
-%%		occurs.  In this case, before the transfer is made, urlpop_getvars/1
-%%		should be used to present the agent with a chance to adjust the 
-%%		url pop.
+%%		Note that UrlOptions can be set by the agent before a queue 
+%%		transfer occurs.  In this case, before the transfer is made, 
+%%		urlpop_getvars/1 should be used to present the agent with a chance 
+%%		to adjust the url pop.
 %%
-%%		If Result is {invalid, NewState}, Agent is set to idle, and execution
-%%		continues with NewState.
+%%		If Result is {invalid, NewState}, Agent is set to idle, and 
+%%		execution continues with NewState.
 %%
 %%	<b>handle_ring_stop(Call, State) -> Result</b>
 %%		types:	Call = #call{}
 %%				State = any()
 %%				Result = {ok, NewState}
 %%
-%%		When an agent should no longer be ringing, such as due to ringout, this
-%%		function is called.
+%%		When an agent should no longer be ringing, such as due to ringout, 
+%%		this function is called.
 %%
 %%		State is the internal state of the gen_media callbacks.
 %%
@@ -116,19 +117,21 @@
 %%		When an agent should be placed on call after ringing, this function
 %%		is called.
 %%
-%%		Agent is the agent that will be set oncall if Result is {ok, NewState}.
+%%		Agent is the agent that will be set oncall if Result is 
+%%		{ok, NewState}.
 %%
 %%		Call is the #call{} the agent will be answering.
 %%
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState} and the callpath is inband, it is assumed 
-%%		the agent has already set themselves oncall.  If it is out of band,
-%%		the agent is set to oncall.  The callback module can always safely
-%%		assume the agent is oncall.  Execution then continues with NewState.
+%%		If Result is {ok, NewState} and the callpath is inband, it is 
+%%		assumed the agent has already set themselves oncall.  If it is out 
+%%		of band, the agent is set to oncall.  The callback module can 
+%%		always safely assume the agent is oncall.  Execution then 
+%%		continues with NewState.
 %%
-%%		If Result is {error, Error, NewState}, the agent's state is not changed
-%%		And execution continues with NewState.
+%%		If Result is {error, Error, NewState}, the agent's state is not 
+%%		changed and execution continues with NewState.
 %%
 %%	<b>handle_voicemail(Ringing, Call, State) -> Result</b>
 %%		types:	Ringing = undefined | pid()
@@ -136,13 +139,13 @@
 %%				State = any()
 %%				Result = {ok, NewState} | {invalid, NewState}
 %%
-%%		When a media should be removed from queue and moved to voicemail, this
-%%		is called.
+%%		When a media should be removed from queue and moved to voicemail, 
+%%		this is called.
 %%
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		Ringing is the pid of the agent ringing with the media, or undefined if
-%%		there is no agent.
+%%		Ringing is the pid of the agent ringing with the media, or 
+%%		undefined if there is no agent.
 %%
 %%		If Result is {ok, NewState}, the call is removed from queue and 
 %%		execution continues with NewState.
@@ -154,8 +157,8 @@
 %%				Call = any()
 %%				State = NewState = any()
 %%
-%%		When a recipe calls for a call in queue to play an announcement, this
-%%		function is called.  Execution then continues with NewState.
+%%		When a recipe calls for a call in queue to play an announcement, 
+%%		this function is called.  Execution then continues with NewState.
 %%
 %%	<b>handle_agent_transfer(Agent, Call, Timeout, State) -> Result</b>
 %%		types:	Agent = pid()
@@ -166,20 +169,20 @@
 %%					NewState = State = any()
 %%					Error = any()
 %%
-%%		When a media should be transfered to another agent, this is one of the
-%%		first step.  The target agent is set to ringing, then this callback
-%%		is used to verify that.  If the callback returns {ok, NewState}, 
-%%		execution continues with NewState, and gen_media handles with oncall or
-%%		a ringout.
+%%		When a media should be transfered to another agent, this is one of 
+%%		the first step.  The target agent is set to ringing, then this 
+%%		callback is used to verify that.  If the callback returns 
+%%		{ok, NewState}, execution continues with NewState, and gen_media 
+%%		handles with oncall or a ringout.
 %%
 %%	<b>handle_queue_transfer(Call, State) -> {ok, NewState}</b>
 %%		types:	Call = #call{}
 %%				State = NewState = any()
 %%
-%%		When a media is placed back into queue from an agent, this is called
-%%		To allow the media to do any required clean up or unbridging.  The 
-%%		Call is requeued at the priority it was initially queued at.
-%%		Execution then continues with NewState.
+%%		When a media is placed back into queue from an agent, this is 
+%%		called to allow the media to do any required clean up or 
+%%		unbridging.  The Call is requeued at the priority it was initially 
+%%		queued at.  Execution then continues with NewState.
 %%
 %%	<b>handle_wrapup(Call, State) -> {Finality, NewState}</b>
 %%		types:	Call = #call{}
@@ -187,8 +190,8 @@
 %%				Finality = ok | hangup
 %%
 %%		This callback is only used if the call record's media path is inband.
-%%		When an agent goes to wrapup, this gives the callback a chance to do any
-%%		clean-up needed.  
+%%		When an agent goes to wrapup, this gives the callback a chance to 
+%%		do any clean-up needed.  
 %%
 %%		If the media determines this is a hang-up (ie, no more
 %%		can be done with the media), it can return {hangup, NewState}.  The
@@ -201,30 +204,31 @@
 %%				State = NewState = any()
 %%				Spy = pid()
 %%
-%%		This callback is only valid when the Spy is released and there is an
-%%		Agent oncall with the call.  This signals the callback that a supervisor
-%%		is attempting to observe the agent that is oncall.  The other callbacks
-%%		Should take into account the possibility of a spy if 'ok' is returned.
+%%		This callback is only valid when the Spy is released and there is 
+%%		an agent oncall with the call.  This signals the callback that a 
+%%		supervisor is attempting to observe the agent that is oncall.  The 
+%%		other callbacks	Should take into account the possibility of a spy 
+%%		if 'ok' is returned.
 %%		
-%%		Be aware that when calling this, gen_media does not have a reliable 
-%%		to determine an agent's security level.  The agent connecitons, however,
-%%		do.
+%%		Be aware that when calling this, gen_media does not have a 
+%%		reliable method to determine an agent's security level.  The agent 
+%%		connecitons, however, do.
 %%
 %%	<b>Extended gen_server Callbacks</b>
 %%
-%%	In addition to the usual replies gen_server expects from it's callbacks of
-%%	handle_call/3, handle_cast/2, and handle_info/2, gen_media will take some 
-%%	action based on the following Returns.
+%%	In addition to the usual replies gen_server expects from it's callback
+%%	of handle_call/3, handle_cast/2, and handle_info/2, gen_media will 
+%%	take some action based on the following Returns.
 %%
 %%	{queue, Queue, Callrec, NewState}
 %%		types:  Queue = string()
 %%				Callrec = #call{}
 %%				NewState = any()
 %%
-%%		This result is only valid if the callbacks init/1 returned undefined
-%%		for the call record.  This sets the call record and queues the call.
-%%		Execution then continues on with NewState.  If this is replied to a 
-%%		call, ok is set as the reply.
+%%		This result is only valid if the callbacks init/1 returned 
+%%		undefined for the call record.  This sets the call record and 
+%%		queues the call.  Execution then continues on with NewState.  If 
+%%		this is replied to a call, ok is set as the reply.
 %%
 %%	{outbound, Agent, NewState}
 %%	{outbound, Agent, Call, NewState}
@@ -232,18 +236,19 @@
 %%				Call = #call{}
 %%				NewState = any()
 %%
-%%		This result is valid only if the call is not queued.  The second form
-%%		is only valid if init/1 retuned an undefined call.  This also assumes 
-%%		the agent at pid() is already in precall state.  If The agent can be set
-%%		to outgoing, it will be.  Execution continues on with NewState.
+%%		This result is valid only if the call is not queued.  The second 
+%%		form is only valid if init/1 retuned an undefined call.  This also 
+%%		assumes the agent at pid() is already in precall state.  If The 
+%%		agent can be set to outgoing, it will be.  Execution continues on 
+%%		with NewState.
 %%
 %%	{voicemail, NewState}
 %%		types:	NewState = any()
 %%
-%%		This result is valid only if the call is queued.  Removes the media from
-%%		queue and stops ringing to an agent it is.  Assumes the media has already
-%%		done what it needs to for a voicemail.  If done in a handle_call, the
-%%		reply is 'ok'.
+%%		This result is valid only if the call is queued.  Removes the media
+%%		from queue and stops ringing to an agent it is.  Assumes the media 
+%%		has already	done what it needs to for a voicemail.  If done in a 
+%%		handle_call, the reply is 'ok'.
 %%
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
@@ -254,36 +259,37 @@
 %%				Data = any()
 %%				Mode = replace | append
 %%
-%%		This result is only valid if an agent has been associated with this 
-%%		media by ringing.  The second form is only valid if the request came in
-%%		as a gen_media:call.  This attempts to take the specified action on the 
-%%		agent, the continues execution with NewState.
+%%		This result is only valid if an agent has been associated with this
+%%		media by ringing.  The second form is only valid if the request 
+%%		came in	as a gen_media:call.  This attempts to take the specified 
+%%		action on the agent, then continues execution with NewState.
 %%
-%%		{stop_ring, Data} is used to stop the gen_media from handling a ringout.  It 
-%%		does not change the agent's state.  Execution will continue with 
-%%		NewState.  This is useful if there is an error ringing to an agent that
-%%		only becomes apparent at a later time.  A return of stop_ring is
-%%		Equivalent to {stop_ring, undefined}.
+%%		{stop_ring, Data} is used to stop the gen_media from handling a 
+%%		ringout.  It does not change the agent's state.  Execution will 
+%%		continue with NewState.  This is useful if there is an error 
+%%		ringing to an agent that only becomes apparent at a later time.  A 
+%%		return of `stop_ring' is Equivalent to {stop_ring, undefined}.
 %%
-%%		wrapup is only valid if there is an agent associated with a media, and
-%%		that agent is oncall or outgoing.  This sets the agent to wrapup and
-%%		continues execution with NewState.
+%%		wrapup is only valid if there is an agent associated with a media, 
+%%		and	that agent is oncall or outgoing.  This sets the agent to 
+%%		wrapup and continues execution with NewState.
 %%
-%%		{hangup, Data} is valid at any time.  This will unqueue the media, and set
-%%		the appropriate state for any agents.  The cdr record will record Data
-%%		as who hung up the call.  A return of hangup is Equivalent to 
-%%		{hangup, undefined}.  Execution then coninues with NewState.
+%%		{hangup, Data} is valid at any time.  This will unqueue the media, 
+%%		and set the appropriate state for any agents.  The cdr record will 
+%%		record Data as who hung up the call.  A return of hangup is 
+%%		equivalent to {hangup, undefined}.  Execution then coninues with 
+%%		NewState.
 %%
-%%		mediapush is only valid if there is an agent oncall with the media, and
-%%		the media is inband.  The given Data is casted to the associaed agent 
-%%		as a media push.
+%%		mediapush is only valid if there is an agent oncall with the media,
+%%		and the media is inband.  The given Data is casted to the 
+%%		associaed agent as a media push.
 %%
 %%	{stop, hangup, NewState}
 %%	{stop, {hangup, Data}, NewState}
 %%		types:  NewState = any()
 %%				Data = any()
 %%
-%%		This causes the media to take any action is would from an
+%%		This causes the media to take any action it would from an
 %%		Agentaction return tuple of hangup, then stop.
 
 -module(gen_media).

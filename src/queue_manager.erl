@@ -525,129 +525,110 @@ get_nodes() ->
 
 single_node_test_() ->
 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			%build_tables(),
-			{ok, _Pid} = start([node()]),
-			ok
+	{foreach, fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		%build_tables(),
+		{ok, _Pid} = start([node()]),
+		ok
+	end,
+	fun(_) ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		stop()
+	end,
+	[{"Add and query test", fun() ->
+		?assertMatch({ok, _Pid2}, add_queue("goober")),
+		?assertMatch({exists, _Pid2}, add_queue("goober")),
+		?assertMatch(true, query_queue("goober")),
+		?assertMatch(false, query_queue("foobar"))
+	end},
+	{"Get test", fun() ->
+		{ok, Pid} = add_queue("goober"),
+		?assertMatch(Pid, get_queue("goober")),
+		?assertMatch(undefined, get_queue("no_exists"))
+	end},
+	{"best bindable queues by weight test", fun() ->
+		{ok, Pid} = add_queue("goober"),
+		{ok, Pid2} = add_queue("goober2", [{weight, 10}]), % higher weighted queue
+		{ok, _Pid3} = add_queue("goober3"),
+		?assertMatch([], get_best_bindable_queues()),
+		{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
+		?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+		{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid2, 10, Dummy2)),
+		?assertMatch([
+			{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 11},
+			{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+			get_best_bindable_queues()),
+		{ok, Dummy3} = dummy_media:start([{id, "Call3"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
+		?assertMatch([
+			{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 11},
+			{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+			get_best_bindable_queues())
+	end},
+	{"best bindable queues by priority test", fun() ->
+		{ok, Pid} = add_queue("goober"),
+		{ok, Pid2} = add_queue("goober2"),
+		?assertMatch([], get_best_bindable_queues()),
+		{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid, 10, Dummy1)),
+		?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+		{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)), % higher priority
+		?assertMatch([
+			{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1},
+			{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+			get_best_bindable_queues())
+	end},
+	{"best bindable queues by queuetime test", fun() ->
+		{ok, Pid2} = add_queue("goober2"),
+		{ok, Pid} = add_queue("goober"),
+		?assertMatch([], get_best_bindable_queues()),
+		{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
+		?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+		{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
+		?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)),
+		?assertMatch([
+			{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1},
+			{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT}],
+			get_best_bindable_queues())
+	end},
+	{"Dead queue restarted", fun() ->
+		{exists, QPid} = add_queue("default_queue"),
+		exit(QPid, kill),
+		receive
+		after 300 -> ok
 		end,
-		fun(_) ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			stop()
-		end,
-		[
-			{
-				"Add and query test", fun() ->
-					?assertMatch({ok, _Pid2}, add_queue("goober")),
-					?assertMatch({exists, _Pid2}, add_queue("goober")),
-					?assertMatch(true, query_queue("goober")),
-					?assertMatch(false, query_queue("foobar"))
-				end
-			},{
-				"Get test", fun() ->
-					{ok, Pid} = add_queue("goober"),
-					?assertMatch(Pid, get_queue("goober")),
-					?assertMatch(undefined, get_queue("no_exists"))
-				end
-			}, {
-				"best bindable queues by weight test", fun() ->
-					{ok, Pid} = add_queue("goober"),
-					{ok, Pid2} = add_queue("goober2", [{weight, 10}]), % higher weighted queue
-					{ok, _Pid3} = add_queue("goober3"),
-					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid2, 10, Dummy2)),
-					?assertMatch([
-							{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 11},
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
-						get_best_bindable_queues()),
-					{ok, Dummy3} = dummy_media:start([{id, "Call3"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
-					?assertMatch([
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 11},
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
-						get_best_bindable_queues())
-				end
-			},{
-				"best bindable queues by priority test", fun() ->
-					{ok, Pid} = add_queue("goober"),
-					{ok, Pid2} = add_queue("goober2"),
-					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid, 10, Dummy1)),
-					?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)), % higher priority
-					?assertMatch([
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1},
-							{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
-						get_best_bindable_queues())
-				end
-			},{
-				"best bindable queues by queuetime test", fun() ->
-					{ok, Pid2} = add_queue("goober2"),
-					{ok, Pid} = add_queue("goober"),
-					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
-					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)),
-					?assertMatch([
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1},
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT}],
-						get_best_bindable_queues())
-				end
-			},{
-				"Dead queue restarted",
-				fun() ->
-					{exists, QPid} = add_queue("default_queue"),
-					exit(QPid, kill),
-					receive
-					after 300 -> ok
-					end,
-					AddQueueRes = add_queue("default_queue"),
-					?assertMatch({exists, _NewPid}, AddQueueRes),
-					?assertNot(QPid =:= element(2, AddQueueRes))
-				end
-			},{
-				"Find the correct queue test",
-				fun() ->
-					{exists, QPid} = add_queue("default_queue"),
-					{ok, QPid2} = add_queue("queue2"),
-					{ok, QPid3} = add_queue("queue3"),
-					?assertEqual(QPid2, get_queue("queue2")),
-					?assertEqual(QPid, get_queue("default_queue")),
-					?assertEqual(QPid3, get_queue("queue3"))
-				end
-			},{
-				"Queue is shutdown, thus not restarted",
-				fun() ->
-					{exists, QPid} = add_queue("default_queue"),
-					gen_server:call(QPid, {stop, shutdown}),
-					timer:sleep(100),
-					?assertEqual(false, query_queue("default_queue"))
-				end
-			},{
-				"Queue exits on normal, thus not restarted",
-				fun() ->
-					{exists, QPid} = add_queue("default_queue"),
-					gen_server:call(QPid, stop),
-					timer:sleep(100),
-					?assertEqual(false, query_queue("default_queue"))
-				end
-			}
-		]
-	}.
+		AddQueueRes = add_queue("default_queue"),
+		?assertMatch({exists, _NewPid}, AddQueueRes),
+		?assertNot(QPid =:= element(2, AddQueueRes))
+	end},
+	{"Find the correct queue test", fun() ->
+		{exists, QPid} = add_queue("default_queue"),
+		{ok, QPid2} = add_queue("queue2"),
+		{ok, QPid3} = add_queue("queue3"),
+		?assertEqual(QPid2, get_queue("queue2")),
+		?assertEqual(QPid, get_queue("default_queue")),
+		?assertEqual(QPid3, get_queue("queue3"))
+	end},
+	{"Queue is shutdown, thus not restarted", fun() ->
+		{exists, QPid} = add_queue("default_queue"),
+		gen_server:call(QPid, {stop, shutdown}),
+		timer:sleep(100),
+		?assertEqual(false, query_queue("default_queue"))
+	end},
+	{"Queue exits on normal, thus not restarted", fun() ->
+		{exists, QPid} = add_queue("default_queue"),
+		gen_server:call(QPid, stop),
+		timer:sleep(100),
+		?assertEqual(false, query_queue("default_queue"))
+	end}]}.
 
 % TODO re-enable when either rebar eunit can run tests on a given node, 
 % or these can be re-written to not need real-live nodes.

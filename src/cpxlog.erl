@@ -45,6 +45,7 @@
 	alert/6,
 	emergency/6,
 	set_loglevel/1,
+	set_loglevel/2,
 	debug_module/1,
 	debug_modules/1,
 	nodebug_module/1,
@@ -184,6 +185,10 @@ emergency(Time, Module, Line, Pid, Message, Args) ->
 set_loglevel(Level) ->
 	catch gen_event:notify(cpxlog, {set_log_level, Level}),
 	catch gen_event:notify(error_logger, {set_log_level, Level}).
+
+-spec(set_loglevel/2 :: (File :: list(), Level :: pos_integer()) -> 'ok').
+set_loglevel(File, Level) ->
+	catch gen_event:notify(cpxlog, {set_log_level, File, Level}).
 
 -spec(debug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 debug_module(Module) ->

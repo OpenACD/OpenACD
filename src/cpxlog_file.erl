@@ -153,6 +153,18 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Pid, Message, Args}, State) ->
 			[file:write(FH, Output) || {_, FH, _, _} <- List]
 	end,
 	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
+handle_event({set_log_level, File, Level}, #state{filehandles = FH} = State) ->
+	case lists:member(Level, ?LOGLEVELS) of
+		true ->
+			NewFH = lists:map(fun({FileName, FileHandle, FileInfo, OldLevel}) when FileName == File ->
+						?NOTICE("Changed loglevel for logfile ~p from ~p to ~p", [FileName, OldLevel, Level]),
+						{FileName, FileHandle, FileInfo, Level};
+					(X) -> X end, FH),
+			{ok, State#state{filehandles = NewFH}};
+		false ->
+			io:format("Invalid loglevel: ~s~n", [string:to_upper(atom_to_list(Level))]),
+			{ok, State}
+	end;
 handle_event(_Event, State) ->
 	{ok, State}.
 

@@ -236,10 +236,10 @@ handle_info(check_odbc, #state{odbc_sup_pid = undefined} = State) ->
 	?INFO("likely a late check_odbc since the supervisor is dead.", []),
 	{noreply, State#state{odbc_pid = undefined}};
 handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
+	?DEBUG("Checking for odbc recover", []),
 	case supervisor:which_children(Sup) of
 		[{cpx_monitor_kgb_odbc, undefined, _, _}] ->
-			Self = self(),
-			Ref = erlang:send_after(?Check_interval, Self, check_odbc),
+			Ref = erlang:send_after(?Check_interval, ?MODULE, check_odbc),
 			{noreply, State#state{odbc_pid = Ref}};
 		[{cpx_monitor_kgb_odbc, Pid, _, _}] ->
 			case is_process_alive(Pid) of
@@ -249,8 +249,7 @@ handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
 					[Pid ! X || X <- Resend],
 					{noreply, State#state{odbc_pid = Pid}};
 				false ->
-					Self = self(),
-					Ref = erlang:send_after(?Check_interval, Self, check_odbc),
+					Ref = erlang:send_after(?Check_interval, ?MODULE, check_odbc),
 					{noreply, State#state{odbc_pid = Ref}}
 			end
 	end;

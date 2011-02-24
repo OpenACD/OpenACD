@@ -296,7 +296,7 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 		undefined ->
 			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
-			Event = build_event_log(call_enqueue, Timestamp, Details),
+			Event = build_event_log(call_enqueue, Timestamp, [{mediaid, Key} | Details]),
 			NewCache = send_events(State#state.odbc_pid, [Event], State#state.event_cache),
 			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls), event_cache = NewCache}}
 	end;
@@ -312,7 +312,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, State) ->
 			case dict:find(Key, State#state.calls) of
 				{ok, New} ->
 					?INFO("~p abandoned", [Key]),
-					UseableProps = [{cache_queue, Queue} | New],
+					UseableProps = [{cache_queue, Queue}, {mediaid, Key} | New],
 					Event = build_event_log(call_terminate, Timestamp, UseableProps),
 					send_events(State#state.odbc_pid, [Event], State#state.event_cache);
 				error ->
@@ -568,7 +568,8 @@ build_event_log_call_base(E, Props) ->
 		ani = Ani,
 		uci = Uci ++ "*" ++ OriginCode,
 		did = Did,
-		origin_code = OriginCode
+		origin_code = OriginCode,
+		freeswitch_id = proplists:get_value(mediaid, Props, "")
 	}.
 	
 send_events(_Pid, [], Acc) ->

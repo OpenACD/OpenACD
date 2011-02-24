@@ -44,7 +44,7 @@
 	id :: string(),
 	hostname :: string(),
 	event_type :: 'undefined' | event_type(),
-	agent_id :: string(),
+	acd_agent_id :: string(),
 	acd_type = "openacd" :: string(),
 	acd_name :: string(), % usually hostname
 	agent_ip :: string(), 

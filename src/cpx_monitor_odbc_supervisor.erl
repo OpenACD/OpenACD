@@ -51,7 +51,8 @@
 	start_link/1,
 	start_link/2,
 	stop/0,
-	start_odbc/0
+	start_odbc/0,
+	status/0
 ]).
 
 %% gen_server callbacks
@@ -133,7 +134,12 @@ stop() ->
 -spec(start_odbc/0 :: () -> 'ok').
 start_odbc() ->
 	gen_server:cast(?MODULE, start_odbc).
-	
+
+%% @doc Returns the supervisor and writer pids.
+-spec(status/0 :: () -> {pid() | 'undefined', pid() | 'undefined'}).
+status() ->
+	gen_server:call(?MODULE, status).
+
 % =====
 % init 
 % =====
@@ -168,6 +174,8 @@ init([Dsn, Opts]) ->
 % =====
 % Call
 % =====
+handle_call(status, _From, #state{odbc_sup_pid = Sup, odbc_pid = Kid} = State) ->
+	{reply, {Sup, Kid}, State};
 handle_call(_Request, _From, State) ->
 	Reply = ok,
 	{reply, Reply, State, hibernate}.
@@ -486,21 +494,21 @@ build_event_log(#event_log_row{event_type = acd_stop} = E, _Props) ->
 	E;
 build_event_log(#event_log_row{event_type = agent_start} = E, Props) ->
 	E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = agent_login} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_stop} = E, Props) ->
 	E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type= agent_logout} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
@@ -509,7 +517,7 @@ build_event_log(#event_log_row{event_type = call_enqueue} = E , Props) ->
 build_event_log(#event_log_row{event_type = call_answer} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
 	MidEvent#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
@@ -518,7 +526,7 @@ build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 			MidEvent;
 		Login ->
 			MidEvent#event_log_row{
-				agent_id = Login
+				acd_agent_id = Login
 			}
 	end;
 build_event_log(#event_log_row{event_type = call_complete} = E, _Props) ->
@@ -529,14 +537,14 @@ build_event_log(#event_log_row{event_type = agent_available} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		agent_id = Login,
+		acd_agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_unavailable} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		agent_id = Login,
+		acd_agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills].
 
@@ -709,7 +717,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_start,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
@@ -728,7 +736,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_login,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -743,7 +751,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_login,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -787,7 +795,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_available,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -802,7 +810,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_available,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -849,7 +857,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -864,7 +872,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -900,7 +908,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_stop,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					acd_type = "openacd",
 					created_at = In#event_log_row.created_at
 				},
@@ -922,7 +930,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					created_at =  In#event_log_row.created_at
 				},
@@ -938,7 +946,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					created_at = In#event_log_row.created_at
 				},
@@ -1066,7 +1074,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = call_answer,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",
@@ -1123,7 +1131,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = call_terminate,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",

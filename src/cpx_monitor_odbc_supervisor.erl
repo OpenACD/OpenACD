@@ -187,6 +187,7 @@ handle_cast(start_odbc, #state{odbc_sup_pid = undefined} = State) ->
 	{ok, SupOdbc} = start_odbc_super(State#state.max_r, State#state.max_t),
 	{ok, Odbc} = start_odbc_process(SupOdbc, State#state.dsn, State#state.trace),
 	?INFO("New sup:  ~p;  new odbc:  ~p.", [SupOdbc, Odbc]),
+	link(Odbc),
 	Resend = lists:reverse(State#state.event_cache),
 	[Odbc ! X || X <- Resend],
 	{noreply, State#state{odbc_pid = Odbc, odbc_sup_pid = SupOdbc}};

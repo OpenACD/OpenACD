@@ -281,6 +281,7 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	Ressurect = fun(Qname) ->
 		case call_queue_config:get_queue(Qname) of
 			noexists ->
+				?WARNING("~s not restarting due to no config.", [Qname]),
 				ok;
 			Qrec when is_record(Qrec, call_queue) ->
 				add_queue(Qname, [
@@ -656,9 +657,10 @@ multi_node_test_() ->
 	?INFO("schema table info:  ~p", [mnesia:table_info(schema, all)]),
 	cover:start([Master, Slave]),
 	{inorder, {foreach, fun() ->
-		timer:sleep(100),
+		?DEBUG("========== Build it up! ==========", []),
 		{ok, QMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 		{ok, QMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+		?DEBUG("building done", []),
 		#multinode_test_state{
 			master_node = Master,
 			slave_node = Slave,
@@ -667,8 +669,13 @@ multi_node_test_() ->
 		}
 	end,
 	fun(Rec) ->
+		?DEBUG("========== Tear it down! ==========", []),
 		rpc:call(Master, ?MODULE, stop, []),
-		rpc:call(Slave, ?MODULE, stop, [])
+		rpc:call(Slave, ?MODULE, stop, []),
+		mnesia:delete_table(call_queue),
+		rpc:call(Master, call_queue_config, build_tables, []),
+		rpc:call(Slave, call_queue_config, build_tables, []),
+		timer:sleep(100)
 	end,
 	[{"Master Death", fun() ->
 		rpc:call(Master, ?MODULE, stop, []),

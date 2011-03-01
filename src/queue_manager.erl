@@ -672,24 +672,38 @@ multi_node_test_() ->
 		?DEBUG("========== Tear it down! ==========", []),
 		rpc:call(Master, ?MODULE, stop, []),
 		rpc:call(Slave, ?MODULE, stop, []),
-		mnesia:delete_table(call_queue),
-		rpc:call(Master, call_queue_config, build_tables, []),
-		rpc:call(Slave, call_queue_config, build_tables, []),
-		timer:sleep(100)
+		{atomic, ok} = mnesia:delete_table(call_queue),
+		ok = rpc:call(Master, call_queue_config, build_tables, []),
+		ok = rpc:call(Slave, call_queue_config, build_tables, []),
+		Sleeper = fun(SleepFun) ->
+			timer:sleep(1000),
+			case mnesia:table_info(call_queue, all) of
+				{aborted, {no_exists, call_queue, all}} ->
+					SleepFun(SleepFun);
+				_ ->
+					ok
+			end
+		end,
+		Sleeper(Sleeper),
+		?DEBUG("Tear down done", [])
 	end,
-	[{"Master Death", fun() ->
+	[fun(_) -> Name = "Master Death", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		rpc:call(Master, ?MODULE, stop, []),
 		?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
-	end},
-	{"Slave Death", fun() ->
+	end} end,
+	fun(_) -> Name = "Slave Death", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 		ok = rpc:call(Slave, ?MODULE, stop, []),
 		?assertMatch(false, rpc:call(Master, ?MODULE, query_queue, ["queue1"]))
-	end},
-	{"Net Split",fun() ->
+	end} end,
+	fun(_) -> Name = "Net Split", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
 		rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+		rpc:call(Master, call_queue_config, new_queue, ["queue1", 1, [], [], "default"]),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 		rpc:call(Slave, erlang, disconnect_node, [Master]),
@@ -701,8 +715,9 @@ multi_node_test_() ->
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 		?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 		?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1", []]))
-	end},
-	{"Queues in sync", fun() ->
+	end} end,
+	fun(_) -> Name = "Queues in sync", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
 		?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
@@ -712,21 +727,24 @@ multi_node_test_() ->
 		?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 		?assertMatch(ok, rpc:call(Master, ?MODULE, stop, [])),
 		?assertMatch(ok, rpc:call(Slave, ?MODULE, stop, []))
-	end},
-	{"No proc", fun() ->
+	end} end,
+	fun(_) -> Name = "No proc", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		slave:stop(Master),
 		timer:sleep(200),
 		?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
-	end},
-	{"Best bindable queues with failed master", fun() ->
+	end} end,
+	fun(_) -> Name = "Best bindable queues with failed master", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 		{ok, Dummy1} = rpc:call(Slave, dummy_media, start, [[{id, "Call1"}, {queues, none}]]),
 		?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 		slave:stop(Master),
 		timer:sleep(200),
 		?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
-	end},
-	{"Leader is told about a call_queue that dies and did not come back", fun() ->
+	end} end,
+	fun(_) -> Name = "Leader is told about a call_queue that dies and did not come back", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		{ok, QPid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 		?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 		gen_server:call(QPid, {stop, test_kill}),
@@ -738,8 +756,9 @@ multi_node_test_() ->
 		?CONSOLE("the pids:  ~p and ~p", [QPid, NewQPid]),
 		?assertNot(QPid =:= NewQPid),
 		?assertEqual(undefined, rpc:call(Master, ?MODULE, get_queue, ["queue2"]))
-	end},
-	{"Leader is told about a call_queue that died but is reborn", fun() ->
+	end} end,
+	fun(_) -> Name = "Leader is told about a call_queue that died but is reborn", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		QPid = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
 		?CONSOLE("qpid: ~p", [QPid]),
 		gen_server:call(QPid, {stop, test_kill}),
@@ -751,8 +770,9 @@ multi_node_test_() ->
 		?CONSOLE("Das pids:  ~p and ~p", [QPid, NewQPid]),
 		?assertNot(QPid =:= NewQPid),
 		?assertNot(NewQPid =:= undefined)
-	end},
-	{"A queue is only started (or stays started) on one node", fun() ->
+	end} end,
+	fun(_) -> Name = "A queue is only started (or stays started) on one node", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		% because a queue_manager starts every queue in the database on init,
 		% a queue will always exist locally.
 		% this is not desired behavior, so on a surrender, it must ditch any
@@ -762,8 +782,9 @@ multi_node_test_() ->
 		?CONSOLE("dah qs:  ~p and ~p", [MasterQ, SlaveQ]),
 		?assert(node(MasterQ) =:= node(SlaveQ)),
 		?assert(MasterQ =:= SlaveQ)
-	end},
-	{"Queue migration", fun() ->
+	end} end,
+	fun(_) -> Name = "Queue migration", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		Oldq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
 		?debugFmt("Queue is at ~p ~p", [Oldq, node(Oldq)]),
 		call_queue:migrate(Oldq, Slave),
@@ -773,8 +794,9 @@ multi_node_test_() ->
 		NewNode = node(Newq),
 		?assertNot(Oldq =:= Newq),
 		?assertNot(OldNode =:= NewNode)
-	end},
-	fun(_Whatever) -> {"The slave dies, but the queue on that is brought back by master", fun() ->
+	end} end,
+	fun(_Whatever) -> Name = "The slave dies, but the queue on that is brought back by master", {Name, fun() ->
+		?DEBUG("Starting test ~s", [Name]),
 		call_queue_config:new_queue(#call_queue{name = "queue2"}),
 		{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 		?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),

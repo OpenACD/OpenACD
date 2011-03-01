@@ -22,8 +22,16 @@
 %%	Andrew Thompson <andrew at hijacked dot us>
 
 %% @doc Intercepts events from cpx_monitor on behalf of an odbc connection.  
-%% The odbc connection is supervised by a proper supervisor which is started by 
-%% this module.
+%% The odbc connection is supervised by a proper supervisor which is 
+%% started by this module.
+%%
+%% When an event comes in, it transforms it into a record which mirrors a
+%% database row.  It then sends that record with a reference to the odbc
+%% writer process.  It expects an ack back for each record it sends.  If
+%% the writer dies, when it comes back, it resends each record it has not
+%% recieved an ack for.  If the writer dies enough, it will take the sub-
+%% supervisor process with it, thus requiring manual intervention.  Events
+%% will continue to queue up.
 
 -module(cpx_monitor_odbc_supervisor).
 

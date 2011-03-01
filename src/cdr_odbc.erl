@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Dump CDRs to ODBC
+%% @doc Dump CDRs to ODBC.  Note this module is likely out of date.
 
 -module(cdr_odbc).
 -author(micahw).

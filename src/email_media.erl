@@ -27,7 +27,10 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A dummy media process designed to aid testing by mimicking a real call media process.
+%% @doc Media process for handling email.  This parses and handles 
+%% web requests from the agent, as well as sending a reply.
+%% @see email_media_manager
+%% @see gen_media
 
 -module(email_media).
 -author(openacd).

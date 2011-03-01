@@ -27,7 +27,9 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A gen_event based logging framework.
+%% @doc A gen_event based logging framework.  If a module needs to log, the
+%% easiest way to to include "include/log.hrl" and use the macros defined
+%% therein.
 
 -module(cpxlog).
 -export([

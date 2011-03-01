@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The application module.
+%% @doc The application module, as well as primary shell interface module.
 -module(cpx).
 -author("Micah").
 

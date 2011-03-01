@@ -29,7 +29,7 @@
 
 %% @doc Handles the creation and desctruction of dispatchers.
 %% Locally registered on each node.
-%% There is to be 1 dipatcher for every avaiable agent on a node.
+%% There is to be 1 dipatcher for every available agent on a node.
 %% @see dispatcher
 -module(dispatch_manager).
 -author("Micah").

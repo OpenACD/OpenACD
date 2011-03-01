@@ -279,14 +279,18 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	{Protodict, Deads} = dict:fold(Fold, {[], []}, Qdict),
 	Newdict = dict:from_list(Protodict),
 	Ressurect = fun(Qname) ->
-		Qrec = call_queue_config:get_queue(Qname),
-		add_queue(Qname, [
-			{weight, Qrec#call_queue.weight},
-			{skills, Qrec#call_queue.skills},
-			{recipe, Qrec#call_queue.recipe},
-			{hold_music, Qrec#call_queue.hold_music},
-			{group, Qrec#call_queue.group}
-		])
+		case call_queue_config:get_queue(Qname) of
+			noexists ->
+				ok;
+			Qrec when is_record(Qrec, call_queue) ->
+				add_queue(Qname, [
+					{weight, Qrec#call_queue.weight},
+					{skills, Qrec#call_queue.skills},
+					{recipe, Qrec#call_queue.recipe},
+					{hold_music, Qrec#call_queue.hold_music},
+					{group, Qrec#call_queue.group}
+				])
+		end
 	end,
 	Sfun = fun() ->
 		lists:foreach(Ressurect, Deads)

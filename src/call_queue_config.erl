@@ -27,8 +27,103 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The helper module to config the call_queues.
-%% Uses the mnesia table 'call_queue.'  Queues are not started until a call requires it.
+%% @doc The helper module to config the call_queues, skills, clients, and
+%% queue groups.
+%%
+%% <h3>Call Queue</h3>
+%% A Call Queue has a name, weight, skills, hold_music, group, and recipe. 
+%% The name is a unique identifier of the queue.  There can be only one 
+%% queue with a given name in a cluster.
+%%
+%% The wieght is how important media in the queue are relative to other 
+%% queues.  A higher wieght indicates more importance.
+%%
+%% Skills is a list of skills to add to media that is placed in the queue.
+%% Note that media automatically get the magic '_node' skill assigned to 
+%% them.
+%%
+%% Hold music really only matters to freeswitch or voice media.  It is a 
+%% string that defines the file the hold music is located in.
+%%
+%% Group is which Queue Group the queue is a member of.  The skills and 
+%% recipe of a queue is combined with it's group on start up.
+%%
+%% Finally, there is the recipe.  A reciepe is a list of recipe steps.
+%% A recipe step is a list of contions, what actions to take when those
+%% conditions are met, whether to run multiple times or only once, and
+%% finally a comment describing the step.
+%%
+%% The full description of a recipe:
+%% 	recipe_runs() :: run_once | run_many
+%% 	recipe_comparison() :: &lt; | &gt; | =
+%% 	recipe_condition() ::
+%%		{ticks, pos_integer()} |
+%%		{eligible_agents, recipe_comparison(), non_neg_integer()} |
+%%		{available_agents, recipe_comparison(), non_neg_integer()} |
+%%		{queue_position, recipe_comparison(), non_neg_integer()} |
+%%		{calls_queued, recipe_comparison(), non_neg_integer()}).
+%%
+%%	recipe_operation() ::
+%%		{add_skills, [atom(), ...]} |
+%%		{remove_skills, [atom(), ...]} |
+%%		{set_priority, integer()} |
+%%		{prioritize, []} |
+%%		{deprioritize, []} |
+%%		{voicemail, []} |
+%%		{announce, string()} |
+%%		{add_recipe, recipe_step()}
+%%
+%%	recipe_comment() :: binary()
+%%
+%%	recipe_step() ::
+%%		{[recipe_condition(), ...], [recipe_operation(), ...], 
+%%			recipe_runs(), recipe_comment()}
+%%
+%%	recipe() :: [recipe_step()]
+%%
+%% <h3>Skills</h3>
+%%
+%% A skill configuration has an atom, name, protected, description, and 
+%% group.
+%%
+%% The atom is the key, and is used when routing.  Certain skills are 
+%% 'magic' in that they expand to {atom(), string()} values under the
+%% correct conditions.  A magic skill is denoted by an atom starting with
+%% an underscore by convetion, such as '_queue'.  It is an error to assign
+%% an unexpanded magic skill under conditions when it cannot expand.  The 
+%% magic skills are:
+%% <table style="border:black solid 1px">
+%% <tr><th>Atom</th><th>Expands When</th><th>Other Notes</th></tr>
+%% <tr><td>_agent</td><td>Assigned to an agent</td>
+%% 	<td>Expands to the agent's login</td></tr>
+%% <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the 
+%% 	name of the agent's profile.</td></tr>
+%% <tr><td>_queue></td><td>Assigned to a media that is in a queue</td>
+%% 	<td>Expands to the name of the queue media is in</td></tr>
+%% <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the 
+%% 	client's label.</td></tr>
+%% <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to 
+%% 	the node the agent fsm or gen_media process is running on.</td></tr>
+%% <tr><td>_all</td><td>Always</td><td>Does not actually expand, but 
+%% 	overrides other skills, making that agent able to take any media, or
+%% 	the media answerable by any agent.</td></tr>
+%% </table>
+%%
+%% The remaining configuration options only matter to the configuration for
+%% human's sake.  The only one that's not obvious is protected.  If 
+%% protected is set to true, the skill cannot be edited or deleted.  The
+%% magic skills are protected.
+%%
+%% <h3>Queue Group</h3>
+%% 
+%% A queue group is a recipe and list of skills that each queue in the
+%% group shares.
+%%
+%% <h3>Clients</h3>
+%%
+%% A client is an id, label, and list of options.  Currently the only two
+%% options available are url_pop and autoend_wrapup.
+
 -module(call_queue_config).
 -author("Micah").
 

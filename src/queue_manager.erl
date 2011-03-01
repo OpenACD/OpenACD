@@ -642,20 +642,17 @@ multi_node_test_() ->
 	Master = util:start_testnode(queue_manager_master),
 	Slave = util:start_testnode(queue_manager_slave),
 	mnesia:start(),
+	{atomic, ok} = mnesia:change_table_copy_type(schema, node(), disc_copies),
+	ok = rpc:call(Master, mnesia, start, []),
+	ok = rpc:call(Slave, mnesia, start, []),
 	{ok, R} = mnesia:change_config(extra_db_nodes, [Master, Slave]),
+	{atomic, ok} = mnesia:change_table_copy_type(schema, Master, disc_copies),
+	{atomic, ok} = mnesia:change_table_copy_type(schema, Slave, disc_copies),
 	?INFO("change config return:  ~p", [R]),
-	mnesia:stop(),
+	?INFO("schema table info:  ~p", [mnesia:table_info(schema, all)]),
 	cover:start([Master, Slave]),
 	{inorder, {foreach, fun() ->
-		rpc:call(Master, mnesia, stop, []),
-		rpc:call(Slave, mnesia, stop, []),
-		ok = mnesia:delete_schema([Master, Slave]),
-		ok = mnesia:create_schema([Master, Slave]),
-		ok = rpc:call(Master, mnesia, start, []),
-		ok = rpc:call(Slave, mnesia, start, []),
-		{atomic, ok} = mnesia:change_table_copy_type(schema, Master, disc_copies),
-		{atomic, ok} = mnesia:change_table_copy_type(schema, Slave, disc_copies),
-		timer:sleep(500),
+		timer:sleep(100),
 		{ok, QMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 		{ok, QMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 		#multinode_test_state{
@@ -667,9 +664,7 @@ multi_node_test_() ->
 	end,
 	fun(Rec) ->
 		rpc:call(Master, ?MODULE, stop, []),
-		rpc:call(Slave, ?MODULE, stop, []),
-		rpc:call(Master, mnesia, stop, []),
-		rpc:call(Slave, mnesia, stop, [])
+		rpc:call(Slave, ?MODULE, stop, [])
 	end,
 	[{"Master Death", fun() ->
 		rpc:call(Master, ?MODULE, stop, []),
@@ -747,10 +742,10 @@ multi_node_test_() ->
 		?assertNot(NewQPid =:= undefined)
 	end},
 	{"A queue is only started (or stays started) on one node", fun() ->
-			% because a queue_manager starts every queue in the database on init,
-					% a queue will always exist locally.
-					% this is not desired behavior, so on a surrender, it must ditch any
-					% empty queues it already has, and notify the leader of the rest.
+		% because a queue_manager starts every queue in the database on init,
+		% a queue will always exist locally.
+		% this is not desired behavior, so on a surrender, it must ditch any
+		% empty queues it already has, and notify the leader of the rest.
 		MasterQ = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
 		SlaveQ = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
 		?CONSOLE("dah qs:  ~p and ~p", [MasterQ, SlaveQ]),

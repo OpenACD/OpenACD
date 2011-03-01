@@ -134,7 +134,10 @@ build_tables() ->
 			% since the table didn't already exist, build up the default queue
 			new_queue(#call_queue{name = "default_queue"}),
 			ok;
-		_Else -> 
+		Ok when Ok == exists; Ok == copied -> 
+			ok;
+		Else ->
+			?ERROR("Could not set up call_queue table:  ~p", [Else]),
 			ok
 	end,
 	B = util:build_table(skill_rec, ?SKILL_TABLE([node()])),
@@ -157,7 +160,10 @@ build_tables() ->
 				Otherwise -> 
 					Otherwise
 			end;
-		_Or -> 
+		Or when Or == exists; Or == copied ->
+			ok;
+		Or -> 
+			?ERROR("Could not set up skill_rec table:  ~p", [Or]),
 			ok
 	end,
 	C = util:build_table(client, ?CLIENT_TABLE([node()])),
@@ -168,7 +174,10 @@ build_tables() ->
 				mnesia:write(#client{label = undefined, id = undefined})
 			end,
 			mnesia:transaction(Addc);
-		_Orelse ->
+		Orelse when Orelse == copied; Orelse == exists ->
+			ok;
+		Orelse ->
+			?ERROR("Could not set up client table:  ~p", [Orelse]),
 			ok
 	end,
 	D = util:build_table(queue_group, ?QUEUE_GROUP_TABLE([node()])),
@@ -178,7 +187,10 @@ build_tables() ->
 				{atomic, ok} ->
 					ok
 			end;
-		_Or3 ->
+		Or3 when Or3 == copied; Or3 == exists ->
+			ok;
+		Or3 ->
+			?ERROR("Could not set up queue_group table:  ~p", [Or3]),
 			ok
 	end.
 

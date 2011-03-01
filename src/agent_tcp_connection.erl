@@ -28,7 +28,7 @@
 %%
 
 %% @doc The connection handler that communicates with a client UI; in this 
-%% case the a tcp client using the protobufs defined in cpx_agent.proto.
+%% case a tcp client using the protobufs defined in cpx_agent.proto.
 %% @see agent_tcp_listener
 
 -module(agent_tcp_connection).

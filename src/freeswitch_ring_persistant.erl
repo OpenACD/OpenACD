@@ -95,7 +95,11 @@ handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{current_state = ringing} = 
 	{noreply, State#state{current_state = oncall}};
 handle_event("CHANNEL_UNBRIDGE", _Data, _FsRef, #state{current_state = oncall} = State) ->
 	{noreply, State#state{current_state = idle}};
-handle_event(_, _, _, State) ->
+handle_event("CHANNEL_HANGUP", _Data, _FsRef, State) ->
+	?INFO("Seppuku!", []),
+	{stop, "CHANNEL_HANGUP", State};
+handle_event(Event, _, _, State) ->
+	?WARNING("Cannot handle event ~s.", [Event]),
 	{noreply, State}.
 
 %% =====

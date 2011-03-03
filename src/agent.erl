@@ -1217,13 +1217,14 @@ handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid
 	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
 	Newagent = Agent#agent{log_pid = Pid},
 	{next_state, Statename, State#state{agent_rec = Newagent}};
-handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, Endpointtype}, endpointdata = _Endpointdata} = Agent} = State) ->
+handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, persistant, Endpointtype}, endpointdata = _Endpointdata} = InAgent} = State) ->
 	?ERROR("Persistant endpoint ~p died due to ~p", [From, Reason]),
+	Agent = InAgent#agent{endpointtype = {undefined, persistant, Endpointtype}},
 	case create_persistant_endpoint(Agent) of
-		{ok, Pid} ->
+		{ok, Pid, _AnswerHangupPaths} ->
 			link(Pid),
 			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistant, Endpointtype}}}};
-		{error, Error} ->
+		Error ->
 			?ERROR("Cound not recreate persistant ring channel:  ~p", [Error]),
 			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {undefined, persistant, Endpointtype}}}}
 	end;

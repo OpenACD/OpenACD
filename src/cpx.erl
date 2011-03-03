@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The application module.
+%% @doc The application module, as well as primary shell interface module.
 -module(cpx).
 -author("Micah").
 
@@ -192,6 +192,9 @@ merge_env() ->
 	end,
 	case mnesia:transaction(Fun) of
 		{aborted, {no_exists, {cpx_value, index}}} ->
+			application:set_env('OpenACD', locked_env, [uptime]),
+			ok;
+		{aborted, {no_exists, cpx_value}} ->
 			application:set_env('OpenACD', locked_env, [uptime]),
 			ok;
 		{atomic, Cpxdb} ->

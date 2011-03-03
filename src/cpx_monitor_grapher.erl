@@ -27,6 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
+%% @doc Trend agent states and times, writing to an rrd for pretty graphing.
+
 -module(cpx_monitor_grapher).
 
 -behaviour(gen_server).

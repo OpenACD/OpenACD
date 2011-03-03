@@ -86,7 +86,7 @@ start(Node, Number, Exten, Skills, Client, Vars) ->
 
 -spec(start_fg/6 :: (Node :: atom(), Number :: string(), Exten :: string(), Skills :: skill_list(), Client :: string(), Vars :: [any()]) -> {'ok', pid()}).
 start_fg(Node, Number, Exten, Skills, Client, Vars) ->
-	case gen_server:start_link(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
+	case gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
 		{ok, _Pid} ->
 			receive
 				{dialer_result, Result} ->

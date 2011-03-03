@@ -355,7 +355,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}, {dial_vars, State#state.dial_vars}]) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, ?getRingout, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}, {dial_vars, State#state.dial_vars}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
@@ -459,7 +459,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 
 			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [{dial_vars, State#state.dial_vars}]) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, ?getRingout, F, [{dial_vars, State#state.dial_vars}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};

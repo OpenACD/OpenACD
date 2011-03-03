@@ -171,6 +171,29 @@ CPXSupervisor.setPluginDir = function(newVal, callback){
 	});
 }
 
+CPXSupervisor.setExitMaxRingFails = function(newVal){
+	var contentObj = {};
+	if(newVal){
+		contentObj = {
+			'value':'true'
+		};
+	} 
+	dojo.xhrPost({
+		url:'/modules/' + modules.activeNode + '/cpx_supervisor/update/exit_on_max_ring_fails',
+		handleAs:'json',
+		content:contentObj,
+		load:function(res){
+			if(res.success){
+				return;
+			}
+			errMessage(['Setting "exit_on_max_ring_fails" failed', res.message]);
+		},
+		error:function(res){
+			errMessage(['Setting "exit_on_max_ring_fails" errored', res]);
+		}
+	});
+}
+
 dojo.query(".translate, .translatecol", 'cpx_module').forEach(function(node){
 	var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
 	if(trans){
@@ -280,5 +303,21 @@ dojo.xhrGet({
 	},
 	error:function(err){
 		console.warn('getting default ringout errored,', res);
+	}
+});
+
+dojo.xhrGet({
+	url:"/modules/" + modules.activeNode + "/cpx_supervisor/get/exit_on_max_ring_fails",
+	handleAs:'json',
+	load:function(res){
+		if(res.success){
+			var targetDij = dijit.byId('exitMaxRingFails');
+			targetDij.set('checked', res.value);
+			return;
+		}
+		errMessage(['getting exit_on_max_ring_fails failed', res.message]);
+	},
+	error:function(err){
+		console.warn(['getting exit_on_max_ring_fails errored', res]);
 	}
 });

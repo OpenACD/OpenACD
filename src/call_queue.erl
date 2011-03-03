@@ -27,10 +27,12 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc An inplementation of priority queues, with some extensions for parallel
-%% call delivery. The calls in queue can be re-prioritized at any time and they
-%% can have skills added/removed to facilitate scripted/dynamic call delivery.
-%% Each call can be 'bound' to by a single dispatcher from each node in a cluster.
+%% @doc An inplementation of priority queues, with parallel call delivery.
+%% The calls in queue can be re-prioritized at any time and they can have 
+%% skills added/removed to facilitate scripted/dynamic call delivery.
+%% Each call can be 'bound' to by a single dispatcher from each node in a 
+%% cluster.
+
 -module(call_queue).
 
 %% depends on util, agent, cook, queue_manager

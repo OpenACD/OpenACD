@@ -107,7 +107,11 @@ start() ->
 
 %% @doc starts the cdr event server with mnesia on specified nodes.
 start(Nodes) ->
-	ok = build_tables(Nodes),
+	case build_tables(Nodes) of
+		ok -> ok;
+		Else ->
+			?WARNING("Some tables didn't build, this may crash and burn later.  ~p", [Else])
+	end,
 	gen_event:start({local, ?MODULE}).
 
 %% @doc Starts the cdr event server linked.
@@ -119,7 +123,11 @@ start_link() ->
 %% @doc Starts the cdr event server with mnesia on specified nodes.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	ok = build_tables(Nodes),
+	case build_tables(Nodes) of
+		ok -> ok;
+		Else ->
+			?WARNING("Some tables didn't build, this may crash and burn later.  ~p", [Else])
+	end,
 	gen_event:start_link({local, ?MODULE}).
 
 %% @doc Create a handler specifically for `#call{} Call' with default options.

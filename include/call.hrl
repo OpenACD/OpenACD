@@ -27,6 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
+-define(getRingout, element(2, cpx:get_env(default_ringout, 60)) * 1000).
+
 -type(url_format() :: string()).
 -type(client_opt() :: {any(), any()}).
 -type(client_opts() :: [client_opt()]).

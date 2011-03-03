@@ -80,7 +80,7 @@ start(Dsn, Trace) ->
 %% @doc start linked.
 -spec(start_link/2 :: (Dsn :: string(), Trace :: 'undefined' | 'true') -> {'ok', pid()}).
 start_link(Dsn, Trace) ->
-	gen_server:start(?MODULE, [Dsn, Trace], []).
+	gen_server:start_link(?MODULE, [Dsn, Trace], []).
 
 %% @doc Stops the process.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').

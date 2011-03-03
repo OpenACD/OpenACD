@@ -633,9 +633,15 @@ ringing(Event, _From, State) ->
 
 -spec(ringing/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = Agent} = State) when Failcount >= 3 ->
-	?INFO("~s has failed too many rings, setting ring fail state", [Agent#agent.login]),
-	{reply, ok, released, Midstate} = ringing({released, ?RING_FAIL_REL}, self(), State),
-	{next_state, released, Midstate#state{ring_fails = 0, ring_locked = unlocked}};
+	case cpx:get_env(exit_on_max_ring_fails) of
+		undefined ->
+			?INFO("~s has failed too many rings, setting ring fail state", [Agent#agent.login]),
+			{reply, ok, released, Midstate} = ringing({released, ?RING_FAIL_REL}, self(), State),
+			{next_state, released, Midstate#state{ring_fails = 0, ring_locked = unlocked}};
+		_ ->
+			?INFO("~s has failed too many rings.  Sending out the hit man.", [Agent#agent.login]),
+			{stop, ring_fails, State}
+	end;
 ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
 	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
 	Self = self(),

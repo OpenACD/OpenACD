@@ -417,7 +417,6 @@ handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State)
 	{reply, {error, noconnection}, State};
 handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration}, endpointdata = EndPointData}, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
 	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
-	% lettting freeswitch ring determine paths too...
 	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
 		{ok, Pid} ->
 			{reply, {ok, Pid, neither}, State};
@@ -428,13 +427,40 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointd
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
-		h323 -> "opal/h3232:$1";
+		h323 -> "opal/h323:$1";
 		pstn -> ""
 	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	NewOptions = [{dialstring, BaseDialString}, {destination, Data}, {call, Callrec}],
-	Out = freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions),
-	{reply, Out, State};
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, neither}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+handle_call({ring, #agent{endpointtype = {undefined, persistant, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
+	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, both}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpointdata = Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	Default = case Type of
+		sip -> "sofia/internal/sip:$1";
+		iax2 -> "iax2/$1";
+		h323 -> "opal/h323:$1";
+		pstn -> ""
+	end,
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
+	NewOptions = [{dialstring, BaseDialString}, {destination, Data}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, both}, State};
+		Error ->
+			{reply, Error, State}
+	end;
 %handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
 %	{reply, {error, noconnection}, State};
 %handle_call({ring, {undefined, transient, sip_registration}, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->

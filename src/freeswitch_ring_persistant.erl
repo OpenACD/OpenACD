@@ -31,6 +31,7 @@
 
 -module(freeswitch_ring_persistant).
 
+-include("log.hrl").
 -include("call.hrl").
 
 -export([
@@ -68,8 +69,9 @@ init(_Fsref, _Options) ->
 handle_call({ring, _OtherLeg, Ringout}, _From, {Fsnode, UUID}, #state{current_state = idle} = State) ->
 	Callback = fun(_, _) -> ok end,
 	freeswitch:bgapi(Fsnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++integer_to_list(Ringout)++",park' inline", Callback),
-	{reply, okay, State#state{current_state = ringing}};
-handle_call(_Msg, _From, _FsRef, State) ->
+	{reply, ok, State#state{current_state = ringing}};
+handle_call(Msg, _From, _FsRef, State) ->
+	?WARNING("Unrecognized message ~p", [Msg]),
 	{reply, invalid, State}.
 
 %% =====

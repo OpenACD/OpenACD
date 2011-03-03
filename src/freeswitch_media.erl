@@ -212,13 +212,10 @@ handle_ring({_Apid, #agent{endpointtype = {undefined, persistant, _}} = Agent}, 
 	?WARNING("Agent (~p) does not have it's persistant channel up yet", [Agent#agent.login]),
 	{invalid, State};
 handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistant, _EndPointType}}} = Agent, Callrec, State) ->
-	case freeswitch_ring:ring(EndpointPid, Callrec#call.id, 600) of
-		ok ->
-			{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
-		{error, Error} ->
-			?ERROR("Error ringing agent ~p.  Agent:  ~s;  call:  ~s", [Error, Agent#agent.login, Callrec#call.id]),
-			{invalid, State}
-	end;
+	%% a persisitant ring does the hard work for us
+	%% go right to the okay.
+	?INFO("Ring channel made things happy, I assume", []),
+	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
 handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
 	% if we get to this point, the ring channel is already up.
 	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of

@@ -488,7 +488,30 @@ idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefin
 	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Incall, lastchange = util:now(), endpointtype = NewEp},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-%% TODO persistant ring channel support
+idle({ringing, Incall}, {RingPid, _Tag}, #state{agent_rec = #agent{endpointtype = {RingPid, persistant, _EpType}} = Agent} = State) ->
+	%% If my ring pid says so.
+	gen_server:cast(Agent#agent.connection, {change_state, ringing, Incall#call{ring_path = inband, media_path = inband}}),
+	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+	Newagent = Agent#agent{state = ringing, oldstate = idle, statedata = Incall, lastchange = util:now()},
+	set_cpx_monitor(Newagent, []),
+	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {RingPid, persistant, _EpType}} = Agent} = State) ->
+	% TODO ringout shouldn't be hard coded.  Could just dump it and 
+	% use a timer in gen_media to keep track of it.
+	case gen_server:call(RingPid, {ring, Incall, 30}) of
+		ok ->
+			% fake the call answerabled and hangup-able, because our
+			% ring channel really knows what's going on.
+			CachedCall = Incall#call{ring_path = inband, media_path = inband},
+			gen_server:cast(Agent#agent.connection, {change_state, ringing, CachedCall}),
+			gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+			Newagent = Agent#agent{state = ringing, oldstate = idle, statedata = CachedCall, lastchange = util:now()},
+			set_cpx_monitor(Newagent, []),
+			{reply, ok, ringing, State#state{agent_rec = Newagent}};
+		Else ->
+			?INFO("ringing process ~p could not ring: ~p.", [RingPid, Else]),
+			{reply, invalid, idle, State}
+	end;
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
@@ -1125,8 +1148,9 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = A
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {{persistant, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	case create_persistant_endpoint(Agent) of
-		{ok, Pid} ->
+	
+	case create_persistant_endpoint(Agent#agent{endpointtype = {undefined, persistant, Endpointtype}, endpointdata = Endpointdata}) of
+		{ok, Pid, _AnswerHangupSetting} ->
 			link(Pid),
 			?INFO("Linking to ~p", [Pid]),
 			{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistant, Endpointtype}, endpointdata = Endpointdata}}};
@@ -1382,8 +1406,8 @@ create_persistant_endpoint(Agent) ->
 	case cpx:get_env(ring_manager) of
 		undefined ->
 			{error, no_ring_manager};
-		{ok, Mod} ->
-			Mod:ring_agent(self(), Agent, [persistant])
+		{ok, Manager} ->
+			gen_server:call(Manager, {ring, Agent, none})
 	end.
 
 set_cpx_monitor(State, Otherdeatils)->

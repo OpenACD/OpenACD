@@ -418,8 +418,12 @@ handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State)
 handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration}, endpointdata = EndPointData}, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
 	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
 	% lettting freeswitch ring determine paths too...
-	Out = freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions),
-	{reply, Out, State};
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, neither}, State};
+		Error ->
+			{reply, Error, State}
+	end;
 handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data}, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";

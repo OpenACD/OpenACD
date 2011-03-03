@@ -66,12 +66,12 @@ init(_Fsref, _Options) ->
 %% handle_call
 %% =====
 
-handle_call({ring, _OtherLeg, Ringout}, _From, {Fsnode, UUID}, #state{current_state = idle} = State) ->
+handle_call({ring, _OtherLeg, Ringout}, _From, {Fsnode, UUID}, State) ->
 	Callback = fun(_, _) -> ok end,
 	freeswitch:bgapi(Fsnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++integer_to_list(Ringout)++",park' inline", Callback),
-	{reply, ok, State#state{current_state = ringing}};
-handle_call(Msg, _From, _FsRef, State) ->
-	?WARNING("Unrecognized message ~p", [Msg]),
+	{reply, ok, State};
+handle_call(Msg, _From, FsRef, State) ->
+	?WARNING("Unrecognized message ~p (fs:  ~p)", [Msg, FsRef]),
 	{reply, invalid, State}.
 
 %% =====
@@ -89,17 +89,10 @@ handle_info(_Msg, _FsRef, State) ->
 %% =====
 %% handle_event
 %% =====
-handle_event("CHANNEL_ANSWER", _Data, _FsRef, State) ->
-	{noreply, State};
-handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{current_state = ringing} = State) ->
-	{noreply, State#state{current_state = oncall}};
-handle_event("CHANNEL_UNBRIDGE", _Data, _FsRef, #state{current_state = oncall} = State) ->
-	{noreply, State#state{current_state = idle}};
 handle_event("CHANNEL_HANGUP", _Data, _FsRef, State) ->
-	?INFO("Seppuku!", []),
 	{stop, "CHANNEL_HANGUP", State};
-handle_event(Event, _, _, State) ->
-	?WARNING("Cannot handle event ~s.", [Event]),
+handle_event(_Event, _, _, State) ->
+	%?WARNING("Cannot handle event ~s.", [Event]),
 	{noreply, State}.
 
 %% =====

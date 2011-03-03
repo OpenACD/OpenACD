@@ -229,7 +229,7 @@ ring(RingPid, CallId, Ringout) ->
 init([Fsnode, Module, Options]) when is_atom(Module) ->
 	Callbacks = #callbacks{
 		init = fun(FsRefs, Args) -> Module:init(FsRefs, Args) end,
-		handle_event = fun(FsRefs, Event, Data, InState) -> Module:handle_event(FsRefs, Event, Data, InState) end,
+		handle_event = fun(Event, Data, FsRefs, InState) -> Module:handle_event(Event, Data, FsRefs, InState) end,
 		handle_call = fun(Msg, From, FsRefs, InState) -> Module:handle_call(Msg, From, FsRefs, InState) end,
 		handle_cast = fun(Msg, FsRefs, InState) -> Module:handle_cast(Msg, FsRefs, InState) end,
 		handle_info = fun(Msg, FsRefs, InState) -> Module:handle_info(Msg, FsRefs, InState) end,

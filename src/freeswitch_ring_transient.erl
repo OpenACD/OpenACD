@@ -81,6 +81,15 @@ handle_call(_Msg, _From, _FsRef, State) ->
 %% =====
 %% handle_cast
 %% =====
+handle_cast({agent_state, oncall, #call{type = voice}}, _FsRef, State) ->
+	% bridging will happen, and all will be happy.
+	{noreply, State};
+handle_cast({agent_state, AState, _Data}, FsRef, State) ->
+	handle_cast({agent_state, AState}, FsRef, State);
+handle_cast({agent_state, _AState}, {FsNode, UUID}, State) ->
+	% live fast, die young, leave a beautiful exit message.
+	freeswitch:bgapi(FsNode, uuid_kill, UUID),
+	{stop, normal, State};
 handle_cast(_Msg, _FsRef, State) ->
 	{noreply, State}.
 

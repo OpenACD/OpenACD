@@ -457,6 +457,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 						neither ->
 							InCall
 					end,
+					link(RingPid),
 					NewEp = {RingPid, transient, EpType},
 					gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 					gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
@@ -476,6 +477,7 @@ idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefin
 			case gen_server:call(RingMan, {ring, Agent, Incall}) of
 				{ok, NewRingPid, _Paths} ->
 					% TODO do something w/ paths?
+					link(NewRingPid),
 					NewRingPid;
 				RingManErr ->
 					?INFO("non-vital failure of the ring manager ~s:  ~p", [RingMan, RingManErr]),
@@ -496,8 +498,6 @@ idle({ringing, Incall}, {RingPid, _Tag}, #state{agent_rec = #agent{endpointtype 
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
 idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {RingPid, persistant, _EpType}} = Agent} = State) ->
-	% TODO ringout shouldn't be hard coded.  Could just dump it and 
-	% use a timer in gen_media to keep track of it.
 	case gen_server:call(RingPid, {agent_state, ringing, Incall}) of
 		ok ->
 			% fake the call answerabled and hangup-able, because our
@@ -593,9 +593,6 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	NewEndPointType = case Agent#agent.endpointtype of
 		{undefined, _, _} = EpType->
 			EpType;
-		{Pid, transient, EpType} ->
-			exit(Pid, normal),
-			{undefined, transient, EpType};
 		{Pid, _Persistnace, _} = EpType ->
 			gen_server:cast(Pid, {agent_state, released}),
 			EpType
@@ -619,9 +616,6 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			locked
 	end,
 	NewEndpointType = case Agent#agent.endpointtype of
-		{Pid, transient, EpType} ->
-			exit(Pid, normal),
-			{undefined, transient, EpType};
 		{undefined, _, _} = EpType ->
 			EpType;
 		{Pid, _Persistance, _}  = EpType ->
@@ -718,9 +712,6 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 	NewEndpoint = case Agent#agent.endpointtype of
 		{undefined, _, _} = EpElse ->
 			EpElse;
-		{EpPid, transient, Type} ->
-			exit(EpPid, normal),
-			{undefined, transient, Type};
 		{EpPid, _, _} = EpElse ->
 			gen_server:cast(EpPid, {agent_state, wrapup}),
 			EpElse
@@ -743,12 +734,12 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 	%cdr:wrapup(Call, State#agent.login),
 	try gen_media:wrapup(Call#call.source) of
 		ok ->
-			NewEndpoint = case Agent#agent.endpointtype of
-				{EpPid, transient, Type} ->
-					exit(EpPid, normal),
-					{undefined, transient, Type};
-				ElseEp ->
-					ElseEp
+			NewEndpoint = Agent#agent.endpointtype,
+			case NewEndpoint of
+				{undefined, _, _} ->
+					ok;
+				{EpPid, _, _} ->
+					gen_server:cast(EpPid, {agent_state, wrapup, Call})
 			end,
 			Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),

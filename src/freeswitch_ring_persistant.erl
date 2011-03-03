@@ -66,9 +66,9 @@ init(_Fsref, _Options) ->
 %% handle_call
 %% =====
 
-handle_call({ring, _OtherLeg, Ringout}, _From, {Fsnode, UUID}, State) ->
+handle_call({agent_state, ringing, _RingCall}, _From, {Fsnode, UUID}, State) ->
 	Callback = fun(_, _) -> ok end,
-	freeswitch:bgapi(Fsnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++integer_to_list(Ringout)++",park' inline", Callback),
+	freeswitch:bgapi(Fsnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops=20,park' inline", Callback),
 	{reply, ok, State};
 handle_call(Msg, _From, FsRef, State) ->
 	?WARNING("Unrecognized message ~p (fs:  ~p)", [Msg, FsRef]),
@@ -77,7 +77,19 @@ handle_call(Msg, _From, FsRef, State) ->
 %% =====
 %% handle_cast
 %% =====
-handle_cast(_Msg, _FsRef, State) ->
+handle_cast({agent_state, oncall, #call{type = voice}}, _FsRef, State) ->
+	% the ring sound is automatically cut off in this case.
+	{noreply, State};
+% TODO next 2 clauses could stand to be less transfer happy.
+handle_cast({agent_state, AState, _Data}, FsInfo, State) ->
+	handle_cast({agent_state, AState}, FsInfo, State);
+handle_cast({agent_state, _AState}, {Fsnode, UUID}, State) ->
+	freeswitch:bgapi(Fsnode, uuid_transfer, UUID ++ " 'park' inline", fun(_, _) -> 
+		?INFO("machine goes bing!", []),
+	ok end),
+	{noreply, State};
+handle_cast(Msg, _FsRef, State) ->
+	?INFO("unhandled cast ~p", [Msg]),
 	{noreply, State}.
 
 %% =====

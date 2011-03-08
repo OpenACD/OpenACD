@@ -347,7 +347,8 @@ service_request(#agentrequest{request_hint = 'GET_SALT'}, BaseReply, State) ->
 	{Reply, State#state{salt = Salt}};
 service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, State) ->
 	Salt = State#state.salt,
-	case decrypt_password(LoginRequest#loginrequest.password) of
+	CryptedPass = list_to_binary(LoginRequest#loginrequest.password),
+	case decrypt_password(CryptedPass) of
 		{ok, Decrypted} ->
 			case string:substr(Decrypted, 1, length(Salt)) of
 				Salt ->

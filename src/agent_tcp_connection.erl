@@ -284,14 +284,11 @@ server_event(Socket, Record, Radix) ->
 	send(Socket, Outrec, Radix).
 
 send(Socket, Record, Radix) ->
-	?DEBUG("pre encode:  ~p", [Record]),
 	Bin = cpx_agent_pb:encode(Record),
-	?DEBUG("post encode:  ~p", [Bin]),
 	%Size = list_to_binary(integer_to_list(size(Bin))),
 	%?DEBUG("Das size:  ~p", [Size]),
 	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
 	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
-	?DEBUG("Das outbin:  ~p", [Outbin]),
 	ok = gen_tcp:send(Socket, Outbin).
 
 service_requests([], State) ->

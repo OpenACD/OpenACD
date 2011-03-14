@@ -1084,150 +1084,176 @@ get_nodes() ->
 	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
-multi_node_test_d() -> 
-		{
-		foreach,
-		fun() ->
-			?CONSOLE("======multi node setup!=======", []),
-			{Master, Slave} = get_nodes(),
-			Agent = #agent{login="testagent", id = "testagent"},
-			Agent2 = #agent{login="testagent2", id = "testagent2"},
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-			mnesia:stop(),
-			
-			mnesia:change_config(extra_db_nodes, [Master, Slave]),
-			mnesia:delete_schema([node(), Master, Slave]),
-			mnesia:create_schema([node(), Master, Slave]),
-			
-			cover:start([Master, Slave]),
-			
-			rpc:call(Master, mnesia, start, []),
-			rpc:call(Slave, mnesia, start, []),
-			mnesia:start(),
-			
-			mnesia:change_table_copy_type(schema, Master, disc_copies),
-			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+-record(multi_node_test_state, {
+	master_node,
+	slave_node,
+	master_am,
+	slave_am
+}).
 
-			{ok, _P1} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
-			?CONSOLE("Master started!", []),
-			{ok, _P2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
-			?CONSOLE("Slave started!", []),
-			{Master, Slave, Agent, Agent2}
-		end,
-		fun({Master, Slave, _Agent, _Agent2}) -> 
-			cover:stop([Master, Slave]),
-			slave:stop(Master),
-			slave:stop(Slave),
-			ok
-		end,
-		[
-			fun({Master, Slave, Agent, _Agent2}) ->
-				{"Slave picks up added agent",
-					fun() -> 
-						{ok, Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-						?assertMatch({exists, Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
-					end
-				}
-			end,
-			fun({Master, Slave, Agent, _Agent2}) ->
-				{"Slave continues after master dies",
-					fun() -> 
-						{ok, _Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-						slave:stop(Master),
-						%rpc:call(Master, erlang, disconnect_node, [Slave]),
-						%rpc:call(Slave, erlang, disconnect_node, [Master]),
-						?assertMatch({ok, _NewPid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
-					end
-				}
-			end,
-			fun({Master, Slave, _Agent, _Agent2}) ->
-				{"Slave becomes master after master dies",
-					fun() -> 
-						%% getting the pids is important for this test
-						cover:stop([Master, Slave]),
-						slave:stop(Master),
-						slave:stop(Slave),
-						
-						slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
-						slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-						cover:start([Master, Slave]),
+multi_node_test_() ->
+	util:start_testnode(),
+	Master = util:start_testnode(agent_manager_master),
+	Slave = util:start_testnode(agent_manager_slave),
+	mnesia:change_config(extra_db_nodes, [Master, Slave]),
+	cover:start([Master, Slave]),
+	{inorder, {foreach, fun() ->
+		rpc:call(Master, mnesia, stop, []),
+		rpc:call(Slave, mnesia, stop, []),
+		mnesia:delete_schema([Master, Slave]),
+		mnesia:create_schema([Master, Slave]),
+		rpc:call(Master, mnesia, start, []),
+		rpc:call(Slave, mnesia, start, []),
+		mnesia:change_table_copy_type(schema, Master, disc_copies),
+		mnesia:change_table_copy_type(schema, Slave, disc_copies),
+		{ok, AMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+		{ok, AMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+		#multi_node_test_state{
+			master_node = Master,
+			slave_node = Slave,
+			master_am = AMMaster,
+			slave_am = AMSlave
+		}
+	end,
+	fun(MultinodeState) ->
+		rpc:call(Master, ?MODULE, stop, []),
+		rpc:call(Slave, ?MODULE, stop, []),
+		rpc:call(Master, mnesia, stop, []),
+		rpc:call(Slave, mnesia, stop, [])
+	end,
+	[fun(TestState) -> {"Slave skips added agent", fun() ->
+		% only the leader knows about every agent, it seems
+		% the reason not every manager needs to know about every 
+		% agent is the cook will ask each dispatcher, which will ask 
+		% the local manager.  The resulting lists are combined.
+		Agent = #agent{id = "agent", login = "agent"},
+		{ok, Apid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+		List = rpc:call(Slave, ?MODULE, list, []),
+		?assertEqual([], List)
+	end} end,
+	fun(TestState) -> {"Master is informed of agent on slave", fun() ->
+		Agent = #agent{id = "agent", login = "agent", skills = []},
+		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+		List = rpc:call(Master, ?MODULE, list, []),
+		?assertEqual([{"agent", {Apid, "agent", 0, []}}], List)
+	end} end,
+	fun(TestState) -> {"Master removes agents from dead node", fun() ->
+		Agent = #agent{id = "agent", login = "agent", skills = []},
+		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+		List = rpc:call(Master, ?MODULE, list, []),
+		?assertEqual([{"agent", {Apid, "agent", 0, []}}], List),
+		rpc:call(Slave, erlang, exit, [TestState#multi_node_test_state.slave_am, kill]),
+		?assertEqual([], rpc:call(Master, ?MODULE, list, []))
+	end} end]}}.
 
-						{ok, _MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
-						{ok, SlaveP} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 
-						%% test proper begins
-						rpc:call(Master, erlang, disconnect_node, [Slave]),
-						cover:stop([Master]),
-						slave:stop(Master),
-						
-						?assertMatch({ok, SlaveP}, rpc:call(Slave, ?MODULE, get_leader, []))
-						
-						%?assertMatch(undefined, global:whereis_name(?MODULE)),
-						%?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-						%?assertMatch({true, _Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-						
-						
-						%Globalwhere = global:whereis_name(?MODULE),
-						%Slaveself = rpc:call(Slave, erlang, whereis, [?MODULE]),
-											
-						%?assertMatch(Globalwhere, Slaveself)
-					end
-				}
-			end,
-			fun({Master, Slave, Agent, Agent2}) ->
-				{"Net Split with unique agents",
-					fun() ->
-						{ok, Apid1} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-						
-						?assertMatch({exists, Apid1}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-					
-						rpc:call(Master, erlang, disconnect_node, [Slave]),
-						rpc:call(Slave, erlang, disconnect_node, [Master]),
-						
-						{ok, Apid2} = rpc:call(Slave, ?MODULE, start_agent, [Agent2]),
-											
-						Pinged = rpc:call(Master, net_adm, ping, [Slave]),
-						Pinged = rpc:call(Slave, net_adm, ping, [Master]),
-
-						?assert(Pinged =:= pong),
-
-						?assertMatch({true, Apid1}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-						?assertMatch({true, Apid2}, rpc:call(Master, ?MODULE, query_agent, [Agent2]))
-						
-					end
-				}
-			end,
-			fun({Master, Slave, Agent, Agent2}) ->
-				{"Master removes agents for a dead node",
-					fun() ->
-						?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
-						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-						%rpc:call(Master, erlang, disconnect_node, [Slave]),
-						cover:stop(Slave),
-						slave:stop(Slave),
-						?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent2])),
-						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent]))
-					end
-				}
-			end,
-			fun({Master, Slave, Agent, _Agent2}) ->
-				{"Master is notified of agent removal on slave",
-					fun() ->
-						{ok, Pid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
-						?assertMatch({true, Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-						?assertMatch({true, Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-						exit(Pid, kill),
-						timer:sleep(300),
-						?assertMatch(false, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-						?assertMatch(false, rpc:call(Master, ?MODULE, query_agent, [Agent]))
-					end
-				}
-			end
-		]
-	}.
+%		[
+%			fun({Master, Slave, Agent, _Agent2}) ->
+%				{"Slave picks up added agent",
+%					fun() -> 
+%						{ok, Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+%						?assertMatch({exists, Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
+%					end
+%				}
+%			end,
+%			fun({Master, Slave, Agent, _Agent2}) ->
+%				{"Slave continues after master dies",
+%					fun() -> 
+%						{ok, _Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+%						slave:stop(Master),
+%						%rpc:call(Master, erlang, disconnect_node, [Slave]),
+%						%rpc:call(Slave, erlang, disconnect_node, [Master]),
+%						?assertMatch({ok, _NewPid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
+%					end
+%				}
+%			end,
+%			fun({Master, Slave, _Agent, _Agent2}) ->
+%				{"Slave becomes master after master dies",
+%					fun() -> 
+%						%% getting the pids is important for this test
+%						cover:stop([Master, Slave]),
+%						slave:stop(Master),
+%						slave:stop(Slave),
+%						
+%						slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
+%						slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+%						cover:start([Master, Slave]),
+%
+%						{ok, _MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+%						{ok, SlaveP} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+%
+%						%% test proper begins
+%						rpc:call(Master, erlang, disconnect_node, [Slave]),
+%						cover:stop([Master]),
+%						slave:stop(Master),
+%						
+%						?assertMatch({ok, SlaveP}, rpc:call(Slave, ?MODULE, get_leader, []))
+%						
+%						%?assertMatch(undefined, global:whereis_name(?MODULE)),
+%						%?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+%						%?assertMatch({true, _Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+%						
+%						
+%						%Globalwhere = global:whereis_name(?MODULE),
+%						%Slaveself = rpc:call(Slave, erlang, whereis, [?MODULE]),
+%											
+%						%?assertMatch(Globalwhere, Slaveself)
+%					end
+%				}
+%			end,
+%			fun({Master, Slave, Agent, Agent2}) ->
+%				{"Net Split with unique agents",
+%					fun() ->
+%						{ok, Apid1} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+%						
+%						?assertMatch({exists, Apid1}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+%					
+%						rpc:call(Master, erlang, disconnect_node, [Slave]),
+%						rpc:call(Slave, erlang, disconnect_node, [Master]),
+%						
+%						{ok, Apid2} = rpc:call(Slave, ?MODULE, start_agent, [Agent2]),
+%											
+%						Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+%						Pinged = rpc:call(Slave, net_adm, ping, [Master]),
+%
+%						?assert(Pinged =:= pong),
+%
+%						?assertMatch({true, Apid1}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+%						?assertMatch({true, Apid2}, rpc:call(Master, ?MODULE, query_agent, [Agent2]))
+%						
+%					end
+%				}
+%			end,
+%			fun({Master, Slave, Agent, Agent2}) ->
+%				{"Master removes agents for a dead node",
+%					fun() ->
+%						?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+%						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
+%						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+%						%rpc:call(Master, erlang, disconnect_node, [Slave]),
+%						cover:stop(Slave),
+%						slave:stop(Slave),
+%						?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+%						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent2])),
+%						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent]))
+%					end
+%				}
+%			end,
+%			fun({Master, Slave, Agent, _Agent2}) ->
+%				{"Master is notified of agent removal on slave",
+%					fun() ->
+%						{ok, Pid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+%						?assertMatch({true, Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+%						?assertMatch({true, Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+%						exit(Pid, kill),
+%						timer:sleep(300),
+%						?assertMatch(false, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+%						?assertMatch(false, rpc:call(Master, ?MODULE, query_agent, [Agent]))
+%					end
+%				}
+%			end
+%		]
+%	}.
 -endif.
 
 -ifdef(PROFILE).

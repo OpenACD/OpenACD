@@ -27,7 +27,9 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-
+%% @doc A cdr dumper that makes a dets back repository of cdrs, one for each
+%% day.  Also has some helper functions to load the data either to ets, or
+%% back into mnesia.
 
 -module(cdr_dets).
 -author(micahw).

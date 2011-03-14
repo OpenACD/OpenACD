@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Module to spit a subset of the cpx_monitor data to an xml file 
+%% @doc Module to spit a subset of the cpx_monitor data to an json file 
 %% periodically.
 -module(cpx_monitor_passive).
 -author(micahw).

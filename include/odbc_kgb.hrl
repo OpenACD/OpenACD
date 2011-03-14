@@ -44,7 +44,7 @@
 	id :: string(),
 	hostname :: string(),
 	event_type :: 'undefined' | event_type(),
-	agent_id :: string(),
+	acd_agent_id :: string(),
 	acd_type = "openacd" :: string(),
 	acd_name :: string(), % usually hostname
 	agent_ip :: string(), 
@@ -52,6 +52,7 @@
 	uci :: string(), % field 2 of from_header
 	did :: string(), % field 4 of from_header
 	origin_code :: string(), % field 3 of from_header
+	freeswitch_id :: string(), % filled in by call id
 	queue :: string(),
 	queue_name :: string(),
 	source_ip :: string(),

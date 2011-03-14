@@ -22,8 +22,16 @@
 %%	Andrew Thompson <andrew at hijacked dot us>
 
 %% @doc Intercepts events from cpx_monitor on behalf of an odbc connection.  
-%% The odbc connection is supervised by a proper supervisor which is started by 
-%% this module.
+%% The odbc connection is supervised by a proper supervisor which is 
+%% started by this module.
+%%
+%% When an event comes in, it transforms it into a record which mirrors a
+%% database row.  It then sends that record with a reference to the odbc
+%% writer process.  It expects an ack back for each record it sends.  If
+%% the writer dies, when it comes back, it resends each record it has not
+%% recieved an ack for.  If the writer dies enough, it will take the sub-
+%% supervisor process with it, thus requiring manual intervention.  Events
+%% will continue to queue up.
 
 -module(cpx_monitor_odbc_supervisor).
 
@@ -51,7 +59,8 @@
 	start_link/1,
 	start_link/2,
 	stop/0,
-	start_odbc/0
+	start_odbc/0,
+	status/0
 ]).
 
 %% gen_server callbacks
@@ -133,7 +142,12 @@ stop() ->
 -spec(start_odbc/0 :: () -> 'ok').
 start_odbc() ->
 	gen_server:cast(?MODULE, start_odbc).
-	
+
+%% @doc Returns the supervisor and writer pids.
+-spec(status/0 :: () -> {pid() | 'undefined', pid() | 'undefined'}).
+status() ->
+	gen_server:call(?MODULE, status).
+
 % =====
 % init 
 % =====
@@ -168,6 +182,8 @@ init([Dsn, Opts]) ->
 % =====
 % Call
 % =====
+handle_call(status, _From, #state{odbc_sup_pid = Sup, odbc_pid = Kid} = State) ->
+	{reply, {Sup, Kid}, State};
 handle_call(_Request, _From, State) ->
 	Reply = ok,
 	{reply, Reply, State, hibernate}.
@@ -179,6 +195,7 @@ handle_cast(start_odbc, #state{odbc_sup_pid = undefined} = State) ->
 	{ok, SupOdbc} = start_odbc_super(State#state.max_r, State#state.max_t),
 	{ok, Odbc} = start_odbc_process(SupOdbc, State#state.dsn, State#state.trace),
 	?INFO("New sup:  ~p;  new odbc:  ~p.", [SupOdbc, Odbc]),
+	link(Odbc),
 	Resend = lists:reverse(State#state.event_cache),
 	[Odbc ! X || X <- Resend],
 	{noreply, State#state{odbc_pid = Odbc, odbc_sup_pid = SupOdbc}};
@@ -228,10 +245,10 @@ handle_info(check_odbc, #state{odbc_sup_pid = undefined} = State) ->
 	?INFO("likely a late check_odbc since the supervisor is dead.", []),
 	{noreply, State#state{odbc_pid = undefined}};
 handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
+	?DEBUG("Checking for odbc recover", []),
 	case supervisor:which_children(Sup) of
 		[{cpx_monitor_kgb_odbc, undefined, _, _}] ->
-			Self = self(),
-			Ref = erlang:send_after(?Check_interval, Self, check_odbc),
+			Ref = erlang:send_after(?Check_interval, ?MODULE, check_odbc),
 			{noreply, State#state{odbc_pid = Ref}};
 		[{cpx_monitor_kgb_odbc, Pid, _, _}] ->
 			case is_process_alive(Pid) of
@@ -241,8 +258,7 @@ handle_info(check_odbc, #state{odbc_sup_pid = Sup} = State) when is_pid(Sup) ->
 					[Pid ! X || X <- Resend],
 					{noreply, State#state{odbc_pid = Pid}};
 				false ->
-					Self = self(),
-					Ref = erlang:send_after(?Check_interval, Self, check_odbc),
+					Ref = erlang:send_after(?Check_interval, ?MODULE, check_odbc),
 					{noreply, State#state{odbc_pid = Ref}}
 			end
 	end;
@@ -289,7 +305,7 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 		undefined ->
 			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
-			Event = build_event_log(call_enqueue, Timestamp, Details),
+			Event = build_event_log(call_enqueue, Timestamp, [{mediaid, Key} | Details]),
 			NewCache = send_events(State#state.odbc_pid, [Event], State#state.event_cache),
 			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls), event_cache = NewCache}}
 	end;
@@ -305,7 +321,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, State) ->
 			case dict:find(Key, State#state.calls) of
 				{ok, New} ->
 					?INFO("~p abandoned", [Key]),
-					UseableProps = [{cache_queue, Queue} | New],
+					UseableProps = [{cache_queue, Queue}, {mediaid, Key} | New],
 					Event = build_event_log(call_terminate, Timestamp, UseableProps),
 					send_events(State#state.odbc_pid, [Event], State#state.event_cache);
 				error ->
@@ -486,21 +502,21 @@ build_event_log(#event_log_row{event_type = acd_stop} = E, _Props) ->
 	E;
 build_event_log(#event_log_row{event_type = agent_start} = E, Props) ->
 	E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = agent_login} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_stop} = E, Props) ->
 	E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type= agent_logout} = E, Props) ->
 	BaseEvent = E#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	},
 	Skills = proplists:get_value(skills, Props),
 	[BaseEvent#event_log_row{queue_name = Q} || {'_queue', Q} <- Skills];
@@ -509,7 +525,7 @@ build_event_log(#event_log_row{event_type = call_enqueue} = E , Props) ->
 build_event_log(#event_log_row{event_type = call_answer} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
 	MidEvent#event_log_row{
-		agent_id = proplists:get_value(login, Props)
+		acd_agent_id = proplists:get_value(login, Props)
 	};
 build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 	MidEvent = build_event_log_call_base(E, Props),
@@ -518,7 +534,7 @@ build_event_log(#event_log_row{event_type = call_terminate} = E, Props) ->
 			MidEvent;
 		Login ->
 			MidEvent#event_log_row{
-				agent_id = Login
+				acd_agent_id = Login
 			}
 	end;
 build_event_log(#event_log_row{event_type = call_complete} = E, _Props) ->
@@ -529,14 +545,14 @@ build_event_log(#event_log_row{event_type = agent_available} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		agent_id = Login,
+		acd_agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills];
 build_event_log(#event_log_row{event_type = agent_unavailable} = E, Props) ->
 	Login = proplists:get_value(login, Props),
 	Skills = proplists:get_value(skills, Props),
 	[E#event_log_row{
-		agent_id = Login,
+		acd_agent_id = Login,
 		queue_name = Q
 	} || {'_queue', Q} <- Skills].
 
@@ -561,7 +577,8 @@ build_event_log_call_base(E, Props) ->
 		ani = Ani,
 		uci = Uci ++ "*" ++ OriginCode,
 		did = Did,
-		origin_code = OriginCode
+		origin_code = OriginCode,
+		freeswitch_id = proplists:get_value(mediaid, Props, "")
 	}.
 	
 send_events(_Pid, [], Acc) ->
@@ -709,7 +726,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_start,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
 				},
@@ -728,7 +745,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_login,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -743,7 +760,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_login,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -787,7 +804,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_available,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -802,7 +819,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_available,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -849,7 +866,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -864,7 +881,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_unavailable,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					acd_type = "openacd",
 					created_at =  iso8601_timestamp(Rec#test_conf.timestamp)
@@ -900,7 +917,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_stop,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					acd_type = "openacd",
 					created_at = In#event_log_row.created_at
 				},
@@ -922,7 +939,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q1",
 					created_at =  In#event_log_row.created_at
 				},
@@ -938,7 +955,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = agent_logout,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					queue_name = "q2",
 					created_at = In#event_log_row.created_at
 				},
@@ -1066,7 +1083,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = call_answer,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",
@@ -1123,7 +1140,7 @@ transform_events_tests() ->
 					hostname = get_FQDN(),
 					event_type = call_terminate,
 					acd_name = get_FQDN(),
-					agent_id = "testagent",
+					acd_agent_id = "testagent",
 					uci = "b*c",
 					did = "d",
 					origin_code = "c",

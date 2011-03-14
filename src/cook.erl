@@ -28,10 +28,14 @@
 %%
 
 %% @doc The cook is a process that is spawned per call in queue, it
-%% executes the queue's 'recipe' on the call and handles call delivery to an
-%% agent. When it finds one or more dispatchers bound to its call it requests
-%% that each dispatcher generate a list of local agents matching the call's
-%% criteria and selects the best one to offer it to.
+%% executes the queue's 'recipe' on the call and kicks off call delivery 
+%% to agents. When it finds one or more dispatchers bound to its call it 
+%% requests that each dispatcher generate a list of local agents matching 
+%% the call's criteria and selects the best one to offer it to.  It then
+%% has gen_media try to ring that agent.
+%% @see call_queue
+%% @see dispatcher
+%% @see gen_media
 -module(cook).
 -author("Micah").
 
@@ -187,7 +191,7 @@ handle_cast(stop_ringing, #state{qpid = Qpid} = State) ->
 	end;
 handle_cast({ring_to, Apid, QCall}, State) ->
 	Agent = agent:dump_state(Apid),
-	Newstate = case offer_call([{Agent#agent.login, Apid, 0, [], 0}], QCall) of
+	Newstate = case offer_call([{Agent#agent.login, {Apid, Agent#agent.id, [], node(Apid)}}], QCall) of
 		ringing ->
 			State#state{ringstate = ringing};
 		none ->

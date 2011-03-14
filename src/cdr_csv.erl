@@ -27,7 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A very simple cdr dumper module.
+%% @doc A very simple cdr dumper module.  Note that this is likely very
+%% broken, and not recommended.  It is here primarily for reference.
 
 -module(cdr_csv).
 -author(micahw).

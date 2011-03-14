@@ -27,8 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Companion to sip_bots.  When a new call comes into the sip_bot,
-%% this is supposed to act like the phone for a dummy agent.  
+%% @doc Companion to sip_bot_manager.  When a new call comes into the 
+%% sip_bot, this is supposed to act like the phone for a dummy agent.  
 %% @see sip_bot_manager
 -module(sip_bot).
 -author(micahw).

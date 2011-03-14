@@ -27,6 +27,9 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
+%% @doc A media manager for dummy_media.
+%% @see dummy_media
+
 -module(dummy_media_manager).
 -author(micahw).
 

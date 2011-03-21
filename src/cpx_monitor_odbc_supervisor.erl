@@ -569,7 +569,7 @@ build_event_log_call_base(E, Props) ->
 		{{_, H}, undefined} ->
 			H
 	end,
-	[Ani, Uci, OriginCode, Did, _TailFromHeader] = string:tokens(FromHeader, "*"),
+	[Ani, Uci, OriginCode, Did | _TailFromHeader] = string:tokens(FromHeader, "*"),
 	E#event_log_row{
 		queue = Queue,
 		queue_name = Queue,

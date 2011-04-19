@@ -173,10 +173,15 @@
 %% API
 %%====================================================================
 
+%% @doc Uses a configuration file of "sip_bot_conf.hrl".
+%% @see start_app/2
 -spec(start_app/1 :: (Node :: atom()) -> {'ok', pid()}).
 start_app(Node) ->
 	start_app(Node, "sip_bot_conf.hrl").
 
+%% @doc Starts cpxlog, then self.  The second argument is a path to a
+%% configuration file.
+%% @see start/2
 -spec(start_app/2 :: (Node :: atom(), File :: string()) -> {'ok', pid()}).
 start_app(Node, File) ->
 	case whereis(cpxlog) of
@@ -186,11 +191,14 @@ start_app(Node, File) ->
 			ok
 	end,
 	start(Node, {file, File}).
-	
+
+%% @doc Start using the freeswitch node and all defaults.
 -spec(start/1 :: (Node :: atom()) -> {'ok', pid()}).
 start(Node) ->
 	start(Node, []).
 
+%% @doc Start using the freeswitch node and the given configuration.  The
+%% configuration is either a proplist of options, or `{file, "path/to/conf"}'
 -spec(start/2 :: (Node :: atom(), Opts :: start_options() | {'file', string()}) -> {'ok', pid()}).
 start(Node, {file, File}) ->
 	{ok, Opts} = file:consult(File),
@@ -198,10 +206,14 @@ start(Node, {file, File}) ->
 start(Node, Opts) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Node, Opts], []).
 
+%% @doc Uses pure defaults.
+%% @see start_link/2
 -spec(start_link/1 :: (Node :: atom()) -> {'ok', pid()}).
 start_link(Node) ->
 	start_link(Node, []).
 
+%% @doc Links to the resultant pid.
+%% @see start/2
 -spec(start_link/2 :: (Node :: atom(), Opts :: start_options() | {'file', string()}) -> {'ok', pid()}).
 start_link(Node, {file, File}) ->
 	{ok, Opts} = file:consult(File),
@@ -209,14 +221,17 @@ start_link(Node, {file, File}) ->
 start_link(Node, Opts) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Node, Opts], []).
 
+%% @doc Stops the madness.
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?MODULE, stop).
 
+%% @doc Attempts to dial the number or uri.
 -spec(originate/1 :: (TargetNum :: string()) -> 'ok').
 originate(TargetNum) ->
 	gen_server:cast(?MODULE, {originate, TargetNum}).
 
+%% @doc Attmepts `X' times to dial the number(s) or uri.
 -spec(originate/2 :: (X :: pos_integer(), TargetNum :: string() | [string()]) -> 'ok').
 originate(X, [H | _] = TargetNum) when is_integer(H) ->
 	originate(X, [TargetNum]);

@@ -264,14 +264,14 @@ function loadTab(tabid){
 
 
 function load_media_tab(options){
-	console.log("load_media-tab");
+	console.log("load_media_tab");
 	if(! options.media){
 		throw "media is required for tab";
 	}
 	if(! options.id){
 		options.id = options.media;
 	}
-	if(! options.href){
+	if(! (options.href || options.content) ){
 		options.href = options.media + '_media.html';
 	}
 	if(options.fullpane == undefined){
@@ -280,8 +280,16 @@ function load_media_tab(options){
 	if(! options.title){
 		options.title = options.media;
 	}
+	if(options.autoClose == undefined){
+		options.autoClose = true;
+	}
 	
 	if(dijit.byId(options.id)){
+		if(options.overwrite && options.href){
+			dijit.byId(options.id).attr('href', options.href);
+		} else if(options.overwrite && options.content) {
+			dijit.byId(options.id).attr('content', options.content);
+		}
 		return false;
 	}
 	
@@ -290,20 +298,22 @@ function load_media_tab(options){
 			title:options.title,
 			executeScripts: "true",
 			id: options.id,
-			closable: false
+			closable:options.closable 
 		});
-		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			try{
-				if(data.state == 'wrapup'){
-					dojo.unsubscribe(pane.unloadListener);
-					dojo.unsubscribe(pane.logoutListener);
-					dijit.byId('tabPanel').closeChild(pane);
+		if(options.autoClose){
+			pane.unloadListener = dojo.subscribe('agent/state', function(data){
+				try{
+					if(data.state == 'wrapup'){
+						dojo.unsubscribe(pane.unloadListener);
+						dojo.unsubscribe(pane.logoutListener);
+						dijit.byId('tabPanel').closeChild(pane);
+					}
 				}
-			}
-			catch (err){
-				info(['media pane unload listener erred', err]);
-			}
-		});
+				catch (err){
+					info(['media pane unload listener erred', err]);
+				}
+			});
+		}
 		pane.logoutListener = dojo.subscribe('agent/logout', function(){
 			try{
 				dojo.unsubscribe(pane.unloadListener);
@@ -314,7 +324,11 @@ function load_media_tab(options){
 				info(['media pan logout listener erred', err]);
 			}
 		});
-		pane.attr('href', "tabs/" + options.href);
+		if(options.content){
+			pane.attr('content', options.content);
+		} else {
+			pane.attr('href', "tabs/" + options.href);
+		}
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
 	} else {
@@ -330,7 +344,7 @@ function load_media_tab(options){
 		var pane = new dojox.layout.FloatingPane({
 			title: options.title,
 			executeScripts: true,
-			closable: false,
+			closable: options.closable,
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
@@ -339,19 +353,21 @@ function load_media_tab(options){
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();
 		pane.show();
-		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			try{
-				if(data.state == 'wrapup'){
-					dojo.unsubscribe(pane.unloadListener);
-					dojo.unsubscribe(pane.logoutListener);
-					pane.attr('closable', true);
-					pane.close();
+		if(options.autoClose){
+			pane.unloadListener = dojo.subscribe('agent/state', function(data){
+				try{
+					if(data.state == 'wrapup'){
+						dojo.unsubscribe(pane.unloadListener);
+						dojo.unsubscribe(pane.logoutListener);
+						pane.attr('closable', true);
+						pane.close();
+					}
 				}
-			}
-			catch (err){
-				info(['media pane unload listener erred', err]);
-			}
-		});
+				catch (err){
+					info(['media pane unload listener erred', err]);
+				}
+			});
+		}
 		pane.logoutListener = dojo.subscribe('agent/logout', function(){
 			try{
 				dojo.unsubscribe(pane.unloadListener);
@@ -1115,47 +1131,22 @@ dojo.addOnLoad(function(){
 		if(EventLog){
 			EventLog.log("URL popped:  " + data.url);
 		}
-		var name = 'popup';
-		if(data.name){
-			name = data.name;
+		var popOptions = {
+			media:'ring',
+			title:'popup',
+			content: '<iframe width="99%" height="300px" src="' + data.url + '" />',
+			autoClose:false,
+			closable:true,
+			overwrite:true
 		}
-		
-		var id = name + '_urlpop';
-		
-		var widget = false;
-		if(dijit.byId(id)){
-			if(name == 'popup'){
-				dijit.byId(id).destroy();
-			} else {
-				widget = dijit.byId(id);
-			}
-		}
-		
-		var newContent = '<iframe width="99%", height="300px" src="' + data.url + '" />';
 
-		if(widget === false){
-			var elem = document.createElement('div');
-			elem.id = id;
-			document.body.insertBefore(elem, document.body.firstChild);
-			
-			widget = new dojox.layout.FloatingPane({
-				title:name,
-				resizable: true,
-				dockable: false,
-				style: 'position:absolute; top: 100px; left: 50%; z-index: 1000',
-				content: newContent
-			}, dojo.byId(id));
-			// overriding close button to do a hide instead.
-			widget.closable = false;
-			widget._onCloseConnect = dojo.connect(widget.closeNode, 'onclick', widget, function(){
-				this.hide();
-			});
-		} else {
-			widget.attr('content', newContent);
+		if(data.name){
+			popOptions.title = data.name;
 		}
 		
-		widget.startup();
-		widget.show();		
+		popOptions.id = popOptions.title + '_urlpop';
+		
+		load_media_tab(popOptions);
 	});
 
 	dijit.byId("main").blab = dojo.subscribe("agent/blab", function(data){

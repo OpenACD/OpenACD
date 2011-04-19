@@ -1,6 +1,3 @@
-[submodule "contrib/gen_server_mock"]
-	path = contrib/gen_server_mock
-	url = git://github.com/lordnull/gen_server_mock.git
 [submodule "priv/www/contrib/dojo/dojo"]
 	path = priv/www/contrib/dojo/dojo
 	url = http://github.com/dojo/dojo.git

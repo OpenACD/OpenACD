@@ -2315,7 +2315,7 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 	Json = encode_client(Client),
 	{200, [], mochijson2:encode(Json)};
 api({clients, "setDefault"}, ?COOKIE, Post) ->
-	Baseoptions = try list_to_integer(proplists:get_value("autowrapup", Post)) of
+	Baseoptions = try list_to_integer(proplists:get_value("autoend_wrapup", Post)) of
 		I ->
 			[{autoend_wrapup, I}]
 	catch
@@ -2365,7 +2365,23 @@ api({clients, "add"}, ?COOKIE, Post) ->
 	end;
 api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 	Label = proplists:get_value("label", Post),
-	case call_queue_config:set_client(ClientId, Label, []) of
+	AccFun = fun({Key, Value}, Acc) ->
+		case Key of
+			"autoend_wrapup" ->
+				try list_to_integer(Value) of
+					0 -> Acc;
+					N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
+				catch
+					error:badarg -> Acc
+				end;
+			"url_pop" ->
+				[{url_pop, Value} | Acc];
+			_BadKey ->
+				Acc
+		end
+	end,
+	Options = lists:foldl(AccFun, [], Post),
+	case call_queue_config:set_client(ClientId, Label, Options) of
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->
@@ -2536,19 +2552,23 @@ decrypt_password(Password) ->
 	binary_to_list(Bar).
 
 encode_client(Client) ->
-	Optionslist = encode_client_options(Client#client.options),
+	FirstOptionsList = encode_client_options(Client#client.options),
+	Optionslist = case proplists:get_value(autowrapup, FirstOptionsList) of
+		undefined -> [{autowrapup, 0} | FirstOptionsList];
+		_ -> FirstOptionsList
+	end,
 	{struct, [
 		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
 		{<<"id">>, (case is_list(Client#client.id) of true -> list_to_binary(Client#client.id); false -> <<"">> end)},
-		{<<"integration">>, Client#client.last_integrated},
-		{<<"options">>, {struct, Optionslist}}
+		{<<"integration">>, Client#client.last_integrated} |
+		Optionslist
 	]}.
 		
 encode_client_options(List) ->
 	encode_client_options(List, []).
 
 encode_client_options([], Acc) ->
-	[{<<"_type">>, <<"json">>}, {<<"_value">>, {struct, lists:reverse(Acc)}}];
+	lists:reverse(Acc);
 encode_client_options([{url_pop, Format} | Tail], Acc) ->
 	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
 encode_client_options([{autoend_wrapup, N} | Tail], Acc) ->

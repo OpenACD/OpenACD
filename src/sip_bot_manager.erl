@@ -516,6 +516,7 @@ configuration_server(Node, State) ->
 			Proxy = proplists:get_value(gateway, State, ""),
 			Agents = proplists:get_value(agents, State, []),
 			Realm = proplists:get_value(realm, State, Proxy),
+			SipPort = list_to_binary(integer_to_list(proplists:get_value(sip_port, State, 5061))),
 			Gateways = [make_gateway_conf(Proxy, User, Pass, Realm) || {User, Pass} <- Agents],
 			Out = {<<"document">>, [
 				{<<"type">>, <<"freeswitch/xml">>}
@@ -540,6 +541,10 @@ configuration_server(Node, State) ->
 									{<<"param">>, [
 										{<<"name">>, <<"use-rtp-timer">>},
 										{<<"value">>, true}
+									]},
+									{<<"param">>, [
+										{<<"name">>, <<"sip-port">>},
+										{<<"value">>, SipPort}
 									]},
 									{<<"param">>, [
 										{<<"name">>, <<"rtp-timer-name">>},

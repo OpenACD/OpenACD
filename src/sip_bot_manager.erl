@@ -286,7 +286,7 @@ init([Nodename, Options]) ->
 		acd_node = Acd, 
 		eventserver = Listenpid, 
 		xmlserver = DomainPid, 
-		xmlserver_opts = Options, 
+		xmlserver_opts = ConfOpts, 
 		freeswitch_up = true,
 		bot_opts = Botopts
 	}}.

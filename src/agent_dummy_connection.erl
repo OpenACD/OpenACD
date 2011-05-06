@@ -73,6 +73,8 @@
 
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
+-type(endpoint_type() :: {'endpoint_type', endpoints()}).
+-type(endpoint_data() :: {'endpoint_data', string()}).
 -type(id_option() :: {'id', string()}).
 -type(profile() :: {'profile', string()}).
 -type(skill() :: atom() | {atom(), any()}).
@@ -90,6 +92,8 @@
 -type(start_option() :: 
 	login_option() |
 	password_option() |
+	endpoint_type() |
+	endpoint_data() |
 	id_option() |
 	profile() |
 	skills_option() |
@@ -144,7 +148,9 @@ init([Args]) ->
 			login = Login,
 			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
-			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
+			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
+			endpointtype = proplists:get_value(endpoint_type, Args, sip_registration),
+			endpointdata = proplists:get_value(endpoint_data, Args, Login)
 	},
 	{ok, Pid} = case proplists:get_value(remote_node, Args) of
 		undefined ->

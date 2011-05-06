@@ -86,6 +86,7 @@
 -type(wrapup() :: {'wrapup', pos_integer()}).
 -type(maxcalls() :: {'maxcalls', pos_integer()}).
 -type(scale() :: {'scale', pos_integer()}).
+-type(remote_node() :: {'remote_node', atom()}).
 -type(start_option() :: 
 	login_option() |
 	password_option() |
@@ -99,7 +100,8 @@
 	oncall() |
 	wrapup() |
 	maxcalls() |
-	scale()
+	scale() |
+	remote_node()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -137,13 +139,19 @@ clear_bot() ->
 init([Args]) ->
 	crypto:start(),
 	Login = proplists:get_value(login, Args, lists:flatten(io_lib:format("~p", [make_ref()]))),
-	{ok, Pid} = agent_manager:start_agent(#agent{
+	AgentRec = #agent{
 			id = proplists:get_value(id, Args, Login),
 			login = Login,
 			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
-		}),
+	},
+	{ok, Pid} = case proplists:get_value(remote_node, Args) of
+		undefined ->
+			agent_manager:start_agent(AgentRec);
+		RemoteNode ->
+			rpc:call(RemoteNode, agent_manager, start_agent, [AgentRec])
+	end,
 	ok = agent:set_state(Pid, idle),
 	ok = agent:set_connection(Pid, self()),
 	?NOTICE("Created new dummy agent connection", []),

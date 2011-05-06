@@ -260,7 +260,7 @@ init([Nodename, Options]) ->
 			make_agent_list(X)
 	end,
 	Profiles = proplists:get_value(profiles, Options, ["default"]),
-	DummyAgentOpts = proplists:get_value(agent_options, Options, []),
+	DummyAgentOpts = [{remote_node, Acd} | proplists:get_value(agent_options, Options, [])],
 	Botopts = proplists:get_value(sip_bots, Options, []),
 	ConfOpts = [{agents, Agents} | proplists:delete(agents, Options)],
 	process_flag(trap_exit, true),

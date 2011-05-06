@@ -414,7 +414,7 @@ code_change(_OldVsn, State, _Extra) ->
 launch_agents([], _Profiles, _Opts, _Acd) ->
 	ok;
 launch_agents([{User, Pass} | Tail], [Profile | Proftail], Opts, Acd) ->
-	O = rpc:call(Acd, agent_dummy_connection, start, [lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)]),
+	O = agent_dummy_connection:start(lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)),
 	?DEBUG("Launched agent ~s:  ~p", [User, O]),
 	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd);
 launch_agents(X, P, O, A) when is_integer(X) ->

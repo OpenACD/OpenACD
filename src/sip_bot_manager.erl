@@ -267,7 +267,7 @@ init([Nodename, Options]) ->
 	monitor_node(Nodename, true),
 	spawn(fun() -> 
 		kill_agents(Agents, Acd),
-		launch_agents(Agents, Profiles, DummyAgentOpts, Acd)
+		launch_agents(Agents, Profiles, DummyAgentOpts, Acd, proplists:get_value(gateway, Options))
 	end),
 	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
 		pong ->
@@ -411,14 +411,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-launch_agents([], _Profiles, _Opts, _Acd) ->
+launch_agents([], _Profiles, _Opts, _Acd, _Gateway) ->
 	ok;
-launch_agents([{User, Pass} | Tail], [Profile | Proftail], Opts, Acd) ->
+launch_agents([{User, Pass} | Tail], [Profile | Proftail], InOpts, Acd, Gateway) ->
+	Opts = case proplists:get_value(endpoint_data, InOpts) of
+		undefined ->
+			InOpts;
+		RawEndpointData ->
+			EndpointData = util:string_interpolate(RawEndpointData, [{"login", User}, {"gateway", Gateway}]),
+			[{endpoint_data, EndpointData} | proplists:delete(endpoint_data, InOpts)]
+	end,
 	O = agent_dummy_connection:start(lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)),
 	?DEBUG("Launched agent ~s:  ~p", [User, O]),
-	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd);
-launch_agents(X, P, O, A) when is_integer(X) ->
-	launch_agents(make_agent_list(X), P, O, A).
+	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd, Gateway);
+launch_agents(X, P, O, A, G) when is_integer(X) ->
+	launch_agents(make_agent_list(X), P, O, A, G).
 
 kill_agents([], _Acd) ->
 	ok;

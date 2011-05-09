@@ -423,7 +423,7 @@ launch_agents([{User, Pass} | Tail], [Profile | Proftail], InOpts, Acd, Gateway)
 	end,
 	O = agent_dummy_connection:start(lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)),
 	?DEBUG("Launched agent ~s:  ~p", [User, O]),
-	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd, Gateway);
+	launch_agents(Tail, Proftail ++ [Profile], InOpts, Acd, Gateway);
 launch_agents(X, P, O, A, G) when is_integer(X) ->
 	launch_agents(make_agent_list(X), P, O, A, G).
 

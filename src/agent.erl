@@ -1536,7 +1536,10 @@ from_idle_tests() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", State)),
+			TestOut = idle({ringing, Call}, "from", State),
+			?assertMatch({reply, ok, ringing, _State}, TestOut),
+			TestState = element(4, TestOut),
+			?assertEqual(wait, TestState#state.ring_locked),
 			Assertmocks()
 		end}
 	end,
@@ -1716,6 +1719,25 @@ from_ringing_tests() ->
 			application:set_env('OpenACD', agent_ringout_lock, 0)
 	 end}
 	end,
+	fun({#state{agent_rec = Agent} = InState, AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to idle while waiting for an outband ring response",
+		fun() ->
+			State = InState#state{ring_locked = wait},
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			{reply, ok, idle, #state{ringouts = Ringouts, ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
+			?assertEqual(unlocked, Newlocked),
+			?assertEqual(1, Ringouts),
+			Assertmocks()
+	 end}
+	end,
 	fun({State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"max_ringouts met/exceeded", fun() ->
 			TestState = State#state{max_ringouts = 3, ringouts = 3},
@@ -1798,6 +1820,14 @@ from_ringing_tests() ->
 			Oldcall = Agent#agent.statedata,
 			Callrec = Oldcall#call{id = "invalid"},
 			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, Callrec}, "from", State)),
+			Assertmocks()
+		end}
+	end,
+	fun({InAgent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to oncall while waiting on outband ring success/fail",
+		fun() ->
+			Agent = InAgent#state{ring_locked = wait},
+			?assertMatch({reply, invalid, ringing, _State}, ringing({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,

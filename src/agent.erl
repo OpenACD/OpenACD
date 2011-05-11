@@ -494,6 +494,8 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
 	end;
+ringing({oncall, _Call}, _From, #state{ring_locked = wait} = State) ->
+	{reply, invalid, ringing, State};
 ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) ->
 	case Statecall#call.id of
 		Callid -> 

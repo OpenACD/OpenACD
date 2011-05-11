@@ -442,7 +442,14 @@ idle({ringing, Call = #call{}}, _From, #state{agent_rec = Agent} = State) ->
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newagent, []),
-	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+	Ringlock = case Call#call.media_path of
+		inband ->
+			% we can go oncall pretty damn fast
+			unlocked;
+		outband ->
+			wait
+	end,
+	{reply, ok, ringing, State#state{ring_locked = Ringlock, agent_rec = Newagent}};
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
@@ -1823,11 +1830,11 @@ from_ringing_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({InAgent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = AgentRec} = InAgent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall while waiting on outband ring success/fail",
 		fun() ->
 			Agent = InAgent#state{ring_locked = wait},
-			?assertMatch({reply, invalid, ringing, _State}, ringing({ringing, "doesn't matter"}, "from", Agent)),
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,

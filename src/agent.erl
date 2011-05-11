@@ -557,7 +557,7 @@ ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcou
 	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
 	{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}};
 ringing({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
-	{next_state, ringing, State#state{ring_fails = 0}};
+	{next_state, ringing, State#state{ring_locked = unlocked, ring_fails = 0}};
 ringing(register_rejected, State) ->
 	{stop, register_rejected, State};
 ringing(_Msg, State) ->

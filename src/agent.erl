@@ -1913,6 +1913,14 @@ from_ringing_tests() ->
 			Assertmocks()
 		end}
 	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = _Agent} = Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"Ring success clears the wait state",
+		fun() ->
+			State = Seedstate#state{ring_locked = wait},
+			?assertEqual({next_state, ringing, Seedstate}, ringing({has_successful_ring, Callrec#call.source}, State)),
+			Assertmocks()
+		end}
+	end,
 	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = Seedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"gets a ring_failed message with < 3 ring fails",
 		fun() ->

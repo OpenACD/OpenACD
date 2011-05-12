@@ -551,7 +551,7 @@ ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{s
 			?INFO("~s has failed too many rings.  Sending out the hit man.", [Agent#agent.login]),
 			{stop, ring_fails, State}
 	end;
-ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
+ringing({failed_ring, Mpid}, #state{ring_locked = LockState, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) when LockState == unlocked; LockState == wait  ->
 	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
 	Self = self(),
 	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
@@ -1926,6 +1926,31 @@ from_ringing_tests() ->
 	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = Seedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"gets a ring_failed message with < 3 ring fails",
 		fun() ->
+			Aself = self(),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			?assertMatch({next_state, idle, #state{ring_fails = 1} = _State}, ringing({failed_ring, Callrec#call.source}, Seedstate)),
+			Gotmsg = receive
+				ring_unlock ->
+					ok
+			after (?RING_LOCK_DURATION + 50) ->
+				error
+			end,
+			?assertEqual(ok, Gotmsg),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = InSeedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"gets a ring_failed message with < 3 ring fails and wait lock state",
+		fun() ->
+			Seedstate = InSeedstate#state{ring_locked = wait},
 			Aself = self(),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->

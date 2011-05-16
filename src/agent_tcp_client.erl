@@ -96,7 +96,7 @@
 }).
 -record(state, {
 		salt :: pos_integer(),
-		socket :: port(),
+		socket :: {'gen_tcp' | 'ssl', port()},
 		requests = [] :: [{non_neg_integer(), tuple()}],
 		last_req_id = 0,
 		options :: #options{}
@@ -124,6 +124,7 @@
 ).
 -type(voipendpoint_option() :: {voipendpoint, voipendpoint()}).
 -type(voipendpoint_data_option() :: {voipendpoint_data, string()}).
+-type(ssl_option() :: ssl).
 -type(start_option() :: 
 	server_option() |
 	port_option() | 
@@ -131,7 +132,8 @@
 	password_option() | 
 	voipendpoint_option() | 
 	voipendpoint_data_option() |
-	silent_option()
+	silent_option() |
+	ssl_option()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -269,7 +271,16 @@ init(Options) ->
 	Port = proplists:get_value(port, Options, ?port),
 	Server = proplists:get_value(server, Options, "localhost"),
 	Silent = proplists:get_value(silent, Options, false),
-	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}]),
+	{ok, Socket} = case proplists:get_value(ssl, Options) of
+		true ->
+			ssl:connect(Server, Port, [
+				{cacertfile, "cacerts.pem"},
+				{certfile, "cert.pem"},
+				{keyfile, "key.pem"}
+			]);
+		_ ->
+			gen_tcp:connect(Server, Port, [binary, {packet, raw}])
+	end,
 	%timer:send_interval(10000, do_tick),
 	?INFO("~s started.", [?MODULE]),
 	OptionRec = #options{
@@ -281,7 +292,11 @@ init(Options) ->
 		server = Server,
 		silent = Silent
 	},
-	{ok, #state{socket=Socket, options = OptionRec}}.
+	Mod = case proplists:get_value(ssl, Options) of
+		ssl -> ssl;
+		_ -> gen_tcp
+	end,
+	{ok, #state{socket={Mod, Socket}, options = OptionRec}}.
 
 % =====
 % handle_call
@@ -296,12 +311,12 @@ handle_call(Request, _From, State) ->
 % =====
 
 %% @hidden
-handle_cast(idle, State) ->
+handle_cast(idle, #state{socket = {Mod, Sock}} = State) ->
 	{NewId, Bin} = make_bin('GO_IDLE', State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Sock, Bin),
 	NewRequests = [{NewId, 'GO_IDLE'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({released, Why}, State) ->
+handle_cast({released, Why}, #state{socket = {Mod, Socket}} = State) ->
 	Req = case Why of
 		default -> #goreleasedrequest{use_default = true};
 		{Id, Name, Bias} ->
@@ -315,26 +330,26 @@ handle_cast({released, Why}, State) ->
 			}
 	end,
 	{NewId, Bin} = make_bin(Req, State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'GO_RELEASED'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast(answer, State) ->
+handle_cast(answer, #state{socket = {Mod, Socket}} = State) ->
 	{NewId, Bin} = make_bin('MEDIA_ANSWER', State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'MEDIA_ANSWER'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast(hangup, State) ->
+handle_cast(hangup, #state{socket = {Mod, Socket}} = State) ->
 	{NewId, Bin} = make_bin('MEDIA_HANGUP', State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'MEDIA_HANGUP'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({to_agent, Agent}, State) ->
+handle_cast({to_agent, Agent}, #state{socket = {Mod, Socket}} = State) ->
 	Request = #agenttransferrequest{agent_id = Agent},
 	{NewId, Bin} = make_bin(Request, State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'AGENT_TRANSFER'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({to_queue, Queue, Skills, Options}, State) ->
+handle_cast({to_queue, Queue, Skills, Options}, #state{socket = {Mod, Socket}} = State) ->
 	SkillsList = [case X of
 		{Key, Val} -> #skill{atom = Key, expanded = Val};
 		Val -> #skill{atom = Val}
@@ -352,18 +367,18 @@ handle_cast({to_queue, Queue, Skills, Options}, State) ->
 		transfer_options = TransferOpts
 	},
 	{NewId, Bin} = make_bin(Request, State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'QUEUE_TRANSFER'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({to_other, Other}, State) ->
+handle_cast({to_other, Other}, #state{socket = {Mod, Socket}} = State) ->
 	Request = #warmtransferrequest{number = Other},
 	{NewId, Bin} = make_bin(Request, State#state.last_req_id),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'WARM_TRANSFER_BEGIN'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({do_request, Request}, #state{last_req_id = OldId} = State) ->
+handle_cast({do_request, Request}, #state{last_req_id = OldId, socket = {Mod, Socket}} = State) ->
 	{NewId, Bin} = make_bin(Request, OldId),
-	ok = gen_tcp:send(State#state.socket, Bin),
+	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, Request} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
 handle_cast(_, State) ->
@@ -374,14 +389,14 @@ handle_cast(_, State) ->
 % =====
 
 %% @hidden
-handle_info({tcp, Socket, Bin}, #state{socket = Socket} = State) ->
+handle_info({tcp, Socket, Bin}, #state{socket = {_Mod, Socket}} = State) ->
 	?DEBUG("In bin:  ~p", [Bin]),
 	{Replys, _} = decode_bin(Bin),
 	{NewRequests, TruReplys} = consume_replys(Replys, State#state.requests),
 	Midstate = State#state{requests = NewRequests},
 	NewState = handle_server_messages(TruReplys, Midstate),
 	{noreply, NewState};
-handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
+handle_info({tcp_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
 	?NOTICE("Server disconnected", []),
 	{stop, normal, State};
 handle_info(Info, State) ->
@@ -393,8 +408,8 @@ handle_info(Info, State) ->
 % =====
 
 %% @hidden
-terminate(_Reason, State) ->
-	gen_tcp:close(State#state.socket),
+terminate(_Reason, #state{socket = {Mod, Socket}} = _State) ->
+	Mod:close(Socket),
 	ok.
 
 % =====
@@ -574,12 +589,12 @@ handle_server_message(#servermessage{type_hint = 'EVENT', event = Event}, State)
 handle_server_message(#serverreply{success = false} = Reply, State) ->
 	?WARNING("Request ~B of type ~s failed due to ~p", [Reply#serverreply.request_id, Reply#serverreply.request_hinted, Reply#serverreply.error_message]),
 	State;
-handle_server_message(#serverreply{request_hinted = Hint} = Reply, State) ->
+handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket = {Mod, Socket}} = State) ->
 	case Hint of
 		'CHECK_VERSION' ->
 			?INFO("Check version passed, getting salt next", []),
 			{NewId, Bin} = make_bin('GET_SALT', State#state.last_req_id),
-			ok = gen_tcp:send(State#state.socket, Bin),
+			ok = Mod:send(Socket, Bin),
 			NewRequests = [{NewId, 'GET_SALT'} | State#state.requests],
 			State#state{requests = NewRequests};
 		'GET_SALT' ->
@@ -613,20 +628,31 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, State) ->
 			?DEBUG("nothing much to be done for other events", []),
 			State
 	end;
-handle_server_message(Event, State) ->
+handle_server_message(Event, #state{socket = {_Mod, Socket}} = State) ->
 	case Event#serverevent.command of
 		'ASTATE' ->
 			?INFO("State change to ~p", [Event#serverevent.state_change]),
 			case Event#serverevent.state_change of
-				#statechange{ agent_state = 'PRELOGIN'} ->
+				#statechange{ agent_state = 'PRELOGIN', ssl_upgrade = SSLUpgrade} ->
 					Ver = #agentclientversion{
 						major = ?Major,
 						minor = ?Minor
 					},
 					{NewId, Bin} = make_bin(Ver, State#state.last_req_id),
-					ok = gen_tcp:send(State#state.socket, Bin),
+					{NewMod,NewSock} = case SSLUpgrade of
+						true ->
+							{ok, SSLSock} = ssl:connect(Socket, [
+								{cacertfile, "cacerts.pem"},
+								{certfile, "cert.pem"},
+								{keyfile, "key.pem"}
+							]),
+							{ssl, SSLSock};
+						_ ->
+						{gen_tcp, Socket}
+					end,
+					ok = NewMod:send(NewSock, Bin),
 					?DEBUG("post send", []),
-					State#state{last_req_id = NewId, requests = [{NewId, 'CHECK_VERSION'} | State#state.requests]};
+					State#state{socket = {NewMod, NewSock}, last_req_id = NewId, requests = [{NewId, 'CHECK_VERSION'} | State#state.requests]};
 			_ ->
 				State
 			end;

@@ -228,4 +228,5 @@ message StateChange {
 	optional Release release = 3;
 	optional ClientRecord client = 4;
 	optional string warm_transfer_number = 5;
+	optional bool ssl_upgrade = 6;
 }

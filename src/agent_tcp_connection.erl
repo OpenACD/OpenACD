@@ -39,7 +39,7 @@
 
 -behaviour(gen_server).
 
--export([start/2, start_link/2, negotiate/1]).
+-export([start/3, start_link/3, negotiate/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
@@ -58,10 +58,11 @@
 % other systems that catch deadified agents, killing the fsm, which will
 % kill this.
 %-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
-
+-type(socket_module() :: 'gen_tcp' | 'ssl').
+-type(socket_type() :: 'gen_tcp' | 'ssl_upgrade' | 'ssl').
 -record(state, {
 		salt :: pos_integer(),
-		socket :: port(),
+		socket :: {socket_module(), port()},
 		radix :: integer(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
@@ -73,7 +74,8 @@
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 		state,
 		statedata,
-		mediaload
+		mediaload,
+		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade'
 	}).
 
 -type(state() :: #state{}).
@@ -84,17 +86,21 @@
 % API
 % =====
 
-%% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
-start(Socket, Radix) ->
-	gen_server:start(?MODULE, [Socket, Radix], []).
+%% @doc start the conection unlinked on the given Socket to be changd or 
+%% not depending on SocketType.  This is usually done by agent_tcp_listener.
+-spec(start/3 :: (Socket :: port(), Radix :: integer(), SocketType :: socket_type()) -> {'ok', pid()}).
+start(Socket, Radix, SocketType) ->
+	gen_server:start(?MODULE, [Socket, Radix, SocketType], []).
 
-%% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start_link/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
-start_link(Socket, Radix) ->
-	gen_server:start_link(?MODULE, [Socket, Radix], []).
+%% @doc start the conection linked on the given Socket to be changed or not
+%% depending on the SocketType.  This is usually done by agent_tcp_listener.
+-spec(start_link/3 :: (Socket :: port(), Radix :: integer(), SocketType :: socket_type()) -> {'ok', pid()}).
+start_link(Socket, Radix, SocketType) ->
+	gen_server:start_link(?MODULE, [Socket, Radix, SocketType], []).
 
-%% @doc Notify the client that it should begin the login proceedure.
+%% @doc Notify the client that it should begin the login proceedure.  If 
+%% the socket is supposed to be upgraded to ssl, this is the time it is 
+%% done.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
@@ -104,9 +110,14 @@ negotiate(Pid) ->
 % =====
 
 %% @hidden
-init([Socket, Radix]) ->
+init([Socket, Radix, SocketType]) ->
+	{SocketModule, Upgrade} = case SocketType of
+		gen_tcp -> {gen_tcp, never};
+		ssl_upgrade -> {gen_tcp, ssl_upgrade};
+		ssl -> {ssl, never}
+	end,
 	%timer:send_interval(10000, do_tick),
-	{ok, #state{socket=Socket, radix = Radix}}.
+	{ok, #state{socket={SocketModule, Socket}, radix = Radix, socket_upgrade = Upgrade}}.
 
 % =====
 % handle_call
@@ -122,21 +133,40 @@ handle_call(Request, _From, State) ->
 
 %% @hidden
 % negotiate the client's protocol version and such
-handle_cast(negotiate, State) ->
+handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	?DEBUG("starting negotiation...", []),
 	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
-	Statechange = #statechange{ agent_state = 'PRELOGIN'},
+	Statechange = case SockUpgrade of
+		ssl_upgrade -> #statechange{ agent_state = 'PRELOGIN', ssl_upgrade = true};
+		_ -> #statechange{ agent_state = 'PRELOGIN'}
+	end,
 	Command = #serverevent{
 		command = 'ASTATE',
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
+	{O, NewSocket} = case SockUpgrade of
+		ssl_upgrade ->
+			inet:setopts(State#state.socket, [{active, false}]),
+			{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile'pem"),
+			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
+			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+			{ok, SSLSocket} = ssl:ssl_accept(element(2, State#state.socket), [
+				{cacertfile, CaCertFile},
+				{certfile, CertFile},
+				{keyfile, Keyfile}
+			]),
+			Data = ssl:recv(element(2, State#state.socket), 0),
+			{Data, {ssl, SSLSocket}};
+		_ ->
+			Data = gen_tcp:recv(element(2, State#state.socket), 0), % TODO timeout
+			{Data, State#state.socket}
+	end,
 	case O of
 		{ok, Packet} ->
 			?DEBUG("packet: ~p.~n", [Packet]),
 			{_Rest, Bins} = protobuf_util:netsting_to_bins(Packet),
-			NewState = service_requests(Bins, State),
+			NewState = service_requests(Bins, State#state{socket = NewSocket, socket_upgrade = never}),
 			{noreply, NewState};
 		Else ->
 			?DEBUG("O was ~p", [Else]),
@@ -283,13 +313,13 @@ server_event(Socket, Record, Radix) ->
 	},
 	send(Socket, Outrec, Radix).
 
-send(Socket, Record, Radix) ->
+send({Mod, Socket}, Record, Radix) ->
 	Bin = cpx_agent_pb:encode(Record),
 	%Size = list_to_binary(integer_to_list(size(Bin))),
 	%?DEBUG("Das size:  ~p", [Size]),
 	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
 	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
-	ok = gen_tcp:send(Socket, Outbin).
+	ok = Mod:send(Socket, Outbin).
 
 service_requests([], State) ->
 	State;

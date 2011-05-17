@@ -156,9 +156,11 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 				{keyfile, Keyfile}
 			]),
 			Data = ssl:recv(SSLSocket, 0),
+			ssl:setopts(SSLSocket, [{active, once}]),
 			{Data, {ssl, SSLSocket}};
 		_ ->
 			Data = gen_tcp:recv(element(2, State#state.socket), 0), % TODO timeout
+			inet:setopts(element(2, State#state.socket), [{active, once}]),
 			{Data, State#state.socket}
 	end,
 	case O of
@@ -169,7 +171,7 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 			{noreply, NewState};
 		Else ->
 			?DEBUG("O was ~p", [Else]),
-			{noreply, State}
+			{noreply, State#state{socket = NewSocket}}
 	end;
 handle_cast({change_state, Statename, Statedata}, State) ->
 	Statechange = case Statename of
@@ -272,15 +274,22 @@ handle_cast(Msg, State) ->
 % =====
 
 %% @hidden
-handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
+handle_info({tcp, Socket, Packet}, #state{socket = {_Mod, Socket}} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
 	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet, State#state.radix),
 	NewState = service_requests(Bins, State),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{noreply, NewState};
-handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
+handle_info({tcp_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
 	{stop, tcp_closed, State};
-
+handle_info({ssl, Socket, Packet}, #state{socket = {_Mod, Socket}} = State) ->
+	?DEBUG("got packet ~p", [Packet]),
+	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet, State#state.radix),
+	NewState = service_requests(Bins, State),
+	ssl:setopts(Socket, [{active, once}]),
+	{noreply, NewState};
+handle_info({ssl_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
+	{stop, ssl_closed, State};
 handle_info(Info, State) ->
 	?DEBUG("Unhandled info ~p", [Info]),
 	{noreply, State}.

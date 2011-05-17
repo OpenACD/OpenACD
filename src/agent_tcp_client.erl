@@ -377,11 +377,10 @@ handle_cast(_, State) ->
 
 %% @hidden
 handle_info({tcp, Socket, Bin}, #state{socket = {_Mod, Socket}} = State) ->
-	?DEBUG("In bin:  ~p", [Bin]),
-	{Replys, _} = decode_bin(Bin),
-	{NewRequests, TruReplys} = consume_replys(Replys, State#state.requests),
-	Midstate = State#state{requests = NewRequests},
-	NewState = handle_server_messages(TruReplys, Midstate),
+	NewState = handle_socket_msg(Bin, State),
+	{noreply, NewState};
+handle_info({ssl, Socket, Bin}, #state{socket = {_Mod, Socket}} = State) ->
+	NewState = handle_socket_msg(Bin, State),
 	{noreply, NewState};
 handle_info({tcp_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
 	?NOTICE("Server disconnected", []),
@@ -410,6 +409,13 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+handle_socket_msg(Bin, State) ->
+	?DEBUG("In bin:  ~p", [Bin]),
+	{Replys, _} = decode_bin(Bin),
+	{NewRequests, TruReplys} = consume_replys(Replys, State#state.requests),
+	Midstate = State#state{requests = NewRequests},
+	handle_server_messages(TruReplys, Midstate).
 
 make_req_id(99999) ->
 	1;
@@ -579,7 +585,7 @@ handle_server_message(#serverreply{success = false} = Reply, State) ->
 handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket = {Mod, Socket}} = State) ->
 	case Hint of
 		'CHECK_VERSION' ->
-			?INFO("Check version passed, getting salt next", []),
+			?INFO("Check version passed, getting salt next (~p)", [State#state.socket]),
 			{NewId, Bin} = make_bin('GET_SALT', State#state.last_req_id),
 			ok = Mod:send(Socket, Bin),
 			NewRequests = [{NewId, 'GET_SALT'} | State#state.requests],
@@ -599,7 +605,7 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket
 				voipendpointdata = VoipEndPointData
 			},
 			{NewId, Bin} = make_bin(LoginRequest, State#state.last_req_id),
-			ok = gen_tcp:send(State#state.socket, Bin),
+			ok = Mod:send(Socket, Bin),
 			NewRequests = [{NewId, 'LOGIN'} | State#state.requests],
 			State#state{requests = NewRequests};
 		'LOGIN' ->
@@ -635,13 +641,13 @@ handle_server_message(Event, #state{socket = {_Mod, Socket}} = State) ->
 							]),
 							{ssl, SSLSock};
 						_ ->
-						{gen_tcp, Socket}
+							{gen_tcp, Socket}
 					end,
 					ok = NewMod:send(NewSock, Bin),
 					?DEBUG("post send", []),
 					State#state{socket = {NewMod, NewSock}, last_req_id = NewId, requests = [{NewId, 'CHECK_VERSION'} | State#state.requests]};
-			_ ->
-				State
+				_ ->
+					State
 			end;
 		'APROFILE' ->
 			?INFO("Profile change to ~s", [Event#serverevent.profile]),

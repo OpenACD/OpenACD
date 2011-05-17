@@ -551,12 +551,13 @@ priv_dir(Suffix) ->
 			filename:join(Dir, Suffix)
 	end.
 
-run_dir() ->
-	case os:getenv("OPENACD_RUN_DIR") of
-		false ->
-			".";
-		Dir ->
-			Dir
+get_keyfile() ->
+	{ok, Keyfile} = cpx:get_env(rsakey, "key"),
+	case Keyfile of
+		[$/ | _] ->
+			Keyfile;
+		_ ->
+			filename:join(run_dir(), Keyfile)
 	end.
 
 get_pubkey() ->
@@ -571,17 +572,30 @@ get_pubkey() ->
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
 
+get_certfile() ->
+	{ok, Certfile} = cpx:get_env(certfile, "openacd.crt"),
+	case Certfile of
+		[$/ | _] ->
+			Certfile;
+		_ ->
+			filename:join(run_dir(), Certfile)
+	end.
+
 -ifdef(TEST).
-get_keyfile() ->
-	"../key".
+
+run_dir() ->
+	"..".
+
 -else.
-get_keyfile() ->
+
+run_dir() ->
 	case os:getenv("OPENACD_RUN_DIR") of
 		false ->
-			"./key";
-		Val ->
-			filename:join(Val, "key")
+			".";
+		Dir ->
+			Dir
 	end.
+
 -endif.
 
 -ifdef(TEST).

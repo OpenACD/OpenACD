@@ -362,9 +362,13 @@ destroy(Spec) when is_record(Spec, cpx_conf) ->
 	mnesia:transaction(F);
 destroy(Spec) ->
 	F = fun() ->
-		[Rec] = mnesia:read({cpx_conf, Spec}),
-		stop_spec(Rec),
-		mnesia:delete({cpx_conf, Spec})
+		case mnesia:read({cpx_conf, Spec}) of
+			[Rec] ->
+				stop_spec(Rec),
+				mnesia:delete({cpx_conf, Spec});
+			_ ->
+				mnesia:abort(noconf)
+		end
 	end,
 	mnesia:transaction(F).
 

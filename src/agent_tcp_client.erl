@@ -138,11 +138,13 @@
 %% @doc Start the agent with the given options unlinked to a process.
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start(Options) ->
+	ssl:start(),
 	gen_server:start(?MODULE, Options, []).
 
 %% @doc start the conection linked to the calling process.
 -spec(start_link/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start_link(Options) ->
+	ssl:start(),
 	gen_server:start_link(?MODULE, Options, []).
 
 %% @doc Attempt to go idle.
@@ -628,8 +630,8 @@ handle_server_message(Event, #state{socket = {_Mod, Socket}} = State) ->
 						true ->
 							{ok, SSLSock} = ssl:connect(Socket, [
 								%{cacertfile, "cacerts.pem"},
-								{certfile, "cert.pem"},
-								{keyfile, "key.pem"}
+								{certfile, "server.crt"},
+								{keyfile, "key"}
 							]),
 							{ssl, SSLSock};
 						_ ->

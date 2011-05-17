@@ -134,7 +134,7 @@ handle_call(Request, _From, State) ->
 % negotiate the client's protocol version and such
 handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	?DEBUG("starting negotiation...", []),
-	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
+	ok = inet:setopts(element(2, State#state.socket), [{packet, raw}, binary, {active, once}]),
 	Statechange = case SockUpgrade of
 		ssl_upgrade -> #statechange{ agent_state = 'PRELOGIN', ssl_upgrade = true};
 		_ -> #statechange{ agent_state = 'PRELOGIN'}
@@ -146,7 +146,7 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	server_event(State#state.socket, Command, State#state.radix),
 	{O, NewSocket} = case SockUpgrade of
 		ssl_upgrade ->
-			inet:setopts(State#state.socket, [{active, false}]),
+			inet:setopts(element(2, State#state.socket), [{active, false}]),
 			%{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile.pem"),
 			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
 			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
@@ -155,7 +155,7 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 				{certfile, CertFile},
 				{keyfile, Keyfile}
 			]),
-			Data = ssl:recv(element(2, State#state.socket), 0),
+			Data = ssl:recv(SSLSocket, 0),
 			{Data, {ssl, SSLSocket}};
 		_ ->
 			Data = gen_tcp:recv(element(2, State#state.socket), 0), % TODO timeout
@@ -164,7 +164,7 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	case O of
 		{ok, Packet} ->
 			?DEBUG("packet: ~p.~n", [Packet]),
-			{_Rest, Bins} = protobuf_util:netsting_to_bins(Packet),
+			{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet),
 			NewState = service_requests(Bins, State#state{socket = NewSocket, socket_upgrade = never}),
 			{noreply, NewState};
 		Else ->

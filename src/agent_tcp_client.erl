@@ -594,7 +594,12 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket
 			?INFO("Got a salt, now to login.", []),
 			Options = State#state.options,
 			#saltreply{salt = Salt, pubkey_e = E, pubkey_n = N} = Reply#serverreply.salt_and_key,
-			Password = crypto:rsa_public_encrypt(list_to_binary(Salt ++ Options#options.password), [crypto:mpint(list_to_integer(E)), crypto:mpint(list_to_integer(N))], rsa_pkcs1_padding),
+			Password = case Mod of
+				ssl ->
+					Options#options.password;
+				_ ->
+					crypto:rsa_public_encrypt(list_to_binary(Salt ++ Options#options.password), [crypto:mpint(list_to_integer(E)), crypto:mpint(list_to_integer(N))], rsa_pkcs1_padding)
+			end,
 			Username = Options#options.username,
 			VoipEndPointData = Options#options.voipendpoint_data,
 			Voipendpoint = Options#options.voipendpoint,

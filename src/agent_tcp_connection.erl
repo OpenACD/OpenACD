@@ -380,6 +380,48 @@ service_request(#agentrequest{request_hint = 'GET_SALT'}, BaseReply, State) ->
 		salt_and_key = SaltReply
 	},
 	{Reply, State#state{salt = Salt}};
+service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, #state{socket = {ssl, _}} = State) ->
+	DecryptedPass = LoginRequest#loginrequest.password,
+	case agent_auth:auth(LoginRequest#loginrequest.username, DecryptedPass) of
+		deny ->
+			Reply = BaseReply#serverreply{
+				error_message = "invalid username or password",
+				error_code = "INVALID_LOGIN"
+			},
+			{Reply, State};
+		{allow, Id, Skills, Security, Profile} ->
+			Agent = #agent{
+				id = Id, 
+				defaultringpath = outband, 
+				login = LoginRequest#loginrequest.username, 
+				skills = Skills, 
+				profile=Profile, 
+				password=DecryptedPass
+			},
+			case agent_manager:start_agent(Agent) of
+				{ok, Pid} ->
+					ok = agent:set_connection(Pid, self()),
+					RawQueues = call_queue_config:get_queues(),
+					RawBrands = call_queue_config:get_clients(),
+					RawReleases = agent_auth:get_releases(),
+					Releases = [protobuf_util:release_to_protobuf({X#release_opt.id, X#release_opt.label, X#release_opt.bias}) || X <- RawReleases],
+					Queues = protobuf_util:proplist_to_protobuf([{X#call_queue.name, X#call_queue.name} || X <- RawQueues]),
+					Brands = protobuf_util:proplist_to_protobuf([{X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined]),
+					Reply = BaseReply#serverreply{
+						success = true,
+						release_opts = Releases,
+						queues = Queues,
+						brands = Brands
+					},
+					{Reply, State#state{agent_login = LoginRequest#loginrequest.username, agent_fsm = Pid, securitylevel = Security}};
+				{exists, _Pid} ->
+					Reply = BaseReply#serverreply{
+						error_message = "Multiple login detected",
+						error_code = "MULTIPLE_LOGINS"
+					},
+					{Reply, State}
+			end
+	end;
 service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, State) ->
 	Salt = State#state.salt,
 	CryptedPass = list_to_binary(LoginRequest#loginrequest.password),

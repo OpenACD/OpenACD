@@ -148,8 +148,8 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 		ssl_upgrade ->
 			inet:setopts(element(2, State#state.socket), [{active, false}]),
 			%{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile.pem"),
-			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
-			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+			CertFile = util:get_certfile(),
+			Keyfile = util:get_keyfile(),
 			{ok, SSLSocket} = ssl:ssl_accept(element(2, State#state.socket), [
 			%	{cacertfile, CaCertFile},
 				{certfile, CertFile},

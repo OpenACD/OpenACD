@@ -1239,17 +1239,27 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	end;
 api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
+	Defaults = [
+		{port, 1337},
+		{radix, 10},
+		{ssl_upgrade, false}
+	],
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
-		#cpx_conf{start_args = Port} ->
-			OutPort = case Port of
-				[] ->
-					1337;
-				[N] ->
-					N
-			end,
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		#cpx_conf{start_args = [Options]} ->
+			Port = proplists:get_value(port, Options, false),
+			Radix = proplists:get_value(radix, Options, false),
+			Ssl = proplists:get_value(socket_type, Options, false),
+			OutProps = [
+				{success, true},
+				{<<"enabled">>, true},
+				{port, Port},
+				{radix, Radix},
+				{ssl_upgrade, Ssl},
+				{<<"defaults">>, {struct, Defaults}}
+			],
+			{200, [], mochijson2:encode({struct, OutProps})};
 		undefined ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 1337}]})};
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"defaults">>, {struct, Defaults}}]})};
 		Else ->
 			?WARNING("Error getting agent_tcp_listener settings:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
@@ -1258,16 +1268,21 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		"true" ->
-			StartArgs = case proplists:get_value("port", Post, "") of
-				"" ->
-					[];
-				List ->
-					[list_to_integer(List)]
+			AccFun = fun
+				({"port", Val}, Acc) ->
+					[{port, list_to_integer(Val)} | Acc];
+				({"ssl", "true"}, Acc) ->
+					[{socket_type, ssl_upgrade} | Acc];
+				({"radix", Val}, Acc) ->
+					[{radix, list_to_integer(Val)} | Acc];
+				(_, Acc) ->
+					Acc
 			end,
+			StartArgs = lists:foldl(AccFun, [], Post),
 			Conf = #cpx_conf{
 				id = agent_tcp_listener,
 				module_name = agent_tcp_listener,
-				start_function = start_link, start_args = StartArgs,
+				start_function = start_link, start_args = [StartArgs],
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_tcp_listener, Conf]) of

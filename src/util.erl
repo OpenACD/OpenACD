@@ -82,7 +82,8 @@
 	priv_dir/1,
 	run_dir/0,
 	get_pubkey/0,
-	get_keyfile/0
+	get_keyfile/0,
+	get_certfile/0
 ]).
 %% time tracking util functions
 -export([

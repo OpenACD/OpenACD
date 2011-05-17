@@ -59,7 +59,7 @@
 % kill this.
 %-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
 -type(socket_module() :: 'gen_tcp' | 'ssl').
--type(socket_type() :: 'gen_tcp' | 'ssl_upgrade' | 'ssl').
+-type(socket_type() :: 'gen_tcp' | 'ssl_upgrade').
 -record(state, {
 		salt :: pos_integer(),
 		socket :: {socket_module(), port()},
@@ -113,8 +113,7 @@ negotiate(Pid) ->
 init([Socket, Radix, SocketType]) ->
 	{SocketModule, Upgrade} = case SocketType of
 		gen_tcp -> {gen_tcp, never};
-		ssl_upgrade -> {gen_tcp, ssl_upgrade};
-		ssl -> {ssl, never}
+		ssl_upgrade -> {gen_tcp, ssl_upgrade}
 	end,
 	%timer:send_interval(10000, do_tick),
 	{ok, #state{socket={SocketModule, Socket}, radix = Radix, socket_upgrade = Upgrade}}.
@@ -148,11 +147,11 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	{O, NewSocket} = case SockUpgrade of
 		ssl_upgrade ->
 			inet:setopts(State#state.socket, [{active, false}]),
-			{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile'pem"),
+			%{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile.pem"),
 			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
 			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
 			{ok, SSLSocket} = ssl:ssl_accept(element(2, State#state.socket), [
-				{cacertfile, CaCertFile},
+			%	{cacertfile, CaCertFile},
 				{certfile, CertFile},
 				{keyfile, Keyfile}
 			]),

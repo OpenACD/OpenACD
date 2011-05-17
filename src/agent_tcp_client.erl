@@ -124,7 +124,6 @@
 ).
 -type(voipendpoint_option() :: {voipendpoint, voipendpoint()}).
 -type(voipendpoint_data_option() :: {voipendpoint_data, string()}).
--type(ssl_option() :: ssl).
 -type(start_option() :: 
 	server_option() |
 	port_option() | 
@@ -132,8 +131,7 @@
 	password_option() | 
 	voipendpoint_option() | 
 	voipendpoint_data_option() |
-	silent_option() |
-	ssl_option()
+	silent_option()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -271,16 +269,7 @@ init(Options) ->
 	Port = proplists:get_value(port, Options, ?port),
 	Server = proplists:get_value(server, Options, "localhost"),
 	Silent = proplists:get_value(silent, Options, false),
-	{ok, Socket} = case proplists:get_value(ssl, Options) of
-		true ->
-			ssl:connect(Server, Port, [
-				{cacertfile, "cacerts.pem"},
-				{certfile, "cert.pem"},
-				{keyfile, "key.pem"}
-			]);
-		_ ->
-			gen_tcp:connect(Server, Port, [binary, {packet, raw}])
-	end,
+	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}]),
 	%timer:send_interval(10000, do_tick),
 	?INFO("~s started.", [?MODULE]),
 	OptionRec = #options{
@@ -292,11 +281,7 @@ init(Options) ->
 		server = Server,
 		silent = Silent
 	},
-	Mod = case proplists:get_value(ssl, Options) of
-		ssl -> ssl;
-		_ -> gen_tcp
-	end,
-	{ok, #state{socket={Mod, Socket}, options = OptionRec}}.
+	{ok, #state{socket={gen_tcp, Socket}, options = OptionRec}}.
 
 % =====
 % handle_call
@@ -642,7 +627,7 @@ handle_server_message(Event, #state{socket = {_Mod, Socket}} = State) ->
 					{NewMod,NewSock} = case SSLUpgrade of
 						true ->
 							{ok, SSLSock} = ssl:connect(Socket, [
-								{cacertfile, "cacerts.pem"},
+								%{cacertfile, "cacerts.pem"},
 								{certfile, "cert.pem"},
 								{keyfile, "key.pem"}
 							]),

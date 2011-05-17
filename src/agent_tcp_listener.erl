@@ -121,6 +121,7 @@
 start_link(Port) when is_integer(Port) ->
 	start_link([{port, Port}]);
 start_link(Options) when is_list(Options) ->
+	ssl:start(),
 	gen_server:start_link(?MODULE, Options, []).
 
 %% @doc Start the listener on port `Port' linked to no process; or if a list
@@ -148,11 +149,16 @@ init(Options) ->
 	Port = proplists:get_value(port, Options, ?PORT),
 	Radix = proplists:get_value(radix, Options, 10),
 	SocketType = proplists:get_value(socket_type, Options, tcp),
-	Opts = [list, {packet, line}, {reuseaddr, true},
+	SimpleOpts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
-	Mod = case SocketType of
-		ssl -> ssl;
-		_ -> gen_tcp
+	{Mod, Opts} = case SocketType of
+		ssl ->
+			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
+			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+			OutOpts = [{certfile, CertFile}, {keyfile, Keyfile} | SimpleOpts],
+			{ssl, OutOpts};
+		_ ->
+			{gen_tcp, SimpleOpts}
 	end,
 	case Mod:listen(Port, Opts) of
 		{ok, Listen_socket} ->

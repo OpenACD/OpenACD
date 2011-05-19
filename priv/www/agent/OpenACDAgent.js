@@ -179,7 +179,7 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 	else if (ioargs.xhr.status != 200) {
 		this.poll();
 	} else {
-		console.warn("NOT re-polling");
+		console.error("NOT re-polling");
 	}
 };
 
@@ -187,7 +187,6 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 @private
 */
 OpenACD.Agent.prototype._handlePollSuccess = function(response){
-	console.debug('poll success', this, response);
 	this.pollfailures = 0;
 	this.poll();
 	this._handleServerCommand(response);
@@ -338,7 +337,6 @@ OpenACD.Agent.prototype.initOutbound = function(Client, Type, callbacks) {
 @private
 */
 OpenACD.Agent.prototype._handleGetSaltSuccess = function(response){
-	console.log('salt success', this);
 	var salt = response.salt;
 	var e = response.pubkey.E;
 	var n = response.pubkey.N;
@@ -433,7 +431,6 @@ OpenACD.Agent.prototype.login = function(successCB, failCB, errCB){
 OpenACD.Agent.prototype.makeInternalPublishCb = function(chan){
 	chan = "OpenACD/Agent/internal/" + chan;
 	out = function(){
-		console.log('publishing', chan, arguments);
 		dojo.publish(chan, arguments);
 	};
 	return out;
@@ -598,8 +595,7 @@ OpenACD.Stopwatch = function(elapsed){
 		if (now > elapsed) {
 			this.elapsed = now - elapsed;
 		} else {
-			console.log(now);
-			console.log(elapsed);
+			console.warn('now is less than elapsed', now, elapsed);
 			this.elapsed = 0;
 		}
 	}

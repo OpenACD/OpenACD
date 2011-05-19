@@ -421,9 +421,9 @@ new_queue(Queue) when is_record(Queue, call_queue) ->
 			Trans
 	end.
 
-%% @doc Create a new queue from the given `string() Name, pos_integer() Weight, [atom()] Skills, recipe() Recipe, string() Group'.
--spec(new_queue/5 :: (Name :: string(), Weight :: pos_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
-new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
+%% @doc Create a new queue from the given `string() Name, non_neg_integer() Weight, [atom()] Skills, recipe() Recipe, string() Group'.
+-spec(new_queue/5 :: (Name :: string(), Weight :: non_neg_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
+new_queue(Name, Weight, Skills, Recipe, Group) when is_integer(Weight) ->
 	Rec = #call_queue{
 		name = Name,
 		weight = Weight,
@@ -432,8 +432,8 @@ new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weigh
 		group = Group},
 	new_queue(Rec).
 
--spec(set_queue/6 :: (OldName :: string(), Name :: string(), Weight :: pos_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
-set_queue(OldName, Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
+-spec(set_queue/6 :: (OldName :: string(), Name :: string(), Weight :: non_neg_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
+set_queue(OldName, Name, Weight, Skills, Recipe, Group) when is_integer(Weight) ->
 	Rec = #call_queue{
 		name = Name,
 		weight = Weight,

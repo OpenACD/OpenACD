@@ -191,8 +191,8 @@
 
 <script type="text/javascript" src="/eventLog.js"></script>
 <script type="text/javascript" src="/Stopwatch.js"></script>
-<script type="text/javascript" src="/Agent.js"></script>
-
+<!--<script type="text/javascript" src="/Agent.js"></script>-->
+<script type="text/javascript" src="/OpenACDAgent.js"></script>
 <script type="text/javascript" src="/main.js"></script>
 </head>
 <body class="nihilo">
@@ -390,14 +390,14 @@
 								warning(["call_hangup erred", res]);
 							}
 						};
-						Agent.webApi("ring_test", ringOpts);
+						window.agentConnection.webApi("ring_test", ringOpts);
 					</script>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").RINGTEST);
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=agent.setState("wrapup");>
+				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=window.agentConnection.setState("wrapup");>
 					<script type="dojo/connect" event="onClick">
 						if(this.brutal_kill){
 							var hangupOpts = {
@@ -408,9 +408,9 @@
 									warning(["call_hangup erred", res]);
 								}
 							};
-							Agent.webApi("call_hangup", hangupOpts);
+							window.agentConnection.webApi("call_hangup", hangupOpts);
 						} else {
-							agent.setState("wrapup");
+							window.agentConnection.setState("wrapup");
 						}
 					</script>
 					<script type="dojo/method" event="postCreate">
@@ -418,7 +418,7 @@
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="LOGOUT" id="miLogout" onclick=logout(agent);>
+				<div dojoType="dijit.MenuItem" label="LOGOUT" id="miLogout" onclick=logout(window.agentConnection);>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").LOGOUT);
@@ -544,7 +544,7 @@
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setState("idle")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
@@ -585,7 +585,7 @@
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").AGENT);
 					</script>
 					<script type="dojo/connect" event="onMouseEnter">
-						Agent.getAvailAgents();
+						window.agentConnection.getAvailAgents();
 					</script>
 					<span>AGENT</span>
 					<div dojoType="dijit.Menu" id="transferToAgentMenuDyn">
@@ -620,7 +620,7 @@
 			</script>
 			<script type="dojo/connect" event="onClick">
 				dijit.byId('wtcancel').suppressHide = true;
-				Agent.warmtransfer(dijit.byId('dialbox').attr('value'));
+				window.agentConnection.warmtransfer(dijit.byId('dialbox').attr('value'));
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="wtcomplete" style="display:none">
@@ -629,7 +629,7 @@
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").COMPLETE);
 			</script>
 			<script type="dojo/connect" event="onClick">
-				Agent.warmtransfercomplete();
+				window.agentConnection.warmtransfercomplete();
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="wtcancel" style="display:none">
@@ -643,28 +643,28 @@
 				dijit.byId('wtcomplete').attr('style', 'display:none');
 				dijit.byId('wtdial').attr('style', 'display:none');
 				dijit.byId('btransfer').attr('style', 'display:inline');
-				Agent.warmtransfercancel();
+				window.agentConnection.warmtransfercancel();
 			</script>
 		</button>
-		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>
+		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=window.agentConnection.dial()>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").DIAL);
 			</script>
 		</button>
-		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=window.agentConnection.setState("idle")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
 			</script>
 		</button>
-		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>
+		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=window.agentConnection.setState("oncall")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
 			</script>
 		</button>
-		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>
+		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=window.agentConnection.setState("wrapup")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);

@@ -20,14 +20,8 @@ Create a new Agent.
 communicating with OpenACD as an agent.
 */
 OpenACD.Agent = function(options){
-	if(!options.username){
-		throw new Error('Parameter "username" required');
-	}
-	if(!options.password){
-		throw new Error('Parameter "password" required');
-	}
-	this.username = options.username;
-	this.password = options.password;
+	this.username = '';
+	this.password = '';
 	this.loggedIn = false;
 	this.securitylevel = "";
 	this.profile = "";
@@ -37,6 +31,14 @@ OpenACD.Agent = function(options){
 	this.pollfailures = 0;
 	this.skew = 0;
 	this._nags = {};
+
+	if(options.username){
+		this.username = options.username;
+	}
+
+	if(options.password){
+		this.password = options.password;
+	}
 
 	if(options.timestamp){
 		this.setSkew(options.timestamp);
@@ -79,6 +81,11 @@ OpenACD.Agent.prototype.setUpInternalSubscriptions = function(unsub){
 			"success": "_handlePollSuccess",
 			"failure": "_handlePollFailure",
 			"error": "_handlePollError"
+		},
+		"checkCookie":{
+			"success": "_handleCheckCookieSuccess",
+			"failure": "_handleCheckCookieFailure",
+			"error": "_handleCheckCookieError"
 		}
 	};
 	
@@ -115,7 +122,11 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 			case "astate":
 				this.state = datalist[i].state;
 				this.statedata = datalist[i].statedata;
-				dojo.publish("OpenACD/Agent/state", [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/state", [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				this.stopwatch.reset();
 				if(datalist[i].state == 'wrapup'){
 					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
@@ -127,27 +138,51 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 
 			case "aprofile":
 				this.state = datalist[i].profile;
-				dojo.publish("OpenACD/Agent/profile", [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/profile", [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				break;
 
 			case "urlpop":
-				dojo.publish("OpenACD/Agent/urlpop", [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/urlpop", [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				break;
 			
 			case "blab":
-				dojo.publish("OpenACD/Agent/blab", [datalist[i].text]);
+				try{
+					dojo.publish("OpenACD/Agent/blab", [datalist[i].text]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				break;
 			
 			case "mediaload":
-				dojo.publish("OpenACD/Agent/mediaload", [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/mediaload", [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				break;
 			
 			case "mediaevent":
-				dojo.publish("OpenACD/Agent/mediaevent/" + datalist[i].media, [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/mediaevent/" + datalist[i].media, [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				break;
 			
 			default:
-				dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
+				try{
+					dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
+				} catch (err) {
+					console.error("OpenACD/Agent/state", err);
+				}
 				console.info("non-local command", datalist[i].command);
 		 }
 	}
@@ -165,7 +200,11 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 	if(ioargs.xhr.status === 0){
 		console.warn("status 0, prolly due to logout", response);
 		this.loggedIn = false;
-		dojo.publish("OpenACD/Agent/logout", [response.responseText]);
+		try{
+			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
+		} catch (err) {
+			console.error("OpenACD/Agent/state", err);
+		}
 		return;
 	}
 
@@ -174,7 +213,11 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 	this.pollfailures += 1;
 	if (this.pollfailures >= 5 || ioargs.xhr.status == 403) {
 		this.loggedIn = false;
-		dojo.publish("OpenACD/Agent/logout", [response.responseText]);
+		try{
+			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
+		} catch (err) {
+			console.error("OpenACD/Agent/state", err);
+		}
 	}
 	else if (ioargs.xhr.status != 200) {
 		this.poll();
@@ -198,7 +241,11 @@ OpenACD.Agent.prototype._handlePollSuccess = function(response){
 OpenACD.Agent.prototype._handlePollFailure = function(errcode, msg){
 	console.error('poll failed', msg);
 	this.loggedIn = false;
-	dojo.publish("OpenACD/Agent/logout", [msg]);
+	try{
+		dojo.publish("OpenACD/Agent/logout", [msg]);
+	} catch (err) {
+		console.error("OpenACD/Agent/state", err);
+	}
 }
 
 /**
@@ -391,7 +438,11 @@ OpenACD.Agent.prototype._handleLoginSuccess = function(results){
 	this.securityLevel = results.securityLevel;
 	this.timestamp = results.timestamp;
 	this.poll();
-	dojo.publish("OpenACD/Agent/login", [this]);
+	try{
+		dojo.publish("OpenACD/Agent/login", [this]);
+	} catch (err) {
+		console.error("OpenACD/Agent/state", err);
+	}
 }
 
 /**
@@ -403,6 +454,9 @@ password.
 @param {Function} errCB What to do if the login errored.
 */
 OpenACD.Agent.prototype.login = function(successCB, failCB, errCB){
+	if(! this.username && this.password){
+		throw new Error('Cannot login without a username and password');
+	}
 	if(! successCB){
 		successCB = function(){};
 	}
@@ -446,10 +500,18 @@ OpenACD.Agent.prototype.logout = function(){
 	var options = {
 		error:function(response, ioargs){
 			console.error("error logging out", response);
-			dojo.publish("OpenACD/Agent/logout", [true]);
+			try{
+				dojo.publish("OpenACD/Agent/logout", [true]);
+			} catch (err) {
+				console.error("OpenACD/Agent/state", err);
+			}
 		},
 		success:function(){
-			dojo.publish("OpenACD/Agent/logout", [true]);
+			try{
+				dojo.publish("OpenACD/Agent/logout", [true]);
+			} catch (err) {
+				console.error("OpenACD/Agent/state", err);
+			}
 		}
 	};
 	this.webApi("logout", options);
@@ -488,8 +550,12 @@ matically when an agent goes idle.
 OpenACD.Agent.prototype.setNag = function(message, time){
 	var ref = this;
 	var nag = setTimeout(function(){
-		dojo.publish("OpenACD/Agent/blab", [message]);
-		delete(ref._nags[nag]);
+		try{
+			dojo.publish("OpenACD/Agent/blab", [message]);
+		} catch (err) {
+			console.error("OpenACD/Agent/state", err);
+		}
+			delete(ref._nags[nag]);
 	}, time);
 	this._nags[nag] = true;
 	return nag;
@@ -567,6 +633,48 @@ they are idle or released.
 OpenACD.Agent.prototype.getAvailAgents = function(options) {
 	this.webApi("get_avail_agents", options);
 };
+
+/**
+Check if the agent is already logged in.  This allows an agent to reload the
+browser without trashing thier interface (provided the correct callbacks
+are in place.
+@param {Object} options Callbacks on success, fail, et al.
+*/
+OpenACD.Agent.prototype.checkCookie = function(options){
+	var userSuccess = options.success || function(){};
+	var userFail = options.failure || function(){};
+	var userErr = options.error || function(){};
+	var mySuccess = this.makeInternalPublishCb("checkCookie/success");
+	var trueOpts = {
+		success:function(res){
+			mySuccess(res);
+			userSuccess(res);
+		},
+		failure:userFail,
+		error:userErr
+	};
+	this.webApi("check_cookie", trueOpts);
+}
+
+OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
+	this.username = res.login;
+	this.securityLevel = res.securityLevel;
+	this.elapsed = res.elapsed;
+	this.setSkew(res.timestamp);
+	try{
+		dojo.publish("OpenACD/Agent/login", [this]);
+	} catch (err) {
+		console.error("OpenACD/Agent/state", err);
+	}
+}
+
+OpenACD.Agent.prototype._handleCheckCookieFailure = function(res, msg){
+	console.warn('failed check cookie', res, msg);
+}
+
+OpenACD.Agent.prototype._handleCheckCookieError = function(res){
+	console.error('Error check cookie', res);
+}
 
 /*
  	_____

@@ -952,7 +952,9 @@ dojo.addOnLoad(function(){
 			var attrs = loginform.attr("value");
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
-			window.agentConnection.login(false, failF, errorF);
+			window.agentConnection.login();
+		} else {
+			console.warn('Form has invalid value');
 		}
 	});
 

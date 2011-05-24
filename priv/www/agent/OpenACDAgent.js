@@ -708,7 +708,6 @@ OpenACD.Stopwatch = function(elapsed){
 		}
 	}
 	this.onTick = function(){};
-	console.log('ctor', this);
 	this.subscription = dojo.subscribe('OpenACD/Stopwatch/onTick/internal', this, this.onTickInternal);
 }
 
@@ -716,7 +715,6 @@ OpenACD.Stopwatch = function(elapsed){
 @private
 */
 OpenACD.Stopwatch.prototype.onTickInternal = function(){
-	console.log('onTickInternal', this);
 	this.elapsed += 1;
 	this.onTick();
 	this.tref = setTimeout(function(){

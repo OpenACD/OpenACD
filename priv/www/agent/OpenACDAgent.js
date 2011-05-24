@@ -646,8 +646,8 @@ are in place.
 */
 OpenACD.Agent.prototype.checkCookie = function(options){
 	if(this.loggedIn){
-		return true;
 		dojo.publish("OpenACD/Agent/login", [this]);
+		return true;
 	}
 	var userSuccess = options.success || function(){};
 	var userFail = options.failure || function(){};

@@ -597,6 +597,14 @@ dojo.addOnLoad(function(){
 	};
 	window.agentConnection = new OpenACD.Agent({});
 	window.agentConnection.checkCookie(checkCookieOpts);
+	var loginHandle = dojo.subscribe('OpenACD/Agent/login', function(agent){
+		var seedConf = {};
+		seedConf.username = agent.username;
+		seedConf.securityLevel = agent.securityLevel;
+		seedConf.elapsed = parseInt(agent.stopwatch.time());
+		seedConf.skew = agent.skew;
+		seedUI(seedConf);
+	});
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 

@@ -665,6 +665,7 @@ OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
 	this.securityLevel = res.securityLevel;
 	this.elapsed = res.elapsed;
 	this.setSkew(res.timestamp);
+	this.poll();
 	try{
 		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);

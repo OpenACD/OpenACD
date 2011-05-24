@@ -645,6 +645,10 @@ are in place.
 @param {Object} options Callbacks on success, fail, et al.
 */
 OpenACD.Agent.prototype.checkCookie = function(options){
+	if(this.loggedIn){
+		return true;
+		dojo.publish("OpenACD/Agent/login", [this]);
+	}
 	var userSuccess = options.success || function(){};
 	var userFail = options.failure || function(){};
 	var userErr = options.error || function(){};

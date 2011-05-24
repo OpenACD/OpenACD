@@ -677,6 +677,9 @@ OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
 	try{
 		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);
+		this.state = res.state;
+		this.statedata = res.stateData;
+		dojo.publish("OpenACD/Agent/state", [res]);
 	} catch (err) {
 		console.error("OpenACD/Agent/checkCookie", err);
 	}

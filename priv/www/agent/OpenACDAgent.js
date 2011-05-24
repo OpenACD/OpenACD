@@ -708,15 +708,20 @@ OpenACD.Stopwatch = function(elapsed){
 		}
 	}
 	this.onTick = function(){};
+	console.log('ctor', this);
+	this.subscription = dojo.subscribe('OpenACD/Stopwatch/onTick/internal', this, this.onTickInternal);
 }
 
 /**
 @private
 */
 OpenACD.Stopwatch.prototype.onTickInternal = function(){
+	console.log('onTickInternal', this);
 	this.elapsed += 1;
 	this.onTick();
-	this.tref = setTimeout(this.onTickInternal, 1000);
+	this.tref = setTimeout(function(){
+		dojo.publish('OpenACD/Stopwatch/onTick/internal', []);
+	}, 1000);
 };
 
 /**

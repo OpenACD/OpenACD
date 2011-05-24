@@ -201,6 +201,7 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 		console.warn("status 0, prolly due to logout", response);
 		this.loggedIn = false;
 		try{
+			this.loggedIn = false;
 			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
 		} catch (err) {
 			console.error("OpenACD/Agent/state", err);
@@ -214,6 +215,7 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 	if (this.pollfailures >= 5 || ioargs.xhr.status == 403) {
 		this.loggedIn = false;
 		try{
+			this.loggedIn = false;
 			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
 		} catch (err) {
 			console.error("OpenACD/Agent/state", err);
@@ -242,6 +244,7 @@ OpenACD.Agent.prototype._handlePollFailure = function(errcode, msg){
 	console.error('poll failed', msg);
 	this.loggedIn = false;
 	try{
+		this.loggedIn =false;
 		dojo.publish("OpenACD/Agent/logout", [msg]);
 	} catch (err) {
 		console.error("OpenACD/Agent/state", err);
@@ -439,6 +442,7 @@ OpenACD.Agent.prototype._handleLoginSuccess = function(results){
 	this.timestamp = results.timestamp;
 	this.poll();
 	try{
+		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);
 	} catch (err) {
 		console.error("OpenACD/Agent/state", err);
@@ -662,6 +666,7 @@ OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
 	this.elapsed = res.elapsed;
 	this.setSkew(res.timestamp);
 	try{
+		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);
 	} catch (err) {
 		console.error("OpenACD/Agent/state", err);

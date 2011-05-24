@@ -141,7 +141,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/profile", [datalist[i]]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/profile", err);
 				}
 				break;
 
@@ -149,7 +149,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/urlpop", [datalist[i]]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/urlpop", err);
 				}
 				break;
 			
@@ -157,7 +157,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/blab", [datalist[i].text]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/blab", err);
 				}
 				break;
 			
@@ -165,7 +165,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/mediaload", [datalist[i]]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/mediaload", err);
 				}
 				break;
 			
@@ -173,7 +173,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/mediaevent/" + datalist[i].media, [datalist[i]]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/mediaevent", err);
 				}
 				break;
 			
@@ -181,7 +181,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				try{
 					dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
 				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					console.error("OpenACD/Agent/" + datalist[i].command, err);
 				}
 				console.info("non-local command", datalist[i].command);
 		 }
@@ -204,7 +204,7 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 			this.loggedIn = false;
 			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
 		} catch (err) {
-			console.error("OpenACD/Agent/state", err);
+			console.error("OpenACD/Agent/logout", err);
 		}
 		return;
 	}
@@ -218,7 +218,7 @@ OpenACD.Agent.prototype._handlePollError = function(response, ioargs){
 			this.loggedIn = false;
 			dojo.publish("OpenACD/Agent/logout", [response.responseText]);
 		} catch (err) {
-			console.error("OpenACD/Agent/state", err);
+			console.error("OpenACD/Agent/logout", err);
 		}
 	}
 	else if (ioargs.xhr.status != 200) {
@@ -247,7 +247,7 @@ OpenACD.Agent.prototype._handlePollFailure = function(errcode, msg){
 		this.loggedIn =false;
 		dojo.publish("OpenACD/Agent/logout", [msg]);
 	} catch (err) {
-		console.error("OpenACD/Agent/state", err);
+		console.error("OpenACD/Agent/logout", err);
 	}
 }
 
@@ -445,7 +445,7 @@ OpenACD.Agent.prototype._handleLoginSuccess = function(results){
 		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);
 	} catch (err) {
-		console.error("OpenACD/Agent/state", err);
+		console.error("OpenACD/Agent/login", err);
 	}
 }
 
@@ -507,14 +507,14 @@ OpenACD.Agent.prototype.logout = function(){
 			try{
 				dojo.publish("OpenACD/Agent/logout", [true]);
 			} catch (err) {
-				console.error("OpenACD/Agent/state", err);
+				console.error("OpenACD/Agent/logout", err);
 			}
 		},
 		success:function(){
 			try{
 				dojo.publish("OpenACD/Agent/logout", [true]);
 			} catch (err) {
-				console.error("OpenACD/Agent/state", err);
+				console.error("OpenACD/Agent/logout", err);
 			}
 		}
 	};
@@ -557,7 +557,7 @@ OpenACD.Agent.prototype.setNag = function(message, time){
 		try{
 			dojo.publish("OpenACD/Agent/blab", [message]);
 		} catch (err) {
-			console.error("OpenACD/Agent/state", err);
+			console.error("OpenACD/Agent/blab", err);
 		}
 			delete(ref._nags[nag]);
 	}, time);
@@ -670,7 +670,7 @@ OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
 		this.loggedIn = true;
 		dojo.publish("OpenACD/Agent/login", [this]);
 	} catch (err) {
-		console.error("OpenACD/Agent/state", err);
+		console.error("OpenACD/Agent/checkCookie", err);
 	}
 }
 

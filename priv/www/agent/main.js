@@ -120,7 +120,7 @@ function queueTransferDialog(queueNom){
 					}
 				}
 			}
-			window.agent.queuetransfer(queueNom, skills, urlopts);
+			window.agentConnection.queuetransfer(queueNom, skills, urlopts);
 			this.destroy();
 		});
 		dialog.show();
@@ -131,13 +131,13 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + res + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ window.agent.queuetransfer(queueNom, [], {}) },
+				'yesAction':function(){ window.agentConnection.queuetransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Errored'
 			});
 		},
 		success:function(res){
 			if(res.prompts.length + res.skills.length == 0){
-				window.agent.queuetransfer(queueNom, [], {});
+				window.agentConnection.queuetransfer(queueNom, [], {});
 				return true;
 			}
 			createDialog(res);
@@ -147,12 +147,12 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + message + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'yesAction':function(){ window.agentConnection.queueTransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Failed'
 			});
 		}
 	};
-	window.agent.webApi("get_queue_transfer_options", qtoOptions);
+	window.agentConnection.webApi("get_queue_transfer_options", qtoOptions);
 }
 
 function getTheme() {
@@ -402,13 +402,13 @@ function showErrorReportDialog(conf){
 
 function reportIssue(humanReport){
 	var simpleAgent = {
-		login: agent.login,
-		profile: agent.profile,
-		securityLevel: agent.securityLevel,
-		skew: agent.skew,
-		skills: agent.skills,
-		state: agent.state,
-		statdata: agent.statedata
+		login: window.agentConnection.login,
+		profile: window.agentConnection.profile,
+		securityLevel: window.agentConnection.securityLevel,
+		skew: window.agentConnection.skew,
+		skills: window.agentConnection.skills,
+		state: window.agentConnection.state,
+		statdata: window.agentConnection.statedata
 	}
 	
 	var coveredNode = dijit.byId('reportIssueDialog').domNode;
@@ -531,7 +531,7 @@ dojo.addOnLoad(function(){
 		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("OpenACD/Agent/logout", function(data){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		});
-		agent = new OpenACD.Agent(confs);
+		/*agent = new OpenACD.Agent(confs);
 		agent.profile = confs.profile;
 		agent.state = confs.state;
 		agent.statedata = confs.statedata;
@@ -542,17 +542,17 @@ dojo.addOnLoad(function(){
 				fixedres.media = confobj.statedata.type;
 				dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
 			}
-		}
-		buildReleaseMenu(agent);
-		buildOutboundMenu(agent);
-		buildQueueMenu(agent);
+		}*/
+		buildReleaseMenu();
+		buildOutboundMenu();
+		buildQueueMenu();
 		dojo.byId("agentname").innerHTML = confs.username;
 		dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + confs.profile;
-		agent.stopwatch.onTick = function(){
-			var elapsed = agent.stopwatch.time();
+		window.agentConnection.stopwatch.onTick = function(){
+			var elapsed = window.agentConnection.stopwatch.time();
 			dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
 		}
-		agent.stopwatch.start();
+		window.agentConnection.stopwatch.start();
 		var settings = {};
 		if(dojo.cookie('agentui-settings')){
 			settings = dojo.fromJson(dojo.cookie('agentui-settings'));
@@ -598,6 +598,7 @@ dojo.addOnLoad(function(){
 	window.agentConnection = new OpenACD.Agent({});
 	window.agentConnection.checkCookie(checkCookieOpts);
 	var loginHandle = dojo.subscribe('OpenACD/Agent/login', function(agent){
+		console.log('handling login', this, agent);
 		var seedConf = {};
 		seedConf.username = agent.username;
 		seedConf.securityLevel = agent.securityLevel;
@@ -859,7 +860,7 @@ dojo.addOnLoad(function(){
 			var m = new dijit.MenuItem({
 				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
 				onClick: function(){
-					window.agent.transfer(escape(i.name));
+					window.agentConnection.transfer(escape(i.name));
 				}
 			});
 			widget.addChild(m);
@@ -958,7 +959,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	buildReleaseMenu = function(agent){
+	buildReleaseMenu = function(){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var opts = {
 			error:function(response, ioargs){
@@ -966,7 +967,7 @@ dojo.addOnLoad(function(){
 				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
 				menu.addChild(item);
 			},
@@ -976,13 +977,13 @@ dojo.addOnLoad(function(){
 				dojo.forEach(response.options, function(obj){
 					item = new dijit.MenuItem({
 						label: obj.label,
-						onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
+						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
 					});
 					menu.addChild(item);
 				});
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
 				menu.addChild(item);
 			},
@@ -992,15 +993,15 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
 				menu.addChild(item);
 			}
 		};
-		window.agent.webApi("get_release_opts", opts);
+		window.agentConnection.webApi("get_release_opts", opts);
 	};
 
-	buildOutboundMenu = function(agent){
+	buildOutboundMenu = function(){
 		//var menu = dijit.byId("outboundmenu");
 		var widget;
 		var store = new dojo.data.ItemFileReadStore({
@@ -1026,7 +1027,7 @@ dojo.addOnLoad(function(){
 			dojo.connect(widget, 'onChange', function(val){
 					if(val !== ""){
 					dijit.byId('tabPanel').selectChild('maintab');
-					agent.initOutbound(val, "freeswitch");
+					window.agentConnection.initOutbound(val, "freeswitch");
 					}
 			});
 		}
@@ -1047,7 +1048,7 @@ dojo.addOnLoad(function(){
 				widget.store = store;
 			}
 		};
-		window.agent.webApi("get_brand_list", brandListOpts);
+		window.agentConnection.webApi("get_brand_list", brandListOpts);
 		widget.stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 				debug(["boutboundcall", data, data.state]);
 				switch(data.state){
@@ -1062,7 +1063,7 @@ dojo.addOnLoad(function(){
 		});
 	};
 
-	buildQueueMenu = function(agent){
+	buildQueueMenu = function(){
 		var menu = dijit.byId("transferToQueueMenuDyn");
 		var qListOpts = {
 			error:function(response, ioargs){
@@ -1092,7 +1093,7 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			}
 		};
-		window.agent.webApi("get_queue_list", qListOpts);
+		window.agentConnection.webApi("get_queue_list", qListOpts);
 	};
 
 	dojo.byId("loginerrp").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){

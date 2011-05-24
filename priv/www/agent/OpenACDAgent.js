@@ -746,7 +746,9 @@ OpenACD.Stopwatch.prototype.start = function(){
 	if (this.tref) {
 		this.stop();
 	}
-	this.tref = setTimeout(this.onTickInternal, 1000);
+	this.tref = setTimeout(function(){
+		dojo.publish('OpenACD/Stopwatch/onTick/internal', []);
+	}, 1000);
 }
 
 /**

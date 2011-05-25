@@ -1,6 +1,6 @@
 // Currently dependant on dojo
 
-if(! OpenACD){
+if(! window.OpenACD){
 	function OpenACD(){
 		this.createdBy = 'OpenACDAgent';
 		throw new Error('lib; not for new');

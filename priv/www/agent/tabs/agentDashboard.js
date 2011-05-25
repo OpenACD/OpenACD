@@ -339,7 +339,6 @@ if(typeof(agentDashboard) == 'undefined'){
 			case 'outgoing':
 			case 'precall':
 			case 'warmtransfer':
-				d = agent.statedata;
 				return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
 			default:
 				//console.log(['dinna parse', this.statedata]);

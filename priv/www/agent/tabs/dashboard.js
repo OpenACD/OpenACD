@@ -183,7 +183,7 @@ if(typeof(dashboard) == 'undefined'){
 	
 	dashboard.startProblemRecording = function(clientId){
 		dojo.xhrGet({
-			url: '/supervisor/start_problem_recording/' + agent.login + '/' + escape(clientId),
+			url: '/supervisor/start_problem_recording/' + window.agentConnection.username + '/' + escape(clientId),
 			handleAs: 'json',
 			load: function(res){
 				if(res.success){
@@ -203,7 +203,7 @@ if(typeof(dashboard) == 'undefined'){
 	}
 }
 
-dashboard.masterSub = dojo.subscribe("agent/supervisortab", dashboard, function(supevent){
+dashboard.masterSub = dojo.subscribe("OpenACD/Agent/supervisortab", dashboard, function(supevent){
 	if(supevent.data.type == 'media' && supevent.data.action == 'drop'){
 		delete this.medias[supevent.data.name];
 	} else if(supevent.data.type == 'media'){

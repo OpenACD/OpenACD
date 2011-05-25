@@ -962,41 +962,47 @@ dojo.addOnLoad(function(){
 
 	buildReleaseMenu = function(){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		var menu = dijit.byId("releasedmenu");
+		var addItems = function(items){
+			var i = 0;
+			var childs = menu.getChildren();
+			for(i = 0; i < childs.length; i++){
+				menu.removeChild(childs[i]);
+			}
+			for(i = 0; i < items.length; i++){
+				menu.addChild(items[i]);
+			}
+		}
 		var opts = {
 			error:function(response, ioargs){
 				warning(["getting release codes errored", response]);
-				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
 					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
-				menu.addChild(item);
+				addItems([item]);
 			},
 			success:function(response, ioargs){
-				var menu = dijit.byId("releasedmenu");
-				var item = '';
+				var items = [];
 				dojo.forEach(response.options, function(obj){
-					item = new dijit.MenuItem({
+					items.push(new dijit.MenuItem({
 						label: obj.label,
 						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
-					});
-					menu.addChild(item);
+					}));
 				});
-				item = new dijit.MenuItem({
+				items.push(new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
 					onClick:function(){window.agentConnection.setState("released", "Default"); }
-				});
-				menu.addChild(item);
+				}));
+				addItems(items);
 			},
 			failure:function(errcode, message){
-				var menu = dijit.byId("releasedmenu");
-				var item = '';
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
 					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
-				menu.addChild(item);
+				addItems([item]);
 			}
 		};
 		window.agentConnection.webApi("get_release_opts", opts);

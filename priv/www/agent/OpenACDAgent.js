@@ -343,10 +343,7 @@ OpenACD.Agent.prototype.setState = function(state){
 	var options = {};
 	var statedata = false;
 	if(arguments.length == 2){
-		options = arguments[1];
-		if(options.statedata){
-			statedata = options.statedata;
-		}
+		statedata = arguments[1];
 	}
 
 	if(statedata){

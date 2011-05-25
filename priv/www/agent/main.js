@@ -575,6 +575,7 @@ dojo.addOnLoad(function(){
 			dijit.byId("tabsmenubutton").set('disabled', false);
 		}
 		dojo.cookie('agentui-settings', dojo.toJson(settings));
+		dijit.byId("loginpane").hide();
 	}
 	
 	var checkCookieOpts = {

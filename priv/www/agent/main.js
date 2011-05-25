@@ -536,13 +536,13 @@ dojo.addOnLoad(function(){
 		agent.state = confs.state;
 		agent.statedata = confs.statedata;
 		if(agent.state){
-			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);
-			if( (agent.state == "oncall") && (confs.mediaload) ){
-				var fixedres = confs.mediaload;
-				fixedres.media = confobj.statedata.type;
-				dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
-			}
-		}*/
+			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);*/
+		if( (window.agentConnection.state == "oncall") && (confs.mediaload) ){
+			var fixedres = confs.mediaload;
+			fixedres.media = confobj.statedata.type;
+			dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
+		}
+		/*}*/
 		buildReleaseMenu();
 		buildOutboundMenu();
 		buildQueueMenu();

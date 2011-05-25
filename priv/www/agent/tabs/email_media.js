@@ -115,10 +115,10 @@ emailPane.sub = dojo.subscribe("emailLib/get_skeleton", function(skel){
 	});
 	
 	//This could be set up when spying, so disable reply, and allow closability.
-	if(agent.state == 'released' || agent.state == 'idle'){
+	if(window.agentConnection.state == 'released' || window.agentConnection.state == 'idle'){
 		dijit.byId('email').attr('closable', true);
 		dijit.byId('emailReply').destroy();
-		emailPane.spyStateListener = dojo.subscribe("agent/state", function(){
+		emailPane.spyStateListener = dojo.subscribe("OpenACD/Agent/state", function(){
 			dojo.unsubscribe(emailPane.spyStateListener);
 			dojo.unsubscribe(emailPane.tabCloseListener);
 			delete emailPane.tabCloseListener;

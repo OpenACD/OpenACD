@@ -888,22 +888,10 @@ parse_path(Path) ->
 			{file, {"index.html", util:priv_dir("www/agent") ++ "/"}};
 		"/api" ->
 			{api, api};
-		"/poll" ->
-			{api, poll};
 		"/logout" ->
 			{api, logout};
-		"/login" ->
-			{api, login};
-		"/getsalt" ->
-			{api, getsalt};
-		"/releaseopts" ->
-			{api, releaseopts};
-		"/brandlist" ->
-			{api, brandlist};
-		"/queuelist" ->
-			{api, queuelist};
-		"/checkcookie" ->
-			{api, checkcookie};
+		"/supervisor" ->
+			{api, supervisor};
 		_Other ->
 			["" | Tail] = util:string_split(Path, "/"),
 			case Tail of 
@@ -921,46 +909,6 @@ parse_path(Path) ->
 						false ->
 							{api, {undefined, Path}}
 					end;
-				["state", Statename] ->
-					{api, {set_state, Statename}};
-				["state", Statename, Statedata] ->
-					{api, {set_state, Statename, Statedata}};
-				["ack", Counter] ->
-					{api, {ack, Counter}};
-				["err", Counter] ->
-					{api, {err, Counter}};
-				["err", Counter, Message] ->
-					{api, {err, Counter, Message}};
-				["dial", Number] ->
-					{api, {dial, Number}};
-				["get_avail_agents"] ->
-					{api, get_avail_agents};
-				["agent_transfer", Agent] ->
-					{api, {agent_transfer, Agent}};
-				["agent_transfer", Agent, CaseID] ->
-					{api, {agent_transfer, Agent, CaseID}};
-				["media"] ->
-					{api, media};
-				["mediapull" | Pulltail] ->
-					?DEBUG("pulltail:  ~p", [Pulltail]),
-					% TODO Is this even used anymore?
-					{api, {mediapull, Pulltail}};
-				["mediapush"] ->
-					{api, mediapush};
-				["warm_transfer", Number] ->
-					{api, {warm_transfer, Number}};
-				["warm_transfer_complete"] ->
-					{api, warm_transfer_complete};
-				["warm_transfer_cancel"] ->
-					{api, warm_transfer_cancel};
-				["queue_transfer", Number] ->
-					{api, {queue_transfer, Number}};
-%				["queue_transfer", Number, CaseID] ->
-%					{api, {queue_transfer, Number, CaseID}};
-				["init_outbound", Client, Type] ->
-					{api, {init_outbound, Client, Type}};
-				["supervisor" | Supertail] ->
-					{api, {supervisor, Supertail}};
 				_Allother ->
 					% is there an actual file to serve?
 					case {filelib:is_regular(string:concat(util:priv_dir("www/agent"), Path)), filelib:is_regular(string:concat(util:priv_dir("www/contrib"), Path))} of

@@ -390,7 +390,7 @@
 								warning(["call_hangup erred", res]);
 							}
 						};
-						window.agentConnection.webApi("ring_test", ringOpts);
+						window.agentConnection.agentApi("ring_test", ringOpts);
 					</script>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
@@ -408,7 +408,7 @@
 									warning(["call_hangup erred", res]);
 								}
 							};
-							window.agentConnection.webApi("call_hangup", hangupOpts);
+							window.agentConnection.agentApi("call_hangup", hangupOpts);
 						} else {
 							window.agentConnection.setState("wrapup");
 						}

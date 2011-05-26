@@ -152,7 +152,7 @@ function queueTransferDialog(queueNom){
 			});
 		}
 	};
-	window.agentConnection.webApi("get_queue_transfer_options", qtoOptions);
+	window.agentConnection.agentApi("get_queue_transfer_options", qtoOptions);
 }
 
 function getTheme() {
@@ -1005,7 +1005,7 @@ dojo.addOnLoad(function(){
 				addItems([item]);
 			}
 		};
-		window.agentConnection.webApi("get_release_opts", opts);
+		window.agentConnection.agentApi("get_release_opts", opts);
 	};
 
 	buildOutboundMenu = function(){
@@ -1055,7 +1055,7 @@ dojo.addOnLoad(function(){
 				widget.store = store;
 			}
 		};
-		window.agentConnection.webApi("get_brand_list", brandListOpts);
+		window.agentConnection.agentApi("get_brand_list", brandListOpts);
 		widget.stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 				debug(["boutboundcall", data, data.state]);
 				switch(data.state){
@@ -1100,7 +1100,7 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			}
 		};
-		window.agentConnection.webApi("get_queue_list", qListOpts);
+		window.agentConnection.agentApi("get_queue_list", qListOpts);
 	};
 
 	dojo.byId("loginerrp").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){

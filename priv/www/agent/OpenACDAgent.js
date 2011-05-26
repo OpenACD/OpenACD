@@ -262,7 +262,7 @@ OpenACD.Agent.prototype.poll = function(){
 		success:this.makeInternalPublishCb("poll/success"),
 		failure:this.makeInternalPublishCb("poll/failure")
 	};
-	this._pollHandle = this.webApi("poll", options);
+	this._pollHandle = this.agentApi("poll", options);
 };
 
 OpenACD.Agent.states = [
@@ -277,8 +277,7 @@ OpenACD.Agent.states = [
 ];
 
 /**
-Make a request to the server.  Most common requests are abstracted out, 
-making this a fallback.
+Make a request for the agent api.
 @param {String} func The name of the request to make on the server.  See the
 	documentaion on the agent_web_listener and agent_web_connection for 
 	OpenACD for valid entries.
@@ -294,7 +293,63 @@ making this a fallback.
 	request on the server side.  See the OpenACD documentation for 
 	agent_web_listener and agent_web_connection.
 */
-OpenACD.Agent.prototype.webApi = function(func, opts){
+OpenACD.Agent.prototype.agentApi = function(func, options){
+	var args = ['api'];
+	for(var i = 0; i < arguments.length; i++){
+		args.push(arguments[i]);
+	}
+	this.webApi.apply(this, args);
+}
+
+/**
+Make a request for the supervisor api.
+@param {String} func The name of the request to make on the server.  See the
+	documentaion on the agent_web_listener and agent_web_connection for 
+	OpenACD for valid entries.
+@param {Object} Opts The callback functions.
+@param {Function} opts.success If the server responds afirmitively, this
+	function is called with the result object as the argument.
+@param {Function} opts.failure If the server responds negatively, this 
+	function is called withe the errCode and message as arguments.
+@param {Function} opts.error If an error occured during the request (or 
+	running the success or failure functions), this function is called with
+	the error or response and ioargs as arguments.
+@param [args*] The remaining arguments are used as the arguments for the 
+	request on the server side.  See the OpenACD documentation for 
+	agent_web_listener and agent_web_connection.
+*/
+OpenACD.Agent.prototype.supervisorApi = function(func, options){
+	var args = ['supervisor'];
+	for(var i = 0; i < arguments.length; i++){
+		args.push(arguments[i]);
+	}
+	this.webApi.apply(this, args);
+}
+
+/**
+Make a request to the server.  Most common requests are abstracted out, 
+making this a fallback.
+@param {String} api The api section of the request.  'api' and 'supervisor'
+	are the only options supported currently.
+@param {String} func The name of the request to make on the server.  See the
+	documentaion on the agent_web_listener and agent_web_connection for 
+	OpenACD for valid entries.
+@param {Object} Opts The callback functions.
+@param {Function} opts.success If the server responds afirmitively, this
+	function is called with the result object as the argument.
+@param {Function} opts.failure If the server responds negatively, this 
+	function is called withe the errCode and message as arguments.
+@param {Function} opts.error If an error occured during the request (or 
+	running the success or failure functions), this function is called with
+	the error or response and ioargs as arguments.
+@param [args*] The remaining arguments are used as the arguments for the 
+	request on the server side.  See the OpenACD documentation for 
+	agent_web_listener and agent_web_connection.
+*/
+OpenACD.Agent.prototype.webApi = function(api, func, opts){
+	if(! (api == 'api' || api == 'supervisor') ){
+		throw new Error('Unknown api section ' + api);
+	}
 	var defaultOpts = {
 		"success":function(){ return true; },
 		"failure":function(errcode, msg){
@@ -312,11 +367,11 @@ OpenACD.Agent.prototype.webApi = function(func, opts){
 		return trueOpts.failure(res.errcode, res.message);
 	};
 	var args = [];
-	for(var i = 2; i < arguments.length; i++){
+	for(var i = 3; i < arguments.length; i++){
 		args.push(arguments[i]);
 	}
 	var xhrOverrides = {
-		url:"/api",
+		url:"/" + api,
 		content:{
 			request:dojo.toJson({
 				"function":func,
@@ -347,9 +402,9 @@ OpenACD.Agent.prototype.setState = function(state){
 	}
 
 	if(statedata){
-		this.webApi("set_state", options, state, statedata);
+		this.agentApi("set_state", options, state, statedata);
 	} else {
-		this.webApi("set_state", options, state);
+		this.agentApi("set_state", options, state);
 	}
 };
 
@@ -366,7 +421,7 @@ OpenACD.Agent.prototype.initOutbound = function(Client, Type, callbacks) {
 	if(!callbacks){
 		callbacks = {};
 	}
-	this.webApi("init_outbound", callbacks, Client, Type);
+	this.agentApi("init_outbound", callbacks, Client, Type);
 };
 
 /**
@@ -395,7 +450,7 @@ OpenACD.Agent.prototype._handleGetSaltSuccess = function(response){
 		error:this.makeInternalPublishCb("login/error"),
 		failure:this.makeInternalPublishCb("login/failure")
 	};
-	this.webApi("login", loginOpts, this.username, password);
+	this.agentApi("login", loginOpts, this.username, password);
 }
 
 /**
@@ -477,7 +532,7 @@ OpenACD.Agent.prototype.login = function(successCB, failCB, errCB){
 		success:this.makeInternalPublishCb("salt/success"),
 		failure:this.makeInternalPublishCb("salt/failure"),
 	};
-	this.webApi("get_salt", getSaltOpts);
+	this.agentApi("get_salt", getSaltOpts);
 }
 
 /**
@@ -515,7 +570,7 @@ OpenACD.Agent.prototype.logout = function(){
 			}
 		}
 	};
-	this.webApi("logout", options);
+	this.agentApi("logout", options);
 	this.loggedIn = false;
 };
 
@@ -525,7 +580,7 @@ After init_outbound, dial/contact the given contact.
 @param {Object} [options] Callbacks
 */
 OpenACD.Agent.prototype.dial = function(digits, options) {
-	this.webApi("dial", options, digitis);
+	this.agentApi("dial", options, digitis);
 };
 
 /**
@@ -535,7 +590,7 @@ When an agent is oncall, send a request to the media
 */
 OpenACD.Agent.prototype.mediaPush = function(data, options){
 	if(this.state == "oncall"){
-		this.webApi("mediapush", options, data);
+		this.agentApi("mediapush", options, data);
 		return true;
 	}
 	return false;
@@ -585,7 +640,7 @@ OpenACD.Agent.prototype.agentTransfer = function(aname, options){
 	for(var i = 2; i < arguments.length; i++){
 		applyArgs.push(arguments[i]);
 	}
-	this.webApi.apply(this, applyArgs);
+	this.agentApi.apply(this, applyArgs);
 };
 
 /**
@@ -594,7 +649,7 @@ Initiate a warm transfer
 @param {Object} options Callbacks for success, failure, and error.
 */
 OpenACD.Agent.prototype.warmtransfer = function(num, options) {
-	this.webApi("warm_transfer", options, num);
+	this.agentApi("warm_transfer", options, num);
 };
 
 /**
@@ -602,7 +657,7 @@ Cancel a warm transfer
 @param {Object} options Callbacks for success, failure, and error.
 */
 OpenACD.Agent.prototype.warmtransfercancel = function(options) {
-	this.webApi("warm_transfer_cancel", options);
+	this.agentApi("warm_transfer_cancel", options);
 };
 
 /**
@@ -610,7 +665,7 @@ Complete a warm transfer; eg, connect the orignal contact to the 3rd party.
 @param {Object} options Callbacks for success, failure, and error.
 */
 OpenACD.Agent.prototype.warmtransfercomplete = function(options) {
-	this.webApi("warm_transfer_complete", options);
+	this.agentApi("warm_transfer_complete", options);
 };
 
 /**
@@ -623,7 +678,7 @@ Send a media the agent is on call with to a different queue.
 */
 OpenACD.Agent.prototype.queuetransfer = function(queue, skills, urlopts, options) {
 	urlopts.skills = skills;
-	this.webApi("queue_transfer", options, queue, urlopts);
+	this.agentApi("queue_transfer", options, queue, urlopts);
 };
 
 /**
@@ -632,7 +687,7 @@ they are idle or released.
 @param {Object} options Callbacks for success, failure, and error.
 */
 OpenACD.Agent.prototype.getAvailAgents = function(options) {
-	this.webApi("get_avail_agents", options);
+	this.agentApi("get_avail_agents", options);
 };
 
 /**
@@ -662,7 +717,7 @@ OpenACD.Agent.prototype.checkCookie = function(options){
 		failure:userFail,
 		error:userErr
 	};
-	this.webApi("check_cookie", trueOpts);
+	this.agentApi("check_cookie", trueOpts);
 }
 
 OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){

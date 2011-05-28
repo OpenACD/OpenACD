@@ -94,40 +94,49 @@
 -record(state, {
 		listener :: port(), % Listening socket
 		acceptor :: any(), % Asynchronous acceptor's internal reference
-		radix :: integer()
+		radix :: integer(), 
+ 		% socket type:  tcp, upgrade to ssl, ssl
+		socket_type = tcp :: 'tcp' | 'ssl_upgrade' | 'ssl',
+		socket_module = gen_tcp :: 'gen_tcp' | 'ssl'
 		}).
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
-%% @doc Start the listener on port `Port' linked to the calling process.
--spec(start_link/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+-type(port_opt() :: {'port', pos_integer()}).
+-type(radix_opt() :: {'radix', pos_integer()}).
+-type(socket_type_opt() :: {'socket_type', 'tcp' | 'ssl_upgrade' | 'ssl'}).
+-type(start_opt() :: port_opt() | radix_opt() | socket_type_opt()).
+-type(start_opts() :: [start_opt()]).
+%% @doc Start the listener linked to parent process.  If `Options' is an 
+%% integer, start the listener on the given port.  Otherwise, it uses start 
+%% options.  Defaults are to start on port 337, with a radix of 10, and to 
+%% just use straing tcp.  The socket options are `tcp', `ssl_upgrade', and 
+%% `ssl'.  `tcp' indicates tcp always, with the password being sent in an
+%% rsa form.  `ssl' means the client must connect with ssl initially.  
+%% Password does not need special encryption in this case.  `ssl_upgrade' 
+%% means the listener/conneciton will request to upgrade to ssl asap.
+-spec(start_link/1 :: (Port :: integer() | start_opts()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->
-	start_link(Port, 10).
+	start_link([{port, Port}]);
+start_link(Options) when is_list(Options) ->
+	ssl:start(),
+	gen_server:start_link(?MODULE, Options, []).
 
-%% @doc Start the listener on the port `Port' linked to the calling process.
-%% agent_tcp_connections will using the given `Radix' for it's netstring 
-%% encodings.
--spec(start_link/2 :: (Port :: integer(), Radix :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Port, Radix) ->
-	gen_server:start_link(?MODULE, [Port, Radix], []).
-
-%% @doc Start the listener on port `Port' linked to no process.
+%% @doc Start the listener on port `Port' linked to no process; or if a list
+%% is given instead, use those settings.
+%% @see start_link/1
 -spec(start/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Port) when is_integer(Port) ->
-	start(Port, 10).
-
-%% @doc Start the listener on port `Port' linked to no process.  Listeners
-%% will send and decode netstrings using the given `Radix'
--spec(start/2 :: (Port :: integer(), Radix :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Port, Radix) ->
-	gen_server:start(?MODULE, [Port, Radix], []).
+	start([{port, Port}]);
+start(Options) ->
+	gen_server:start(?MODULE, [Options], []).
 
 %% @doc Start the listener on the default port of 1337 linked to no process.
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start() -> 
-	start(?PORT).
+	start([]).
 
 %% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -135,16 +144,28 @@ stop(Pid) ->
 	gen_server:cast(Pid, stop).
 
 %% @hidden
-init([Port, Radix]) ->
+init(Options) ->
 %	process_flag(trap_exit, true),
-	Opts = [list, {packet, line}, {reuseaddr, true},
+	Port = proplists:get_value(port, Options, ?PORT),
+	Radix = proplists:get_value(radix, Options, 10),
+	SocketType = proplists:get_value(socket_type, Options, tcp),
+	SimpleOpts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
-	case gen_tcp:listen(Port, Opts) of
+	{Mod, Opts} = case SocketType of
+		ssl ->
+			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
+			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+			OutOpts = [{certfile, CertFile}, {keyfile, Keyfile} | SimpleOpts],
+			{ssl, OutOpts};
+		_ ->
+			{gen_tcp, SimpleOpts}
+	end,
+	case Mod:listen(Port, Opts) of
 		{ok, Listen_socket} ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
 			?INFO("Started on port ~p", [Port]),
-			{ok, #state{listener = Listen_socket, acceptor = Ref, radix = Radix}};
+			{ok, #state{listener = Listen_socket, acceptor = Ref, radix = Radix, socket_type = SocketType, socket_module = Mod}};
 		{error, Reason} ->
 			?WARNING("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
@@ -161,9 +182,9 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @hidden
-handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref} = State) ->
+handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref, socket_module = Mod} = State) ->
 	try
-		case set_sockopt(ListSock, CliSocket) of
+		case set_sockopt(ListSock, CliSocket, Mod) of
 			ok  ->
 				ok;
 			{error, Reason} ->
@@ -172,8 +193,8 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 
 		%% New client connected
 		?DEBUG("new client connection.~n", []),
-		{ok, Pid} = agent_tcp_connection:start(CliSocket, State#state.radix),
-		gen_tcp:controlling_process(CliSocket, Pid),
+		{ok, Pid} = agent_tcp_connection:start(CliSocket, State#state.radix, State#state.socket_type),
+		Mod:controlling_process(CliSocket, Pid),
 		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection
@@ -198,27 +219,27 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% @hidden
-terminate(Reason, State) ->
+terminate(Reason, #state{socket_module = Mod} = State) ->
 	?NOTICE("Terminating due to ~p", [Reason]),
-	gen_tcp:close(State#state.listener),
+	Mod:close(State#state.listener),
 	ok.
 
 %% @hidden
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
--spec(set_sockopt/2 :: (ListSock :: port(), CliSocket :: port()) -> 'ok' | any()).
-set_sockopt(ListSock, CliSocket) ->
+-spec(set_sockopt/3 :: (ListSock :: port(), CliSocket :: port(), SocketMod :: 'gen_tcp' | 'ssl') -> 'ok' | any()).
+set_sockopt(ListSock, CliSocket, SocketMod) ->
 	true = inet_db:register_socket(CliSocket, inet_tcp),
 	case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of
 		{ok, Opts} ->
 			case prim_inet:setopts(CliSocket, Opts) of
 				ok -> ok;
-				Error -> gen_tcp:close(CliSocket),
+				Error -> SocketMod:close(CliSocket),
 					Error % return error
 			end;
 		Error ->
-			gen_tcp:close(CliSocket),
+			SocketMod:close(CliSocket),
 			Error % return error
 	end.
 

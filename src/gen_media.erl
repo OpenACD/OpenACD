@@ -711,17 +711,19 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 							{outband, inband, Pid} when is_pid(Pid) ->
 								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
 									{ok, RingChanPid} ->
-										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid});
+										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid}),
+										agent:has_successful_ring(Apid);
 									Else ->
 										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
+										agent:has_failed_ring(Apid),
 										undefined
 								end;
 							_ ->
+								agent:has_failed_ring(Apid),
 								undefined
 						end
 					end),
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
-					agent:has_successful_ring(Apid),
 					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
 				{invalid, Substate} ->
 					agent:has_failed_ring(Apid),

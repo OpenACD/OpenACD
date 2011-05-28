@@ -898,37 +898,52 @@ start_plugins({ok, Dir}) ->
 		true ->
 			case filelib:is_dir(filename:join([Dir, "deps"])) of
 				true ->
-					lists:foreach(fun(Dep) ->
-								case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
-									true ->
-										?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
-										true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
-									false ->
-										ok
-								end
-						end,
-						element(2, file:list_dir(filename:join([Dir, "deps"]))));
+					add_plugin_deps(file:list_dir(filename:join([Dir, "deps"])), Dir);
 				false ->
 					ok
 			end,
-			lists:foreach(fun("deps") ->
-						ok;
-					(Plugin) ->
-						case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
-							true ->
-								?INFO("Adding plugin ~p to code path", [Plugin]),
-								true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
-								{ok, [{application, _, Properties}|_]} = file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])),
-								lists:foreach(fun(App) -> application:start(App) end, proplists:get_value(applications, Properties, [])),
-								?INFO("starting plugin ~p:  ~p", [Plugin, application:start(list_to_atom(Plugin))]);
-							false ->
-								ok
-						end
-				end,
-				element(2, file:list_dir(Dir)))
+			start_plugin_apps(file:list_dir(Dir), Dir)
 	end.
 
+add_plugin_deps({ok, Deps}, Dir) ->
+	add_plugin_deps(Deps, Dir);
+add_plugin_deps([], _) ->
+	ok;
+add_plugin_deps([Dep | Tail], Dir) ->
+	case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
+		true ->
+			?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
+			true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
+		false ->
+			ok
+	end,
+	add_plugin_deps(Tail, Dir).
 
+start_plugin_apps({ok, Plugins}, Dir) ->
+	start_plugin_apps(Plugins, Dir);
+start_plugin_apps([], _) ->
+	ok;
+start_plugin_apps(["deps" | Tail], Dir) ->
+	start_plugin_apps(Tail, Dir);
+start_plugin_apps([Plugin | Tail], Dir) ->
+	case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
+		true ->
+			?INFO("Adding plugin ~p to code path", [Plugin]),
+			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
+			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
+				{ok, [{application, _, Properties}|_]} ->
+					Apps = proplists:get_value(applicaitons, Properties, []),
+					[application:start(App) || App <- Apps],
+					StartRes = application:start(list_to_atom(Plugin)),
+					?INFO("starting plugin ~p:  ~p", [Plugin, StartRes]);
+				{error, Err} ->
+					?WARNING("Plugin ~s failed to start due to app file read error ~p.", [Plugin, Err])
+			end;
+		false ->
+			ok
+	end,
+	start_plugin_apps(Tail, Dir).
+	
 -ifdef(TEST).
 
 pretty_print_time_test_() ->

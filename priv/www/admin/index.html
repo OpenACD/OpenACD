@@ -814,9 +814,8 @@ dojo.addOnLoad(init);
 						query:{label:""},
 						onComplete:function(items){
 							var item = items[0];
-							var options = clients.store.getValue(item, "options")
-							dijit.byId("clientDefaultUrl").set('value', options["url_pop"]);
-							dijit.byId("clientDefaultAutowrapup").set('value', options["autoend_wrapup"]);
+							dijit.byId("clientDefaultUrl").set('value', item["url_pop"]);
+							dijit.byId("clientDefaultAutowrapup").set('value', item["autoend_wrapup"]);
 						}
 					});
 					dijit.byId('clientsMain').selectChild('clientsDefaults');
@@ -917,17 +916,21 @@ dojo.addOnLoad(init);
 								</form>
 							</div>
 						</div>
-						<div style="margin:1em; display:inline-block; width:420px; height:400px" >
+						<div style="margin:1em; display:inline-block; width:90%; height:400px" >
 							<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
 								<script type="dojo/method" event="onApplyEdit">
 									var row = arguments[0];
 									var item = this.getItem(row);
 									var id = clients.store.getValue(item, 'id');
 									var label = clients.store.getValue(item, 'label');
+									var url_pop = clients.store.getValue(item, 'url_pop');
+									var autoWrap = clients.store.getValue(item, 'autoend_wrapup');
 									dojo.xhrPost({
 										url:'/clients/' + id + '/set',
 										content:{
-											'label':label
+											'label':label,
+											'url_pop':url_pop,
+											'autoend_wrapup':autoWrap
 										},
 										handleAs:'json',
 										load:function(res){
@@ -947,6 +950,8 @@ dojo.addOnLoad(init);
 									<tr>
 										<th field="id" width="200px" class="translate">CLIENTID</th>
 										<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
+										<th field="url_pop" width="400px" editable="true" class="translate">CLIENT_URL_POP</th>
+										<th field="autoend_wrapup" width="50px" editable="true" title="Autowrapup">AW</th>
 									</tr>
 								</thead>
 							</table><br clear="none" />

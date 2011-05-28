@@ -173,10 +173,15 @@
 %% API
 %%====================================================================
 
+%% @doc Uses a configuration file of "sip_bot_conf.hrl".
+%% @see start_app/2
 -spec(start_app/1 :: (Node :: atom()) -> {'ok', pid()}).
 start_app(Node) ->
 	start_app(Node, "sip_bot_conf.hrl").
 
+%% @doc Starts cpxlog, then self.  The second argument is a path to a
+%% configuration file.
+%% @see start/2
 -spec(start_app/2 :: (Node :: atom(), File :: string()) -> {'ok', pid()}).
 start_app(Node, File) ->
 	case whereis(cpxlog) of
@@ -186,11 +191,14 @@ start_app(Node, File) ->
 			ok
 	end,
 	start(Node, {file, File}).
-	
+
+%% @doc Start using the freeswitch node and all defaults.
 -spec(start/1 :: (Node :: atom()) -> {'ok', pid()}).
 start(Node) ->
 	start(Node, []).
 
+%% @doc Start using the freeswitch node and the given configuration.  The
+%% configuration is either a proplist of options, or `{file, "path/to/conf"}'
 -spec(start/2 :: (Node :: atom(), Opts :: start_options() | {'file', string()}) -> {'ok', pid()}).
 start(Node, {file, File}) ->
 	{ok, Opts} = file:consult(File),
@@ -198,10 +206,14 @@ start(Node, {file, File}) ->
 start(Node, Opts) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Node, Opts], []).
 
+%% @doc Uses pure defaults.
+%% @see start_link/2
 -spec(start_link/1 :: (Node :: atom()) -> {'ok', pid()}).
 start_link(Node) ->
 	start_link(Node, []).
 
+%% @doc Links to the resultant pid.
+%% @see start/2
 -spec(start_link/2 :: (Node :: atom(), Opts :: start_options() | {'file', string()}) -> {'ok', pid()}).
 start_link(Node, {file, File}) ->
 	{ok, Opts} = file:consult(File),
@@ -209,14 +221,17 @@ start_link(Node, {file, File}) ->
 start_link(Node, Opts) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Node, Opts], []).
 
+%% @doc Stops the madness.
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?MODULE, stop).
 
+%% @doc Attempts to dial the number or uri.
 -spec(originate/1 :: (TargetNum :: string()) -> 'ok').
 originate(TargetNum) ->
 	gen_server:cast(?MODULE, {originate, TargetNum}).
 
+%% @doc Attmepts `X' times to dial the number(s) or uri.
 -spec(originate/2 :: (X :: pos_integer(), TargetNum :: string() | [string()]) -> 'ok').
 originate(X, [H | _] = TargetNum) when is_integer(H) ->
 	originate(X, [TargetNum]);
@@ -245,14 +260,14 @@ init([Nodename, Options]) ->
 			make_agent_list(X)
 	end,
 	Profiles = proplists:get_value(profiles, Options, ["default"]),
-	DummyAgentOpts = proplists:get_value(agent_options, Options, []),
+	DummyAgentOpts = [{remote_node, Acd} | proplists:get_value(agent_options, Options, [])],
 	Botopts = proplists:get_value(sip_bots, Options, []),
 	ConfOpts = [{agents, Agents} | proplists:delete(agents, Options)],
 	process_flag(trap_exit, true),
 	monitor_node(Nodename, true),
 	spawn(fun() -> 
 		kill_agents(Agents, Acd),
-		launch_agents(Agents, Profiles, DummyAgentOpts, Acd)
+		launch_agents(Agents, Profiles, DummyAgentOpts, Acd, proplists:get_value(gateway, Options))
 	end),
 	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
 		pong ->
@@ -271,7 +286,7 @@ init([Nodename, Options]) ->
 		acd_node = Acd, 
 		eventserver = Listenpid, 
 		xmlserver = DomainPid, 
-		xmlserver_opts = Options, 
+		xmlserver_opts = ConfOpts, 
 		freeswitch_up = true,
 		bot_opts = Botopts
 	}}.
@@ -396,14 +411,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-launch_agents([], _Profiles, _Opts, _Acd) ->
+launch_agents([], _Profiles, _Opts, _Acd, _Gateway) ->
 	ok;
-launch_agents([{User, Pass} | Tail], [Profile | Proftail], Opts, Acd) ->
-	O = rpc:call(Acd, agent_dummy_connection, start, [lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)]),
+launch_agents([{User, Pass} | Tail], [Profile | Proftail], InOpts, Acd, Gateway) ->
+	Opts = case proplists:get_value(endpoint_data, InOpts) of
+		undefined ->
+			InOpts;
+		RawEndpointData ->
+			EndpointData = util:string_interpolate(RawEndpointData, [{"login", User}, {"gateway", Gateway}]),
+			[{endpoint_data, EndpointData} | proplists:delete(endpoint_data, InOpts)]
+	end,
+	O = agent_dummy_connection:start(lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)),
 	?DEBUG("Launched agent ~s:  ~p", [User, O]),
-	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd);
-launch_agents(X, P, O, A) when is_integer(X) ->
-	launch_agents(make_agent_list(X), P, O, A).
+	launch_agents(Tail, Proftail ++ [Profile], InOpts, Acd, Gateway);
+launch_agents(X, P, O, A, G) when is_integer(X) ->
+	launch_agents(make_agent_list(X), P, O, A, G).
 
 kill_agents([], _Acd) ->
 	ok;
@@ -501,6 +523,7 @@ configuration_server(Node, State) ->
 			Proxy = proplists:get_value(gateway, State, ""),
 			Agents = proplists:get_value(agents, State, []),
 			Realm = proplists:get_value(realm, State, Proxy),
+			SipPort = list_to_binary(integer_to_list(proplists:get_value(sip_port, State, 5061))),
 			Gateways = [make_gateway_conf(Proxy, User, Pass, Realm) || {User, Pass} <- Agents],
 			Out = {<<"document">>, [
 				{<<"type">>, <<"freeswitch/xml">>}
@@ -525,6 +548,10 @@ configuration_server(Node, State) ->
 									{<<"param">>, [
 										{<<"name">>, <<"use-rtp-timer">>},
 										{<<"value">>, true}
+									]},
+									{<<"param">>, [
+										{<<"name">>, <<"sip-port">>},
+										{<<"value">>, SipPort}
 									]},
 									{<<"param">>, [
 										{<<"name">>, <<"rtp-timer-name">>},

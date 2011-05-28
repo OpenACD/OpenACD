@@ -24,7 +24,17 @@
 	{webdir_dynamic, "www/dynamic"},
 
 	% How long a call should ring to an agent before swapping agents
-	{default_ringout, 60}
+	{default_ringout, 60},
+
+	% Where to find the RSA key; the public key is assumed to have the same
+	% name, but with .pub on the end.  If it starts with a /, it's an absolute
+	% path.  Otherwise it is releative to the run dir of openacd.
+	{rsakey, "key"},
+
+	% Where to find the certificate to use for ssl.  If it starts with a /, 
+	% it's an aboslute path.  Otherwise it is relative to the run dir of 
+	% openacd.
+	{certfile, "openacd.crt"},
 
 	% The rest of these default to undefined.
 

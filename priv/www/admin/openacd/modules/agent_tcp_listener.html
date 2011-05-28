@@ -7,7 +7,17 @@
 
 <p>
 	<label class="translatecol" for="port">PORT</label>
-	<input dojoType="dijit.form.ValidationTextBox" name="port" id="agentTcpListenerPort" regExp="[\d]+" />
+	<input dojoType="dijit.form.ValidationTextBox" name="port" placeHolder="1337" id="agentTcpListenerPort" regExp="[\d]+" />
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="ssl" value="enabled" id="agentTcpListenerSsl"/><span class="translate">SSL</span>
+</p>
+
+<p>
+	<label class="translatecol" for="radix">RADIX</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="radix" placeholder="10" id="agentTcpListenerRadix" regExp="[\d]+" />
 </p>
 
 <p>
@@ -23,7 +33,9 @@
 				url: postUrl,
 				content:{
 					enabled:dijit.byId('agentTcpListenerEnabled').get('checked'),
-					port:dijit.byId('agentTcpListenerPort').get('value')
+					port:dijit.byId('agentTcpListenerPort').get('value'),
+					ssl:dijit.byId('agentTcpListenerSsl').get('checked'),
+					radix:dijit.byId('agentTcpListenerRadix').get('value')
 				},
 				handleAs:'json',
 				load:function(res){
@@ -47,6 +59,9 @@
 
 	for(var i = 0; i < transNodes.length; i++){
 		var trans = dojo.i18n.getLocalization('admin', 'labels')[transNodes[i].innerHTML];
+		if(! trans){
+			continue;
+		}
 		if(dojo.hasClass(transNodes[i], 'translatecol')){
 			trans = trans + ':';
 		}
@@ -67,6 +82,13 @@
 			}
 			if(res.port){
 				dijit.byId('agentTcpListenerPort').set('value', res.port);
+			}
+			if(res.radix){
+				dijit.byId('agentTcpListenerRadix').set('value', res.radix);
+			}
+			dijit.byId('agentTcpListenerSsl').set('checked', false);
+			if(res.ssl_upgrade){
+				dijit.byId('agentTcpListenerSsl').set('checked', true);
 			}
 		},
 		error:function(res){

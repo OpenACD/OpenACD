@@ -362,9 +362,13 @@ destroy(Spec) when is_record(Spec, cpx_conf) ->
 	mnesia:transaction(F);
 destroy(Spec) ->
 	F = fun() ->
-		[Rec] = mnesia:read({cpx_conf, Spec}),
-		stop_spec(Rec),
-		mnesia:delete({cpx_conf, Spec})
+		case mnesia:read({cpx_conf, Spec}) of
+			[Rec] ->
+				stop_spec(Rec),
+				mnesia:delete({cpx_conf, Spec});
+			_ ->
+				mnesia:abort(noconf)
+		end
 	end,
 	mnesia:transaction(F).
 
@@ -397,11 +401,12 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Pull the `#cpx_conf{}' from the database for the given module name.
+%% @doc Pull the `#cpx_conf{}' from the database for the given id.  Most 
+%% times it will be the same as the module name.
 -spec(get_conf/1 :: (Name :: atom()) -> 'undefined' | #cpx_conf{}).
 get_conf(Name) ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= Name]),
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.id =:= Name]),
 		qlc:e(QH)
 	end,
 	case mnesia:transaction(F) of

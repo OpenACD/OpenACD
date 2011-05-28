@@ -71,9 +71,14 @@ function inArray(needle, haystack){
 
 dojo.addOnLoad(function(){
 	dojo.query(".translate").forEach(function(node){
-		var key = node.text;
+		var key = false;
+		if(node.text){
+			key = node.text;
+		} else if(node.innerHTML) {
+			key = node.innerHTML;
+		}
 		if(!!dojo.i18n.getLocalization('admin','labels')[key]){
-			node.text= dojo.i18n.getLocalization('admin','labels')[key];
+			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key];
 		}
 	});
 	dojo.query(".translatecol").forEach(function(node){

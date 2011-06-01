@@ -494,6 +494,8 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
 	end;
+ringing({oncall, Call}, {CallPid, _Tag} = From, #state{ring_locked = wait, agent_rec = #agent{statedata = #call{source = CallPid}}= Agent} = State) ->
+	ringing({oncall, Call}, From, State#state{ring_locked = unlocked});
 ringing({oncall, _Call}, _From, #state{ring_locked = wait} = State) ->
 	{reply, invalid, ringing, State};
 ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) ->
@@ -1832,11 +1834,44 @@ from_ringing_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = AgentRec} = InAgent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
-		{"to oncall while waiting on outband ring success/fail",
+	fun({#state{agent_rec = InAgentRec} = InAgent, AMmock, Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from media while waiting on outband ring success/fail with outband media path",
 		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = outband},
+			AgentRec = InAgentRec#agent{statedata = Call},
+			Agent = InAgent#state{ring_locked = wait, agent_rec = AgentRec},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
+				Inrec = AgentRec#agent.statedata,
+				ok
+			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_info(AgentRec#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
+			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, AgentRec#agent.statedata}, {Call#call.source, "tag"}, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = InAgentRec} = InAgent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from connection while waiting on outband ring success/fail with outband media path",
+		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = outband},
+			AgentRec = InAgentRec#agent{statedata = Call},
 			Agent = InAgent#state{ring_locked = wait},
-			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, "from", Agent)),
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, {Connmock, "tag"}, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = InAgentRec} = InAgent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from connection while waiting on outband ring success/fail with inband media path",
+		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = inband},
+			AgentRec = InAgentRec#agent{statedata = Call},
+			Agent = InAgent#state{ring_locked = wait},
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, {Connmock, "tag"}, Agent)),
 			Assertmocks()
 		end}
 	end,

@@ -140,11 +140,11 @@ handle_RCPT(_To, State) ->
 handle_RCPT_extension(_Extension, State) ->
 	{ok, State}.
 
--spec(handle_DATA/4 :: (From :: string(), To :: [string()], Data :: binary(), State :: #state{}) -> {'ok', string(), #state{}}).
+-spec(handle_DATA/4 :: (From :: binary(), To :: [binary()], Data :: binary(), State :: #state{}) -> {'ok', string(), #state{}}).
 handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-	[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
+	[RawDomain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
 	Domain = case RawDomain of
 		<<$>, Text/binary>> ->
 			Text;

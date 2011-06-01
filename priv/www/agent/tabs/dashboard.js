@@ -46,10 +46,8 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.getStatus = function(){
-		dojo.xhrGet({
-			url:'/supervisor/status',
-			handleAs:'json',
-			load:function(res){
+		window.agentConnection.webApi('supervisor', 'status', {
+			success:function(res){
 				debug(res);
 				var real = [];
 				var items = res.data.items;
@@ -88,15 +86,11 @@ if(typeof(dashboard) == 'undefined'){
 	// =====
 	
 	dashboard.showMotdDialog = function(nodename){
-		dojo.xhrGet({
-			url:'/supervisor/getmotd',
-			handleAs:'json',
-			load:function(res){
-				if(! res.success){
-					errMessage(["Failed getting motd", res.message]);
-					return false;
-				}
-				
+		window.agentConnection.webApi('supervisor', 'get_motd', {
+			failure:function(res){
+				errMessage(["Failed getting motd", res.message]);
+			},
+			success:function(res){
 				var dialog = dijit.byId("blabDialog");
 				dialog.attr('title', 'MotD');
 				if(res.motd){
@@ -106,23 +100,14 @@ if(typeof(dashboard) == 'undefined'){
 				}
 				var submitblab = function(){
 					var data = dialog.attr('value').message;
-					dojo.xhrPost({
-						url:'/supervisor/motd',
-						handleAs:'json',
-						content:{
-							message:data,
-							node:nodename
-						},
-						load:function(res){
-							if(res.success){
-								return true;
-							}
+					window.agentConnection('supervisor', 'set_motd', {
+						failure:function(res){
 							errMessage(["setting motd failed", res.message]);
 						},
 						error:function(res){
 							errMessage(["setting motd errored", res]);
 						}
-					});
+					}, data, nodename);
 				}
 				dialog.attr('execute', submitblab);
 				dialog.show();
@@ -134,15 +119,11 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.showProblemRecordingDialog = function(){
-		dojo.xhrGet({
-			url:'/brandlist',
-			handleAs:'json',
-			load:function(res){
-				if(! res.success){
-					errMessage(["failed loading brands", res.message]);
-					return false;
-				}
-
+		window.agentConnection.webApi('supervisor', 'get_brandlist', {
+			failure:function(res){
+				errMessage(["failed loading brands", res.message]);
+			},
+			success:function(res){
 				var sel = dojo.byId('supervisorClientSelect');
 				for(var i = 0; i < res.brands.length; i++){
 					var optionnode = document.createElement('option');
@@ -155,20 +136,14 @@ if(typeof(dashboard) == 'undefined'){
 				dialog.attr('execute', function(){
 					var clientId = dojo.byId('supervisorClientSelect').value;
 					if(dialog.attr('value').set.length < 1){
-						dojo.xhrGet({
-							url:'/supervisor/remove_problem_recording/' + escape(clientId),
-							handleAs: 'json',
-							load:function(res){
-								if(res.success){
-									return true
-								}
-
+						window.agentConnection.webApi('supervisor', 'remove_problem_recording', {
+							failure:function(res){
 								errMessage(['removing problem recording failed', res.message]);
 							},
 							error:function(res){
 								errMessage(['error removing problem recording', res]);
 							}
-						});
+						}, clientId);
 					} else {
 						dashboard.startProblemRecording(clientId);
 					}
@@ -182,20 +157,14 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.startProblemRecording = function(clientId){
-		dojo.xhrGet({
-			url: '/supervisor/start_problem_recording/' + window.agentConnection.username + '/' + escape(clientId),
-			handleAs: 'json',
-			load: function(res){
-				if(res.success){
-					return true;
-				}
-				
+		window.agentConnection.webApi('supervisor', 'start_problem_recording', {
+			failure: function(res){
 				errMessage(['Starting problem recording failed', res.message]);
 			},
 			error: function(res){
 				errMessage(['Starting problem recofing errored', res]);
 			}
-		});
+		}, clientId);
 	}
 	
 	dashboard.now = function(){

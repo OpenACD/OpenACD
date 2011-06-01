@@ -287,46 +287,43 @@ if(typeof(queueDashboard) == "undefined"){
 
 	queueDashboard.sendToAgentDialog = function(mediaID, queue){
 		/*console.log(["mediaID", mediaID]);*/
-		dojo.xhrGet({
-			url:'/get_avail_agents',
-			handleAs:'json',
-			load: function(res){
-				if(res.success){
-						var select = dojo.byId('supSelectAgent');
-						if (select) {
-							/* destroy old widget with same ID */
-							select.parentNode.removeChild(select);
-						}
-					/*console.log(res.agents);*/
-					var selectContent = '';
-					if(res.agents.length == 0){
-						errMessage('No agents available!');
-						return false;
-					}
-					for(var i = 0; i < res.agents.length; i++){
-						selectContent += '<option value="' + res.agents[i].name + '">' + res.agents[i].name + ' (' + res.agents[i].profile + ')</option>';
-					}
-					var content = '<p><label>Agent:</label><select name="agent" id="supSelectAgent">' + selectContent + '</select></p><p><label>&nbsp;</label><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>';
-					var dialog = new dijit.Dialog({
-						title:'Select Agent',
-						content: content
-					});
-					dialog.attr('execute', function(){
-						var select = dojo.byId('supSelectAgent');
-						var agentName = select.value;
-						dialog.destroy();
-						console.log([agentName, arguments]);
-
-						var simpleObj = {
-							id: mediaID,
-							queue: queue
-						};
-
-						queueDashboard.sendMediaToAgent(simpleObj, agentName);
-					});
-					dialog.show();
-					return true;
+		window.agentConnection.getAvailAgents({
+			success: function(res){
+				var select = dojo.byId('supSelectAgent');
+				if (select) {
+					/* destroy old widget with same ID */
+					select.parentNode.removeChild(select);
 				}
+				/*console.log(res.agents);*/
+				var selectContent = '';
+				if(res.agents.length == 0){
+					errMessage('No agents available!');
+					return false;
+				}
+				for(var i = 0; i < res.agents.length; i++){
+					selectContent += '<option value="' + res.agents[i].name + '">' + res.agents[i].name + ' (' + res.agents[i].profile + ')</option>';
+				}
+				var content = '<p><label>Agent:</label><select name="agent" id="supSelectAgent">' + selectContent + '</select></p><p><label>&nbsp;</label><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>';
+				var dialog = new dijit.Dialog({
+					title:'Select Agent',
+					content: content
+				});
+				dialog.attr('execute', function(){
+					var select = dojo.byId('supSelectAgent');
+					var agentName = select.value;
+					dialog.destroy();
+					console.log([agentName, arguments]);
+
+					var simpleObj = {
+						id: mediaID,
+						queue: queue
+					};
+
+					queueDashboard.sendMediaToAgent(simpleObj, agentName);
+				});
+				dialog.show();
+			},
+			failure:function(res){
 				errMessage(['getting available agents failed', res.message]);
 			},
 			error: function(res){
@@ -343,22 +340,14 @@ if(typeof(queueDashboard) == "undefined"){
 		if(media.queue){
 			var queue = media.queue;
 			var id = media.id;
-			return dojo.xhrGet({
-				handleAs:"json",
-				url:"/supervisor/agent_ring/" + escape(queue) + "/" + escape(id) + "/" + escape(agent),
-				load:function(res){
-					if(res.success){
-						//kewl
-						return true;
-					}
-					else{
-						errMessage(["agent ring failed", res.message]);
-					}
+			return window.agentConnection.webApi('supervisor', 'agent_ring', {
+				failure:function(res){
+					errMessage(["agent ring failed", res.message]);
 				},
 				error:function(res){
 					errMessage(["agent ring errored", res]);
 				}
-			});
+			}, queue, id, agent);
 		}
 	};
 
@@ -370,20 +359,14 @@ if(typeof(queueDashboard) == "undefined"){
 		}
 
 		id = escape(mediaid);
-		dojo.xhrGet({
-			url: '/supervisor/peek/' + queue + '/' + id,
-			handleAs: 'json',
-			load: function(res){
-				if(res.success){
-					return true;
-				}
-
+		window.agentConnection.webApi('supervisor', 'peek', {
+			failure: function(res){
 				errMessage(["peeking at media failed", res.message]);
 			},
 			error: function(res){
 				errMessage(["peeking at media failed", res]);
 			}
-		});
+		}, queue, id);
 	}
 
 	queueDashboard.removeFromQueue = function(mediaid, queue){
@@ -393,38 +376,25 @@ if(typeof(queueDashboard) == "undefined"){
 
 		queue = escape(queue);
 		var id = mediaid;
-		dojo.xhrGet({
-			url:'/supervisor/drop_call/' + queue + '/' + id,
-			handleAs: 'json',
-			load: function(res){
-				if(res.success){
-					return true;
-				}
-
+		window.agentConnection.webApi('supervisor', 'drop_call', {
+			failure: function(res){
 				errMessage(["drop call failed", res.message]);
 			},
 			error: function(res){
 				errMessage(["drop call errored", res]);
 			}
-		});
+		}, queue, id);
 	}
 
 	queueDashboard.sendToVoicemail = function(mediaid, queue){
-		dojo.xhrPost({
-			url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaid),
-			handleAs:'json',
-			load:function(res){
-				if(res.success){
-					return true;
-				}
-				else{
-					errMessage(["sending to voicemail failed", res.message]);
-				}
+		window.agentConnection.webApi('supervisor', 'voicemail', {
+			failure:function(res){
+				errMessage(["sending to voicemail failed", res.message]);
 			},
 			error:function(res){
 				errMessage(["sending to voicemail errored", res]);
 			}
-		});
+		}, queue, mediaid);
 	};
 
 	/*
@@ -438,18 +408,15 @@ if(typeof(queueDashboard) == "undefined"){
 	}*/
 }
 
-dojo.xhrGet({
-	url:'/queuelist',
-	handleAs:'json',
-	load:function(res){
-		if(res.success){
-			for(var i = 0; i < res.queues.length; i++){
-				queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
-			}
-			queueDashboard.drawQueueTable();
-		} else {
-			errMessage(["getting queues failed", res.message]);
+window.agentConnection.webApi('api', 'queuelist', {
+	success:function(res){
+		for(var i = 0; i < res.queues.length; i++){
+			queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
 		}
+		queueDashboard.drawQueueTable();
+	},
+	failure:function(res){
+		errMessage(["getting queues failed", res.message]);
 	},
 	error:function(res){
 		errMessage(["getting queues errored", res]);

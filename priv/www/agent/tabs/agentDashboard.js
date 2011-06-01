@@ -80,29 +80,26 @@ if(typeof(agentDashboard) == 'undefined'){
 					thisagent.getParent().agent.setProfile(data.profile, data.makePermanent[0]);
 				}
 				dialog.attr('execute', submitSetProf);
-				dojo.xhrGet({
-					url:"/supervisor/get_profiles",
-					handleAs:"json",
-					load:function(r){
-						if(r.success){
-							var span = dojo.byId('profileSwapDialogParent');
-							while(span.hasChildNodes()){
-								span.removeChild(span.firstChild);
-							}
-							var html = '<select name="profile">';
-							dojo.forEach(r.profiles, function(item){
-								html += '<option>' + item + '</option>';
-							});
-							html += '</select>';
-							span.innerHTML = html;
-							var modenode = span.firstChild;
-							new dijit.form.ComboBox({
-								name:'profile'
-							}, modenode);
-							dialog.show();
-						} else {
-							warning(["get_profiles failure", r.message]);
+				window.agentConnection.webApi('supervisor', 'get_profiles', {
+					failure:function(r){
+						warning(["get_profiles failure", r.message]);
+					},
+					success:function(r){
+						var span = dojo.byId('profileSwapDialogParent');
+						while(span.hasChildNodes()){
+							span.removeChild(span.firstChild);
 						}
+						var html = '<select name="profile">';
+						dojo.forEach(r.profiles, function(item){
+							html += '<option>' + item + '</option>';
+						});
+						html += '</select>';
+						span.innerHTML = html;
+						var modenode = span.firstChild;
+						new dijit.form.ComboBox({
+							name:'profile'
+						}, modenode);
+						dialog.show();
 					},
 					error:function(r){
 						warning(["get_profiles errored", r])
@@ -347,91 +344,60 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.Agent.prototype.spy = function(){
-		dojo.xhrGet({
-			url:'/supervisor/spy/' + this.name,
-			handleAs:'json',
-			load:function(res){
-				if(res.success){
-					// cool
-				} else {
-					errMessage(['Counldn\'t spy', res.message]);
-				}
+		window.agentConnection.webApi('supervisor', 'spy', {
+			failure:function(res){
+				errMessage(['Counldn\'t spy', res.message]);
 			},
 			error:function(res){
 				errMessage(['error spying', res]);
 			}
-		});
+		}, this.name);
 	}
 
 	agentDashboard.Agent.prototype.setState = function(stateName, stateData){
-		if(! stateData){
-			stateData = '';
-		} else {
-			stateData = '/' + escape(stateData);
-		}
-		
-		var geturl = "/supervisor/agentstate/" + escape(this.name) + "/" + stateName + stateData;
-		dojo.xhrGet({
-			url:geturl,
-			handleAs: "json",
-			load: function(resp){
-				if(resp.success){
-					return true;
-				}
+		var callbacks = {
+			failure: function(resp){
 				errMessage(["setting state to idle failed", resp.message]);
 			},
-			errror: function(res){
+			error: function(res){
 				errMessage(["setting state to idle error'ed", res]);
 			}
-		});
+		};
+
+		if(stateData){
+			window.agentConnection.webApi('supervisor', 'agent_state', callbacks, this.name, stateName, stateData)
+		} else {
+			window.agentConnection.webApi('supervisor', 'agent_state', callbacks, this.name, stateName);
+		}
 	}
 	
 	agentDashboard.Agent.prototype.setProfile = function(newProf, makePerm){
 		// letting the subscriptions that happen on agent changes deal w/ the repercussions.
 		/*console.log(['das smack', newProf, makePerm]);*/
-		if(makePerm){
-			makePerm = "makePerm";
-		} else {
-			makePerm = ""
-		}
-		dojo.xhrPost({
-			handleAs:"json",
-			url:"/supervisor/set_profile",
-			content:{
-				id:this.id,
-				name: this.name,
-				profile: newProf,
-				'makePerm': makePerm
-			},
-			load:function(res){
-				if(res.success){
-					//kewl
-					return true;
-				} else{
-					errMessage(["set profile failed", res.message]);
-				}
+		var callbacks = {
+			failure:function(res){
+				errMessage(["set profile failed", res.message]);
 			},
 			error:function(res){
 				errMessage(["set profile errored", res]);
 			}
-		});
+		};
+		if(makePerm){
+			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.id, newProf, true);
+		} else {
+			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.id, newProf);
+		}
 	}
 	
 	agentDashboard.Agent.prototype.kick = function(){
-		var geturl = "/supervisor/kick_agent/" + escape(this.name);
-		dojo.xhrGet({
-			url:geturl,
-			handleAs: "json",
-			load:function(resp){
-				if(resp.success){
-					return true;
-				}
+		window.agentConnection.webApi('supervisor', 'kick_agent', {
+			failure:function(resp){
 				errMessage(["kicking agent failed", resp.message]);
 			},
 			error:function(res){
 				errMessage(["Kicking agent errored", res]);
 			}
-		});
+		}, this.name);
 	}
 	
 	// =====
@@ -554,19 +520,14 @@ if(typeof(agentDashboard) == 'undefined'){
 	// =====
 	
 	agentDashboard.spy = function(agent){
-		dojo.xhrGet({
-			url:'/supervisor/spy/' + agent,
-			load:function(res){
-				if(res.success){
-					// cool
-				} else {
-					errMessage(['Counldn\'t spy', res.message]);
-				}
+		window.agentConnection.webApi('supervisor', 'spy', 
+			failure:function(res){
+				errMessage(['Counldn\'t spy', res.message]);
 			},
 			error:function(res){
 				errMessage(['error spying', res]);
 			}
-		});
+		}, agent);
 	}
 	
 	agentDashboard.showBlabDialog = function(type, target){
@@ -582,23 +543,15 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.blab = function(message, type, target){
-		dojo.xhrPost({
-			handleAs:"json",
-			url:"/supervisor/blab",
-			content:{
-				message:replaceUrls(message),
-				type: type,
-				value: target
-			},
-			load:function(res){
+		window.agentConnection.webApi('supervisor', 'blab', {
+			success:function(res){
 				debug(["blab worked", res]);
 			},
 			error:function(res){
 				errMessage(["blab failed", res]);
 			}
-		});
-	};	
-}
+		}, replaceUrls(message), type, target);
+	}
 
 var menu = new dijit.Menu({});
 menu.addChild(new dijit.MenuItem({
@@ -609,18 +562,15 @@ menu.addChild(new dijit.MenuItem({
 }));
 menu.bindDomNode(dojo.byId('agentDashboardTable').rows[0]);
 
-dojo.xhrGet({
-	url:'/profilelist',
-	handleAs:'json',
-	load:function(res){
-		if(res.success){
-			for(var i = 0; i < res.profiles.length; i++){
-				agentDashboard.profiles.push(new agentDashboard.Profile(res.profiles[i].name));
-			}
-			agentDashboard.drawProfileTable();
-		} else {
-			errMessage(['Getting profiles failed', res.message]);
+window.agentConnection.webApi('supervisor', 'profiles', {
+	success:function(res){
+		for(var i = 0; i < res.profiles.length; i++){
+			agentDashboard.profiles.push(new agentDashboard.Profile(res.profiles[i].name));
 		}
+		agentDashboard.drawProfileTable();
+	},
+	failure:function(res){
+		errMessage(['Getting profiles failed', res.message]);
 	},
 	error:function(res){
 		errMessage(['Getting profiles errored', res]);

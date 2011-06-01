@@ -104,12 +104,12 @@
 -include_lib("stdlib/include/qlc.hrl").
 
 %% API
-%-export([
+-export([
 %	api/2,
 %	encode_statedata/1,
 %	format_status/2,
-%	is_web_api/2
-%]).
+	is_web_api/2
+]).
 
 %% Web api exports.
 %-export([
@@ -161,24 +161,24 @@
 %	url:'/queuelist',
 
 -web_api_functions([
-	{get_profiles, 1},
-	{spy, 2},
-	{set_state, 3},
-	{set_state, 4},
-	{set_profile, 3},
-	{kick_agent, 2},
-	{blab, 3},
-	{status, 1},
-	{get_motd, 1},
-	{set_motd, 2},
-	{remove_problem_recording, 2},
-	{start_problem_recording, 3},
-	{get_avail_agents, 1},
-	{ring_agent, 4},
-	{peek, 3},
-	{drop_call, 3},
-	{voicemail, 2},
-	{get_queues, 1}
+%	{get_profiles, 1},
+%	{spy, 2},
+%	{set_state, 3},
+%	{set_state, 4},
+%	{set_profile, 3},
+%	{kick_agent, 2},
+%	{blab, 3},
+%	{status, 1},
+%	{get_motd, 1},
+%	{set_motd, 2},
+%	{remove_problem_recording, 2},
+%	{start_problem_recording, 3},
+%	{get_avail_agents, 1},
+%	{ring_agent, 4},
+%	{peek, 3},
+%	{drop_call, 3},
+%	{voicemail, 2},
+%	{get_queues, 1}
 ]).
 
 %% gen_server callbacks
@@ -219,27 +219,6 @@
 %% WEB API
 %%====================================================================
 
-%% @doc Get's a list of the agent profiles.
--web_api_functions([
-	{get_profiles, 1},
-	{spy, 2},
-	{set_state, 3},
-	{set_state, 4},
-	{set_profile, 3},
-	{kick_agent, 2},
-	{blab, 3},
-	{status, 1},
-	{get_motd, 1},
-	{set_motd, 2},
-	{remove_problem_recording, 2},
-	{start_problem_recording, 3},
-	{get_avail_agents, 1},
-	{ring_agent, 4},
-	{peek, 3},
-	{drop_call, 3},
-	{voicemail, 2},
-	{get_queues, 1}
-]).
 
 
 %%====================================================================
@@ -267,6 +246,18 @@ start(Opts) ->
 -spec(start_link/1 :: (Opts :: start_opts()) -> {'ok', pid()}).
 start_link(Opts) ->
 	gen_server:start_link(?MODULE, Opts, [{timeout, 10000}]).
+
+%% @doc Get the list of funcions/arities exposed for web use.
+-spec(get_web_api/0 :: () -> [{atom(), non_neg_integer()}]).
+get_web_api() ->
+	Attrs = ?MODULE:module_info(attributes),
+	proplists:get_value(web_api_functions, Attrs).
+
+%% @doc Return if a function of given arity is a valid web api call.
+-spec(is_web_api/2 :: (Function :: atom(), Arity :: non_neg_integer()) -> boolean()).
+is_web_api(Function, Arity) ->
+	Api = get_web_api(),
+	lists:member({Function, Arity}, Api).
 
 %%====================================================================
 %% Init

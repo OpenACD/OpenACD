@@ -121,7 +121,7 @@
 %	set_state/4,
 %	set_profile/3,
 %	kick_agent/2,
-%	blab/3,
+	blab/4,
 	status/1,
 	unsubscribe/1,
 	poll/2,
@@ -144,7 +144,7 @@
 %	{set_state, 4},
 %	{set_profile, 3},
 %	{kick_agent, 2},
-%	{blab, 3},
+	{blab, 4},
 	{status, 1},
 	{unsubscribe, 1},
 	{poll, 2},
@@ -232,6 +232,11 @@ start_problem_recording(Conn, Clientid) ->
 -spec(remove_problem_recording/2 :: (Conn :: pid(), Clientid :: string()) -> any()).
 remove_problem_recording(Conn, Clientid) ->
 	gen_server:call(Conn, {supervisor, {remove_problem_recording, Clientid}}).
+
+%% @doc {@web} Send a blab to an agent or group of agents.
+-spec(blab/4 :: (Conn :: pid(), Message :: string(), Grouping :: string(), Target :: string()) -> any()).
+blab(Conn, Message, Grouping, Target) ->
+	gen_server:call(Conn, {supervisor, {blab, Message, Grouping, Target}}).
 
 %%====================================================================
 %% API
@@ -329,6 +334,36 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {blab, Message, Grouping, Target}}, _From, State) ->
+	Toagentmanager = case Grouping of
+		<<"agent">> ->
+			{agent, binary_to_list(Target)};
+		<<"node">> ->
+			case Target of
+				<<"System">> ->
+					all;
+				_AtomIsIt ->
+					try list_to_existing_atom(binary_to_list(Target)) of
+						Atom -> case lists:member(Atom, [node() | nodes()]) of
+							true -> {node, Atom};
+							false -> {false, false}
+						end
+					catch _:_ -> {false, false}
+					end
+			end;
+		<<"profile">> ->
+			{profile, binary_to_list(Target)};
+		<<"all">> ->
+			all
+	end,
+	Json = case Toagentmanager of
+		{false, false} ->
+			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"bad type or value">>}, {<<"errcode">>, <<"BADARG">>}]});
+		Else ->
+			agent_manager:blab(binary_to_list(Message), Else),
+			mochijson2:encode({struct, [{success, true}]})
+	end,
+	{reply, {200, [], Json}, State};
 handle_call({supervisor, {remove_problem_recording, Clientid}}, _From, State) ->
 	case file:delete("/tmp/"++binary_to_list(Clientid)++"/problem.wav") of
 		ok ->
@@ -802,41 +837,6 @@ encode_proplist_test() ->
 %				{ok, _} ->
 %					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
 %			end;
-%		["blab"] ->
-%			Toagentmanager = case proplists:get_value("type", Post) of
-%				"agent" ->
-%					{agent, proplists:get_value("value", Post, "")};
-%				"node" ->
-%					case proplists:get_value("value", Post) of
-%						"System" ->
-%							all;
-%						_AtomIsIt -> 
-%							try list_to_existing_atom(proplists:get_value("value", Post)) of
-%								Atom ->
-%									case lists:member(Atom, [node() | nodes()]) of
-%										true ->
-%											{node, Atom};
-%										false ->
-%											{false, false}
-%									end
-%							catch
-%								error:badarg ->
-%									{false, false}
-%							end
-%					end;
-%				"profile" ->
-%					{profile, proplists:get_value("value", Post, "")};
-%				"all" ->
-%					all
-%			end,
-%			Json = case Toagentmanager of
-%				{false, false} ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"bad type or value">>}]});
-%				Else ->
-%					agent_manager:blab(proplists:get_value("message", Post, ""), Else),
-%					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
-%			end,
-%			{reply, {200, [], Json}, State};
 %	end;
 %handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 %	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),

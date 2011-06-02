@@ -123,9 +123,10 @@
 %	kick_agent/2,
 %	blab/3,
 	status/1,
-	subscribe/1
-%	get_motd/1,
-%	set_motd/2,
+	unsubscribe/1,
+	poll/2,
+	get_motd/1,
+	set_motd/3
 %	remove_problem_recording/2,
 %	start_problem_recording/3,
 %	get_avail_agents/1,
@@ -136,33 +137,6 @@
 %	get_queues/1
 ]).
 
-%					url:"/supervisor/get_profiles",
-%			url:'/supervisor/spy/' + this.name,
-%		var geturl = "/supervisor/agentstate/" + escape(this.name) + "/" + stateName + stateData;
-%			url:"/supervisor/set_profile",
-%		var geturl = "/supervisor/kick_agent/" + escape(this.name);
-%			url:'/supervisor/spy/' + agent,
-%			url:"/supervisor/blab",
-%	url:'/profilelist',
-%			url:'/supervisor/status',
-%			url:'/supervisor/getmotd',
-%						url:'/supervisor/motd',
-%			url:'/brandlist',
-%							url:'/supervisor/remove_problem_recording/' + escape(clientId),
-%			url: '/supervisor/start_problem_recording/' + window.agentConnection.username + '/' + escape(clientId),
-%			url:'/get_avail_agents',
-%				url:"/supervisor/agent_ring/" + escape(queue) + "/" + escape(id) + "/" + escape(agent),
-%			url: '/supervisor/peek/' + queue + '/' + id,
-%			url:'/supervisor/drop_call/' + queue + '/' + id,
-%			url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaid),
-%	url:'/queuelist',
-%			url:'/get_avail_agents',
-%				url:"/supervisor/agent_ring/" + escape(queue) + "/" + escape(id) + "/" + escape(agent),
-%			url: '/supervisor/peek/' + queue + '/' + id,
-%			url:'/supervisor/drop_call/' + queue + '/' + id,
-%			url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaid),
-%	url:'/queuelist',
-
 -web_api_functions([
 	{get_profiles, 1},
 %	{spy, 2},
@@ -172,9 +146,10 @@
 %	{kick_agent, 2},
 %	{blab, 3},
 	{status, 1},
-	{unsubscribe, 1}
-%	{get_motd, 1},
-%	{set_motd, 2},
+	{unsubscribe, 1},
+	{poll, 2},
+	{get_motd, 1},
+	{set_motd, 3}
 %	{remove_problem_recording, 2},
 %	{start_problem_recording, 3},
 %	{get_avail_agents, 1},
@@ -182,7 +157,6 @@
 %	{peek, 3},
 %	{drop_call, 3},
 %	{voicemail, 2},
-%	{get_queues, 1}
 ]).
 
 %% gen_server callbacks
@@ -191,27 +165,19 @@
 
 -type(tref() :: any()).
 
-%-record(state, {
-%	salt :: any(),
-%	agent_fsm :: pid() | 'undefined',
-%	current_call :: #call{} | 'undefined' | 'expect',
-%	mediaload :: any(),
-%	poll_queue = [] :: [{struct, [{binary(), any()}]}],
-%		% list of json structs to be sent to the client on poll.
-%	poll_flush_timer :: any(),
-%	poll_pid :: 'undefined' | pid(),
-%	poll_pid_established = 1 :: pos_integer(),
-%	ack_timer :: tref() | 'undefined',
-%	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-%	listener :: 'undefined' | pid()
-%}).
 -record(state, {
 	login :: string(),
 	endpointtype :: 'sip' | 'sip_registration' | 'pstn' | 'h323' | 'iax2',
 	endpointdata :: any(),
 	ring_path = inband :: 'inband' | 'outband',
-	poll_queue,
-	poll_flush_timer
+	poll_queue = [] :: [{struct, [{binary(), any()}]}],
+		% list of json structs to be sent to the client on poll.
+	poll_flush_timer :: any(),
+	poll_pid :: 'undefined' | 'suppress' | pid(),
+	poll_pid_established = 1 :: pos_integer(),
+	ack_timer :: tref() | 'undefined',
+	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
+	listener :: 'undefined' | pid()
 }).
 
 -type(state() :: #state{}).
@@ -241,6 +207,20 @@ unsubscribe(Conn) ->
 -spec(get_profiles/1 :: (Conn :: pid()) -> any()).
 get_profiles(Conn) ->
 	gen_server:call(Conn, {supervisor, get_profiles}).
+
+%% @doc {@web} Get the message of the day (a blab automatically told to
+%% agents on login).
+-spec(get_motd/1 :: (Conn :: pid()) -> any()).
+get_motd(Conn) ->
+	gen_server:call(Conn, {supervisor, get_motd}).
+
+%% @doc {@web} Set the message of the day (a blab automatically told to
+%% agents on login).  If the message passed is an empty string, the motd
+%% is cleared.  If `Node' is `<<"system">>' all nodes get the same motd.
+-spec(set_motd/3 :: (Conn :: pid(), Message :: string(), Node :: string()) -> any()).
+set_motd(Conn, Message, Node) ->
+	gen_server:call(Conn, {supervisor, {set_motd, Message, Node}}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -249,11 +229,13 @@ get_profiles(Conn) ->
 -type(endpoint_opt() :: {endpoint, 'sip' | 'sip_registration' | 'pstn' | 'h323' | 'iax2'}).
 -type(endpointdata_opt() :: {endpointdata, any()}).
 -type(ring_path_opt() :: {ring_path, 'inband' | 'outband'}).
+-type(suppress_poll_opt() :: 'suppress_poll').
 -type(start_opt() :: 
 	login_opt() | 
 	endpoint_opt() | 
 	endpointdata_opt() | 
-	ring_path_opt()
+	ring_path_opt() |
+	suppress_poll_opt()
 ).
 -type(start_opts() :: [start_opt()]).
 
@@ -279,16 +261,55 @@ is_web_api(Function, Arity) ->
 	Api = get_web_api(),
 	lists:member({Function, Arity}, Api).
 
+%% @doc {@web} See {@link agent_web_connection:poll/2}.  Basically the
+%% same thing.  Supervisors get 2 extra commands:
+%% <table>
+%% 	<tr>
+%% 		<th>Command</th>
+%% 		<th>Other Properties</th>
+%% 		<th>Description</th>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>supervisorSet</td>
+%% 		<td><ul>
+%% 			<li>"id":  string()</li>
+%% 			<li>"type":  "agent" | "queue" | "media"</li>
+%% 			<li>"name":  string()</li>
+%% 			<li>"display":  string()</li>
+%% 			<li>"details":  Object()</li>
+%% 		</ul></td>
+%% 		<td>A media, agent, or queue has been changed or updated.</td>
+%% 	</tr>
+%% 	<tr>
+%% 		<td>supervisorDrop</td>
+%% 		<td><ul>
+%% 			<li>"type":  "agent" | "queue" | "media"</li>
+%% 			<li>"id":  string()</li>
+%% 			<li>"name":  string()</li>
+%% 		</ul></td>
+%% 		<td>A media, agent, or queue has stopped/ended it's life cycle.  For
+%% 		example, an agent may have logged out, or a media had it's wrapup
+%% 		completed.  In the case of queue, usually means it's removed from the
+%% 		system.</td>
+-spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
+poll(Pid, Frompid) ->
+	gen_server:cast(Pid, {poll, Frompid}).
+
 %%====================================================================
 %% Init
 %%====================================================================
 
 init(Opts) ->
+	SuppressPoll = case proplists:get_value(suppress_poll, Opts) of
+		true -> suppress;
+		Undef -> Undef
+	end,
 	State = #state{
 		login = proplists:get_value(login, Opts),
 		endpointtype = proplists:get_value(endpointtype, Opts),
 		endpointdata = proplists:get_value(endpointdata, Opts),
-		ring_path = proplists:get_value(ring_path, Opts, inband)
+		ring_path = proplists:get_value(ring_path, Opts, inband),
+		poll_pid = SuppressPoll
 	},
 	{ok, State}.
 
@@ -296,6 +317,44 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, get_motd}, _From, State) ->
+	Motd = case cpx_supervisor:get_value(motd) of
+		none -> false;
+		{ok, Text} -> Text
+	end,
+	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, Motd}]})}, State};
+handle_call({supervisor, {set_motd, Message, Node}}, _From, State) ->
+	{ok, Appnodes} = application:get_env('OpenACD', nodes),
+	Nodes = case Node of
+		<<"system">> -> Appnodes;
+		_ -> [list_to_existing_atom(binary_to_list(N)) || N <- Appnodes, atom_to_list(N) == binary_to_list(Node)]
+	end,
+	case Nodes of
+		[] ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}, State};
+		_ ->
+			{Func, Args} = case Message of
+				"" -> {drop_value, [motd]};
+				_ -> {set_value, [motd, Message]}
+			end,
+			Res = [try rpc:call(N, cpx_supervisor, Func, Args) of
+				{atomic, ok} -> ok
+			catch
+				What:Why ->
+					?WARNING("Could not set motd on ~p due to ~p:~p", [N, What,Why]),
+					{What, Why}
+			end || N <- Nodes],
+			case lists:all(fun(E) -> E == ok end, Res) of
+				true->
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+				false ->
+					{reply, {200, [], mochijson2:encode({struct, [
+						{success, false},
+						{<<"message">>, <<"could not set motd on all nodes">>},
+						{<<"errcode">>, <<"UNKNOWN_ERR">>}
+					]})}, State}
+			end
+	end;
 handle_call({supervisor, get_profiles}, _From, State) ->
 	Profiles = agent_auth:get_profiles(),
 	F = fun(#agent_profile{name = Nom}) ->
@@ -389,9 +448,8 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					 list_to_binary(Name) 
 			end,
 			{struct, [
-				{<<"command">>, <<"supervisortab">>},
+				{<<"command">>, <<"supervisorDrop">>},
 				{<<"data">>, {struct, [
-					{<<"action">>, drop},
 					{<<"type">>, Type},
 					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
 					{<<"name">>, Fixedname}
@@ -406,9 +464,8 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					 list_to_binary(Name) 
 			end,
 			{struct, [
-				{<<"command">>, <<"supervisortab">>},
+				{<<"command">>, <<"supervisorSet">>},
 				{<<"data">>, {struct, [
-					{<<"action">>, set},
 					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
 					{<<"type">>, Type},
 					{<<"name">>, Fixedname},
@@ -738,48 +795,6 @@ encode_proplist_test() ->
 %					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
 %			end,
 %			{reply, {200, [], Json}, State};
-%		["motd"] ->
-%			{ok, Appnodes} = application:get_env('OpenACD', nodes),
-%			Nodes = case proplists:get_value("node", Post) of
-%				"system" ->
-%					Appnodes;
-%				Postnode ->
-%					case lists:any(fun(N) -> atom_to_list(N) == Postnode end, Appnodes) of
-%						true ->
-%							[list_to_existing_atom(Postnode)];
-%						false ->
-%							[]
-%					end
-%			end,
-%			case Nodes of
-%				[] ->
-%					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}]})}, State};
-%				_ ->
-%					Fun = case proplists:get_value("message", Post) of
-%						"" ->
-%							fun(Node) ->
-%								try rpc:call(Node, cpx_supervisor, drop_value, [motd]) of
-%									{atomic, ok} ->
-%										ok
-%								catch
-%									_:_ ->
-%										?WARNING("Could not set motd on ~p", [Node])
-%								end
-%							end;
-%						Message ->
-%							fun(Node) ->
-%								try rpc:call(Node, cpx_supervisor, set_value, [motd, Message]) of
-%									{atomic, ok} ->
-%										ok
-%								catch
-%									_:_ ->
-%										?WARNING("Count not set motd on ~p", [Node])
-%								end
-%							end
-%					end,
-%					lists:foreach(Fun, Nodes),
-%					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-%			end
 %	end;
 %handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 %	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
@@ -1042,14 +1057,6 @@ encode_proplist_test() ->
 %					end
 %			end,
 %			{reply, {200, [], mochijson2:encode(Json)}, State};
-%		["getmotd"] ->
-%			Motd = case cpx_supervisor:get_value(motd) of
-%				none ->
-%					false;
-%				{ok, Text} ->
-%					list_to_binary(Text)
-%			end,
-%			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {motd, Motd}]})}, State};
 %		[Node | Do] ->
 %			Nodes = get_nodes(Node),
 %			{Success, Result} = do_action(Nodes, Do, []),

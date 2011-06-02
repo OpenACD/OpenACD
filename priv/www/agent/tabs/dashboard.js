@@ -88,23 +88,26 @@ if(typeof(dashboard) == 'undefined'){
 	dashboard.showMotdDialog = function(nodename){
 		window.agentConnection.webApi('supervisor', 'get_motd', {
 			failure:function(res){
+				console.warn('Failed getting motd', res);
 				errMessage(["Failed getting motd", res.message]);
 			},
 			success:function(res){
 				var dialog = dijit.byId("blabDialog");
 				dialog.attr('title', 'MotD');
-				if(res.motd){
-					dialog.attr('value', {'message':res.motd});
+				if(res){
+					dialog.attr('value', {'message':res});
 				} else {
 					dialog.attr('value', {'message':'Type the Message of the Day here.  Leave blank to unset.'});
 				}
 				var submitblab = function(){
 					var data = dialog.attr('value').message;
-					window.agentConnection('supervisor', 'set_motd', {
-						failure:function(res){
-							errMessage(["setting motd failed", res.message]);
+					window.agentConnection.webApi('supervisor', 'set_motd', {
+						failure:function(res, msg){
+							console.warn("setting motd failed", res);
+							errMessage(["setting motd failed", msg]);
 						},
 						error:function(res){
+							console.error('setting motd erred', res);
 							errMessage(["setting motd errored", res]);
 						}
 					}, data, nodename);
@@ -113,6 +116,7 @@ if(typeof(dashboard) == 'undefined'){
 				dialog.show();
 			},
 			error: function(res){
+				console.error('Geting motd erred', res);
 				errMessage(["Errored getting motd", res]);
 			}
 		});

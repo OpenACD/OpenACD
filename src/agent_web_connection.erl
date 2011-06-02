@@ -1126,10 +1126,12 @@ handle_cast({url_pop, URL, Name}, State) ->
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
-handle_cast({blab, Text}, State) ->
+handle_cast({blab, Text}, State) when is_list(Text) ->
+	handle_cast({blab, list_to_binary(Text)}, State);
+handle_cast({blab, Text}, State) when is_binary(Text) ->
 	Headjson = {struct, [
 		{<<"command">>, <<"blab">>},
-		{<<"text">>, list_to_binary(Text)}
+		{<<"text">>, Text}
 	]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};

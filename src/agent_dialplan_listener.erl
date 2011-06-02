@@ -98,7 +98,12 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 				{atomic, [_AgentAuth]} when Endpoint == error ->
 					?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
 				{atomic, [AgentAuth]} ->
-					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile},
+					Agent = #agent{
+						id = AgentAuth#agent_auth.id,
+						login = AgentAuth#agent_auth.login,
+						skills = lists:umerge(lists:sort(AgentAuth#agent_auth.skills), lists:sort(['_agent', '_node'])),
+						profile = AgentAuth#agent_auth.profile
+					},
 					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel) of
 						{ok, Pid} ->
 							?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),

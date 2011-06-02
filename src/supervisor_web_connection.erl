@@ -172,7 +172,7 @@
 %	{kick_agent, 2},
 %	{blab, 3},
 	{status, 1},
-	{subscribe, 1}
+	{unsubscribe, 1}
 %	{get_motd, 1},
 %	{set_motd, 2},
 %	{remove_problem_recording, 2},
@@ -226,15 +226,16 @@
 %%====================================================================
 
 %% @doc {@web} Get the overall status cached in cpx_monitor; ie, a 
-%% snapshot of The system as it currently is.
+%% snapshot of The system as it currently is.  Subscribes the connection to
+%% The cpx feed as well.
 -spec(status/1 :: (Conn :: pid()) -> any()).
 status(Conn) ->
 	gen_server:call(Conn, {supervisor, status}).
 
 %% @doc {@web} Subscribe the supervisor to the cpx_monitor feed.
--spec(subscribe/1 :: (Conn :: pid()) -> any()).
-subscribe(Conn) ->
-	gen_server:call(Conn, {supervisor, subscribe}).
+-spec(unsubscribe/1 :: (Conn :: pid()) -> any()).
+unsubscribe(Conn) ->
+	gen_server:call(Conn, {supervisor, unsubscribe}).
 
 %% @doc {@web} Get a list of the agent profiles.
 -spec(get_profiles/1 :: (Conn :: pid()) -> any()).
@@ -301,8 +302,8 @@ handle_call({supervisor, get_profiles}, _From, State) ->
 		list_to_binary(Nom)
 	end,
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, lists:map(F, Profiles)}]})}, State};
-handle_call({supervisor, subscribe}, _From, State) ->
-	cpx_monitor:subscribe(),
+handle_call({supervisor, unsubscribe}, _From, State) ->
+	cpx_monitor:unsubscribe(),
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call({supervisor, status}, _From, State) ->
 	% nodes, agents, queues, media, and system.

@@ -48,9 +48,9 @@ if(typeof(dashboard) == 'undefined'){
 	dashboard.getStatus = function(){
 		window.agentConnection.webApi('supervisor', 'status', {
 			success:function(res){
-				debug(res);
+				//console.log('got status', arguments);
 				var real = [];
-				var items = res.data.items;
+				var items = res.items;
 				for(var i = 0; i < items.length; i++){
 					if(items[i].type == 'media' || items[i].type == 'agent'){
 						var fixedItem = {

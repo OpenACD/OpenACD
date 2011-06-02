@@ -520,7 +520,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	// =====
 	
 	agentDashboard.spy = function(agent){
-		window.agentConnection.webApi('supervisor', 'spy', 
+		window.agentConnection.webApi('supervisor', 'spy', {
 			failure:function(res){
 				errMessage(['Counldn\'t spy', res.message]);
 			},
@@ -552,6 +552,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			}
 		}, replaceUrls(message), type, target);
 	}
+}
 
 var menu = new dijit.Menu({});
 menu.addChild(new dijit.MenuItem({
@@ -562,17 +563,19 @@ menu.addChild(new dijit.MenuItem({
 }));
 menu.bindDomNode(dojo.byId('agentDashboardTable').rows[0]);
 
-window.agentConnection.webApi('supervisor', 'profiles', {
+window.agentConnection.webApi('supervisor', 'get_profiles', {
 	success:function(res){
-		for(var i = 0; i < res.profiles.length; i++){
-			agentDashboard.profiles.push(new agentDashboard.Profile(res.profiles[i].name));
+		for(var i = 0; i < res.length; i++){
+			agentDashboard.profiles.push(new agentDashboard.Profile(res[i].name));
 		}
 		agentDashboard.drawProfileTable();
 	},
 	failure:function(res){
+		console.warn('getting profiles failed', res);
 		errMessage(['Getting profiles failed', res.message]);
 	},
 	error:function(res){
+		console.error('Getting profiles erred', res);
 		errMessage(['Getting profiles errored', res]);
 	}
 });

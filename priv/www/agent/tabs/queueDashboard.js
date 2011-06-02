@@ -416,9 +416,11 @@ window.agentConnection.webApi('api', 'queuelist', {
 		queueDashboard.drawQueueTable();
 	},
 	failure:function(res){
+		console.warn('getting queues failed', res);
 		errMessage(["getting queues failed", res.message]);
 	},
 	error:function(res){
+		console.error('getting queues erred', res);
 		errMessage(["getting queues errored", res]);
 	}
 });

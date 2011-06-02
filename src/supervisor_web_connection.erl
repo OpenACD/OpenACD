@@ -115,7 +115,7 @@
 
 %% Web api exports.
 -export([
-%	get_profiles/1,
+	get_profiles/1,
 %	spy/2,
 %	set_state/3,
 %	set_state/4,
@@ -164,7 +164,7 @@
 %	url:'/queuelist',
 
 -web_api_functions([
-%	{get_profiles, 1},
+	{get_profiles, 1},
 %	{spy, 2},
 %	{set_state, 3},
 %	{set_state, 4},
@@ -236,6 +236,10 @@ status(Conn) ->
 subscribe(Conn) ->
 	gen_server:call(Conn, {supervisor, subscribe}).
 
+%% @doc {@web} Get a list of the agent profiles.
+-spec(get_profiles/1 :: (Conn :: pid()) -> any()).
+get_profiles(Conn) ->
+	gen_server:call(Conn, {supervisor, get_profiles}).
 %%====================================================================
 %% API
 %%====================================================================
@@ -291,6 +295,12 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, get_profiles}, _From, State) ->
+	Profiles = agent_auth:get_profiles(),
+	F = fun(#agent_profile{name = Nom}) ->
+		list_to_binary(Nom)
+	end,
+	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, lists:map(F, Profiles)}]})}, State};
 handle_call({supervisor, subscribe}, _From, State) ->
 	cpx_monitor:subscribe(),
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
@@ -315,7 +325,7 @@ handle_call({supervisor, status}, _From, State) ->
 	]},
 	Json = mochijson2:encode({struct, [
 		{success, true},
-		{<<"data">>, {struct, [
+		{<<"result">>, {struct, [
 			{<<"identifier">>, <<"id">>},
 			{<<"label">>, <<"display">>},
 			{<<"items">>, [Systemjson | Encoded]}
@@ -826,12 +836,6 @@ encode_proplist_test() ->
 %				false ->
 %					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown agent">>}]})}, State}
 %			end;
-%		["get_profiles"] ->
-%			Profiles = agent_auth:get_profiles(),
-%			F = fun(#agent_profile{name = Nom}) ->
-%				list_to_binary(Nom)
-%			end,
-%			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, lists:map(F, Profiles)}]})}, State};
 %		["endmonitor"] ->
 %			cpx_monitor:unsubscribe(),
 %			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};

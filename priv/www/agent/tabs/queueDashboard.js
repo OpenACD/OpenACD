@@ -408,10 +408,10 @@ if(typeof(queueDashboard) == "undefined"){
 	}*/
 }
 
-window.agentConnection.webApi('api', 'queuelist', {
+window.agentConnection.webApi('api', 'get_queue_list', {
 	success:function(res){
-		for(var i = 0; i < res.queues.length; i++){
-			queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
+		for(var i = 0; i < res.length; i++){
+			queueDashboard.dataStore.queues[res[i].name] = new queueDashboard.Queue(res[i].name);
 		}
 		queueDashboard.drawQueueTable();
 	},

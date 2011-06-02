@@ -123,16 +123,16 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.showProblemRecordingDialog = function(){
-		window.agentConnection.webApi('supervisor', 'get_brandlist', {
+		window.agentConnection.webApi('api', 'get_brand_list', {
 			failure:function(res){
 				errMessage(["failed loading brands", res.message]);
 			},
 			success:function(res){
 				var sel = dojo.byId('supervisorClientSelect');
-				for(var i = 0; i < res.brands.length; i++){
+				for(var i = 0; i < res.length; i++){
 					var optionnode = document.createElement('option');
-					optionnode.value = res.brands[i].id;
-					optionnode.innerHTML = res.brands[i].label;
+					optionnode.value = res[i].id;
+					optionnode.innerHTML = res[i].label;
 					sel.appendChild(optionnode);
 				}
 
@@ -141,10 +141,12 @@ if(typeof(dashboard) == 'undefined'){
 					var clientId = dojo.byId('supervisorClientSelect').value;
 					if(dialog.attr('value').set.length < 1){
 						window.agentConnection.webApi('supervisor', 'remove_problem_recording', {
-							failure:function(res){
-								errMessage(['removing problem recording failed', res.message]);
+							failure:function(res, message){
+								console.warn("removing problem recording failed", res, message);
+								errMessage(['removing problem recording failed', message]);
 							},
 							error:function(res){
+								console.error("removing problem recording erred", res);
 								errMessage(['error removing problem recording', res]);
 							}
 						}, clientId);
@@ -162,10 +164,12 @@ if(typeof(dashboard) == 'undefined'){
 	
 	dashboard.startProblemRecording = function(clientId){
 		window.agentConnection.webApi('supervisor', 'start_problem_recording', {
-			failure: function(res){
-				errMessage(['Starting problem recording failed', res.message]);
+			failure: function(res, msg){
+				console.warn('Starting problem recording failed', res, msg);
+				errMessage(['Starting problem recording failed', msg]);
 			},
 			error: function(res){
+				console.error('Starting problem recording erred', res);
 				errMessage(['Starting problem recofing errored', res]);
 			}
 		}, clientId);

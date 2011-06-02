@@ -126,9 +126,9 @@
 	unsubscribe/1,
 	poll/2,
 	get_motd/1,
-	set_motd/3
-%	remove_problem_recording/2,
-%	start_problem_recording/3,
+	set_motd/3,
+	remove_problem_recording/2,
+	start_problem_recording/2
 %	get_avail_agents/1,
 %	ring_agent/4,
 %	peek/3,
@@ -149,9 +149,9 @@
 	{unsubscribe, 1},
 	{poll, 2},
 	{get_motd, 1},
-	{set_motd, 3}
-%	{remove_problem_recording, 2},
-%	{start_problem_recording, 3},
+	{set_motd, 3},
+	{remove_problem_recording, 2},
+	{start_problem_recording, 2}
 %	{get_avail_agents, 1},
 %	{ring_agent, 4},
 %	{peek, 3},
@@ -220,6 +220,18 @@ get_motd(Conn) ->
 -spec(set_motd/3 :: (Conn :: pid(), Message :: string(), Node :: string()) -> any()).
 set_motd(Conn, Message, Node) ->
 	gen_server:call(Conn, {supervisor, {set_motd, Message, Node}}).
+
+%% @doc {@web} Start recording a message to be used for problem
+%% Announcements on voice calls in queue.  Starts by trying to call the
+%% agent/supervisor making the recording request.
+-spec(start_problem_recording/2 :: (Conn :: pid(), Clientid :: string()) -> any()).
+start_problem_recording(Conn, Clientid) ->
+	gen_server:call(Conn, {supervisor, {start_problem_recording, Clientid}}).
+
+%% @doc {@web} Removes a previously made recording for a given client.
+-spec(remove_problem_recording/2 :: (Conn :: pid(), Clientid :: string()) -> any()).
+remove_problem_recording(Conn, Clientid) ->
+	gen_server:call(Conn, {supervisor, {remove_problem_recording, Clientid}}).
 
 %%====================================================================
 %% API
@@ -317,6 +329,36 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {remove_problem_recording, Clientid}}, _From, State) ->
+	case file:delete("/tmp/"++binary_to_list(Clientid)++"/problem.wav") of
+		ok ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+		{error, Reason} ->
+			OutReason = list_to_binary(io_lib:format("~p", [Reason])),
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, OutReason}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}, State}
+	end;
+handle_call({supervisor, {start_problem_recording, Clientid}}, _From, State) ->
+	Login = State#state.login,
+	Endpoint = State#state.endpointtype,
+	EndpointData = State#state.endpointdata,
+	AgentRec = #agent{
+		login = Login,
+		id = Login,
+		connection = self(),
+		endpointtype = Endpoint,
+		endpointdata = EndpointData
+	},
+	case whereis(freeswitch_media_manager) of
+		P when is_pid(P) ->
+			case freeswitch_media_manager:record_outage(Clientid, self(), AgentRec) of
+				ok ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+				{error, Reason} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing recording channel failed (~p)", [Reason]))}]})}, State}
+			end;
+		_ ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}, {<<"errcode">>, <<"FREESWITCH_NOEXISTS">>}]})}, State}
+	end;
 handle_call({supervisor, get_motd}, _From, State) ->
 	Motd = case cpx_supervisor:get_value(motd) of
 		none -> false;
@@ -802,26 +844,6 @@ encode_proplist_test() ->
 %		["startmonitor"] ->
 %			cpx_monitor:subscribe(),
 %			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
-%		["start_problem_recording", _Agentname, Clientid] ->
-%			AgentRec = agent:dump_state(State#state.agent_fsm), % TODO - avoid
-%			case whereis(freeswitch_media_manager) of
-%				P when is_pid(P) ->
-%					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
-%						ok ->
-%							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-%						{error, Reason} ->
-%							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing recording channel failed (~p)", [Reason]))}]})}, State}
-%					end;
-%				_ ->
-%					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}, State}
-%			end;
-%		["remove_problem_recording", Clientid] ->
-%			case file:delete("/tmp/"++Clientid++"/problem.wav") of
-%				ok ->
-%					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-%				{error, Reason} ->
-%					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Reason}]})}, State}
-%			end;
 %		["voicemail", Queue, Callid] ->
 %			Json = case queue_manager:get_queue(Queue) of
 %				Qpid when is_pid(Qpid) ->

@@ -99,10 +99,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--define(TICK_LENGTH, 11000).
-
--define(POLL_FLUSH_INTERVAL, 500).
-
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -1143,7 +1139,12 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(poll_flush, State) ->
-	case {State#state.poll_pid, State#state.poll_queue} of
+	{SupPollQueue, NewSupState} = case State#state.supervisor_state of
+		undefined -> {[], undefined};
+		SupState -> supervisor_web_connection:nuke_poll_queue(SupState)
+	end,
+	FullQueue = lists:append(lists:reverse(State#state.poll_queue), SupPollQueue),
+	case {State#state.poll_pid, FullQueue} of
 		{undefined, _} ->
 			{noreply, State#state{poll_flush_timer = undefined}};
 		{_Pid, []} ->
@@ -1151,11 +1152,10 @@ handle_info(poll_flush, State) ->
 		{Pid, _PollQueue} when is_pid(Pid) ->
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [
 				{success, true},
-				{<<"data">>, lists:reverse(State#state.poll_queue)},
-				{<<"result">>, lists:reverse(State#state.poll_queue)}
+				{<<"result">>, FullQueue}
 			]})}},
 			unlink(Pid),
-			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined}}
+			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined, supervisor_state = NewSupState}}
 	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	Now = util:now(),
@@ -1181,6 +1181,16 @@ handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State
 	?WARNING("Not eligible for supervisor view, so shouldn't be getting events.  Unsubbing", []),
 	cpx_monitor:unsubscribe(),
 	{noreply, State};
+handle_info({cpx_monitor_event, _} = Msg, #state{supervisor_state = SupState} = State) ->
+	{noreply, NewSupState} = supervisor_web_connection:handle_info(Msg, SupState),
+	MidState = case State#state.poll_flush_timer of
+		undefined ->
+			Self = self(),
+			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush)};
+		_ ->
+			State
+	end,
+	{noreply, MidState#state{supervisor_state = NewSupState}};
 handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
 	case Reason of
 		normal ->
@@ -1197,7 +1207,7 @@ handle_info({'EXIT', Agent, Reason}, #state{agent_fsm = Agent} = State) ->
 		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout by fsm death">>}]})}},
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout by fsm death">>}, {<<"errcode">>, <<"FSM_DEATH">>}]})}},
 			ok
 	end,
 	{stop, Reason, State};
@@ -1215,7 +1225,7 @@ terminate(Reason, State) ->
 		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}]})},
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}, {<<"errcode">>, <<"FORCED_LOGOUT">>}]})},
 			ok
 	end.
 

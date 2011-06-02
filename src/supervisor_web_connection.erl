@@ -103,13 +103,12 @@
 
 -include_lib("stdlib/include/qlc.hrl").
 
--define(POLL_FLUSH_INTERVAL, 500).
-
 %% API
 -export([
 %	api/2,
 %	encode_statedata/1,
 %	format_status/2,
+	nuke_poll_queue/1,
 	is_web_api/2
 ]).
 
@@ -312,6 +311,15 @@ is_web_api(Function, Arity) ->
 poll(Pid, Frompid) ->
 	gen_server:cast(Pid, {poll, Frompid}).
 
+%% @doc Extract the poll queue from a state record and 0 it out.  Used 
+%% when the supervisor is logged in as an agent rather than independent of 
+%% routing.  The list is returned in the order the events were recieved.
+-spec(nuke_poll_queue/1 :: (State :: #state{}) -> {[any()], #state{}}).
+nuke_poll_queue(State) ->
+	List = lists:reverse(State#state.poll_queue),
+	NewState = State#state{poll_queue = []},
+	{List, NewState}.
+
 %%====================================================================
 %% Init
 %%====================================================================
@@ -504,13 +512,89 @@ handle_call({Request, Args}, _From, State) ->
 %% handle_cast
 %%====================================================================
 
+
+
+handle_cast(keep_alive, #state{poll_pid = undefined} = State) ->
+	%?DEBUG("keep alive", []),
+	{noreply, State#state{poll_pid_established = util:now()}};
+handle_cast({poll, Frompid}, State) ->
+	%?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
+	case State#state.poll_pid of
+		undefined -> 
+			ok;
+		Pid when is_pid(Pid) ->
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}, {<<"errcode">>, <<"POLL_PID_REPLACED">>}]})}
+	end,
+	case State#state.poll_queue of
+		[] ->
+			%?DEBUG("Empty poll queue", []),
+			link(Frompid),
+			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
+		Pollq ->
+			%?DEBUG("Poll queue length: ~p", [length(Pollq)]),
+			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
+			Json2 = {struct, [{success, true}, {<<"result">>, lists:reverse(Pollq)}]},
+			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
+			{noreply, Newstate}
+	end;
+
+
+
+
+
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %%====================================================================
 %% handle_info
 %%====================================================================
-%%
+
+
+
+
+
+handle_info(poll_flush, State) ->
+	case {State#state.poll_pid, State#state.poll_queue} of
+		{undefined, _} ->
+			{noreply, State#state{poll_flush_timer = undefined}};
+		{_Pid, []} ->
+			{noreply, State#state{poll_flush_timer = undefined}};
+		{Pid, _PollQueue} when is_pid(Pid) ->
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [
+				{success, true},
+				{<<"data">>, lists:reverse(State#state.poll_queue)},
+				{<<"result">>, lists:reverse(State#state.poll_queue)}
+			]})}},
+			unlink(Pid),
+			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined}}
+	end;
+handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
+	Now = util:now(),
+	case Now - Last of
+		N when N > 20 ->
+			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
+			{stop, normal, State};
+		_N ->
+			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
+			{noreply, State#state{ack_timer = Tref}}
+	end;
+handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
+	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
+	case util:now() - Last of
+		N when N > 20 ->
+			%?DEBUG("sending pong to initiate new poll pid", []),
+			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
+			{noreply, Newstate#state{ack_timer = Tref}};
+		_N ->
+			{noreply, State#state{ack_timer = Tref}}
+	end;
+
+
+
+
+
+
+
 handle_info({cpx_monitor_event, {info, _, _}}, State) ->
 	% TODO fix the subscribe, or start using this.
 	{noreply, State};
@@ -553,6 +637,23 @@ handle_info({cpx_monitor_event, Message}, State) ->
 	end,
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
+
+
+
+handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
+	case Reason of
+		normal ->
+			ok;
+		_ ->
+			?NOTICE("The pollpid died due to ~p", [Reason])
+	end,
+	{noreply, State#state{poll_pid = undefined}};
+handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
+	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
+	{stop, Reason, State};
+
+
+
 
 handle_info(_Msg, State) ->
 	{noreply, State}.

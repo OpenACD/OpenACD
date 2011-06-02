@@ -376,7 +376,7 @@ handle_call({supervisor, {set_motd, Message, Node}}, _From, State) ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}, State};
 		_ ->
 			{Func, Args} = case Message of
-				"" -> {drop_value, [motd]};
+				<<"">> -> {drop_value, [motd]};
 				_ -> {set_value, [motd, Message]}
 			end,
 			Res = [try rpc:call(N, cpx_supervisor, Func, Args) of

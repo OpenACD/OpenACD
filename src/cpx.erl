@@ -932,7 +932,7 @@ start_plugin_apps([Plugin | Tail], Dir) ->
 			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
 			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
 				{ok, [{application, _, Properties}|_]} ->
-					Apps = proplists:get_value(applicaitons, Properties, []),
+					Apps = proplists:get_value(applications, Properties, []),
 					[application:start(App) || App <- Apps],
 					StartRes = application:start(list_to_atom(Plugin)),
 					?INFO("starting plugin ~p:  ~p", [Plugin, StartRes]);

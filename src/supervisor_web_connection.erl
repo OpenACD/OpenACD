@@ -476,7 +476,7 @@ handle_call({supervisor, {drop_media, Queue, MediaId}}, _From, State) ->
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
-	Json = case {agent_manager:query_agent(Agent), queue_manager:get_queue(Queue)} of
+	Json = case {agent_manager:query_agent(binary_to_list(Agent)), queue_manager:get_queue(binary_to_list(Queue))} of
 		{false, undefined} ->
 			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Neither agent nor queue exist">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]});
 		{false, _Pid} ->
@@ -484,7 +484,7 @@ handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 		{_Worked, undefined} ->
 			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"queue doesn't exist">>}, {<<"errcode">>, <<"QUEUE_NOEXISTS">>}]});
 		{{true, Apid}, Qpid} ->
-			case call_queue:get_call(Qpid, MediaId) of
+			case call_queue:get_call(Qpid, binary_to_list(MediaId)) of
 				none ->
 					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]});
 				{_Key, #queued_call{media = Mpid} = Qcall} ->

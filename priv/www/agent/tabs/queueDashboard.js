@@ -296,12 +296,12 @@ if(typeof(queueDashboard) == "undefined"){
 				}
 				/*console.log(res.agents);*/
 				var selectContent = '';
-				if(res.agents.length == 0){
+				if(res.length == 0){
 					errMessage('No agents available!');
 					return false;
 				}
-				for(var i = 0; i < res.agents.length; i++){
-					selectContent += '<option value="' + res.agents[i].name + '">' + res.agents[i].name + ' (' + res.agents[i].profile + ')</option>';
+				for(var i = 0; i < res.length; i++){
+					selectContent += '<option value="' + res[i].name + '">' + res[i].name + ' (' + res[i].profile + ')</option>';
 				}
 				var content = '<p><label>Agent:</label><select name="agent" id="supSelectAgent">' + selectContent + '</select></p><p><label>&nbsp;</label><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>';
 				var dialog = new dijit.Dialog({

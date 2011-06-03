@@ -566,7 +566,7 @@ menu.bindDomNode(dojo.byId('agentDashboardTable').rows[0]);
 window.agentConnection.webApi('supervisor', 'get_profiles', {
 	success:function(res){
 		for(var i = 0; i < res.length; i++){
-			agentDashboard.profiles.push(new agentDashboard.Profile(res[i].name));
+			agentDashboard.profiles.push(new agentDashboard.Profile(res[i]));
 		}
 		agentDashboard.drawProfileTable();
 	},

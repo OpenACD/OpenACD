@@ -180,17 +180,21 @@ if(typeof(dashboard) == 'undefined'){
 	}
 }
 
-dashboard.masterSub = dojo.subscribe("OpenACD/Agent/supervisortab", dashboard, function(supevent){
-	if(supevent.data.type == 'media' && supevent.data.action == 'drop'){
+dashboard.masterSetSub = dojo.subscribe("OpenACD/Agent/supervisorSet", dashboard, function(supevent){
+	if(supevent.data.type){
 		delete this.medias[supevent.data.name];
-	} else if(supevent.data.type == 'media'){
-		if(this.medias[supevent.data.name]){
-			this.medias[supevent.data.name] = supevent.data;
-		} else {
-			this.medias[supevent.data.name] = supevent.data;
-		}
 	}
-	
+	supevent.data.action = 'set';
+	dojo.publish('dashboard/supevent/' + supevent.data.type, [supevent.data]);
+});
+
+dashboard.masterDropSub = dojo.subscribe("OpenACD/Agent/supervisorDrop", dashboard, function(supevent){
+	if(this.medias[supevent.data.name]){
+		this.medias[supevent.data.name] = supevent.data;
+	} else {
+		this.medias[supevent.data.name] = supevent.data;
+	}
+	supevent.data.action = 'drop';
 	dojo.publish('dashboard/supevent/' + supevent.data.type, [supevent.data]);
 });
 

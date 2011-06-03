@@ -356,8 +356,8 @@ if(typeof(agentDashboard) == 'undefined'){
 
 	agentDashboard.Agent.prototype.setState = function(stateName, stateData){
 		var callbacks = {
-			failure: function(resp){
-				errMessage(["setting state to idle failed", resp.message]);
+			failure: function(resp, message){
+				errMessage(["setting state to idle failed", message]);
 			},
 			error: function(res){
 				errMessage(["setting state to idle error'ed", res]);

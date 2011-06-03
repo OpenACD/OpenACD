@@ -118,8 +118,8 @@
 -export([
 	get_profiles/1,
 %	spy/2,
-%	set_state/3,
-%	set_state/4,
+	agent_state/3,
+	agent_state/4,
 %	set_profile/3,
 	kick_agent/2,
 	blab/4,
@@ -140,8 +140,8 @@
 -web_api_functions([
 	{get_profiles, 1},
 %	{spy, 2},
-%	{set_state, 3},
-%	{set_state, 4},
+	{agent_state, 3},
+	{agent_state, 4},
 %	{set_profile, 3},
 	{kick_agent, 2},
 	{blab, 4},
@@ -268,6 +268,19 @@ agent_ring(Conn, Queue, MediaId, Agent) ->
 drop_media(Conn, Queue, MediaId) ->
 	gen_server:call(Conn, {supervisor, {drop_media, Queue, MediaId}}).
 
+%% @doc {@web} Change the agent's state.
+-spec(agent_state/3 :: (Conn :: pid(), Agent :: string(), State :: string()) -> any()).
+agent_state(Conn, Agent, State) ->
+	agent_state(Conn, Agent, State, "").
+
+%% @doc {@web} Change the agent's state and state data.  Note when setting
+%% an agent released from oncall or wrapup, the do not go released 
+%% immediately.  They are flagged to go released instead of idle once the
+%% call is completed.
+-spec(agent_state/4 :: (Conn :: pid(), Agent :: string(), State :: string(), Statedata :: string()) -> any()).
+agent_state(Conn, Agent, State, Statedata) ->
+	gen_server:call(Conn, {supervisor, {agent_state, Agent, State, Statedata}}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -373,6 +386,32 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {agent_state, Agent, State, Statedata}}, _From, State) ->
+	Json = case agent_manager:query_agent(Agent) of
+		{true, Apid} ->
+			%?DEBUG("Tail:  ~p", [Tail]),
+			Statechange = case {State, Statedata} of
+				{"released", "default"} ->
+					agent:set_state(Apid, released, default);
+				{Statename, ""} ->
+					Astate = agent:list_to_state(Statename),
+					agent:set_state(Apid, Astate);
+				{Statename, Statedata} ->
+					Astate = agent:list_to_state(Statename),
+					agent:set_state(Apid, Astate, Statedata)
+			end,
+			case Statechange of
+				invalid ->
+					mochijson2:encode({struct, [{success, false}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}, {<<"message">>, <<"invalid state change">>}]});
+				ok ->
+					mochijson2:encode({struct, [{success, true}]});
+				queued ->
+					mochijson2:encode({struct, [{success, true}]})
+			end;
+		_Else ->
+			mochijson2:encode({struct, [{success, false}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}, {<<"message">>, <<"Agent not found">>}]})
+	end,
+	{reply, {200, [], Json}, State};
 handle_call({supervisor, {drop_media, Queue, MediaId}}, _From, State) ->
 	Json = case queue_manager:get_queue(Queue) of
 		undefined ->
@@ -1074,32 +1113,6 @@ encode_proplist_test() ->
 %		["endmonitor"] ->
 %			cpx_monitor:unsubscribe(),
 %			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-%		["agentstate" | [Agent | Tail]] ->
-%			Json = case agent_manager:query_agent(Agent) of
-%				{true, Apid} ->
-%					%?DEBUG("Tail:  ~p", [Tail]),
-%					Statechange = case Tail of
-%						["released", "default"] ->
-%							agent:set_state(Apid, released, default);
-%						[Statename, Statedata] ->
-%							Astate = agent:list_to_state(Statename),
-%							agent:set_state(Apid, Astate, Statedata);
-%						[Statename] ->
-%							Astate = agent:list_to_state(Statename),
-%							agent:set_state(Apid, Astate)
-%					end,
-%					case Statechange of
-%						invalid ->
-%							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid state change">>}]});
-%						ok ->
-%							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent state set">>}]});
-%						queued ->
-%							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent release queued">>}]})
-%					end;
-%				_Else ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})
-%			end,
-%			{reply, {200, [], Json}, State};
 %		["requeue", Fromagent, Toqueue] ->
 %			Json = case agent_manager:query_agent(Fromagent) of
 %				{true, Apid} ->

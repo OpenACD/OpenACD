@@ -391,8 +391,8 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.Agent.prototype.kick = function(){
 		window.agentConnection.webApi('supervisor', 'kick_agent', {
-			failure:function(resp){
-				errMessage(["kicking agent failed", resp.message]);
+			failure:function(resp, message){
+				errMessage(["kicking agent failed", message]);
 			},
 			error:function(res){
 				errMessage(["Kicking agent errored", res]);

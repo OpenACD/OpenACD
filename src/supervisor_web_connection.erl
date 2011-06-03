@@ -512,7 +512,7 @@ handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 %	end,
 %	{reply, {200, [], Json}, State};
 handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
-	Json = case agent_manager:query_agent(Agent) of
+	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
 			case agent:query_state(Apid) of
 				{ok, oncall} ->

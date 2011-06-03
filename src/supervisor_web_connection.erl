@@ -271,7 +271,7 @@ drop_media(Conn, Queue, MediaId) ->
 %% @doc {@web} Change the agent's state.
 -spec(agent_state/3 :: (Conn :: pid(), Agent :: string(), State :: string()) -> any()).
 agent_state(Conn, Agent, State) ->
-	agent_state(Conn, Agent, State, "").
+	agent_state(Conn, Agent, State, undefined). 
 
 %% @doc {@web} Change the agent's state and state data.  Note when setting
 %% an agent released from oncall or wrapup, the do not go released 
@@ -386,19 +386,19 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
-handle_call({supervisor, {agent_state, Agent, State, Statedata}}, _From, State) ->
-	Json = case agent_manager:query_agent(Agent) of
+handle_call({supervisor, {agent_state, Agent, InStateName, Statedata}}, _From, State) ->
+	StateName = binary_to_list(InStateName),
+	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
-			%?DEBUG("Tail:  ~p", [Tail]),
-			Statechange = case {State, Statedata} of
-				{"released", "default"} ->
+			Statechange = case {StateName, Statedata} of
+				{"released", <<"default">>} ->
 					agent:set_state(Apid, released, default);
-				{Statename, ""} ->
-					Astate = agent:list_to_state(Statename),
+				{StateName, undefined} ->
+					Astate = agent:list_to_state(StateName),
 					agent:set_state(Apid, Astate);
-				{Statename, Statedata} ->
-					Astate = agent:list_to_state(Statename),
-					agent:set_state(Apid, Astate, Statedata)
+				{StateName, Statedata} ->
+					Astate = agent:list_to_state(StateName),
+					agent:set_state(Apid, Astate, binary_to_list(Statedata))
 			end,
 			case Statechange of
 				invalid ->

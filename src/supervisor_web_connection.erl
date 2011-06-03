@@ -130,8 +130,8 @@
 	set_motd/3,
 	remove_problem_recording/2,
 	start_problem_recording/2,
+	agent_ring/4,
 %	get_avail_agents/1,
-%	ring_agent/4,
 %	peek/3,
 %	drop_call/3,
 	voicemail/3
@@ -152,8 +152,8 @@
 	{set_motd, 3},
 	{remove_problem_recording, 2},
 	{start_problem_recording, 2},
+	{agent_ring, 4},
 %	{get_avail_agents, 1},
-%	{ring_agent, 4},
 %	{peek, 3},
 %	{drop_call, 3},
 	{voicemail, 3}
@@ -256,6 +256,11 @@ kick_agent(Conn, Agent) ->
 -spec(spy/2 :: (Conn :: pid(), Agent :: string()) -> any()).
 spy(Conn, Agent) ->
 	gen_server:call(Conn, {supervisor, {spy, Agent}}).
+
+%% @doc {@web} Send a call in queue to a specified agent.
+-spec(agent_ring/4 :: (Conn :: pid(), Queue :: string(), MediaId :: string(), Agent :: string()) -> any()).
+agent_ring(Conn, Queue, MediaId, Agent) ->
+	gen_server:call(Conn, {supervsior, {agent_ring, Queue, MediaId, Agent}}).
 
 %%====================================================================
 %% API
@@ -362,6 +367,28 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
+	Json = case {agent_manager:query_agent(Agent), queue_manager:get_queue(Queue)} of
+		{false, undefined} ->
+			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Neither agent nor queue exist">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]});
+		{false, _Pid} ->
+			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"agent doesn't exist">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]});
+		{_Worked, undefined} ->
+			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"queue doesn't exist">>}, {<<"errcode">>, <<"QUEUE_NOEXISTS">>}]});
+		{{true, Apid}, Qpid} ->
+			case call_queue:get_call(Qpid, MediaId) of
+				none ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]});
+				{_Key, #queued_call{media = Mpid} = Qcall} ->
+					case gen_media:ring(Mpid, Apid, Qcall, ?getRingout) of
+						deferred ->
+							mochijson2:encode({struct, [{success, true}]});
+						 _ ->
+							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not ring agent">>}, {<<"errcode">>, <<"RING_FAIL">>}]})
+					end
+			end
+	end,
+	{reply, {200, [], Json}, State};
 %handle_call({supervisor, {spy, Agent}}, _From, State) ->
 %	Json  = case agent_manager:query_agent(Agent) of
 %		{true, Apid} ->
@@ -1081,28 +1108,6 @@ encode_proplist_test() ->
 %					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"From agent doesn't exist.">>}]});
 %				{_, false} ->
 %					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"To agent doesn't exist.">>}]})
-%			end,
-%			{reply, {200, [], Json}, State};
-%		["agent_ring", Fromqueue, Callid, Toagent] ->
-%			Json = case {agent_manager:query_agent(Toagent), queue_manager:get_queue(Fromqueue)} of
-%				{false, undefined} ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Neither agent nor queue exist">>}]});
-%				{false, _Pid} ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"agent doesn't exist">>}]});
-%				{_Worked, undefined} ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"queue doesn't exist">>}]});
-%				{{true, Apid}, Qpid} ->
-%					case call_queue:get_call(Qpid, Callid) of
-%						none ->
-%							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}]});
-%						{_Key, #queued_call{media = Mpid} = Qcall} ->
-%							case gen_media:ring(Mpid, Apid, Qcall, ?getRingout) of
-%								deferred ->
-%									mochijson2:encode({struct, [{success, true}]});
-%								 _ ->
-%									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not ring agent">>}]})
-%							end
-%					end
 %			end,
 %			{reply, {200, [], Json}, State};
 %		["status"] ->

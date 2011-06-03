@@ -341,8 +341,8 @@ if(typeof(queueDashboard) == "undefined"){
 			var queue = media.queue;
 			var id = media.id;
 			return window.agentConnection.webApi('supervisor', 'agent_ring', {
-				failure:function(res){
-					errMessage(["agent ring failed", res.message]);
+				failure:function(res, message){
+					errMessage(["agent ring failed", message]);
 				},
 				error:function(res){
 					errMessage(["agent ring errored", res]);

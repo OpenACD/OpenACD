@@ -1891,24 +1891,24 @@ set_state_test_() ->
 		]
 	}.
 
-extract_groups_test() ->
-	Rawlist = [
-		{{queue, "queue1"}, [{group, "group1"}], node(), os:timestamp(), none, undefined},
-		{{queue, "queue2"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent1"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined},
-		{{media, "media1"}, [], node(), os:timestamp(), none, undefined},
-		{{queue, "queue3"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent2"}, [{profile, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent3"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined}
-	],
-	Expected = [
-		{"agentprofile", "Default"},
-		{"agentprofile", "profile1"},
-		{"queuegroup", "Default"},
-		{"queuegroup", "group1"}
-	],
-	Out = extract_groups(Rawlist),
-	?assertEqual(Expected, Out).
+%extract_groups_test() ->
+%	Rawlist = [
+%		{{queue, "queue1"}, [{group, "group1"}], node(), os:timestamp(), none, undefined},
+%		{{queue, "queue2"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent1"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined},
+%		{{media, "media1"}, [], node(), os:timestamp(), none, undefined},
+%		{{queue, "queue3"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent2"}, [{profile, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent3"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined}
+%	],
+%	Expected = [
+%		{"agentprofile", "Default"},
+%		{"agentprofile", "profile1"},
+%		{"queuegroup", "Default"},
+%		{"queuegroup", "group1"}
+%	],
+%	Out = extract_groups(Rawlist),
+%	?assertEqual(Expected, Out).
 
 		
 -define(MYSERVERFUNC, 

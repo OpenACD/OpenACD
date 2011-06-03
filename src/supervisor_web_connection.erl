@@ -117,7 +117,7 @@
 %% Web api exports.
 -export([
 	get_profiles/1,
-%	spy/2,
+	spy/2,
 	agent_state/3,
 	agent_state/4,
 	set_profile/3,
@@ -139,7 +139,7 @@
 
 -web_api_functions([
 	{get_profiles, 1},
-%	{spy, 2},
+	{spy, 2},
 	{agent_state, 3},
 	{agent_state, 4},
 	{set_profile, 3},

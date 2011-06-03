@@ -526,9 +526,9 @@ handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
 	end,
 	{reply, {200, [], Json}, State};
 handle_call({supervisor, {voicemail, Queue, MediaId}}, _From, State) ->
-	Json = case queue_manager:get_queue(Queue) of
+	Json = case queue_manager:get_queue(binary_to_list(Queue)) of
 		Qpid when is_pid(Qpid) ->
-			case call_queue:get_call(Qpid, MediaId) of
+			case call_queue:get_call(Qpid, binary_to_list(MediaId)) of
 				{_Key, #queued_call{media = Mpid}} ->
 					case gen_media:voicemail(Mpid) of
 						invalid ->

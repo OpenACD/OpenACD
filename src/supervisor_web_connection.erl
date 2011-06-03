@@ -121,7 +121,7 @@
 %	set_state/3,
 %	set_state/4,
 %	set_profile/3,
-%	kick_agent/2,
+	kick_agent/2,
 	blab/4,
 	status/1,
 	unsubscribe/1,
@@ -143,7 +143,7 @@
 %	{set_state, 3},
 %	{set_state, 4},
 %	{set_profile, 3},
-%	{kick_agent, 2},
+	{kick_agent, 2},
 	{blab, 4},
 	{status, 1},
 	{unsubscribe, 1},
@@ -242,6 +242,12 @@ blab(Conn, Message, Grouping, Target) ->
 -spec(voicemail/3 :: (Conn :: pid(), Queue :: string(), MediaId :: string()) -> any()).
 voicemail(Conn, Queue, MediaId) ->
 	gen_server:call(Conn, {supervisor, {voicemail, Queue, MediaId}}).
+
+%% @doc {@web} Force an agent to logout.  Does not force an agent currently
+%% oncall to logout.  Lookup is done by login name.
+-spec(kick_agent/2 :: (Conn :: pid(), Agent :: string()) -> any()).
+kick_agent(Conn, Agent) ->
+	gen_server:call(Conn, {supervisor, {kick_agent, Agent}}).
 
 %%====================================================================
 %% API
@@ -348,6 +354,20 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
+	Json = case agent_manager:query_agent(Agent) of
+		{true, Apid} ->
+			case agent:query_state(Apid) of
+				{ok, oncall} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent currently oncall">>}, {<<"errcode">>, <<"INVALID_STATE">>}]});
+				{ok, _State} ->
+					agent:stop(Apid),
+					mochijson2:encode({struct, [{success, true}]})
+			end;
+		_Else ->
+			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})
+	end,
+	{reply, {200, [], Json}, State};
 handle_call({supervisor, {voicemail, Queue, MediaId}}, _From, State) ->
 	Json = case queue_manager:get_queue(Queue) of
 		Qpid when is_pid(Qpid) ->
@@ -1020,20 +1040,6 @@ encode_proplist_test() ->
 %							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent state set">>}]});
 %						queued ->
 %							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent release queued">>}]})
-%					end;
-%				_Else ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})
-%			end,
-%			{reply, {200, [], Json}, State};
-%		["kick_agent", Agent] ->
-%			Json = case agent_manager:query_agent(Agent) of
-%				{true, Apid} ->
-%					case agent:query_state(Apid) of
-%						{ok, oncall} ->
-%							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent currently oncall">>}]});
-%						{ok, _State} ->
-%							agent:stop(Apid),
-%							mochijson2:encode({struct, [{success, true}]})
 %					end;
 %				_Else ->
 %					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})

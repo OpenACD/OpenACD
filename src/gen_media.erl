@@ -600,7 +600,7 @@ handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
-handle_call({'$gen_media_spy', Spy, AgentRec}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_spy', Spy, AgentRec}, _From, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
 			?DEBUG("Callback ~p doesn't support spy for ~p", [Callback, Call#call.id]),

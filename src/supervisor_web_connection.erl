@@ -120,7 +120,7 @@
 %	spy/2,
 	agent_state/3,
 	agent_state/4,
-%	set_profile/3,
+	set_profile/3,
 	kick_agent/2,
 	blab/4,
 	status/1,
@@ -142,7 +142,7 @@
 %	{spy, 2},
 	{agent_state, 3},
 	{agent_state, 4},
-%	{set_profile, 3},
+	{set_profile, 3},
 	{kick_agent, 2},
 	{blab, 4},
 	{status, 1},
@@ -281,6 +281,18 @@ agent_state(Conn, Agent, State) ->
 agent_state(Conn, Agent, State, Statedata) ->
 	gen_server:call(Conn, {supervisor, {agent_state, Agent, State, Statedata}}).
 
+%% @doc {@web} Change the agent's profile for the duration of that agent's
+%% session.
+-spec(set_profile/3 :: (Conn :: pid(), Agent :: string(), NewProf :: string()) -> any()).
+set_profile(Conn, Agent, NewProf) ->
+	set_profile(Conn, Agent, NewProf, <<"false">>).
+
+%% @doc {@web} Change the agent's profile.  If `Permanent' is `<<"true">>',
+%% the agent will be moved to that profile for each subsequent login.
+-spec(set_profile/4 :: (Conn :: pid(), Agent :: string(), NewProf :: string(), Permanent :: string()) -> any()).
+set_profile(Conn, Agent, NewProf, Permanent) ->
+	gen_server:call(Conn, {supervisor, {set_profile, Agent, NewProf, Permanent}}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -386,6 +398,42 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {set_profile, Agent, InNewProf, Permanent}}, _From, State) ->
+	Login = binary_to_list(Agent),
+	Newprof = binary_to_list(InNewProf),
+	Midgood = case agent_manager:query_agent(Login) of
+		{true, Apid} ->
+			agent:change_profile(Apid, Newprof);
+		false ->
+			{error, noagent}
+	end,
+	case {Midgood, Permanent} of
+		{{error, Err}, _} ->
+			{Errcode, Msg} = case Err of
+				noagent ->
+					{<<"AGENT_NOEXISTS">>, <<"unknown agent">>};
+				unknown_profile ->
+					{<<"PROFILE_NOEXISTS">>, <<"unknown profile">>}
+			end,
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}, {<<"errcode">>, Errcode}]})}, State};
+		{ok, <<"true">>} ->
+			case agent_auth:get_agent(login, Login) of
+				{atomic, [Arec]} ->
+					case agent_auth:set_agent(Arec#agent_auth.id, Login, Arec#agent_auth.skills, Arec#agent_auth.securitylevel, Newprof) of
+						{atomic, ok} ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+						{aborted, Err} ->
+							Msg = list_to_binary(io_lib:format("Profile changed, but not permanent:  ~p", [Err])),
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}, {<<"message">>, Msg}]})}, State}
+					end;
+				{atomic, [_A, _B | _]} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Multiple agent records found, not making a change">>}, {<<"errcode">>, <<"MULTIPLE_AGENTS">>}]})}, State};
+				{atomic, []} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permanent, so not permanent change made">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})}, State}
+			end;
+		{ok, _} ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+	end;
 handle_call({supervisor, {agent_state, Agent, InStateName, Statedata}}, _From, State) ->
 	StateName = binary_to_list(InStateName),
 	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
@@ -1052,46 +1100,6 @@ encode_proplist_test() ->
 %handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 %	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
 %	case Request of
-%		["set_profile"] ->
-%			Login = proplists:get_value("name", Post),
-%			%Id = proplists:get_value("id", Post),
-%			Newprof = proplists:get_value("profile", Post),
-%			Midgood = case agent_manager:query_agent(Login) of
-%				{true, Apid} ->
-%					agent:change_profile(Apid, Newprof);
-%				false ->
-%					{error, noagent}
-%			end,
-%			case {Midgood, proplists:get_value("makePerm", Post)} of
-%				{{error, Err}, _} ->
-%					Msg = case Err of
-%						noagent ->
-%							<<"unknown agent">>;
-%						unknown_profile ->
-%							<<"unknown profile">>%;
-%%						_ ->
-%%							list_to_binary(io_lib:format("~p", [Err]))
-%					end,
-%					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State};
-%				{ok, "makePerm"} ->
-%					case agent_auth:get_agent(login, Login) of
-%						{atomic, [Arec]} ->
-%							case agent_auth:set_agent(Arec#agent_auth.id, Login, Arec#agent_auth.skills, Arec#agent_auth.securitylevel, Newprof) of
-%								{atomic, ok} ->
-%									{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-%								{aborted, Err} ->
-%									Msg = list_to_binary(io_lib:format("Profile changed, but not permanent:  ~p", [Err])),
-%									{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State}
-%							end;
-%						{atomic, [_A, _B | _]} ->
-%							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Multiple agent records found, not making a change">>}]})}, State};
-%						{atomic, []} ->
-%							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permanent, so not permanent change made">>}]})}, State}
-%					end;
-%				{ok, _} ->
-%					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-%			end;
-%	end;
 %handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 %	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 %	case Request of

@@ -375,8 +375,8 @@ if(typeof(agentDashboard) == 'undefined'){
 		// letting the subscriptions that happen on agent changes deal w/ the repercussions.
 		/*console.log(['das smack', newProf, makePerm]);*/
 		var callbacks = {
-			failure:function(res){
-				errMessage(["set profile failed", res.message]);
+			failure:function(res, message){
+				errMessage(["set profile failed", message]);
 			},
 			error:function(res){
 				errMessage(["set profile errored", res]);

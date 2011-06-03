@@ -262,7 +262,8 @@ spy(Conn, Agent) ->
 agent_ring(Conn, Queue, MediaId, Agent) ->
 	gen_server:call(Conn, {supervisor, {agent_ring, Queue, MediaId, Agent}}).
 
-%% @doc {@web} Terminate the media while it is in queue.
+%% @doc {@web} <b>Not yet fully implemented.</b>  Terminate the media
+%% while it is in queue.
 -spec(drop_media/3 :: (Conn :: pid(), Queue :: string(), MediaId :: string()) -> any()).
 drop_media(Conn, Queue, MediaId) ->
 	gen_server:call(Conn, {supervisor, {drop_media, Queue, MediaId}}).

@@ -398,6 +398,15 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
+	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
+		{true, Apid} ->
+			agent:stop(Apid),
+			[{success, true}];
+		false ->
+			[{<<"errcode">>, <<"AGENT_NOEXISTS">>}, {<<"message">>, <<"no such agent">>}]
+	end,
+	{reply, {200, [], mochijson2:encode({struct, Json})}, State};
 handle_call({supervisor, {set_profile, Agent, InNewProf, Permanent}}, _From, State) ->
 	Login = binary_to_list(Agent),
 	Newprof = binary_to_list(InNewProf),
@@ -503,11 +512,15 @@ handle_call({supervisor, {spy, Agent}}, _From, State) ->
 		endpointtype = State#state.endpointtype,
 		endpointdata = State#state.endpointdata
 	},
+	SpyPid = case agent_manager:query_agent(State#state.login) of
+		{true, Spid} -> Spid;
+		false -> self()
+	end,
 	Json  = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
 			case agent:dump_state(Apid) of
 				#agent{statedata = CallRec} when is_record(CallRec, call) ->
-					case gen_media:spy(CallRec#call.source, self(), FakeAgent) of
+					case gen_media:spy(CallRec#call.source, SpyPid, FakeAgent) of
 						ok ->
 							{struct, [{success, true}]};
 						invalid -> 

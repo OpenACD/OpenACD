@@ -249,6 +249,14 @@ voicemail(Conn, Queue, MediaId) ->
 kick_agent(Conn, Agent) ->
 	gen_server:call(Conn, {supervisor, {kick_agent, Agent}}).
 
+%% @doc {@web} Listen in or view media the specified agent is on call with.
+%% You cannot spy on yourself.  Agent lookup is by login name.  If you are
+%% logged in as an agent (rather than just supervisor mode), you must be
+%% released.
+-spec(spy/2 :: (Conn :: pid(), Agent :: string()) -> any()).
+spy(Conn, Agent) ->
+	gen_server:call(Conn, {supervisor, {spy, Agent}}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -354,6 +362,20 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+%handle_call({supervisor, {spy, Agent}}, _From, State) ->
+%	Json  = case agent_manager:query_agent(Agent) of
+%		{true, Apid} ->
+%			Mepid = State#state.agent_fsm,
+%			case agent:spy(Mepid, Apid) of
+%				ok ->
+%					mochijson2:encode({struct, [{success, true}]});
+%				invalid ->
+%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]})
+%			end;
+%		false ->
+%			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})
+%	end,
+%	{reply, {200, [], Json}, State};
 handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
 	Json = case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
@@ -1004,21 +1026,6 @@ encode_proplist_test() ->
 %		["endmonitor"] ->
 %			cpx_monitor:unsubscribe(),
 %			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-%		["spy", Agentname] ->
-%			Current = State#state.current_call,
-%			{Json, Newcurrent}  = case agent_manager:query_agent(Agentname) of
-%				{true, Apid} ->
-%					Mepid = State#state.agent_fsm,
-%					case agent:spy(Mepid, Apid) of
-%						ok ->
-%							{mochijson2:encode({struct, [{success, true}]}), expect};
-%						invalid ->
-%							{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}]}), Current}
-%					end;
-%				false ->
-%					{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}]}), Current}
-%			end,
-%			{reply, {200, [], Json}, State#state{current_call = Newcurrent}};
 %		["agentstate" | [Agent | Tail]] ->
 %			Json = case agent_manager:query_agent(Agent) of
 %				{true, Apid} ->

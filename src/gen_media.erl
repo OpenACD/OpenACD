@@ -333,7 +333,7 @@
 	call/3,
 	cast/2,
 	wrapup/1,
-	spy/2,
+	spy/3,
 	set_cook/2,
 	set_queue/2,
 	set_url_getvars/2,
@@ -486,10 +486,12 @@ warm_transfer_complete(Genmedia) ->
 queue(Genmedia, Queue) ->
 	gen_server:call(Genmedia, {'$gen_media_queue', Queue}).
 	
-%% @doc Attempt to spy on the agent oncall with the given media.
--spec(spy/2 :: (Genmedia :: pid(), Spy :: pid()) -> 'ok' | 'invalid' | {'error', any()}).
-spy(Genmedia, Spy) ->
-	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
+%% @doc Attempt to spy on the agent oncall with the given media.  `Spy' is
+%% the pid to send media events/load data to, and `AgentRec' is an 
+%% `#agent{}' used to hold the end point data.
+-spec(spy/3 :: (Genmedia :: pid(), Spy :: pid(), AgentRec :: #agent{}) -> 'ok' | 'invalid' | {'error', any()}).
+spy(Genmedia, Spy, AgentRec) ->
+	gen_server:call(Genmedia, {'$gen_media_spy', Spy, AgentRec}).
 
 -spec(set_cook/2 :: (Genmedia :: pid(), CookPid :: pid()) -> 'ok').
 set_cook(Genmedia, CookPid) ->
@@ -594,17 +596,17 @@ init([Callback, Args]) ->
 %%--------------------------------------------------------------------
 
 %% @private
-handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
+handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
-handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_spy', Spy, AgentRec}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
 			?DEBUG("Callback ~p doesn't support spy for ~p", [Callback, Call#call.id]),
 			{reply, invalid, State};
 		true ->
-			case Callback:handle_spy(Spy, Call, State#state.substate) of
+			case Callback:handle_spy({Spy, AgentRec}, Call, State#state.substate) of
 				{ok, Newstate} ->
 					{reply, ok, State#state{substate = Newstate}};
 				{invalid, Newstate} ->
@@ -614,7 +616,7 @@ handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, on
 					{reply, {error, Error}, State#state{substate = Newstate}}
 			end
 	end;
-handle_call({'$gen_media_spy', _Spy}, _From, State) ->
+handle_call({'$gen_media_spy', _Spy, _AgentRec}, _From, State) ->
 	{reply, invalid, State};
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
@@ -1771,7 +1773,7 @@ handle_call_test_() ->
 		{"spying when there's no agent oncall fails",
 		fun() ->
 			Seedstate = Makestate(),
-			?assertMatch({reply, invalid, Seedstate}, handle_call({'$gen_media_spy', "Pid"}, "from", Seedstate)),
+			?assertMatch({reply, invalid, Seedstate}, handle_call({'$gen_media_spy', "Pid", "AgentRec"}, "from", Seedstate)),
 			Assertmocks()
 		end}
 	end,
@@ -1782,7 +1784,7 @@ handle_call_test_() ->
 			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "default"}),
 			Seedstate = Makestate(),
 			State = Seedstate#state{oncall_pid = {"testagent", Spy}},
-			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {self(), "tag"}, State)),
+			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy, "AgentRec"}, {self(), "tag"}, State)),
 			Assertmocks()
 		end}
 	end,
@@ -1792,7 +1794,7 @@ handle_call_test_() ->
 			Seedstate = Makestate(),
 			Spy = dead_spawn(),
 			State = Seedstate#state{oncall_pid = {"testagent", Spy}},
-			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State))
+			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy, "AgentRec"}, {Spy, "tag"}, State))
 		end}
 	end,
 	fun({_Makestate, _QMock, _Qpid, Ammock, Assertmocks}) ->
@@ -1803,8 +1805,9 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			Ocpid = dead_spawn(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "defaut"}),
-			?assertMatch({reply, invalid, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, Seedstate#state{oncall_pid = {"testagent", Ocpid}})),
+			SpyRec = #agent{login = "testagent", state = released, statedata = "defaut"},
+			{ok, Spy} = agent:start(SpyRec),
+			?assertMatch({reply, invalid, _Newstate}, handle_call({'$gen_media_spy', Spy, SpyRec}, {Spy, "tag"}, Seedstate#state{oncall_pid = {"testagent", Ocpid}})),
 			Assertmocks()
 		end}
 	end,
@@ -1815,7 +1818,8 @@ handle_call_test_() ->
 			Ocpid = dead_spawn(),
 			State = Seedstate#state{oncall_pid = {"ocagent", Ocpid}},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Spy} = agent:start(#agent{login = "testagent", state= released, statedata = "default"}),
+			SpyRec = #agent{login = "testagent", state= released, statedata = "default"},
+			{ok, Spy} = agent:start(SpyRec),
 			?assertMatch({reply, ok, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State)),
 			Assertmocks()
 		end}

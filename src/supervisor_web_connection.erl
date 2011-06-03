@@ -108,6 +108,8 @@
 %	api/2,
 %	encode_statedata/1,
 %	format_status/2,
+	start/1,
+	start_link/1,
 	nuke_poll_queue/1,
 	is_web_api/2
 ]).

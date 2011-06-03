@@ -133,7 +133,7 @@
 	agent_ring/4,
 %	get_avail_agents/1,
 %	peek/3,
-%	drop_call/3,
+	drop_media/3,
 	voicemail/3
 ]).
 
@@ -155,7 +155,7 @@
 	{agent_ring, 4},
 %	{get_avail_agents, 1},
 %	{peek, 3},
-%	{drop_call, 3},
+	{drop_media, 3},
 	{voicemail, 3}
 ]).
 
@@ -260,7 +260,12 @@ spy(Conn, Agent) ->
 %% @doc {@web} Send a call in queue to a specified agent.
 -spec(agent_ring/4 :: (Conn :: pid(), Queue :: string(), MediaId :: string(), Agent :: string()) -> any()).
 agent_ring(Conn, Queue, MediaId, Agent) ->
-	gen_server:call(Conn, {supervsior, {agent_ring, Queue, MediaId, Agent}}).
+	gen_server:call(Conn, {supervisor, {agent_ring, Queue, MediaId, Agent}}).
+
+%% @doc {@web} Terminate the media while it is in queue.
+-spec(drop_media/3 :: (Conn :: pid(), Queue :: string(), MediaId :: string()) -> any()).
+drop_media(Conn, Queue, MediaId) ->
+	gen_server:call(Conn, {supervisor, {drop_media, Queue, MediaId}}).
 
 %%====================================================================
 %% API
@@ -367,6 +372,21 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {drop_media, Queue, MediaId}}, _From, State) ->
+	Json = case queue_manager:get_queue(Queue) of
+		undefined ->
+			{struct, [{success, false}, {<<"errcode">>, <<"QUEUE_NOEXISTS">>}, {<<"message">>, <<"queue not found">>}]};
+		Qpid when is_pid(Qpid) ->
+			case call_queue:get_call(Qpid, MediaId) of
+				none ->
+					{struct, [{success, false}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}, {<<"message">>, <<"call not found">>}]};
+				{_, #queued_call{media = _Mpid}} ->
+					%%gen_media:cast(Mpid, email_drop), % only email should respond to this
+					% TODO finish this when hangup can take a reason.
+					{struct, [{success, false}, {<<"errcode">>, <<"NYI">>}, {<<"message">>, <<"nyi">>}]}
+			end
+	end,
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 	Json = case {agent_manager:query_agent(Agent), queue_manager:get_queue(Queue)} of
 		{false, undefined} ->
@@ -1189,21 +1209,6 @@ encode_proplist_test() ->
 %					{{struct, [{success, false}, {<<"message">>, <<"Can only peek while released">>}]}, State}
 %			end,
 %			{reply, {200, [], mochijson2:encode(UnencodedJson)}, Newstate};
-%		["drop_call", Queue, Callid] ->
-%			Json = case queue_manager:get_queue(Queue) of
-%				undefined ->
-%					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]};
-%				Qpid when is_pid(Qpid) ->
-%					case call_queue:get_call(Qpid, Callid) of
-%						none ->
-%							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]};
-%						{_, #queued_call{media = _Mpid}} ->
-%							%%gen_media:cast(Mpid, email_drop), % only email should respond to this
-%							% TODO finish this when hangup can take a reason.
-%							{struct, [{success, false}, {<<"message">>, <<"nyi">>}]}
-%					end
-%			end,
-%			{reply, {200, [], mochijson2:encode(Json)}, State};
 %		[Node | Do] ->
 %			Nodes = get_nodes(Node),
 %			{Success, Result} = do_action(Nodes, Do, []),

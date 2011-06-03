@@ -376,9 +376,9 @@ if(typeof(queueDashboard) == "undefined"){
 
 		queue = escape(queue);
 		var id = mediaid;
-		window.agentConnection.webApi('supervisor', 'drop_call', {
-			failure: function(res){
-				errMessage(["drop call failed", res.message]);
+		window.agentConnection.webApi('supervisor', 'drop_media', {
+			failure: function(res, message){
+				errMessage(["drop call failed", message]);
 			},
 			error: function(res){
 				errMessage(["drop call errored", res]);

@@ -383,9 +383,9 @@ if(typeof(agentDashboard) == 'undefined'){
 			}
 		};
 		if(makePerm){
-			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.id, newProf, true);
+			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.name, newProf, true);
 		} else {
-			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.id, newProf);
+			window.agentConnection.webApi('supervisor', 'set_profile', callbacks, this.name, newProf);
 		}
 	}
 	

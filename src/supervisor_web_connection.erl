@@ -497,34 +497,31 @@ handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 			end
 	end,
 	{reply, {200, [], Json}, State};
-%handle_call({supervisor, {spy, Agent}}, _From, State) ->
-%	Json  = case agent_manager:query_agent(Agent) of
-%		{true, Apid} ->
-%			Mepid = State#state.agent_fsm,
-%			case agent:spy(Mepid, Apid) of
-%				ok ->
-%					mochijson2:encode({struct, [{success, true}]});
-%				invalid ->
-%					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]})
-%			end;
-%		false ->
-%			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})
-%	end,
-%	{reply, {200, [], Json}, State};
-handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
-	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
+handle_call({supervisor, {spy, Agent}}, _From, State) ->
+	FakeAgent = #agent{
+		login=State#state.login,
+		endpointtype = State#state.endpointtype,
+		endpointdata = State#state.endpointdata
+	},
+	Json  = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
-			case agent:query_state(Apid) of
-				{ok, oncall} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent currently oncall">>}, {<<"errcode">>, <<"INVALID_STATE">>}]});
-				{ok, _State} ->
-					agent:stop(Apid),
-					mochijson2:encode({struct, [{success, true}]})
+			case agent:dump_state(Apid) of
+				#agent{statedata = CallRec} when is_record(CallRec, call) ->
+					case gen_media:spy(CallRec#call.source, self(), FakeAgent) of
+						ok ->
+							{struct, [{success, true}]};
+						invalid -> 
+							{struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]};
+						{error, Err} ->
+							{struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Error:  ~p", [Err]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
+					end;
+				_ ->
+					{struct, [{success, false}, {<<"message">>, <<"agent not oncall">>}, {<<"errcode">>, <<"INVALID_STATE">>}]}
 			end;
-		_Else ->
-			mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})
+		false ->
+			{struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]}
 	end,
-	{reply, {200, [], Json}, State};
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({supervisor, {voicemail, Queue, MediaId}}, _From, State) ->
 	Json = case queue_manager:get_queue(binary_to_list(Queue)) of
 		Qpid when is_pid(Qpid) ->

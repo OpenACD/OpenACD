@@ -127,13 +127,12 @@
 	get_motd/1,
 	set_motd/3,
 	remove_problem_recording/2,
-	start_problem_recording/2
+	start_problem_recording/2,
 %	get_avail_agents/1,
 %	ring_agent/4,
 %	peek/3,
 %	drop_call/3,
-%	voicemail/2,
-%	get_queues/1
+	voicemail/3
 ]).
 
 -web_api_functions([
@@ -150,12 +149,12 @@
 	{get_motd, 1},
 	{set_motd, 3},
 	{remove_problem_recording, 2},
-	{start_problem_recording, 2}
+	{start_problem_recording, 2},
 %	{get_avail_agents, 1},
 %	{ring_agent, 4},
 %	{peek, 3},
 %	{drop_call, 3},
-%	{voicemail, 2},
+	{voicemail, 3}
 ]).
 
 %% gen_server callbacks
@@ -236,6 +235,11 @@ remove_problem_recording(Conn, Clientid) ->
 -spec(blab/4 :: (Conn :: pid(), Message :: string(), Grouping :: string(), Target :: string()) -> any()).
 blab(Conn, Message, Grouping, Target) ->
 	gen_server:call(Conn, {supervisor, {blab, Message, Grouping, Target}}).
+
+%% @doc {@web} Send a media to voicemail (if possible).
+-spec(voicemail/3 :: (Conn :: pid(), Queue :: string(), MediaId :: string()) -> any()).
+voicemail(Conn, Queue, MediaId) ->
+	gen_server:call(Conn, {supervisor, {voicemail, Queue, MediaId}}).
 
 %%====================================================================
 %% API
@@ -342,6 +346,24 @@ init(Opts) ->
 %% handle_call
 %%====================================================================
 
+handle_call({supervisor, {voicemail, Queue, MediaId}}, _From, State) ->
+	Json = case queue_manager:get_queue(Queue) of
+		Qpid when is_pid(Qpid) ->
+			case call_queue:get_call(Qpid, MediaId) of
+				{_Key, #queued_call{media = Mpid}} ->
+					case gen_media:voicemail(Mpid) of
+						invalid ->
+							{struct, [{success, false}, {<<"message">>, <<"media doesn't support voicemail">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]};
+						ok ->
+							{struct, [{success, true}]}
+					end;
+				_ ->
+					{struct, [{success, false}, {<<"message">>, <<"call not found">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]}
+			end;
+		_ ->
+			{struct, [{success, false}, {<<"message">>, <<"queue not found">>}, {<<"errcode">>, <<"QUEUE_NOEXISTS">>}]}
+	end,
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({supervisor, {blab, Message, Grouping, Target}}, _From, State) ->
 	Toagentmanager = case Grouping of
 		<<"agent">> ->
@@ -945,24 +967,6 @@ encode_proplist_test() ->
 %		["startmonitor"] ->
 %			cpx_monitor:subscribe(),
 %			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
-%		["voicemail", Queue, Callid] ->
-%			Json = case queue_manager:get_queue(Queue) of
-%				Qpid when is_pid(Qpid) ->
-%					case call_queue:get_call(Qpid, Callid) of
-%						{_Key, #queued_call{media = Mpid}} ->
-%							case gen_media:voicemail(Mpid) of
-%								invalid ->
-%									{struct, [{success, false}, {<<"message">>, <<"media doesn't support voicemail">>}]};
-%								ok ->
-%									{struct, [{success, true}]}
-%							end;
-%						_ ->
-%							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]}
-%					end;
-%				_ ->
-%					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]}
-%			end,
-%			{reply, {200, [], mochijson2:encode(Json)}, State};
 %		["set_profile", Agent, Profile] ->
 %			case agent_manager:query_agent(Agent) of
 %				{true, Apid} ->

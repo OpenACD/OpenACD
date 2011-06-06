@@ -117,7 +117,7 @@ function postMessageHandler(msgEvent){
 			break;
 
 		case 'logout':
-			window.agentConnection.logout();
+			window.agentConnection.logout({});
 			break;
 
 		case 'setState':
@@ -170,6 +170,31 @@ function init() {
 		agentConnection.useoutbandring = settings.useoutbandring;
 	}
 	window.otherOrigin = false;
+
+	window.agentStateSub = dojo.subscribe("OpenACD/Agent/state", function(data){
+		postEvent("OpenACD/Agent/state", data);
+	});
+	window.agentProfileSub = dojo.subscribe("OpenACD/Agent/profile", function(data){
+		postEvent("OpenACD/Agent/profile", data);
+	});
+	window.agentUrlpopSub = dojo.subscribe("OpenACD/Agent/urlpop", function(data){
+		postEvent("OpenACD/Agent/urlpop", data);
+	});
+	window.agentBlabSub = dojo.subscribe("OpenACD/Agent/blab", function(data){
+		postEvent("OpenACD/Agent/blab", data);
+	});
+	window.agentMediaLoadSub = dojo.subscribe("OpenACD/Agent/mediaload", function(data){
+		postEvent("OpenACD/Agent/mediaload", data);
+	});
+	//window.agentMediaEventSub = dojo.subscribe("OpenACD/Agent/mediaevent/" + datalist[i].media, [datalist[i]]);
+	//	dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
+	window.agentLogoutSub = dojo.subscribe("OpenACD/Agent/logout", function(data){
+		postEvent("OpenACD/Agent/logout", data);
+	});
+	window.agentLoginSub = dojo.subscribe("OpenACD/Agent/login", function(data){
+		postEvent("OpenACD/Agent/login", data);
+	});
+
 	window.addEventListener("message", postMessageHandler, false);
 } /* end of init() */
 

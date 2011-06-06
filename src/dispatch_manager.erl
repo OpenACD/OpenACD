@@ -276,6 +276,42 @@ test_primer() ->
 	mnesia:create_schema([node()]),
 	mnesia:start().
 
+count_downs(FilterPid, N) ->
+	receive
+		{'DOWN', _MonRef, process, FilterPid, _Info} ->
+			count_downs(FilterPid, N+1)
+	after 0 ->
+		N
+	end.
+
+zombie() ->
+	receive headshot -> exit end.
+
+monitor_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatch_manger_monitor_tests),
+	{spawn, N, {inorder, {foreach, 
+	fun() ->
+		test_primer(),
+		agent_manager:start([node()]),
+		queue_manager:start([node()]),
+		ok
+	end,
+	fun(ok) ->
+		ok
+	end,
+	[{"An agent gets monitored only once", fun() ->
+		{ok, State} = init([]),
+		FakeAgent = spawn(?MODULE, zombie, []),
+		{noreply, S1} = handle_cast({now_avail, FakeAgent}, State),
+		{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
+		{noreply, S3} = handle_cast({now_avail, FakeAgent}, S2),
+		{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
+		FakeAgent ! headshot,
+		Count = count_downs(FakeAgent, 0),
+		?assertEqual(0, Count)
+	end}]}}}.
+
 balance_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(dispatch_manager_balance_tests),

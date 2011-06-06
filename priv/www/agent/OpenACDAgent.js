@@ -502,6 +502,13 @@ OpenACD.Agent.prototype._handleLoginSuccess = function(results){
 }
 
 /**
+@private
+*/
+OpenACD.Agent.prototype._handleWindowPostMessage = function(msgEvent){
+	console.log(msgEvent);
+}
+
+/**
 Attempt to login the agent using the already establish username and 
 password.
 @param {Function} successCB What to do when the login is successful.  Note a

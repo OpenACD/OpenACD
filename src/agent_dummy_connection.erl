@@ -73,7 +73,7 @@
 
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
--type(endpoint_type() :: {'endpoint_type', endpoints()}).
+-type(endpoint_type() :: {'endpoint_type', endpointtype()}).
 -type(endpoint_data() :: {'endpoint_data', string()}).
 -type(id_option() :: {'id', string()}).
 -type(profile() :: {'profile', string()}).

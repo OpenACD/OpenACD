@@ -520,6 +520,7 @@ dojo.addOnLoad(function(){
 			voipendpoint:false,
 			voipendpointdata:false,
 			useoutbandring:true,
+			usepersistantchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -564,6 +565,7 @@ dojo.addOnLoad(function(){
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
+		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);

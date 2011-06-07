@@ -125,6 +125,7 @@ start(Opts) ->
 	F = fun(Req) ->
 		?MODULE:loop(Req, NewOpts)
 	end,
+	?INFO("Starting on port ~p", [Port]),
 	mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]).
 
 -spec(start_link/0 :: () -> {'ok', pid()}).

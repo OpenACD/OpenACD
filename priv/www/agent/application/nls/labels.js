@@ -59,5 +59,7 @@
 	SUMMARY: "Summary",
 	ERRMESSAGE: "Error Message",
 	HOWTOCAUSE: "How To Cause",
-	DETAILS: "Other Details"
+	DETAILS: "Other Details",
+	USE_PERSISTANT_RING_CHANNEL: "Persist Ring Channel",
+	PERSISTANT_RING_CHANNEL_TIP: "This option will allow you to do complete call control in the agent ui.  You phone will ring soon after you log in.  After you pick up, the same channel will be used for each call and ring."
 }

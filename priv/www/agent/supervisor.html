@@ -166,7 +166,7 @@
 				document.getElementsByTagName("body")[0].className = settings.theme;
 		}
 
-		openacdWindow = dojo.query('iframe#OpenACDWidget')[0].contentWindow;
+		//openacdWindow = dojo.query('iframe#OpenACDWidget')[0].contentWindow;
 		window.addEventListener("message", postEventHandler, false);
 	} /* end of init() */
 
@@ -193,10 +193,11 @@
 		});
 	});
 </script>
-<script type="text/javascript" src="/OpenACDAgent.js"></script>
+<!--<script type="text/javascript" src="/OpenACDAgent.js"></script>-->
 </head>
 <body class="nihilo">
 	hi!
-	<iframe name="OpenACDWidget" id="OpenACDWidget" src="/widget.html" />
+	<!--<iframe name="OpenACDWidget" id="OpenACDWidget" src="/widget.html" />-->
+	<script type="text/javascript" src="/widget.js"></script>
 </body>
 </html>

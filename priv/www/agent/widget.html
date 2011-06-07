@@ -112,6 +112,20 @@ function postMessageHandler(msgEvent){
 			postReply(request.id, {success: true, result:out});
 			break;
 
+		case 'subscribe':
+			var channel = request.args[0];
+			var sub = dojo.subscribe(channel, function(data){
+				postEvent(channel, data);
+			});
+			postReply(request.id, {success: true, result:sub});
+			break;
+
+		case 'unsubscribe':
+			var sub = request.args[0];
+			dojo.unsubscribe(sub);
+			postReply(request.id, {success:true});
+			break;
+				
 		case 'login':
 			window.agentConnection.login({});
 			break;

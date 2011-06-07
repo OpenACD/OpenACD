@@ -43,21 +43,21 @@
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	connection :: pid(),
 	profile = "Default" :: string() | 'error',
-	password :: 'undefined' | string(),
-	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
-	oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
-	statedata = {"default", default, -1} ::	{} |		% when state is idle
-						#call{} |	% when state is ringing, oncall, outgoing, or wrapup
-						any() |	% state = precall
-						{release_id(), release_label(), release_bias()} |	% released
-						{onhold, #call{}, calling, string()},	% warmtransfer
+	source :: pid(),
+	%state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
+	%oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
+	%statedata = {"default", default, -1} ::	{} |		% when state is idle
+						%#call{} |	% when state is ringing, oncall, outgoing, or wrapup
+						%any() |	% state = precall
+						%{release_id(), release_label(), release_bias()} |	% released
+						%{onhold, #call{}, calling, string()},	% warmtransfer
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
-	lastchange = util:now() :: pos_integer(),	% at what time did the last state change occur
-	defaultringpath = inband :: 'inband' | 'outband',
-	endpointtype = {undefined, transient, sip_registration} :: endpointtype(),
+	%lastchange = util:now() :: pos_integer(),	% at what time did the last state change occur
+	%defaultringpath = inband :: 'inband' | 'outband',
+	%endpointtype = {undefined, transient, sip_registration} :: endpointtype(),
 	% data used either to dial the agent on demand or start a perisistant
 	% connection
-	endpointdata = undefined :: 'undefined' | string(),
+	%endpointdata = undefined :: 'undefined' | string(),
 	start_opts = [] :: [any()],
 	log_pid :: 'undefined' | pid()
 }).

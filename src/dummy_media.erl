@@ -554,8 +554,8 @@ handle_warm_transfer_complete(_Callrec, #state{fail = Fail} = State) ->
 			{error, DidFail, State#state{fail = Newfail}}
 	end.
 
--spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).
-handle_spy(Spy, _Callrec, #state{fail = Fail} = State) ->
+-spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).
+handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 	case check_fail(spy, Fail) of
 		{success, Dict} ->
 			agent:blab(Spy, "dummy_media fakes spy real gud like"),

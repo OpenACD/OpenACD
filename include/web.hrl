@@ -36,3 +36,6 @@
 -define(json(Struct), mochijson2:encode(Struct)).
 -define(reply_err(Message, Code), {200, [], ?json({struct, [{success, false}, {message, Message}, {errcode, Code}]})}).
 -define(reply_success(Struct), {200, [], ?json({struct, [{success, true}, {result, Struct}]})}).
+
+-define(TICK_LENGTH, 11000).
+-define(POLL_FLUSH_INTERVAL, 500).

@@ -552,8 +552,8 @@ handle_ring_stop(_Callrec, State) ->
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
 
--spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> 'ok').
-handle_spy(Spy, Callrec, State) ->
+-spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> 'ok').
+handle_spy({Spy, _AgentRec}, Callrec, State) ->
 	agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
 	

@@ -23,7 +23,7 @@
 		<tr>
 			<th class="translatecol">SHOW_HEADERS</th>
 			<td>
-			<button label='&rarr;' dojoType='dijit.form.Button' style="float:left">
+			<button label='&rarr;' dojoType='dijit.form.Button' style="float:left;">
 				<script type="dojo/connect" event="onClick">
 					var target = dojo.byId('emailRawHeadersSpan')
 					if(target.style.display == 'none'){
@@ -149,7 +149,7 @@
 					standby.startup();
 					standby.show();
 					var sub = dojo.subscribe("OpenACD/Agent/mediaevent/email", function(data){
-						if(data.event == 'send_complete'){
+						if(data.event === 'send_complete'){
 							standby.hide();
 							if(! data.success){
 								errMessage('send mail failed' + data.message);
@@ -167,26 +167,13 @@
 					var regex = /\,\s*|\,|\,?\s*\n/;
 					ccs = ccs.split(regex);
 					bccs = bccs.split(regex);
-					dojo.xhrPost({
-						url:'/media',
-						content:{
-							'command':'send',
-							'arguments':dojo.toJson({
-								'to':dijit.byId('emailTo').attr('value'),
-								'from':dijit.byId('emailFrom').attr('value'),
-								'subject':dijit.byId('emailSubject').attr('value'),
-								'cc':ccs,
-								'bcc':bccs,
-								'body': dijit.byId('emailReplyEditor').attr('value')
-							}),
-							'mode':'cast'
-						},
-						load: function(res){
-							return true;
-						},
-						error: function(res){
-							errMessage(['mail errored', res]);
-						}
+					window.agentConnection.webApi('api', 'media_command', {}, 'send', 'cast', {
+						'to':dijit.byId('emailTo').attr('value'),
+						'from':dijit.byId('emailFrom').attr('value'),
+						'subject':dijit.byId('emailSubject').attr('value'),
+						'cc':ccs,
+						'bcc':bccs,
+						'body': dijit.byId('emailReplyEditor').attr('value')
 					});
 				</script>
 			</button>

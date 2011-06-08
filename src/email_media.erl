@@ -309,15 +309,15 @@ handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
 	
 %% now the web calls.
-handle_call({"get_skeleton", _Post}, _From, _Callrec, State) ->
+handle_call({<<"get_skeleton">>, _Post}, _From, _Callrec, State) ->
 	{reply, State#state.skeleton, State};
-handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
-	Path = proplists:get_value("arguments", Post),
+handle_call({<<"get_path">>, Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
+	Path = lists:flatten(proplists:get_value("args", Post)),
 	Splitpath = util:string_split(Path, "/"),
 	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
-handle_call({"attach", Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
+handle_call({<<"attach">>, Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
 	case proplists:get_value("attachFiles", Postdata) of
 		{_Name, Bin} = T ->
 			case byte_size(Bin) + State#state.attachment_size of
@@ -334,7 +334,7 @@ handle_call({"attach", Postdata}, _From, Callrec, #state{outgoing_attachments = 
 			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
 			{reply, {error, nofile}, State}
 	end;
-handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
+handle_call({<<"detach">>, Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
 	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
 		false ->
 			{reply, {error, badarg}, State};
@@ -355,7 +355,7 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					end
 			end
 	end;
-handle_call({"get_from", _Post}, _From, #call{client = Client}, State) ->
+handle_call({<<"get_from">>, _Post}, _From, #call{client = Client}, State) ->
 	#client{options = Options} = Client,
 	case proplists:get_value(emailfrom, Options) of
 		undefined ->
@@ -368,7 +368,7 @@ handle_call({"get_from", _Post}, _From, #call{client = Client}, State) ->
 			FixedLabel = case {Label, Client#client.label} of
 				{Label, undefined} when is_atom(Label) ->
 					undefined;
-				{Label, _} when is_atom(Label) ->
+				{Label, _} when is_list(Label) ->
 					list_to_binary(Client#client.label);
 				{Label, _} ->
 					Label
@@ -387,8 +387,8 @@ handle_call(Msg, _From, Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
-	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
+handle_cast({<<"send">>, Post}, Callrec, #state{sending_pid = undefined} = State) ->
+	{struct, Args} = proplists:get_value("args", Post),
 	?DEBUG("Starting Send (~p)", [Callrec#call.id]),
 	[{_, BaseTo}, {_, From}, _] = BaseHeaders = [
 		{<<"To">>, proplists:get_value(<<"to">>, Args)},

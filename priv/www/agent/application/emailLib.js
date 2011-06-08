@@ -23,6 +23,13 @@ if(typeof(emailLib) === 'undefined'){
 		window.agentConnection.webApi('api', 'media_command', {
 			success:function(res){
 				dojo.publish("emailLib/get_path/" + path, [res]);
+			},
+			error:function(err, ioxhr){
+				//console.error('getPath error', arguments);
+				dojo.publish("emailLib/get_path/" + path, [ioxhr.xhr.responseText]);
+			},
+			failure:function(code, msg){
+				console.warn('getPath failure', code, msg);
 			}
 		}, 'get_path', 'call', [path]);
 	};
@@ -156,7 +163,7 @@ if(typeof(emailLib) === 'undefined'){
 		
 		var jpath = fetchObjs[0].path.join("/");
 		
-		debug(["subbed to", "emailLib/get_path/" + fetchObjs[0].path.join("/")]);
+		console.log("subbed to", "emailLib/get_path/" + fetchObjs[0].path.join("/"));
 		if(fetchObjs[0].mode === 'a'){
 			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
 		}
@@ -165,7 +172,7 @@ if(typeof(emailLib) === 'undefined'){
 		}
 		else if(fetchObjs[0].mode === 'fetch'){
 			emailLib.fetchSub = dojo.subscribe("emailLib/get_path/" + jpath, function(res){
-				debug(["sub hit", "emailLib/get_path/" + jpath, res]);
+				console.log("sub hit", "emailLib/get_path/" + jpath, res);
 				dojo.unsubscribe(emailLib.fetchSub);
 				emailLib.fetchSub = false;
 				if(fetchObjs[0].textType){
@@ -239,20 +246,16 @@ if(typeof(emailLib) === 'undefined'){
 	};
 
 	emailLib.getFrom = function(callback){
-		dojo.xhrPost({
-			url:"/media",
-			handleAs:"json",
-			content:{
-				"command":"get_from",
-				"arguments":[],
-				"mode":"call"
-			},
-			load:function(res){
+		window.agentConnection.webApi('api', 'media_command', {
+			success:function(res){
 				callback(res);
 			},
-			error:function(res){
-				warning(["err getting from address", res]);
+			failure:function(code, msg){
+				console.warn("getFrom failed", code, msg);
+			},
+			error:function(err){
+				console.error("err getFrom", err);
 			}
-		});
+		}, 'get_from', 'call');
 	};
 }

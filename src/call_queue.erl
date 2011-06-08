@@ -332,20 +332,20 @@ find_by_pid_(_Needle, none) ->
 
 %% @private
 -spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{}, Skills :: [atom()]) -> [atom()]).
+expand_magic_skills(State, QCall, Skills) when is_record(QCall, queued_call) ->
+	Call = gen_media:get_call(QCall#queued_call.media),
+	expand_magic_skills(State, Call, Skills);
 expand_magic_skills(State, Call, Skills) ->
-	lists:filter(fun(X) -> X =/= [] end, lists:map(
-		fun('_node') when is_pid(Call#queued_call.media) -> {'_node', node(Call#queued_call.media)};
-			('_queue') -> {'_queue', State#state.name};
-			('_brand') when is_pid(Call#queued_call.media) ->
-				AState = gen_media:get_call(Call#queued_call.media),
-				case AState#call.client of
-					Name when is_record(Name, client) ->
-						{'_brand', Name#client.label};
-					_ ->
-						{'_brand', "Unknown"}
-				end;
-			(Skill) -> Skill
-		end, Skills)).
+	Unfiltered = [case Skill of
+		'_node' -> {Skill, node(Call#call.source)};
+		'_queue' -> {Skill, State#state.name};
+		'_brand' -> case Call#call.client of
+			Name when is_record(Name, client) -> {Skill, Name#client.label};
+			_ -> {Skill, "Unknown"}
+		end;
+		_ -> Skill 
+	end	|| Skill <- Skills],
+	[X || X <- Unfiltered, X =/= []].
 
 %% @doc Move the queue at `Pid' to `node() Node'.
 -spec(migrate/2 :: (Qpid :: pid(), Node :: atom()) -> ok).
@@ -626,7 +626,7 @@ code_change(_OldVsn, State, _Extra) ->
 queue_call(Cookpid, Callrec, Key, State) ->
 	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
-	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
+	Expandedskills = expand_magic_skills(State, Callrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},
 	try gb_trees:insert(Key, Value, State#state.queue) of
 		Trees ->

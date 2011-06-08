@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Agent UI</title>
+<script type="text/javascript">
+	var cookies = document.cookie.split('; ');
+	var locale = "";
+	for(var i = 0; i < cookies.length; i++) {
+		var stuff = cookies[i].split("=");
+		if (stuff[0] == "cpx_lang") {
+			locale = stuff[1];
+		}
+	}
+	var djConfig = {
+		modulePaths: {agentUI: "/application"},
+		parseOnLoad: true,
+		isDebug: false,
+		locale: locale
+	};
+</script>
+
+<!-- Javascript RSA encryption support -->
+<script language="JavaScript" type="text/javascript" src="jsbn/jsbn.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/prng4.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rng.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rsa.js"></script>
+<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript" src="/OpenACDAgent.js"></script>
+<script type="text/javascript">
+dojo.require("dojox.encoding.digests.MD5");
+dojo.require("dojo.cookie");
+dojo.require("dojo.data.ItemFileReadStore");
+
+function postMessageHandler(msgEvent){
+
+	if(window.otherOrigin){
+		if(window.otherOrigin !== msgEvent.origin){
+			console.error('Disregarding event; origin mismatch', msgEvent);
+			return;
+		}
+	} else {
+		window.otherOrigin = msgEvent.origin;
+		window.otherWindow = msgEvent.source;
+	}
+
+	var request = {};
+	try{
+		request = dojo.fromJson(msgEvent.data);
+	} catch(err){
+		console.error('bad json', err, msgEvent.data);
+		return;
+	}
+
+	if(! request['function']){
+		console.error('No function given, so nothing to do', request);
+		return;
+	}
+
+	var functionCbIndex = {
+		setSkew: -1,
+		set: -1,
+		get: -1,
+		agentApi: 1,
+		supervisorApi: 1,
+		webApi: 2,
+		setState: -1,
+		initOutbound: 2,
+		login: -1,
+		logout: -1,
+		dial: 1,
+		mediaPush: 1,
+		agentTransfer: 1,
+		warmtransfer: 1,
+		warmtransfercancel: 0, 
+		warmtransfercomplete: 0,
+		queuetransfer: 3,
+		getAvailAgents: 0,
+		checkCookie: 0
+	};
+
+	if(! request.args){
+		request.args = [];
+	}
+	if(! dojo.isArray(request.args)){
+		request.args = [request.args];
+	}
+
+	if(functionCbIndex[request['function']] > -1){
+		if(request.args.length < functionCbIndex[request['function']] - 2){
+			console.error('too few arguments', request);
+			return;
+		}
+	}
+	
+	// Okay, now that we've passed all the gates, let's try to do it
+	switch(request['function']){
+		case 'setSkew':
+			window.agentConnection.setSkew.apply(window.agentConnection, request.args);
+			postReply(request.id, {success:true});
+			break;
+
+		case 'set':
+			for(var i in request.args[0]){
+				window.agentConnection[i] = request.args[0][i];
+			}
+			postReply(request.id, {success: true});
+			break;
+
+		case 'get':
+			var out = window.agentConnection[request.args[0]];
+			postReply(request.id, {success: true, result:out});
+			break;
+
+		case 'subscribe':
+			var channel = request.args[0];
+			var sub = dojo.subscribe(channel, function(data){
+				postEvent(channel, data);
+			});
+			postReply(request.id, {success: true, result:sub});
+			break;
+
+		case 'unsubscribe':
+			var sub = request.args[0];
+			dojo.unsubscribe(sub);
+			postReply(request.id, {success:true});
+			break;
+				
+		case 'login':
+			window.agentConnection.login({});
+			break;
+
+		case 'logout':
+			window.agentConnection.logout({});
+			break;
+
+		case 'setState':
+			window.agentConnection.setState.apply(window.agentConnection, request.args);
+			break;
+
+		default:
+			var cbs = makeCallbacks(request.id);
+			var index = functionCbIndex[request['function']];
+			request.args.splice(index, 0, cbs);
+			window.agentConnection[request['function']].apply(window.agentConnection, request.args);
+	}
+}
+
+function postReply(id, result){
+	if(! id){
+		return;
+	}
+	result.id = id;
+	otherWindow.postMessage(dojo.toJson(result), window.otherOrigin);
+}
+
+function postEvent(channel, eventObj){
+	eventObj.channel = channel;
+	otherWindow.postMessage(dojo.toJson(eventObj), otherOrigin);
+}
+
+function makeCallbacks(reqId){
+	var out = {
+		success:function(res){
+			postReply(reqId, {success:true, result:res});
+		},
+		failure:function(errCode, msg){
+			postReply(reqId, {success:false,errcode:errCode,message:msg});
+		},
+		error:function(err){
+			postReply(reqId, {success:false,errcode:0,message:err.message,error:err});
+		}
+	};
+	return out;
+}
+	
+function init() {
+	window.agentConnection = new OpenACD.Agent({});
+	if(dojo.cookie('agentui-settings')) {
+		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+		agentConnection.username = settings.username;
+		agentConnection.voipendpoint = settings.voipendpoint;
+		agentConnection.voipendpointdata = settings.voipendpointdata;
+		agentConnection.useoutbandring = settings.useoutbandring;
+	}
+	window.otherOrigin = false;
+
+	window.agentStateSub = dojo.subscribe("OpenACD/Agent/state", function(data){
+		postEvent("OpenACD/Agent/state", data);
+	});
+	window.agentProfileSub = dojo.subscribe("OpenACD/Agent/profile", function(data){
+		postEvent("OpenACD/Agent/profile", data);
+	});
+	window.agentUrlpopSub = dojo.subscribe("OpenACD/Agent/urlpop", function(data){
+		postEvent("OpenACD/Agent/urlpop", data);
+	});
+	window.agentBlabSub = dojo.subscribe("OpenACD/Agent/blab", function(data){
+		postEvent("OpenACD/Agent/blab", data);
+	});
+	window.agentMediaLoadSub = dojo.subscribe("OpenACD/Agent/mediaload", function(data){
+		postEvent("OpenACD/Agent/mediaload", data);
+	});
+	//window.agentMediaEventSub = dojo.subscribe("OpenACD/Agent/mediaevent/" + datalist[i].media, [datalist[i]]);
+	//	dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
+	window.agentLogoutSub = dojo.subscribe("OpenACD/Agent/logout", function(data){
+		postEvent("OpenACD/Agent/logout", data);
+	});
+	window.agentLoginSub = dojo.subscribe("OpenACD/Agent/login", function(data){
+		postEvent("OpenACD/Agent/login", data);
+	});
+
+	window.addEventListener("message", postMessageHandler, false);
+} /* end of init() */
+
+dojo.addOnLoad(init);
+</script>
+</head>
+<body>
+</body>
+</html>

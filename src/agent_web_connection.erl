@@ -99,10 +99,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--define(TICK_LENGTH, 11000).
-
--define(POLL_FLUSH_INTERVAL, 500).
-
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -138,6 +134,7 @@
 	get_avail_agents/1,
 	agent_transfer/2,
 	agent_transfer/3,
+	media_command/3,
 	media_command/4,
 	media_hangup/1,
 	load_media/1,
@@ -159,6 +156,7 @@
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
 	{agent_transfer, 3},
+	{media_command, 3},
 	{media_command, 4},
 	{media_hangup, 1},
 	{load_media, 1},
@@ -192,7 +190,8 @@
 	poll_pid_established = 1 :: pos_integer(),
 	ack_timer :: tref() | 'undefined',
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-	listener :: 'undefined' | pid()
+	listener :: 'undefined' | pid(),
+	supervisor_state :: any()
 }).
 
 -type(state() :: #state{}).
@@ -284,6 +283,11 @@ media_command(Conn, Command, Mode, Args) ->
 		{"args", Args}
 	],
 	gen_server:call(Conn, {media, Post}).
+
+%% @doc {@web} media_command with an empty argument list.
+-spec(media_command/3 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string()) -> any()).
+media_command(Conn, Command, Mode) ->
+	media_command(Conn, Command, Mode, []).
 
 %% @doc {@web} Start a warmtransfer of the media associated with the 
 %% oncall agent to `Number'.  No result is sent back as it's simply 
@@ -766,409 +770,10 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent must be released or idle">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}
 	end,
 	{reply, Reply, State};
-handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
-	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
-	case Request of
-		["set_profile"] ->
-			Login = proplists:get_value("name", Post),
-			%Id = proplists:get_value("id", Post),
-			Newprof = proplists:get_value("profile", Post),
-			Midgood = case agent_manager:query_agent(Login) of
-				{true, Apid} ->
-					agent:change_profile(Apid, Newprof);
-				false ->
-					{error, noagent}
-			end,
-			case {Midgood, proplists:get_value("makePerm", Post)} of
-				{{error, Err}, _} ->
-					Msg = case Err of
-						noagent ->
-							<<"unknown agent">>;
-						unknown_profile ->
-							<<"unknown profile">>%;
-%						_ ->
-%							list_to_binary(io_lib:format("~p", [Err]))
-					end,
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State};
-				{ok, "makePerm"} ->
-					case agent_auth:get_agent(login, Login) of
-						{atomic, [Arec]} ->
-							case agent_auth:set_agent(Arec#agent_auth.id, Login, Arec#agent_auth.skills, Arec#agent_auth.securitylevel, Newprof) of
-								{atomic, ok} ->
-									{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-								{aborted, Err} ->
-									Msg = list_to_binary(io_lib:format("Profile changed, but not permanent:  ~p", [Err])),
-									{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State}
-							end;
-						{atomic, [_A, _B | _]} ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Multiple agent records found, not making a change">>}]})}, State};
-						{atomic, []} ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permanent, so not permanent change made">>}]})}, State}
-					end;
-				{ok, _} ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-			end;
-		["blab"] ->
-			Toagentmanager = case proplists:get_value("type", Post) of
-				"agent" ->
-					{agent, proplists:get_value("value", Post, "")};
-				"node" ->
-					case proplists:get_value("value", Post) of
-						"System" ->
-							all;
-						_AtomIsIt -> 
-							try list_to_existing_atom(proplists:get_value("value", Post)) of
-								Atom ->
-									case lists:member(Atom, [node() | nodes()]) of
-										true ->
-											{node, Atom};
-										false ->
-											{false, false}
-									end
-							catch
-								error:badarg ->
-									{false, false}
-							end
-					end;
-				"profile" ->
-					{profile, proplists:get_value("value", Post, "")};
-				"all" ->
-					all
-			end,
-			Json = case Toagentmanager of
-				{false, false} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"bad type or value">>}]});
-				Else ->
-					agent_manager:blab(proplists:get_value("message", Post, ""), Else),
-					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
-			end,
-			{reply, {200, [], Json}, State};
-		["motd"] ->
-			{ok, Appnodes} = application:get_env('OpenACD', nodes),
-			Nodes = case proplists:get_value("node", Post) of
-				"system" ->
-					Appnodes;
-				Postnode ->
-					case lists:any(fun(N) -> atom_to_list(N) == Postnode end, Appnodes) of
-						true ->
-							[list_to_existing_atom(Postnode)];
-						false ->
-							[]
-					end
-			end,
-			case Nodes of
-				[] ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}]})}, State};
-				_ ->
-					Fun = case proplists:get_value("message", Post) of
-						"" ->
-							fun(Node) ->
-								try rpc:call(Node, cpx_supervisor, drop_value, [motd]) of
-									{atomic, ok} ->
-										ok
-								catch
-									_:_ ->
-										?WARNING("Could not set motd on ~p", [Node])
-								end
-							end;
-						Message ->
-							fun(Node) ->
-								try rpc:call(Node, cpx_supervisor, set_value, [motd, Message]) of
-									{atomic, ok} ->
-										ok
-								catch
-									_:_ ->
-										?WARNING("Count not set motd on ~p", [Node])
-								end
-							end
-					end,
-					lists:foreach(Fun, Nodes),
-					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-			end
-	end;
-handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
-	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
-	case Request of
-		["startmonitor"] ->
-			cpx_monitor:subscribe(),
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
-		["start_problem_recording", _Agentname, Clientid] ->
-			AgentRec = agent:dump_state(State#state.agent_fsm), % TODO - avoid
-			case whereis(freeswitch_media_manager) of
-				P when is_pid(P) ->
-					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
-						ok ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-						{error, Reason} ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing recording channel failed (~p)", [Reason]))}]})}, State}
-					end;
-				_ ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}, State}
-			end;
-		["remove_problem_recording", Clientid] ->
-			case file:delete("/tmp/"++Clientid++"/problem.wav") of
-				ok ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-				{error, Reason} ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Reason}]})}, State}
-			end;
-		["voicemail", Queue, Callid] ->
-			Json = case queue_manager:get_queue(Queue) of
-				Qpid when is_pid(Qpid) ->
-					case call_queue:get_call(Qpid, Callid) of
-						{_Key, #queued_call{media = Mpid}} ->
-							case gen_media:voicemail(Mpid) of
-								invalid ->
-									{struct, [{success, false}, {<<"message">>, <<"media doesn't support voicemail">>}]};
-								ok ->
-									{struct, [{success, true}]}
-							end;
-						_ ->
-							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]}
-					end;
-				_ ->
-					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]}
-			end,
-			{reply, {200, [], mochijson2:encode(Json)}, State};
-		["set_profile", Agent, Profile] ->
-			case agent_manager:query_agent(Agent) of
-				{true, Apid} ->
-					case agent:change_profile(Apid, Profile) of
-						ok ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-						{error, unknown_profile} ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown_profile">>}]})}, State}
-					end;
-				false ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown agent">>}]})}, State}
-			end;
-		["get_profiles"] ->
-			Profiles = agent_auth:get_profiles(),
-			F = fun(#agent_profile{name = Nom}) ->
-				list_to_binary(Nom)
-			end,
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, lists:map(F, Profiles)}]})}, State};
-		["endmonitor"] ->
-			cpx_monitor:unsubscribe(),
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-		["spy", Agentname] ->
-			Current = State#state.current_call,
-			{Json, Newcurrent}  = case agent_manager:query_agent(Agentname) of
-				{true, Apid} ->
-					Mepid = State#state.agent_fsm,
-					case agent:spy(Mepid, Apid) of
-						ok ->
-							{mochijson2:encode({struct, [{success, true}]}), expect};
-						invalid ->
-							{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}]}), Current}
-					end;
-				false ->
-					{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}]}), Current}
-			end,
-			{reply, {200, [], Json}, State#state{current_call = Newcurrent}};
-		["agentstate" | [Agent | Tail]] ->
-			Json = case agent_manager:query_agent(Agent) of
-				{true, Apid} ->
-					%?DEBUG("Tail:  ~p", [Tail]),
-					Statechange = case Tail of
-						["released", "default"] ->
-							agent:set_state(Apid, released, default);
-						[Statename, Statedata] ->
-							Astate = agent:list_to_state(Statename),
-							agent:set_state(Apid, Astate, Statedata);
-						[Statename] ->
-							Astate = agent:list_to_state(Statename),
-							agent:set_state(Apid, Astate)
-					end,
-					case Statechange of
-						invalid ->
-							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid state change">>}]});
-						ok ->
-							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent state set">>}]});
-						queued ->
-							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent release queued">>}]})
-					end;
-				_Else ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})
-			end,
-			{reply, {200, [], Json}, State};
-		["kick_agent", Agent] ->
-			Json = case agent_manager:query_agent(Agent) of
-				{true, Apid} ->
-					case agent:query_state(Apid) of
-						{ok, oncall} ->
-							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent currently oncall">>}]});
-						{ok, _State} ->
-							agent:stop(Apid),
-							mochijson2:encode({struct, [{success, true}]})
-					end;
-				_Else ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})
-			end,
-			{reply, {200, [], Json}, State};
-		["requeue", Fromagent, Toqueue] ->
-			Json = case agent_manager:query_agent(Fromagent) of
-				{true, Apid} ->
-					case agent:get_media(Apid) of
-						invalid ->
-							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent isn't in call">>}]});
-						{ok, #call{source = Mpid} = _Mediarec} ->
-							case gen_media:queue(Mpid, Toqueue) of
-								invalid ->
-									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Media said it couldn't be queued">>}]});
-								ok ->
-									mochijson2:encode({struct, [{success, true}]})
-							end
-					end;
-				_Whatever ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent doesn't exists">>}]})
-			end,
-			{reply, {200, [], Json}, State};
-		["agent_transfer", Fromagent, Toagent] ->
-			Json = case {agent_manager:query_agent(Fromagent), agent_manager:query_agent(Toagent)} of
-				{false, false} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agents don't exist">>}]});
-				{{true, From}, {true, To}} ->
-					agent:agent_transfer(From, To),
-					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"Transfer beginning">>}]});
-				{false, _} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"From agent doesn't exist.">>}]});
-				{_, false} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"To agent doesn't exist.">>}]})
-			end,
-			{reply, {200, [], Json}, State};
-		["agent_ring", Fromqueue, Callid, Toagent] ->
-			Json = case {agent_manager:query_agent(Toagent), queue_manager:get_queue(Fromqueue)} of
-				{false, undefined} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Neither agent nor queue exist">>}]});
-				{false, _Pid} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"agent doesn't exist">>}]});
-				{_Worked, undefined} ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"queue doesn't exist">>}]});
-				{{true, Apid}, Qpid} ->
-					case call_queue:get_call(Qpid, Callid) of
-						none ->
-							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}]});
-						{_Key, #queued_call{media = Mpid} = Qcall} ->
-							case gen_media:ring(Mpid, Apid, Qcall, ?getRingout) of
-								deferred ->
-									mochijson2:encode({struct, [{success, true}]});
-								 _ ->
-									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not ring agent">>}]})
-							end
-					end
-			end,
-			{reply, {200, [], Json}, State};
-		["status"] ->
-			% nodes, agents, queues, media, and system.
-			cpx_monitor:subscribe(),
-			Nodestats = qlc:e(qlc:q([X || {{node, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-			Agentstats = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-			Queuestats = qlc:e(qlc:q([X || {{queue, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-			Systemstats = qlc:e(qlc:q([X || {{system, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-			Mediastats = qlc:e(qlc:q([X || {{media, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
-			Groupstats = extract_groups(lists:append(Queuestats, Agentstats)),
-			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
-			{Count, Encodedstats} = encode_stats(Stats),
-			{_Count2, Encodedgroups} = encode_groups(Groupstats, Count),
-			Encoded = lists:append(Encodedstats, Encodedgroups),
-			Systemjson = {struct, [
-				{<<"id">>, <<"system-System">>},
-				{<<"type">>, <<"system">>},
-				{<<"display">>, <<"System">>},
-				{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}}
-			]},
-			Json = mochijson2:encode({struct, [
-				{success, true},
-				{<<"data">>, {struct, [
-					{<<"identifier">>, <<"id">>},
-					{<<"label">>, <<"display">>},
-					{<<"items">>, [Systemjson | Encoded]}
-				]}}
-			]}),
-			{reply, {200, [], Json}, State};
-		
-		
-%			case file:read_file_info("sup_test_data.js") of
-%				{error, Error} ->
-%					?WARNING("Couldn't get test data due to ~p", [Error]),
-%					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
-%				_Else ->
-%					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
-%					Read = fun(F, Acc) ->
-%						case file:read(Io, 20) of
-%							{ok, Data} ->
-%								F(F, [Data | Acc]);
-%							eof ->
-%								lists:flatten(lists:reverse(Acc));
-%							{error, Err} ->
-%								Err
-%						end
-%					end,
-%					Data = Read(Read, []),
-%					file:close(Io),
-%					{reply, {200, [], Data}, State}
-%			end;
-		["nodes"] ->
-			Nodes = lists:sort([node() | nodes()]),
-			F = fun(I) ->
-				list_to_binary(atom_to_list(I))
-			end,
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"nodes">>, lists:map(F, Nodes)}]})}, State};
-		["peek", Queue, Callid] ->
-			{UnencodedJson, Newstate} = case agent:dump_state(State#state.agent_fsm) of
-				#agent{state = released} ->
-					case queue_manager:get_queue(Queue) of
-						Qpid when is_pid(Qpid) ->
-							case call_queue:get_call(Qpid, Callid) of
-								none ->
-									{{struct, [{success, false}, {<<"message">>, <<"Call not queued">>}]}, State};
-								{_Key, #queued_call{media = Mpid}} ->
-									case gen_media:call(Mpid, {peek, State#state.agent_fsm}) of
-										ok ->
-											{{struct, [{success, true}]}, State#state{current_call = expect}};
-										_ ->
-											{{struct, [{success, false}, {<<"message">>, <<"media didn't peek">>}]}, State}
-									end
-							end;
-						_ ->
-							{{struct, [{success, false}, {<<"message">>, <<"Queue doesn't exist">>}]}, State}
-					end;
-				_ ->
-					{{struct, [{success, false}, {<<"message">>, <<"Can only peek while released">>}]}, State}
-			end,
-			{reply, {200, [], mochijson2:encode(UnencodedJson)}, Newstate};
-		["drop_call", Queue, Callid] ->
-			Json = case queue_manager:get_queue(Queue) of
-				undefined ->
-					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]};
-				Qpid when is_pid(Qpid) ->
-					case call_queue:get_call(Qpid, Callid) of
-						none ->
-							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]};
-						{_, #queued_call{media = _Mpid}} ->
-							%%gen_media:cast(Mpid, email_drop), % only email should respond to this
-							% TODO finish this when hangup can take a reason.
-							{struct, [{success, false}, {<<"message">>, <<"nyi">>}]}
-					end
-			end,
-			{reply, {200, [], mochijson2:encode(Json)}, State};
-		["getmotd"] ->
-			Motd = case cpx_supervisor:get_value(motd) of
-				none ->
-					false;
-				{ok, Text} ->
-					list_to_binary(Text)
-			end,
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {motd, Motd}]})}, State};
-		[Node | Do] ->
-			Nodes = get_nodes(Node),
-			{Success, Result} = do_action(Nodes, Do, []),
-			{reply, {200, [], mochijson2:encode({struct, [{success, Success}, {<<"result">>, Result}]})}, State}
-	end;
-handle_call({supervisor, _Request}, _From, State) ->
-	?NOTICE("Unauthorized access to a supervisor web call", []),
-	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
+
+% TODO supervisor handling was here.  Forward requests to 
+% supervisor_web_connection module for teh happy.
+
 handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Commande = proplists:get_value("command", Post),
 	?DEBUG("Media Command:  ~p", [Commande]),
@@ -1343,6 +948,21 @@ handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};
 handle_call(dump_state, _From, State) ->
 	{reply, State, State};
+handle_call({supervisor, _Request}, _From, #state{securitylevel = agent} = State) ->
+	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insuffienct privledges">>}, {<<"errcode">>, <<"ACCESS_DENIED">>}]})}, State};
+handle_call({supervisor, Request}, From, #state{supervisor_state = undefined} = State) ->
+	Agent = agent:dump_state(State#state.agent_fsm),
+	{ok, SupState} = supervisor_web_connection:init([
+		{login, Agent#agent.login},
+		{endpointtype, Agent#agent.endpointtype},
+		{endpointdata, Agent#agent.endpointdata},
+		{ring_path, Agent#agent.defaultringpath}
+	]),
+	NewState = State#state{supervisor_state = SupState},
+	handle_call({supervisor, Request}, From, NewState);
+handle_call({supervisor, Request}, From, #state{supervisor_state = SupState} = State) ->
+	{reply, Out, NewSupState} = supervisor_web_connection:handle_call({supervisor, Request}, From, SupState),
+	{reply, Out, State#state{supervisor_state = NewSupState}};
 handle_call(Allothers, _From, State) ->
 	?DEBUG("unknown call ~p", [Allothers]),
 	{reply, {404, [], <<"unknown_call">>}, State}.
@@ -1509,10 +1129,12 @@ handle_cast({url_pop, URL, Name}, State) ->
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
-handle_cast({blab, Text}, State) ->
+handle_cast({blab, Text}, State) when is_list(Text) ->
+	handle_cast({blab, list_to_binary(Text)}, State);
+handle_cast({blab, Text}, State) when is_binary(Text) ->
 	Headjson = {struct, [
 		{<<"command">>, <<"blab">>},
-		{<<"text">>, list_to_binary(Text)}
+		{<<"text">>, Text}
 	]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
@@ -1524,7 +1146,12 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(poll_flush, State) ->
-	case {State#state.poll_pid, State#state.poll_queue} of
+	{SupPollQueue, NewSupState} = case State#state.supervisor_state of
+		undefined -> {[], undefined};
+		SupState -> supervisor_web_connection:nuke_poll_queue(SupState)
+	end,
+	FullQueue = lists:append(lists:reverse(State#state.poll_queue), SupPollQueue),
+	case {State#state.poll_pid, FullQueue} of
 		{undefined, _} ->
 			{noreply, State#state{poll_flush_timer = undefined}};
 		{_Pid, []} ->
@@ -1532,11 +1159,10 @@ handle_info(poll_flush, State) ->
 		{Pid, _PollQueue} when is_pid(Pid) ->
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [
 				{success, true},
-				{<<"data">>, lists:reverse(State#state.poll_queue)},
-				{<<"result">>, lists:reverse(State#state.poll_queue)}
+				{<<"result">>, FullQueue}
 			]})}},
 			unlink(Pid),
-			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined}}
+			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined, supervisor_state = NewSupState}}
 	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	Now = util:now(),
@@ -1562,50 +1188,16 @@ handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State
 	?WARNING("Not eligible for supervisor view, so shouldn't be getting events.  Unsubbing", []),
 	cpx_monitor:unsubscribe(),
 	{noreply, State};
-handle_info({cpx_monitor_event, {info, _, _}}, State) ->
-	% TODO fix the subscribe, or start using this.
-	{noreply, State};
-handle_info({cpx_monitor_event, Message}, State) ->
-	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
-	Json = case Message of
-		{drop, _Timestamp, {Type, Name}} ->
-			Fixedname = if 
-				is_atom(Name) ->
-					 atom_to_binary(Name, latin1); 
-				 true -> 
-					 list_to_binary(Name) 
-			end,
-			{struct, [
-				{<<"command">>, <<"supervisortab">>},
-				{<<"data">>, {struct, [
-					{<<"action">>, drop},
-					{<<"type">>, Type},
-					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
-					{<<"name">>, Fixedname}
-				]}}
-			]};
-		{set, _Timestamp, {{Type, Name}, Detailprop, _Node}} ->
-			Encodeddetail = encode_proplist(Detailprop),
-			Fixedname = if 
-				is_atom(Name) ->
-					 atom_to_binary(Name, latin1); 
-				 true -> 
-					 list_to_binary(Name) 
-			end,
-			{struct, [
-				{<<"command">>, <<"supervisortab">>},
-				{<<"data">>, {struct, [
-					{<<"action">>, set},
-					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
-					{<<"type">>, Type},
-					{<<"name">>, Fixedname},
-					{<<"display">>, Fixedname},
-					{<<"details">>, Encodeddetail}
-				]}}
-			]}
+handle_info({cpx_monitor_event, _} = Msg, #state{supervisor_state = SupState} = State) ->
+	{noreply, NewSupState} = supervisor_web_connection:handle_info(Msg, SupState),
+	MidState = case State#state.poll_flush_timer of
+		undefined ->
+			Self = self(),
+			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush)};
+		_ ->
+			State
 	end,
-	Newstate = push_event(Json, State),
-	{noreply, Newstate};
+	{noreply, MidState#state{supervisor_state = NewSupState}};
 handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
 	case Reason of
 		normal ->
@@ -1622,7 +1214,7 @@ handle_info({'EXIT', Agent, Reason}, #state{agent_fsm = Agent} = State) ->
 		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout by fsm death">>}]})}},
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout by fsm death">>}, {<<"errcode">>, <<"FSM_DEATH">>}]})}},
 			ok
 	end,
 	{stop, Reason, State};
@@ -1640,7 +1232,7 @@ terminate(Reason, State) ->
 		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}]})},
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}, {<<"errcode">>, <<"FORCED_LOGOUT">>}]})},
 			ok
 	end.
 
@@ -1663,6 +1255,17 @@ format_status(terminate, [_PDict, State]) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+-spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
+push_event(Eventjson, State) ->
+	Newqueue = [Eventjson | State#state.poll_queue],
+	case State#state.poll_flush_timer of
+		undefined ->
+			Self = self(),
+			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush), poll_queue = Newqueue};
+		_ ->
+			State#state{poll_queue = Newqueue}
+	end.
 
 get_nodes("all") ->
 	[node() | nodes()];
@@ -1704,11 +1307,11 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: {string(), any()}, Response :: any()) -> {headers(), mochi_out()}).
-parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
+parse_media_call(#call{type = email}, {<<"attach">>, _Args}, {ok, Filenames}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Filenames),
 	Json = {struct, [
 		{success, true},
-		{<<"filenames">>, Binnames}
+		{<<"result">>, Binnames}
 	]},
 	Html = mochiweb_html:to_html({
 		<<"html">>, [], [
@@ -1719,10 +1322,11 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 		]}),
 	%?DEBUG("html:  ~p", [Html]),
 	{[], Html};
-parse_media_call(#call{type = email}, {"attach", _Args}, {error, Error}) ->
+parse_media_call(#call{type = email}, {<<"attach">>, _Args}, {error, Error}) ->
 	Json = {struct, [
 		{success, false},
-		{<<"message">>, Error}
+		{<<"message">>, Error},
+		{<<"errcode">>, Error}
 	]},
 	Html = mochiweb_html:to_html({
 		<<"html">>, [], [
@@ -1732,22 +1336,22 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {error, Error}) ->
 			]}
 		]}),
 	{[], Html};
-parse_media_call(#call{type = email}, {"detach", _Args}, {ok, Keys}) ->
+parse_media_call(#call{type = email}, {<<"detach">>, _Args}, {ok, Keys}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Keys),
 	Json = {struct, [
 		{success, true},
-		{<<"filenames">>, Binnames}
+		{<<"result">>, Binnames}
 	]},
 	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
+parse_media_call(#call{type = email}, {<<"get_skeleton">>, _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 
 		{<<"subtype">>, Subtype},
 		{<<"headers">>, email_props_to_json(Heads)},
 		{<<"properties">>, email_props_to_json(Props)}
 	]},
-	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
+parse_media_call(#call{type = email}, {<<"get_skeleton">>, _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
 	Fun = fun
 		({Type, Subtype, Heads, Props}, {F, Acc}) ->
 			Head = {struct, [
@@ -1777,8 +1381,8 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 		{<<"properties">>, email_props_to_json(Topprop)},
 		{<<"parts">>, lists:reverse(Jsonlist)}]},
 	%?DEBUG("json:  ~p", [Json]),
-	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
+parse_media_call(#call{type = email}, {<<"get_path">>, _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
 	Emaildispo = email_media:get_disposition(Mime),
 	%?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
 	case {Type, Subtype, Emaildispo} of
@@ -1852,20 +1456,20 @@ parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, 
 %			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 %			{[], <<"404">>}
 	end;
-parse_media_call(#call{type = email}, {"get_path", _Path}, {message, Bin}) when is_binary(Bin) ->
+parse_media_call(#call{type = email}, {<<"get_path">>, _Path}, {message, Bin}) when is_binary(Bin) ->
 	%?DEBUG("Path is a message/Subtype with binary body", []),
 	{[], Bin};
-parse_media_call(#call{type = email}, {"get_from", _}, undefined) ->
-	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}]})};
-parse_media_call(#call{type = email}, {"get_from", _}, {Label, Address}) ->
+parse_media_call(#call{type = email}, {<<"get_from">>, _}, undefined) ->
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}, {<<"errcode">>, <<"REPLYINFO_NOEXISTS">>}]})};
+parse_media_call(#call{type = email}, {<<"get_from">>, _}, {Label, Address}) ->
 	Json = {struct, [
 		{<<"label">>, Label},
 		{<<"address">>, Address}
 	]},
-	{[], mochijson2:encode({struct, [{success, true}, {<<"data">>, Json}]})};
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
 parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
-	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}, {<<"errcode">>, <<"BAD_RETURN">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
 do_action([], _Do, Acc) ->
@@ -2054,194 +1658,8 @@ encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
 	Newacc = [Struct | Acc],
 	encode_queue_list(Tail, Newacc).
 
-encode_stats(Stats) ->
-	encode_stats(Stats, 1, []).
 
-encode_stats([], Count, Acc) ->
-	{Count - 1, Acc};
-encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = _Head | Tail], Count, Acc) ->
-	Display = case {ProtoName, Type} of
-		{_Name, agent} ->
-			Login = proplists:get_value(login, Protodetails),
-			[{<<"display">>, list_to_binary(Login)}];
-		{Name, _} when is_binary(Name) ->
-			[{<<"display">>, Name}];
-		{Name, _} when is_list(Name) ->
-			[{<<"display">>, list_to_binary(Name)}];
-		{Name, _} when is_atom(Name) ->
-			[{<<"display">>, Name}]
-	end,
-	Id = case is_atom(ProtoName) of
-		true ->
-			list_to_binary(lists:flatten([atom_to_list(Type), "-", atom_to_list(ProtoName)]));
-		false ->
-			% Here's hoping it's a string or binary.
-			list_to_binary(lists:flatten([atom_to_list(Type), "-", ProtoName]))
-	end,
-	Parent = case Type of
-		system ->
-			[];
-		node ->
-			[];
-		agent ->
-			[{<<"profile">>, list_to_binary(proplists:get_value(profile, Protodetails))}];
-		queue ->
-			[{<<"group">>, list_to_binary(proplists:get_value(group, Protodetails))}];
-		media ->
-			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
-				{undefined, undefined} ->
-					?DEBUG("Ignoring ~p as it's likely in ivr (no agent/queu)", [ProtoName]),
-					[];
-				{undefined, Queue} ->
-					[{queue, list_to_binary(Queue)}];
-				{Agent, undefined} ->
-					[{agent, list_to_binary(Agent)}]
-			end
-	end,
-	Scrubbeddetails = Protodetails,
-	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
-	Encoded = lists:append([[{<<"id">>, Id}], Display, [{<<"type">>, Type}], [{node, Node}], Parent, Details]),
-	Newacc = [{struct, Encoded} | Acc],
-	encode_stats(Tail, Count + 1, Newacc).
-
--spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
-encode_groups(Stats, Count) ->
-	%?DEBUG("Stats to encode:  ~p", [Stats]),
-	encode_groups(Stats, Count + 1, [], [], []).
-
--spec(encode_groups/5 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()], Gotqgroup :: [string()], Gotaprof :: [string()]) -> {non_neg_integer(), [tuple()]}).
-encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
-	F = fun() ->
-		Qqh = qlc:q([{Qgroup, "queuegroup"} || #queue_group{name = Qgroup} <- mnesia:table(queue_group), lists:member(Qgroup, Gotqgroup) =:= false]),
-		Aqh = qlc:q([{Aprof, "agentprofile"} || #agent_profile{name = Aprof} <- mnesia:table(agent_profile), lists:member(Aprof, Gotaprof) =:= false]),
-		Qgroups = qlc:e(Qqh),
-		Aprofs = qlc:e(Aqh),
-		lists:append(Qgroups, Aprofs)
-	end,
-	Encode = fun({Name, Type}) ->
-		{struct, [
-			{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
-			{<<"type">>, list_to_binary(Type)},
-			{<<"display">>, list_to_binary(Name)}
-		]}
-	end,
-	{atomic, List} = mnesia:transaction(F),
-	Encoded = lists:map(Encode, List),
-	Newacc = lists:append([Acc, Encoded]),
-	{Count + length(Newacc), Newacc};
-encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
-	Out = {struct, [
-		{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
-		{<<"type">>, list_to_binary(Type)},
-		{<<"display">>, list_to_binary(Name)}
-	]},
-	{Ngotqgroup, Ngotaprof} = case Type of
-		"queuegroup" ->
-			{[Name | Gotqgroup], Gotaprof};
-		"agentprofile" ->
-			{Gotqgroup, [Name | Gotaprof]}
-	end,
-	encode_groups(Tail, Count + 1, [Out | Acc], Ngotqgroup, Ngotaprof).
 		
-encode_proplist(Proplist) ->
-	Struct = encode_proplist(Proplist, []),
-	{struct, Struct}.
-	
-encode_proplist([], Acc) ->
-	lists:reverse(Acc);
-encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
-	Newacc = [{Entry, true} | Acc],
-	encode_proplist(Tail, Newacc);
-encode_proplist([{skills, _Skills} | Tail], Acc) ->
-	encode_proplist(Tail, Acc);
-encode_proplist([{Key, {timestamp, Num}} | Tail], Acc) when is_integer(Num) ->
-	Newacc = [{Key, {struct, [{timestamp, Num}]}} | Acc],
-	encode_proplist(Tail, Newacc);
-encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
-	Newval = list_to_binary(Value),
-	Newacc = [{Key, Newval} | Acc],
-	encode_proplist(Tail, Newacc);
-encode_proplist([{Key, Value} = Head | Tail], Acc) when is_atom(Value), is_atom(Key) ->
-	encode_proplist(Tail, [Head | Acc]);
-encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Value); is_integer(Value) ->
-	Newacc = [{Key, Value} | Acc],
-	encode_proplist(Tail, Newacc);
-encode_proplist([{Key, Value} | Tail], Acc) when is_record(Value, client) ->
-	Label = case Value#client.label of
-		undefined ->
-			undefined;
-		_ ->
-			list_to_binary(Value#client.label)
-	end,
-	encode_proplist(Tail, [{Key, Label} | Acc]);
-encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
-	CidNameBin = list_to_binary(CidName),
-	CidDAtaBin = list_to_binary(CidDAta),
-	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
-	encode_proplist(Tail, Newacc);
-encode_proplist([{Key, Media} | Tail], Acc) when is_record(Media, call) ->
-	Simple = [{callerid, Media#call.callerid},
-	{type, Media#call.type},
-	{client, Media#call.client},
-	{direction, Media#call.direction},
-	{id, Media#call.id}],
-	Json = encode_proplist(Simple),
-	encode_proplist(Tail, [{Key, Json} | Acc]);
-encode_proplist([{Key, {onhold, Media, calling, Number}} | Tail], Acc) when is_record(Media, call) ->
-	Simple = [
-		{callerid, Media#call.callerid},
-		{type, Media#call.type},
-		{client, Media#call.client},
-		{direction, Media#call.direction},
-		{id, Media#call.id},
-		{calling, list_to_binary(Number)}
-	],
-	Json = encode_proplist(Simple),
-	encode_proplist(Tail, [{Key, Json} | Acc]);
-encode_proplist([_Head | Tail], Acc) ->
-	encode_proplist(Tail, Acc).
-
-extract_groups(Stats) ->
-	%?DEBUG("Stats to extract groups from:  ~p", [Stats]),
-	extract_groups(Stats, []).
-
-extract_groups([], Acc) ->
-	Acc;
-extract_groups([{{Type, _Id}, Details, _Node, _Time, _Watched, _Monref} = _Head | Tail], Acc) ->
-	case Type of
-		queue ->
-			Display = proplists:get_value(group, Details),
-			case lists:member({"queuegroup", Display}, Acc) of
-				true ->
-					extract_groups(Tail, Acc);
-				false ->
-					Top = {"queuegroup", Display},
-					extract_groups(Tail, [Top | Acc])
-			end;
-		agent ->
-			Display = proplists:get_value(profile, Details),
-			case lists:member({"agentprofile", Display}, Acc) of
-				true ->
-					extract_groups(Tail, Acc);
-				false ->
-					Top = {"agentprofile", Display},
-					extract_groups(Tail, [Top | Acc])
-			end;
-		_Else ->
-			%?DEBUG("no group to extract for type ~w", [_Else]),
-			extract_groups(Tail, Acc)
-	end.
-
--spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
-push_event(Eventjson, State) ->
-	Newqueue = [Eventjson | State#state.poll_queue],
-	case State#state.poll_flush_timer of
-		undefined ->
-			Self = self(),
-			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush), poll_queue = Newqueue};
-		_ ->
-			State#state{poll_queue = Newqueue}
-	end.
 
 -ifdef(TEST).
 
@@ -2481,45 +1899,25 @@ set_state_test_() ->
 		]
 	}.
 
-extract_groups_test() ->
-	Rawlist = [
-		{{queue, "queue1"}, [{group, "group1"}], node(), os:timestamp(), none, undefined},
-		{{queue, "queue2"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent1"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined},
-		{{media, "media1"}, [], node(), os:timestamp(), none, undefined},
-		{{queue, "queue3"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent2"}, [{profile, "Default"}], node(), os:timestamp(), none, undefined},
-		{{agent, "agent3"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined}
-	],
-	Expected = [
-		{"agentprofile", "Default"},
-		{"agentprofile", "profile1"},
-		{"queuegroup", "Default"},
-		{"queuegroup", "group1"}
-	],
-	Out = extract_groups(Rawlist),
-	?assertEqual(Expected, Out).
+%extract_groups_test() ->
+%	Rawlist = [
+%		{{queue, "queue1"}, [{group, "group1"}], node(), os:timestamp(), none, undefined},
+%		{{queue, "queue2"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent1"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined},
+%		{{media, "media1"}, [], node(), os:timestamp(), none, undefined},
+%		{{queue, "queue3"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent2"}, [{profile, "Default"}], node(), os:timestamp(), none, undefined},
+%		{{agent, "agent3"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined}
+%	],
+%	Expected = [
+%		{"agentprofile", "Default"},
+%		{"agentprofile", "profile1"},
+%		{"queuegroup", "Default"},
+%		{"queuegroup", "group1"}
+%	],
+%	Out = extract_groups(Rawlist),
+%	?assertEqual(Expected, Out).
 
-encode_proplist_test() ->
-	Input = [
-		boolean,
-		{list, "This is a list"},
-		{keyatom, valatom},
-		{binary, <<"binary data">>},
-		{integer, 42},
-		{float, 23.5},
-		{tuple, {<<"this">>, <<"gets">>, <<"stripped">>}}
-	],
-	Expected = {struct, [
-		{boolean, true},
-		{list, <<"This is a list">>},
-		{keyatom, valatom},
-		{binary, <<"binary data">>},
-		{integer, 42},
-		{float, 23.5}
-	]},
-	Out = encode_proplist(Input),
-	?assertEqual(Expected, Out).
 		
 -define(MYSERVERFUNC, 
 	fun() ->

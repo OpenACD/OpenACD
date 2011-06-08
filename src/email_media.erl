@@ -125,10 +125,8 @@ start_link(Options) ->
 post_to_api(Post) ->
 	case proplists:get_value("command", Post) of
 		"get_path" ->
-			Path = proplists:get_value("path", Post, ""),
-			Tokenpath = string:tokens(Path, [$.]),
-			PathProper = lists:map(fun(Elem) -> list_to_integer(Elem) end, Tokenpath),
-			{call, {get_path, PathProper}};
+			Path = proplists:get_value("path", Post, []),
+			{call, {get_path, Path}};
 		"get_id" ->
 			Id = proplists:get_value("id", Post),
 			{call, {get_id, Id}};
@@ -313,9 +311,7 @@ handle_call({<<"get_skeleton">>, _Post}, _From, _Callrec, State) ->
 	{reply, State#state.skeleton, State};
 handle_call({<<"get_path">>, Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
 	Path = lists:flatten(proplists:get_value("args", Post)),
-	Splitpath = util:string_split(Path, "/"),
-	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
-	Out = get_part(Intpath, Mime),
+	Out = get_part(Path, Mime),
 	{reply, Out, State};
 handle_call({<<"attach">>, Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
 	case proplists:get_value("attachFiles", Postdata) of

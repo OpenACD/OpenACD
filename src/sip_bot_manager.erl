@@ -253,6 +253,7 @@ originate(X, [H | T], Acc) ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	Acd = proplists:get_value(acd_node, Options),
+	true = erlang:monitor_node(Acd, true),
 	Agents = case proplists:get_value(agents, Options, []) of
 		List when is_list(List) ->
 			List;
@@ -385,6 +386,29 @@ handle_info({get_pid, UUID, Ref, From}, #state{bot_dict = Dict} = State) ->
 	end,
 	From ! {Ref, Gotpid},
 	{noreply, State#state{bot_dict = dict:store(UUID, Gotpid, Dict)}};
+handle_info({nodedown, Acd}, #state{acd_node = Acd} = State) ->
+	?ERROR("Acd node ~p went down", [Acd]),
+	Self = self(),
+	erlang:send_after(10000, Self, check_acd),
+	{noreply, State#state{acd_node = {down, 10000, Acd}}};
+handle_info(check_acd, #state{acd_node = {down, LastWait, Acd}, xmlserver_opts = Options} = State) ->
+	case net_adm:ping(Acd) of
+		pang ->
+			Wait = next_wait(LastWait),
+			Self = self(),
+			?INFO("Acd node ~p still down, next check in ~p ms", [Acd, Wait]),
+			erlang:send_after(Wait, Self, check_acd),
+			{noreply, State#state{acd_node = {down, Wait, Acd}}};
+		pong ->
+			?INFO("Acd node ~p recovered, starting agents", [Acd]),
+			Agents = proplists:get_value(agents, Options),
+			DummyAgentOpts = [{remote_node, Acd} | proplists:get_value(agent_options, Options, [])],
+			Profiles = proplists:get_value(profiles, Options, ["default"]),
+			spawn(fun() ->
+				launch_agents(Agents, Profiles, DummyAgentOpts, Acd, proplists:get_value(gateway, Options))
+			end),
+			{noreply, State#state{acd_node = Acd}}
+	end;
 handle_info(Info, State) ->
 	?DEBUG("Unexpected info:  ~p", [Info]),
 	{noreply, State}.
@@ -443,6 +467,16 @@ kill_agents(X, A) when is_integer(X) ->
 
 make_agent_list(X) when is_integer(X), X > 0 ->
 	[{"a" ++ integer_to_list(A), "pw"} || A <- lists:seq(1, X)].
+
+%% @private
+next_wait(X) when X < 10000 ->
+	10000;
+next_wait(X) when X < 15000, X >= 10000 ->
+	15000;
+next_wait(X) when X >= 15000, X < 300000 ->
+	X + 15000;
+next_wait(_X) ->
+	300000.
 
 %% @private
 start_listener(Nodename) ->

@@ -148,7 +148,7 @@
 					dojo.doc.body.appendChild(standby.domNode);
 					standby.startup();
 					standby.show();
-					var sub = dojo.subscribe("agent/mediaevent/email", function(data){
+					var sub = dojo.subscribe("OpenACD/Agent/mediaevent/email", function(data){
 						if(data.event == 'send_complete'){
 							standby.hide();
 							if(! data.success){

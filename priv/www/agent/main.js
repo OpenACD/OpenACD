@@ -120,7 +120,7 @@ function queueTransferDialog(queueNom){
 					}
 				}
 			}
-			Agent.queuetransfer(queueNom, skills, urlopts);
+			window.agentConnection.queuetransfer(queueNom, skills, urlopts);
 			this.destroy();
 		});
 		dialog.show();
@@ -131,13 +131,13 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + res + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ Agent.queuetransfer(queueNom, [], {}) },
+				'yesAction':function(){ window.agentConnection.queuetransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Errored'
 			});
 		},
 		success:function(res){
 			if(res.prompts.length + res.skills.length == 0){
-				Agent.queuetransfer(queueNom, [], {});
+				window.agentConnection.queuetransfer(queueNom, [], {});
 				return true;
 			}
 			createDialog(res);
@@ -147,12 +147,12 @@ function queueTransferDialog(queueNom){
 				'yesLabel':'Queue anyway',
 				'noLabel':'Don\'t queue',
 				'question':'Could not load queue transfer options (' + message + ').  Queue to ' + queueNom + ' anyway?',
-				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'yesAction':function(){ window.agentConnection.queueTransfer(queueNom, [], {}) },
 				'title':'Queue Transfer Options Failed'
 			});
 		}
 	};
-	Agent.webApi("get_queue_transfer_options", qtoOptions);
+	window.agentConnection.agentApi("get_queue_transfer_options", qtoOptions);
 }
 
 function getTheme() {
@@ -254,7 +254,7 @@ function loadTab(tabid){
 	dijit.byId(tabid).attr('href', href);
 	dijit.byId("tabPanel").selectChild(tabid);
 	var logoutListenerName = tabid + "LogoutListener";
-	dijit.byId("tabPanel")[logoutListenerName] = dojo.subscribe("agent/logout", dijit.byId("tabPanel"), function(data){
+	dijit.byId("tabPanel")[logoutListenerName] = dojo.subscribe("OpenACD/Agent/logout", dijit.byId("tabPanel"), function(data){
 		dojo.unsubscribe(window.tabCloseListeners[tabid]);
 		this.closeChild(t);
 		dojo.unsubscribe(this[logoutListenerName]);
@@ -301,7 +301,7 @@ function load_media_tab(options){
 			closable:options.closable 
 		});
 		if(options.autoClose){
-			pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			pane.unloadListener = dojo.subscribe('OpenACD/Agent/state', function(data){
 				try{
 					if(data.state == 'wrapup'){
 						dojo.unsubscribe(pane.unloadListener);
@@ -314,7 +314,7 @@ function load_media_tab(options){
 				}
 			});
 		}
-		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+		pane.logoutListener = dojo.subscribe('OpenACD/Agent/logout', function(){
 			try{
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
@@ -354,7 +354,7 @@ function load_media_tab(options){
 		pane.startup();
 		pane.show();
 		if(options.autoClose){
-			pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			pane.unloadListener = dojo.subscribe('OpenACD/Agent/state', function(data){
 				try{
 					if(data.state == 'wrapup'){
 						dojo.unsubscribe(pane.unloadListener);
@@ -368,7 +368,7 @@ function load_media_tab(options){
 				}
 			});
 		}
-		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+		pane.logoutListener = dojo.subscribe('OpenACD/Agent/logout', function(){
 			try{
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
@@ -402,13 +402,13 @@ function showErrorReportDialog(conf){
 
 function reportIssue(humanReport){
 	var simpleAgent = {
-		login: agent.login,
-		profile: agent.profile,
-		securityLevel: agent.securityLevel,
-		skew: agent.skew,
-		skills: agent.skills,
-		state: agent.state,
-		statdata: agent.statedata
+		login: window.agentConnection.login,
+		profile: window.agentConnection.profile,
+		securityLevel: window.agentConnection.securityLevel,
+		skew: window.agentConnection.skew,
+		skills: window.agentConnection.skills,
+		state: window.agentConnection.state,
+		statdata: window.agentConnection.statedata
 	}
 	
 	var coveredNode = dijit.byId('reportIssueDialog').domNode;
@@ -500,9 +500,8 @@ dojo.addOnLoad(function(){
 
 	EventLog.log("Inteface loaded");
 	
-	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){
+	EventLog.logAgentState = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var line = "Agent state changed to " + data.state;
-		console.log(data.statedata);
 		if(data.statedata){
 			line += '('+format_statedata(data.statedata, data.state)+')';
 		}
@@ -529,31 +528,31 @@ dojo.addOnLoad(function(){
 		dojo.byId("main").style.display="block";
 		dojo.byId("main").style.visibility = "visible";
 		dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
-		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
+		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("OpenACD/Agent/logout", function(data){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		});
-		agent = new Agent(confs.username, confs.elapsed, confs.skew);
+		/*agent = new OpenACD.Agent(confs);
 		agent.profile = confs.profile;
 		agent.state = confs.state;
 		agent.statedata = confs.statedata;
 		if(agent.state){
-			dojo.publish("agent/state", [{"state":agent.state, "statedata":agent.statedata}]);
-			if( (agent.state == "oncall") && (confs.mediaload) ){
-				var fixedres = confs.mediaload;
-				fixedres.media = confobj.statedata.type;
-				dojo.publish("agent/mediaload", [fixedres]);
-			}
+			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);*/
+		if( (window.agentConnection.state == "oncall") && (confs.mediaload) ){
+			var fixedres = confs.mediaload;
+			fixedres.media = confobj.statedata.type;
+			dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
 		}
-		buildReleaseMenu(agent);
-		buildOutboundMenu(agent);
-		buildQueueMenu(agent);
+		/*}*/
+		buildReleaseMenu();
+		buildOutboundMenu();
+		buildQueueMenu();
 		dojo.byId("agentname").innerHTML = confs.username;
 		dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + confs.profile;
-		agent.stopwatch.onTick = function(){
-			var elapsed = agent.stopwatch.time();
+		window.agentConnection.stopwatch.onTick = function(){
+			var elapsed = window.agentConnection.stopwatch.time();
 			dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
 		}
-		agent.stopwatch.start();
+		window.agentConnection.stopwatch.start();
 		var settings = {};
 		if(dojo.cookie('agentui-settings')){
 			settings = dojo.fromJson(dojo.cookie('agentui-settings'));
@@ -576,13 +575,15 @@ dojo.addOnLoad(function(){
 			dijit.byId("tabsmenubutton").set('disabled', false);
 		}
 		dojo.cookie('agentui-settings', dojo.toJson(settings));
+		dijit.byId("loginpane").hide();
 	}
 	
 	var checkCookieOpts = {
 		error:function(response, ioargs){
-			error(["checkcookie failed!", response]);
+			console.error("checkcookie failed!", response);
 		},
 		success:function(result){
+			console.log('success', result);
 			var seedConf = dojo.clone(result);
 			seedConf.username = seedConf.login;
 			seedConf.securityLevel = result.securityLevel;
@@ -595,12 +596,22 @@ dojo.addOnLoad(function(){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		}
 	};
-	Agent.webApi("check_cookie", checkCookieOpts);
+	window.agentConnection = new OpenACD.Agent({});
+	window.agentConnection.checkCookie(checkCookieOpts);
+	var loginHandle = dojo.subscribe('OpenACD/Agent/login', function(agent){
+		console.log('handling login', this, agent);
+		var seedConf = {};
+		seedConf.username = agent.username;
+		seedConf.securityLevel = agent.securityLevel;
+		seedConf.elapsed = parseInt(agent.stopwatch.time());
+		seedConf.skew = agent.skew;
+		seedUI(seedConf);
+	});
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
 	
-	dojo.byId("brand").stateChanger = dojo.subscribe("agent/state", function(data){
+	dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("brand");
 		debug(["byId('brand') stateChanger", data.statedata]);
 		switch(data.state){
@@ -620,7 +631,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dojo.byId("callerid").stateChanger = dojo.subscribe("agent/state", function(data){
+	dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -633,7 +644,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dojo.byId("calltypep").stateChanger = dojo.subscribe("agent/state", function(data){
+	dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -646,7 +657,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
+	dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
@@ -678,14 +689,14 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dojo.byId("profiledisp").stateChanger = dojo.subscribe("agent/profile", function(data){
+	dojo.byId("profiledisp").stateChanger = dojo.subscribe("OpenACD/Agent/profile", function(data){
 		var node = dojo.byId("profiledisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innerh = nlsStrings.PROFILE + ":  " + data.profile;
 		node.innerHTML = innerh;
 	});
 
-	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bgoreleased");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		switch (data.state) {
@@ -704,12 +715,12 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("releasedmenu").logout = dojo.subscribe("agent/logout", function(data){
+	dijit.byId("releasedmenu").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		var widget = dijit.byId("releasedmenu");
 		widget.destroyDescendants();
 	});
 	
-	dijit.byId("bgoavail").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bgoavail");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		switch(data.state){
@@ -726,12 +737,12 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("agent/logout", function(data){
+	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		var menu = dijit.byId("transferToQueueMenuDyn");
 		menu.destroyDescendants();
 	});
 
-	dijit.byId("dialbox").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var div = dojo.byId("foo");
 		switch(data.state){
 			//case "warmtransfer":
@@ -743,7 +754,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("bcancel").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bcancel");
 		switch(data.state){
 			//case "warmtransfer":
@@ -755,7 +766,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("bdial").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bdial");
 		switch(data.state){
 			case "precall":
@@ -767,7 +778,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("wtdial").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("wtdial");
 		switch(data.state){
 			default:
@@ -775,7 +786,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
+	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
 		if(data.event == 'warm_transfer_failed'){
 			this.attr('style', 'display:inline');
 			dojo.byId('foo').style.display = 'inline';
@@ -785,7 +796,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("wtcancel").stateChanger = dojo.subscribe("agent/state", dijit.byId("wtcancel"), function(data){
+	dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
 		if(this.suppressHide){
 			delete this.suppressHide;
 			return true;
@@ -797,11 +808,11 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("agent/state", dijit.byId("wtcomplete"), function(data){
+	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
 		this.attr('style', 'display:none');
 	});
 	
-	dijit.byId('wtcomplete').warmtransfer_listener = dojo.subscribe("agent/mediaevent/voice", dijit.byId('wtcomplete'), function(data){
+	dijit.byId('wtcomplete').warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId('wtcomplete'), function(data){
 		if(data.event == 'warm_transfer_succeeded'){
 			this.attr('style', 'display:inline');
 		} else {
@@ -809,12 +820,12 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
+	dojo.byId("state").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		dojo.byId("state").innerHTML = nlsStrings[data.state.toUpperCase()];
 	});
 	
-	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("banswer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("banswer");
 		debug(["banswer", data]);
 		if(data.statedata && data.statedata.ringpath == "inband"){
@@ -829,7 +840,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("btransfer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("btransfer");
 		switch(data.state){
 			case "oncall":
@@ -843,21 +854,21 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId('transferToAgentMenu').startup();
 	dijit.byId('transferToQueueMenu').startup();
-	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
+	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("OpenACD/Agent/available", function(data){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants();
 		dojo.forEach(data, function(i){
 			var m = new dijit.MenuItem({
 				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
 				onClick: function(){
-					Agent.transfer(escape(i.name));
+					window.agentConnection.transfer(escape(i.name));
 				}
 			});
 			widget.addChild(m);
 		});
 	});
 	
-	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("bhangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bhangup");
 		debug(["bhangup", data]);
 		if(data.statedata && data.statedata.mediapath == "inband"){
@@ -876,7 +887,7 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("miHangup").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("miHangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miHangup");
 		//if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
@@ -895,7 +906,7 @@ dojo.addOnLoad(function(){
 		//}
 	});
 
-	dijit.byId("miRingtest").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("miRingtest").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miRingtest");
 		//if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
@@ -926,96 +937,78 @@ dojo.addOnLoad(function(){
 	dojo.connect(loginform, "onSubmit", function(e){
 		e.preventDefault();
 		if (loginform.isValid()){
-			var getSaltOpts = {
-				error:function(response, ioargs){
-					dojo.byId("loginerrp").style.display = "block";
-					if (response.status){
-						dojo.byId("loginerrspan").innerHTML = response.responseText;
-					}
-					else{
-						dojo.byId("loginerrspan").innerHTML = "Server is not responding";
-						alert(response);
-					}
-				},
-				success:function(response){
-					EventLog.log("Recieved salt");
-					var salt = response.salt;
-					var e = response.pubkey.E;
-					var n = response.pubkey.N;
-					var attrs = loginform.attr("value");
-					var values = attrs;
-					var rsa = new RSAKey();
-					rsa.setPublic(n, e);
-					debug("e: " + e);
-					debug("n: " + n);
-					debug("password: " + attrs.password);
-					values.password = rsa.encrypt(salt + attrs.password);
-					var loginOpts = {
-						success:function(response2){
-							EventLog.log("Logged in");
-							dijit.byId("loginpane").hide();
-							var seedSettings = dojo.clone(attrs);
-							seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
-							seedSettings.profile = response2.profile;
-							seedSettings.securityLevel = response2.securityLevel;
-							seedSettings.timestamp = response2.timestamp;
-							seedUI(seedSettings);
-						},
-						failure:function(errcode, message){
-							dojo.byId("loginerrp").style.display = "block";
-							dojo.byId("loginerrspan").innerHTML = message;
-						}
-					};
-					Agent.webApi("login", loginOpts, values.username, values.password, values);
+			var errorF = function(response, ioargs){
+				dojo.byId("loginerrp").style.display = "block";
+				if (response.status){
+					dojo.byId("loginerrspan").innerHTML = response.responseText;
+				}
+				else{
+					dojo.byId("loginerrspan").innerHTML = "Server is not responding";
+					alert(response);
 				}
 			};
-			Agent.webApi("get_salt", getSaltOpts);
+			var failF = function(errcode, message){
+				dojo.byId("loginerrp").style.display = "block";
+				dojo.byId("loginerrspan").innerHTML = message;
+			};
+			var attrs = loginform.attr("value");
+			window.agentConnection.username = attrs.username;
+			window.agentConnection.password = attrs.password;
+			window.agentConnection.login();
+		} else {
+			console.warn('Form has invalid value');
 		}
 	});
 
-	buildReleaseMenu = function(agent){
+	buildReleaseMenu = function(){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		var menu = dijit.byId("releasedmenu");
+		var addItems = function(items){
+			var i = 0;
+			var childs = menu.getChildren();
+			for(i = 0; i < childs.length; i++){
+				menu.removeChild(childs[i]);
+			}
+			for(i = 0; i < items.length; i++){
+				menu.addChild(items[i]);
+			}
+		}
 		var opts = {
 			error:function(response, ioargs){
 				warning(["getting release codes errored", response]);
-				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
-				menu.addChild(item);
+				addItems([item]);
 			},
 			success:function(response, ioargs){
-				var menu = dijit.byId("releasedmenu");
-				var item = '';
+				var items = [];
 				dojo.forEach(response.options, function(obj){
-					item = new dijit.MenuItem({
+					items.push(new dijit.MenuItem({
 						label: obj.label,
-						onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
-					});
-					menu.addChild(item);
+						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
+					}));
 				});
-				item = new dijit.MenuItem({
+				items.push(new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
-				});
-				menu.addChild(item);
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
+				}));
+				addItems(items);
 			},
 			failure:function(errcode, message){
-				var menu = dijit.byId("releasedmenu");
-				var item = '';
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){agent.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setState("released", "Default"); }
 				});
-				menu.addChild(item);
+				addItems([item]);
 			}
 		};
-		Agent.webApi("get_release_opts", opts);
+		window.agentConnection.agentApi("get_release_opts", opts);
 	};
 
-	buildOutboundMenu = function(agent){
+	buildOutboundMenu = function(){
 		//var menu = dijit.byId("outboundmenu");
 		var widget;
 		var store = new dojo.data.ItemFileReadStore({
@@ -1041,7 +1034,7 @@ dojo.addOnLoad(function(){
 			dojo.connect(widget, 'onChange', function(val){
 					if(val !== ""){
 					dijit.byId('tabPanel').selectChild('maintab');
-					agent.initOutbound(val, "freeswitch");
+					window.agentConnection.initOutbound(val, "freeswitch");
 					}
 			});
 		}
@@ -1062,8 +1055,8 @@ dojo.addOnLoad(function(){
 				widget.store = store;
 			}
 		};
-		Agent.webApi("get_brand_list", brandListOpts);
-		widget.stateChanger = dojo.subscribe("agent/state", function(data){
+		window.agentConnection.agentApi("get_brand_list", brandListOpts);
+		widget.stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 				debug(["boutboundcall", data, data.state]);
 				switch(data.state){
 					case "idle":
@@ -1077,7 +1070,7 @@ dojo.addOnLoad(function(){
 		});
 	};
 
-	buildQueueMenu = function(agent){
+	buildQueueMenu = function(){
 		var menu = dijit.byId("transferToQueueMenuDyn");
 		var qListOpts = {
 			error:function(response, ioargs){
@@ -1107,10 +1100,10 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			}
 		};
-		Agent.webApi("get_queue_list", qListOpts);
+		window.agentConnection.agentApi("get_queue_list", qListOpts);
 	};
 
-	dojo.byId("loginerrp").logout = dojo.subscribe("agent/logout", function(data){
+	dojo.byId("loginerrp").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		if(data === true){
 			dojo.byId("loginerrp").style.display = "none";
 		}else{
@@ -1119,15 +1112,15 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dojo.byId("loginpane").logout = dojo.subscribe("agent/logout", function(data){
+	dojo.byId("loginpane").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		dijit.byId("loginpane").show();
 	});
 
-	dijit.byId("main").logout = dojo.subscribe("agent/logout", function(data){
+	dijit.byId("main").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		dijit.byId("main").attr('style', 'visibility:hidden');
 	});
 	
-	dijit.byId("main").pop = dojo.subscribe("agent/urlpop", function(data){
+	dijit.byId("main").pop = dojo.subscribe("OpenACD/Agent/urlpop", function(data){
 		if(EventLog){
 			EventLog.log("URL popped:  " + data.url);
 		}
@@ -1149,7 +1142,7 @@ dojo.addOnLoad(function(){
 		load_media_tab(popOptions);
 	});
 
-	dijit.byId("main").blab = dojo.subscribe("agent/blab", function(data){
+	dijit.byId("main").blab = dojo.subscribe("OpenACD/Agent/blab", function(data){
 		debug(["blab data", data]);
 		var dia = new dijit.Dialog({
 			title: "Message from Supervisor",
@@ -1164,7 +1157,7 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	};
 	
-	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
+	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
 		load_media_tab(eventdata);
 	});

@@ -598,6 +598,8 @@ block_channels(_Channel, CurrentAvail, none, _, _) ->
 	{[], CurrentAvail};
 block_channels(_Channel, CurrentAvail, all, _, _) ->
 	{CurrentAvail, []};
+block_channels(_Channel, [], _What, AccBlocked, AccAvail) ->
+	{lists:reverse(AccBlocked), lists:reverse(AccAvail)};
 block_channels(Channel, [Channel | Tail], self, AccBlocked, Avail) ->
 	NewBlocked = [Channel | AccBlocked],
 	block_channels(Channel, Tail, self, NewBlocked, Avail);
@@ -800,5 +802,32 @@ expand_magic_skills_test_() ->
 	?_assert(lists:member(english, Newskills)),
 	?_assert(lists:member({'_profile', "testprofile"}, Newskills)),
 	?_assert(lists:member({'_brand', "testbrand"}, Newskills))].
+
+block_channel_test_() ->
+	FullAvail = [dummy, dummy, voice, voice, visual, visual, slow_text,
+		slow_text, fast_text, fast_text],
+	% {TestName, Channel, BlocListDefs, Expected}
+	TestData = [{"blocks all", "nomatches", [{"nomatches", all}], {FullAvail, []}},
+	{"blocks none", "nomatches", [{"nomatches", none}], {[], FullAvail}},
+	{"blocks self", slow_text, ?default_category_blocks, {[slow_text], [dummy,
+		 dummy, voice, voice, visual, visual, fast_text, fast_text]}},
+	{"blocks others", fast_text, ?default_category_blocks, {[dummy, dummy,
+		voice, voice, visual, visual, slow_text, slow_text], [fast_text]}},
+	{"blocks specific", "channel", [{"channel", [visual, slow_text]}], {[
+		visual, visual, slow_text, slow_text], [dummy, dummy, voice, voice,
+		fast_text, fast_text]}}],
+	block_channel_test_gen(TestData).
+
+block_channel_test_gen([]) ->
+	[];
+block_channel_test_gen([{Name, Chan, ListDef, Expected} | Tail]) ->
+	FullAvail = [dummy, dummy, voice, voice, visual, visual, slow_text,
+		slow_text, fast_text, fast_text],
+	{generator, fun() ->
+		[{Name, fun() ->
+			Out = block_channels(Chan, FullAvail, ListDef),
+			?assertEqual(Expected, Out)
+		end} | block_channel_test_gen(Tail)]
+	end}.
 
 -endif.

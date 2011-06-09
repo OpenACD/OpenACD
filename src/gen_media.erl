@@ -292,6 +292,7 @@
 %%		This causes the media to take any action it would from an
 %%		Agentaction return tuple of hangup, then stop.
 
+% TODO Less agent oriented and more agent channel oriented.
 -module(gen_media).
 -author(micahw).
 
@@ -1769,7 +1770,7 @@ handle_call_test_() ->
 		{"Spy is not the pid making the request",
 		fun() ->
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "default"}),
+			{ok, Spy} = agent:start(#agent{login = "testagent"}),
 			Seedstate = Makestate(),
 			State = Seedstate#state{oncall_pid = {"testagent", Spy}},
 			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy, "AgentRec"}, {self(), "tag"}, State)),
@@ -1793,7 +1794,7 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			Ocpid = dead_spawn(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			SpyRec = #agent{login = "testagent", state = released, statedata = "defaut"},
+			SpyRec = #agent{login = "testagent"},
 			{ok, Spy} = agent:start(SpyRec),
 			?assertMatch({reply, invalid, _Newstate}, handle_call({'$gen_media_spy', Spy, SpyRec}, {Spy, "tag"}, Seedstate#state{oncall_pid = {"testagent", Ocpid}})),
 			Assertmocks()
@@ -1806,7 +1807,7 @@ handle_call_test_() ->
 			Ocpid = dead_spawn(),
 			State = Seedstate#state{oncall_pid = {"ocagent", Ocpid}},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			SpyRec = #agent{login = "testagent", state= released, statedata = "default"},
+			SpyRec = #agent{login = "testagent"},
 			{ok, Spy} = agent:start(SpyRec),
 			?assertMatch({reply, ok, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State)),
 			Assertmocks()
@@ -1817,7 +1818,7 @@ handle_call_test_() ->
 		fun() ->
 			Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({hangup, _Callrer, _Time, "agent"}, _State) -> ok end),
 			Monref = make_ref(),
@@ -1836,7 +1837,7 @@ handle_call_test_() ->
 			#state{callrec = Oldcall} = Seedstate = Makestate(),
 			Callrec = Oldcall#call{media_path = outband},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, callrec = Callrec},
 			?assertMatch({reply, invalid, _State}, handle_call('$gen_media_wrapup', {Agent, "tag"}, State)),
 			Assertmocks()
@@ -1847,7 +1848,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
@@ -1875,7 +1876,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, MState, _Elec) ->
@@ -1906,7 +1907,7 @@ handle_call_test_() ->
 		fun() ->
 			Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, queue_failover = false, monitors = Mons},
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, MState, _Elec) ->
@@ -1924,7 +1925,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source, 
 				Rec = Callrec#call{priority = 35},
@@ -1952,7 +1953,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _state) ->
 				Mpid = Callrec#call.source,
 				Rec = Callrec#call{priority = 35},
@@ -1982,7 +1983,7 @@ handle_call_test_() ->
 		{"gen_media_ring setting agent successful, as is the callback module.",
 		fun() ->
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_event_mock:expect_event(cdr, fun({ringing, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
@@ -2007,7 +2008,7 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = "whatever"}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Out = handle_call({'$gen_media_ring', {"testagent", Agent}, Qcall, 100}, {Cook, "tag"}, Seedstate),
 			?assertMatch({reply, invalid, _State}, Out),
 			receive
@@ -2032,7 +2033,7 @@ handle_call_test_() ->
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, _}, _, _) -> ok end),
 			%gen_leader_mock:expect_cast(Ammock, fun({end_avail, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({now_avail, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			{reply, invalid, Newstate} = handle_call({'$gen_media_ring', {"testagent", Agent}, Qcall, 150}, {Cook, "tag"}, Seedstate),
 			receive
 				{'$gen_media_stop_ring', Cook} ->
@@ -2051,7 +2052,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			?assertEqual({reply, invalid, State}, handle_call({'$gen_media_agent_transfer', {"testagent", Agent}}, "from", State)),
@@ -2064,8 +2065,8 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			{ok, Target} = agent:start(#agent{login = "targetagent", state = wrapup, statedata = "doesn't matter"}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
+			{ok, Target} = agent:start(#agent{login = "targetagent"}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			?assertEqual({reply, invalid, State}, handle_call({'$gen_media_agent_transfer', {"targetagent", Target}, 100}, "from", State)),
@@ -2082,8 +2083,8 @@ handle_call_test_() ->
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, "targetagent"}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			{ok, Target} = agent:start(#agent{login = "targetagent", state = idle, statedata = {}}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
+			{ok, Target} = agent:start(#agent{login = "targetagent"}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			{reply, ok, Newstate} = handle_call({'$gen_media_agent_transfer', {"targetagent", Target}, 100}, "from", State),
@@ -2110,7 +2111,7 @@ handle_call_test_() ->
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Target} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
+			{ok, Target} = agent:start(#agent{login = "testagent"}),
 			Agent = spawn(fun() -> ok end),
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}},
 			{reply, invalid, Newstate} = handle_call({'$gen_media_agent_transfer', Target, 100}, "from", State),
@@ -2162,7 +2163,7 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({now_avail, "testagent"}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Mons = #monitors{queue_pid = make_ref(), ring_pid = make_ref()},
 			State = Seedstate#state{queue_pid = {"default_queue", Qpid}, ring_pid = {"testagent", Agent}, monitors = Mons},
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
@@ -2206,8 +2207,8 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
-			{ok, Ring} = agent:start(#agent{login = "ringing", state = oncall, statedata = Callrec}),
+			{ok, Oncall} = agent:start(#agent{login = "oncall"}),
+			{ok, Ring} = agent:start(#agent{login = "ringing"}),
 			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "ringing"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "oncall"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
@@ -2238,8 +2239,8 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
-			{ok, Ring} = agent:start(#agent{login = "ring", state = ringing, statedata = Callrec}),
+			{ok, Oncall} = agent:start(#agent{login = "oncall"}),
+			{ok, Ring} = agent:start(#agent{login = "ring"}),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"oncall", Oncall}, ring_pid = {"ring", Ring}, ringout = Tref, monitors = Mons},
@@ -2263,8 +2264,8 @@ handle_call_test_() ->
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, "ring"}, _, _) -> ok end),
-			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
-			{ok, Ring} = agent:start(#agent{login = "ring", state = ringing, statedata = Callrec}),
+			{ok, Oncall} = agent:start(#agent{login = "oncall"}),
+			{ok, Ring} = agent:start(#agent{login = "ring"}),
 			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "ring"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "oncall"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
@@ -2301,8 +2302,8 @@ handle_call_test_() ->
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, "ring"}, _, _) -> ok end),
-			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
-			{ok, Ring} = agent:start(#agent{login = "ring", state = ringing, statedata = Callrec}),
+			{ok, Oncall} = agent:start(#agent{login = "oncall"}),
+			{ok, Ring} = agent:start(#agent{login = "ring"}),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			State = Seedstate#state{oncall_pid = {"oncall", Oncall}, ringout = Tref, ring_pid = {"ring", Ring}, callrec = Callrec},
 			{reply, invalid, Newstate} = handle_call('$gen_media_agent_oncall', "from", State),
@@ -2328,7 +2329,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok
@@ -2362,7 +2363,7 @@ handle_call_test_() ->
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{ring_pid = make_ref()},
 			State = Seedstate#state{ringout = Tref, ring_pid = {"testagent", Agent}, queue_pid = {"default_queue", Qpid}, monitors = Mons},
@@ -2387,7 +2388,7 @@ handle_call_test_() ->
 			Callrec = Seedcall#call{ring_path = outband, media_path = outband},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, "testagent"}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok
@@ -2422,7 +2423,7 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Seedcall#call.id}, []}),
 			Callrec = Seedcall#call{ring_path = outband, media_path = outband},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{
 				oncall_pid = make_ref(),
@@ -2563,7 +2564,7 @@ handle_info_test_() ->
 	[fun({#state{callrec = Oldcall} = Seedstate}) ->
 		{"agent requests a ring stop",
 		fun() ->
-			{ok, Apid} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Apid} = agent:start(#agent{login = "testagent"}),
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
 			{ok, Am} = gen_leader_mock:start(agent_manager),
@@ -2603,7 +2604,7 @@ handle_info_test_() ->
 		fun() ->
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			{ok, Am} = gen_leader_mock:start(agent_manager),
 			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "testagent", State} end),
 			gen_leader_mock:expect_cast(Am, fun({now_avail, _}, _, _) -> ok end),
@@ -2624,7 +2625,7 @@ handle_info_test_() ->
 		fun() ->
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			{ok, Am} = gen_leader_mock:start(agent_manager),
 			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "testagent", State} end),
 			Mons = #monitors{ring_pid = make_ref()},
@@ -2689,7 +2690,7 @@ handle_info_test_() ->
 		fun() ->
 			Qpid = dead_spawn(),
 			Cook = dead_spawn(),
-			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 			Qref = make_ref(),
 			CookRef = make_ref(),
 			Aref = make_ref(),
@@ -2750,7 +2751,7 @@ handle_info_test_() ->
 			OncallRef = make_ref(),
 			Ocagent = dead_spawn(),
 			Ringref = make_ref(),
-			{ok, Ragent} = agent:start(#agent{login = "ringagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Ragent} = agent:start(#agent{login = "ringagent"}),
 			Mons = #monitors{
 				oncall_pid = OncallRef,
 				ring_pid = Ringref
@@ -2825,7 +2826,7 @@ agent_interact_test_() ->
 		{"stop_ring with a ringout timer going",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = ringing}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
 			Mons = #monitors{ring_pid = make_ref()},
 			State = #state{ring_pid = {"testagent", Apid}, ringout = Tref, callrec = Callrec, monitors = Mons},
@@ -2860,7 +2861,7 @@ agent_interact_test_() ->
 		{"stop_ring with only ring_pid defined",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			Mons = #monitors{ring_pid = make_ref()},
 			State = #state{ring_pid = {"testagent", Apid}, ringout = false, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({ringout, _Callrec, _Time, {undefined, "testagent"}}, _State) -> ok end),
@@ -2892,7 +2893,7 @@ agent_interact_test_() ->
 		{"wrapup",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
@@ -2909,8 +2910,8 @@ agent_interact_test_() ->
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Oncall} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
-			{ok, Ringing} = agent:start(Arec#agent{state = ringing, statedata = Callrec, login = "ringing"}),
+			{ok, Oncall} = agent:start(Arec#agent{}),
+			{ok, Ringing} = agent:start(Arec#agent{login = "ringing"}),
 			Mons = #monitors{ring_pid = make_ref(), oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Oncall}, ring_pid = {"ring", Ringing}, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
@@ -2930,7 +2931,7 @@ agent_interact_test_() ->
 		{"hang up when only oncall is a pid",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
@@ -2947,7 +2948,7 @@ agent_interact_test_() ->
 		{"hang up when only ringing is a pid",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			Mons = #monitors{ring_pid = make_ref()},
 			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			State = #state{ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
@@ -2980,7 +2981,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Qpid} = gen_server_mock:new(),
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),
-			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
+			{ok, Apid} = agent:start(Arec#agent{}),
 			gen_server_mock:expect_call(Qpid, fun({remove, _Incpid}, _From, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			Mons = #monitors{queue_pid = make_ref(), ring_pid = make_ref()},
@@ -3021,7 +3022,7 @@ outgoing_test_() ->
 	N = util:start_testnode(gen_media_outgoing_tests),
 	{spawn, N, {foreach,
 	fun() ->
-		{ok, Apid} = agent:start(#agent{login = "testagent", state = precall, statedata = "clientrec"}),
+		{ok, Apid} = agent:start(#agent{login = "testagent"}),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
 		gen_event:start({local, cdr}),
 		gen_event:add_handler(cdr, gen_event_mock, []),

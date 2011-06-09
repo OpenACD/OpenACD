@@ -1002,9 +1002,9 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
+		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+			#agent{login = "agent2", id = "agent2", skills = ['_all']},
+			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
 		Outlist = [begin
 			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
 				ok
@@ -1085,9 +1085,9 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
+		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+			#agent{login = "agent2", id = "agent2", skills = ['_all']},
+			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
 		List = [begin
 			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
 				ok

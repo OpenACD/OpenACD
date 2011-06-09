@@ -31,7 +31,7 @@
 %% for a media, if the agent fsm has a channel available, a new process
 %% of this module is started.  Once the agent has gone through the flow,
 %% this process can die.
--module(agent).
+-module(agent_channel).
 -behaviour(gen_fsm).
 
 -ifdef(TEST).
@@ -83,8 +83,8 @@
 	handle_sync_event/4,
 	handle_info/3,
 	terminate/3,
-	code_change/4,
-	format_status/2
+	code_change/4%,
+	%format_status/2
 ]).
 %% defined state exports
 -export([
@@ -116,8 +116,6 @@
 	set_state/2, 
 	set_state/3, 
 	list_to_state/1, 
-	integer_to_state/1, 
-	state_to_integer/1, 
 	set_endpoint/2, 
 	set_connection/2,
 	agent_transfer/2,
@@ -134,6 +132,7 @@
 % API
 % ======================================================================
 
+-type(start_opts() :: [{atom(), any()}]).
 %% @doc start an fsm with the given options.
 -spec(start/2 :: (AgentRec :: #agent{}, Options :: start_opts()) -> {'ok', pid()}).
 start(AgentRec, Options) ->
@@ -201,11 +200,15 @@ spy(Spy, Target) ->
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
 list_to_state(String) ->
-	Atom = list_existing_atom(String) of
+	Atom = try erlang:list_existing_atom(String) of
+		A -> A
+	catch
+		error:badarg -> badarg
+	end,
 	case lists:member(Atom, ?STATE_ATOMS) of
 		true -> Atom;
 		false -> erlang:error(badarg)
-	end
+	end.
 
 %% @doc Start the agent_transfer procedure.  Gernally the media will handle it from here.
 -spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok' | 'invalid').
@@ -240,10 +243,10 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
 	ProtoState = #state{
 		agent_fsm = Agent#agent.source,
-		agent_conneciton = Agent#agent.connection,
+		agent_connection = Agent#agent.connection,
 		max_ringouts = MaxRingouts
 	},
-	InitInfo = proplists:get_value(initial_state, Options, {prering, undefined})
+	InitInfo = proplists:get_value(initial_state, Options, {prering, undefined}),
 	case InitInfo of
 		{prering, Call} when is_record(Call, call); Call =:= undefined ->
 			State = ProtoState#state{state_data = Call},
@@ -276,7 +279,7 @@ prering(Msg, State) ->
 % RINGING
 % ======================================================================
 
-ringing({oncall, Call}, From, #state{state_data = Call}) ->
+ringing({oncall, Call}, From, #state{state_data = Call} = State) ->
 	{reply, ok, oncall, State};
 ringing(Msg, From, State) ->
 	{reply, {error, invalid}, ringing, State}.
@@ -288,7 +291,7 @@ ringing(Msg, State) ->
 % PRECALL
 % ======================================================================
 
-precall({oncall, #call{client = Client} = Call}, From, #state{state_data = Client}) ->
+precall({oncall, #call{client = Client} = Call}, From, #state{state_data = Client} = State) ->
 	{reply, ok, oncall, State#state{state_data = Call}};
 precall(Msg, From, State) ->
 	{reply, {error, invalid}, precall, State}.
@@ -325,7 +328,7 @@ oncall(Msg, State) ->
 
 warmtransfer_hold(oncall, From, State) ->
 	{reply, ok, oncall, State};
-warm_transfer_hold({warmtransfer_3rd_party, Data} From, #state{state_data = Call} = State) ->
+warmtransfer_hold({warmtransfer_3rd_party, Data}, From, #state{state_data = Call} = State) ->
 	{reply, ok, warmtransfer_3rd_party, State#state{state_data = {Call, Data}}};
 warmtransfer_hold(wrapup, From, State) ->
 	{reply, ok, wrapup, State};
@@ -349,7 +352,7 @@ warmtransfer_3rd_party(Msg, From, State) ->
 	{reply, {error, invalid}, State}.
 
 warmtransfer_3rd_party(Msg, State) ->
-	{next_state, warmtransfer_3rd_party, State).
+	{next_state, warmtransfer_3rd_party, State}.
 
 % ======================================================================
 % WRAPUP
@@ -380,13 +383,13 @@ handle_event(Event, StateName, State) ->
 handle_sync_event(query_state, _From, StateName, State) ->
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_connection = AgentConn} = State) ->
-	gen_server:cast(Pid, {change_state, Agent#agent.state, Agent#agent.statedata}),
+	gen_server:cast(Pid, {change_state, StateName, State#state.state_data}),
 	case cpx_supervisor:get_value(motd) of
 		{ok, Motd} ->
 			gen_server:cast(Pid, {blab, Motd});
 		_ ->
 			ok
-	end;
+	end,
 	{reply, ok, StateName, State#state{agent_connection = Pid}};
 handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_connection = Connection} = State) when is_pid(Connection) ->
 	gen_server:cast(Connection, {url_pop, URL, Name}),
@@ -399,7 +402,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 % ======================================================================
 
 handle_info(end_wrapup, wrapup, State) ->
-	{stop, normal, Newstate};
+	{stop, normal, State};
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
 
@@ -421,20 +424,20 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % CODE_CHANGE
 % ======================================================================
 
-format_status(normal, [PDict, State]) ->
-	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
-format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
-	% prevent client data from being dumped
-	Newagent = case Agent#agent.statedata of
-		#call{client = Client} = Call when is_record(Call#call.client, client) ->
-			Client = Call#call.client,
-			Agent#agent{statedata = Call#call{client = Client#client{options = []}}};
-		{onhold, #call{client = Client} = Call, calling, ID} when is_record(Client, client) ->
-			Agent#agent{statedata = {onhold, Call#call{client = Client#client{options = []}}, calling, ID}};
-		_ ->
-			Agent
-	end,
-	[Newagent].
+%format_status(normal, [PDict, State]) ->
+%	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
+%format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
+%	% prevent client data from being dumped
+%	Newagent = case Agent#agent.statedata of
+%		#call{client = Client} = Call when is_record(Call#call.client, client) ->
+%			Client = Call#call.client,
+%			Agent#agent{statedata = Call#call{client = Client#client{options = []}}};
+%		{onhold, #call{client = Client} = Call, calling, ID} when is_record(Client, client) ->
+%			Agent#agent{statedata = {onhold, Call#call{client = Client#client{options = []}}, calling, ID}};
+%		_ ->
+%			Agent
+%	end,
+%	[Newagent].
 
 
 % ======================================================================

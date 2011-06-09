@@ -592,7 +592,8 @@ start_channel(Agent, Call, StateName) ->
 
 block_channels(Channel, CurrentAvail, BlocklistDefs) ->
 	Blocklist = proplists:get_value(Channel, BlocklistDefs, []),
-	block_channels(Channel, CurrentAvail, Blocklist, [], []).
+	TrueAvail = lists:delete(Channel, CurrentAvail),
+	block_channels(Channel, TrueAvail, Blocklist, [], []).
 
 block_channels(_Channel, CurrentAvail, none, _, _) ->
 	{[], CurrentAvail};

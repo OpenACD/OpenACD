@@ -392,11 +392,9 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 		{allow, Id, Skills, Security, Profile} ->
 			Agent = #agent{
 				id = Id, 
-				defaultringpath = outband, 
 				login = LoginRequest#loginrequest.username, 
 				skills = Skills, 
-				profile=Profile, 
-				password=DecryptedPass
+				profile=Profile
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
@@ -440,11 +438,9 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 						{allow, Id, Skills, Security, Profile} ->
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = outband, 
 								login = LoginRequest#loginrequest.username, 
 								skills = Skills, 
-								profile=Profile, 
-								password=DecryptedPass
+								profile=Profile
 							},
 							case agent_manager:start_agent(Agent) of
 								{ok, Pid} ->
@@ -556,7 +552,7 @@ service_request(#agentrequest{request_hint = 'GET_PROFILES'}, BaseReply, State) 
 service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, State) ->
 	RawAgents = agent_manager:list(),
 	AgentStates = [agent:dump_state(Pid) || {_K, {Pid, _Id, _Time, _Skills}} <- RawAgents],
-	Agents = [{availagent, X#agent.login, X#agent.profile, state_to_pb(X#agent.state)} || X <- AgentStates],
+	Agents = [{availagent, X#agent.login, X#agent.profile} || X <- AgentStates],
 	Reply = BaseReply#serverreply{
 		success = true,
 		agents = Agents
@@ -593,7 +589,12 @@ service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
 			};
 		_Pid ->
 			case agent:dump_state(State#state.agent_fsm) of
-				#agent{state = released} = AgentRec ->
+				#agent{release_data = undefined} ->
+					BaseReply#serverreply{
+						error_message = "must be released to do a ring test",
+						error_code = "INVALID_STATE"
+					};
+				AgentRec ->
 					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
 					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
 						{ok, _} ->
@@ -603,12 +604,7 @@ service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
 								error_message = io_lib:format("ring test failed:  ~p", [Error]),
 								error_code = "UNKNOWN_ERROR"
 							}
-					end;
-				_ ->
-					BaseReply#serverreply{
-						error_message = "must be released to do a ring test",
-						error_code = "INVALID_STATE"
-					}
+					end
 			end
 	end,
 	{Reply, State};

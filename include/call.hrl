@@ -57,7 +57,8 @@
 		% media_path really means if the agent fsm can send a hangup
 		media_path = outband :: 'inband' | 'outband',
 		direction = inbound :: 'inbound' | 'outbound',
-		priority = 40 :: non_neg_integer()
+		priority = 40 :: non_neg_integer(),
+		arbitrary = [] :: [{string(), string()}]
 }).
 
 -record(queued_call, {

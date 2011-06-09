@@ -46,6 +46,7 @@
 		callerid = {"Unknown", "Unknown"} :: {string(), string()},
 		dnis = "" :: string(),
 		source = erlang:error({undefined, source}) :: pid(),
+		source_module = dummy_media :: atom(),
 		bound = [] :: [pid()],
 		% client record
 		client = undefined :: 'undefined' | #client{}, %#client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: ,

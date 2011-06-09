@@ -34,8 +34,9 @@
 -type(endpointringpersistance() :: 'transient' | 'persistant').
 -type(endpointtype() :: {endpointringpid(), endpointringpersistance(), voice_type()}).
 -type(release_bias() :: -1 | 0 | 1).
--type(release_label() :: default | string()).
+-type(release_label() :: 'default' | string()).
 -type(release_id() :: string()).
+-type(release_code() :: {release_id(), release_label(), release_bias()}).
 
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
@@ -44,6 +45,11 @@
 	connection :: pid(),
 	profile = "Default" :: string() | 'error',
 	source :: pid(),
+	release_data :: release_code() | 'undefined',
+	available_channels = [],
+	used_channels = dict:new(),
+	endpoints = dict:new(),
+	ring_channel = none :: 'none' | any(),
 	%state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	%oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	%statedata = {"default", default, -1} ::	{} |		% when state is idle
@@ -51,7 +57,6 @@
 						%any() |	% state = precall
 						%{release_id(), release_label(), release_bias()} |	% released
 						%{onhold, #call{}, calling, string()},	% warmtransfer
-	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	%lastchange = util:now() :: pos_integer(),	% at what time did the last state change occur
 	%defaultringpath = inband :: 'inband' | 'outband',
 	%endpointtype = {undefined, transient, sip_registration} :: endpointtype(),
@@ -109,6 +114,8 @@
 }).
 
 -define(DEFAULT_PROFILE, #agent_profile{name = "Default", id = "0", timestamp = util:now()}).
+
+-define(DEFAULT_RELEASE, {"default", default, -1}).
 
 -record(release_opt, {
 	id :: pos_integer(),

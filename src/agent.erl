@@ -43,19 +43,13 @@
 
 -type(agent_opt() :: {'nodes', [atom()]} | 'logging').
 -type(agent_opts() :: [agent_opt()]).
--type(release_code() :: {string(), atom(), -1 | 0 | 1} | 'default').
 
 %% slow text is textual medias that do not requrie a particually fast 
 %% response, such as email.  Fast_text is textual medias that require rapid
 %% replies, such as chat.
--type(channel_category() :: 'dummy' | 'voice' | 'visual' | 'slow_text' | 'fast_text').
--record(#channel{
-	category = 'dummy' :: channel_category(),
-	pid :: 'undefined' | pid() % if undefined, usuable, else unavailable
-}).
--type(endpoint_entry() :: {channel_category(), any()}).
+%-type(channel_category() :: 'dummy' | 'voice' | 'visual' | 'slow_text' | 'fast_text').
 -record(state, {
-	agent_rec :: #agent{},
+	agent_rec :: #agent{}
 }).
 
 -type(state() :: #state{}).
@@ -77,8 +71,8 @@
 	handle_sync_event/4,
 	handle_info/3,
 	terminate/3,
-	code_change/4,
-	format_status/2
+	code_change/4%,
+	%format_status/2
 ]).
 %% defined state exports
 -export([
@@ -88,14 +82,14 @@
 %% defining async state exports
 -export([
 	idle/2,
-	released/2,
+	released/2
 ]).
 
 %% other exports
 -export([
-	start/1,
+	%start/1,
 	start/2,
-	start_link/1,
+	%start_link/1,
 	start_link/2,
 	stop/1,
 	set_released/2,
@@ -105,7 +99,10 @@
 	query_state/1, 
 	dump_state/1, 
 	register_rejected/1,
-	log_loop/4]).
+	log_loop/4,
+	set_connection/2,
+	set_endpoint/2,
+	blab/2]).
 
 % ======================================================================
 % API
@@ -308,11 +305,11 @@ idle({set_release, none}, _From, State) ->
 idle({set_release, default}, From, State) ->
 	idle({set_release, ?DEFAULT_RELEASE}, From, State);
 
-idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias <= 1; Bias >= -1 ->
+idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
 	gen_server:cast(dispatch_manager, {set_avail, self(), []}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
 	NewAgent = Agent#agent{release_data = Release},
-	set_cpx_monitor(Newagent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(NewAgent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
@@ -352,13 +349,13 @@ idle(Msg, State) ->
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(dispatch_manager, {set_avail, self(), Agent#agent.available_channels}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
-	NewAgent = Agent#agent.release_data = undefined,
-	set_cpx_monitor(Newagent, []),
+	NewAgent = Agent#agent{release_data = undefined},
+	set_cpx_monitor(NewAgent, []),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
 
 released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
 	NewAgent = Agent#agent{release_data = Release},
-	set_cpx_monitor(Newagent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(NewAgent, [{reason, Label}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 released(Msg, _From, State) ->
@@ -377,7 +374,6 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 		agent_channel:set_connection(ChanPid, Pid),
 		V
 	end, Agent#agent.used_channels),
-	gen_server:cast(Pid, {change_state, Agent#agent.state, Agent#agent.release_data}),
 	case erlang:function_exported(cpx_supervisor, get_value, 1) of
 		true ->
 			case cpx_supervisor:get_value(motd) of
@@ -411,7 +407,6 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			Newagent = Agent#agent{skills = NewAgentSkills2, profile = Profile},
 			Deatils = [
 				{profile, Newagent#agent.profile}, 
-				{state, Newagent#agent.state}, 
 				{login, Newagent#agent.login}, 
 				{skills, Newagent#agent.skills}
 			],
@@ -457,7 +452,7 @@ handle_event(_Msg, StateName, State) ->
 % HANDLE_INFO
 % ======================================================================
 
-handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = #agent{log_pid = Pid} = Agent} = State) ->
+handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
 	?INFO("Log pid ~w died due to ~p", [From, Reason]),
 	Nodes = case proplists:get_value(nodes, Agent#agent.start_opts) of
 		undefined -> [node()];
@@ -465,7 +460,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = #agent{log_pid 
 	end,
 	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
 	Newagent = Agent#agent{log_pid = Pid},
-	{next_state, Statename, State#state{agent_rec = Newagent}};
+	{next_state, StateName, State#state{agent_rec = Newagent}};
 
 handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connection = From} = _Agent} = State) ->
 	?WARNING("agent connection died while ~w", [StateName]),
@@ -485,10 +480,10 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			case whereis(agent_manager) of
 				undefined ->
 					agent_manager_exit(Reason, StateName, State);
-				From ->
+				From when is_pid(From) ->
 					agent_manager_exit(Reason, StateName, State);
 				_Else ->
-					?INFO("unknown exit from ~p", [From]),
+					?INFO("unknown exit from ~p", [Pid]),
 					{next_state, StateName, State}
 			end;
 		{ok, NowAvailChannels} ->
@@ -506,7 +501,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 				_ ->
 					ok
 			end,
-			{next_state, StateName, State#state{agent_rec,NewAgent}}
+			{next_state, StateName, State#state{agent_rec = NewAgent}}
 	end.
 
 % ======================================================================
@@ -556,7 +551,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 start_channel(Agent, Call, StateName) ->
 	ChanAvail = lists:member(Call#call.type, Agent#agent.available_channels),
 	EndPoint = get_endpoint(Call#call.source_module, Agent),
-	case {ChanAvail, Endpoint} of
+	case {ChanAvail, EndPoint} of
 		{false, _} -> 
 			{error, nochannel};
 		{true, {error, notfound}} ->
@@ -565,11 +560,11 @@ start_channel(Agent, Call, StateName) ->
 			Self = self(),
 			case agent_channel:start_link(Agent, Call, Endpoint) of
 				{ok, Pid} ->
-					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.channels_available, ?default_category_blocks),
+					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
 					gen_server:cast(dispatch_manager, {set_avail, self(), Available}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
-						channels_available = Available,
+						available_channels = Available,
 						used_channels = dict:store(Pid, Blocked, Agent#agent.used_channels)
 					},
 					{ok, Pid, NewAgent};
@@ -580,7 +575,7 @@ start_channel(Agent, Call, StateName) ->
 
 block_channels(Channel, CurrentAvail, BlocklistDefs) ->
 	Blocklist = proplists:get_value(Channel, BlocklistDefs, []),
-	block_channels(Channel, CurrentAvail, Blocklist, Blocked, Available).
+	block_channels(Channel, CurrentAvail, Blocklist, [], []).
 
 block_channels(_Channel, CurrentAvail, none, _, _) ->
 	{[], CurrentAvail};
@@ -594,7 +589,7 @@ block_channels(Channel, [Channel | Tail], others, Blocked, AccAvail) ->
 	block_channels(Channel, Tail, others, Blocked, NewAvail);
 block_channels(Channel, [Other | Tail], self, Blocked, AccAvail) ->
 	NewAvail = [Other | AccAvail],
-	block_channels(Channel, Tail, self, Blocked, NewAvail) ->
+	block_channels(Channel, Tail, self, Blocked, NewAvail);
 block_channels(Channel, [Other | Tail], others, AccBlocked, Avail) ->
 	NewBlocked = [Other | AccBlocked],
 	block_channels(Channel, Tail, others, NewBlocked, Avail);
@@ -634,12 +629,7 @@ wait_for_agent_manager(Count, StateName, #state{agent_rec = Agent} = State) ->
 			% this will throw an error if the agent is already registered as
 			% a different pid and that error will crash this process
 			?INFO("Notifying new agent manager of agent ~p at ~p", [Agent#agent.login, self()]),
-			Time = case Agent#agent.state of 
-				idle ->
-					Agent#agent.lastchange;
-				_ ->
-					0
-			end,
+			Time = util:now(),
 			agent_manager:notify(Agent#agent.login, Agent#agent.id, self(), Time, Agent#agent.skills),
 			{next_state, StateName, State}
 	end.
@@ -659,10 +649,7 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 	log_change(State),
 	Deatils = lists:append([
 		{profile, State#agent.profile}, 
-		{state, State#agent.state}, 
-		{statedata, State#agent.statedata}, 
 		{login, State#agent.login}, 
-		{lastchange, {timestamp, State#agent.lastchange}}, 
 		{skills, State#agent.skills}], 
 	Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Deatils, Watch).
@@ -670,7 +657,7 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 log_change(#agent{log_pid = undefined}) ->
 	ok;
 log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
-	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
+	Pid ! {State#agent.login},
 	ok.
 
 -spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').

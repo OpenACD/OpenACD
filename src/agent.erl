@@ -101,7 +101,7 @@
 	register_rejected/1,
 	log_loop/4,
 	set_connection/2,
-	set_endpoint/2,
+	set_endpoint/3,
 	get_endpoint/2,
 	blab/2]).
 
@@ -142,10 +142,6 @@ set_released(Pid, Released) ->
 -spec(set_connection/2 :: (Pid :: pid(), Socket :: pid()) -> 'ok' | 'error').
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
-
--spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpointtype(), string()}) -> ok).
-set_endpoint(Pid, Endpoint) ->
-	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
 
 %% @doc When the agent manager can't register an agent, it 'casts' to this.
 -spec(register_rejected/1 :: (Pid :: pid()) -> 'ok').
@@ -254,6 +250,25 @@ get_endpoint(Module, Ends) ->
 		{ok, inband} -> inband;
 		{ok, {module, NewMod}} -> get_endpoint(NewMod, Ends);
 		{ok, Data} -> Data
+	end.
+
+%% @doc Set the endpoint data for a specific module.  The calling process is
+%% forced to do much of the verification that the module mentioned exists
+%% and implements the gen_media behaviour.  Data can be 'inband', 
+%% {'module', atom()}, or arbitary data.
+-spec(set_endpoint/3 :: (Agent :: pid(), Module :: atom(), Data :: any()) ->
+'ok' | {'error', any()}).
+set_endpoint(Agent, Module, Data) when is_pid(Agent), is_atom(Module) ->
+	case proplists:get_value(Module, code:all_loaded()) of
+		undefined ->
+			{error, module_noexists};
+		_ ->
+			case proplists:get_value(behaviour, Module:module_info(attributes)) of
+				[gen_media] ->
+					gen_fsm:sync_send_all_state_event(Agent, {set_endpoint, Module, Data});
+				_ ->
+					{error, badmodule}
+			end
 	end.
 
 precall(Apid, Client, Type) ->
@@ -435,6 +450,29 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			{reply, {error, unknown_profile}, StateName, State}
 	end;
 
+handle_sync_event({set_endpoint, Module, inband}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	NewEndpoints = dict:store(Module, inband, Agent#agent.endpoints),
+	NewAgent = Agent#agent{endpoints = NewEndpoints},
+	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
+
+handle_sync_event({set_endpoint, Module, {module, Module}}, _From, StateName, State) ->
+	{reply, {error, self_reference}, StateName, State};
+
+handle_sync_event({set_endpoint, Module, {module, OtherMod} = Endpoint}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	case dict:find(OtherMod, Agent#agent.endpoints) of
+		error ->
+			{reply, {error, module_noexists}, StateName, State};
+		{ok, _} ->
+			NewEndpoints = dict:store(Module, Endpoint, Agent#agent.endpoints),
+			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
+	end;
+
+handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	NewEndpoints = dict:store(Module, Data, Agent#agent.endpoints),
+	NewAgent = Agent#agent{endpoints = NewEndpoints},
+	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
+	
 handle_sync_event(Msg, _From, StateName, State) ->
 	{reply, {error, Msg}, StateName, State}.
 
@@ -793,8 +831,31 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 %	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 %	?assertEqual({ok, idle}, query_state(Pid)),
 %	agent:stop(Pid).		
-	
 
+make_agent() ->
+	make_agent([]).
+
+make_agent(Opts) ->
+	Fields = record_info(fields, agent),
+	BaseAgent = #agent{
+		login = "agent",
+		source = self()
+	},
+	make_agent(Opts, Fields, BaseAgent).
+
+make_agent([], _Fields, Agent) ->
+	Agent;
+make_agent([{Key, Value} | Tail], Fields, Agent) when is_atom(Key) ->
+	NewAgent = case util:list_index(Key, Fields) of
+		0 ->
+			Agent;
+		X ->
+			setelement(X+1, Agent, Value)
+	end,
+	make_agent(Tail, Fields, NewAgent);
+make_agent([_ | Tail], Fields, Agent) ->
+	make_agent(Tail, Fields, Agent).
+	
 expand_magic_skills_test_() ->
 	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english, {'_brand', "testbrand"}]},
 	Newskills = expand_magic_skills(Agent, Agent#agent.skills),
@@ -830,5 +891,45 @@ block_channel_test_gen([{Name, Chan, ListDef, Expected} | Tail]) ->
 			?assertEqual(Expected, Out)
 		end} | block_channel_test_gen(Tail)]
 	end}.
+
+handle_sync_event_test_() ->
+	[{"handle set_endpoint", setup, fun() ->
+			Endpoints = dict:from_list([
+				{freeswitch_media, sip},
+				{email_media, inband},
+				{asterix, {module, freeswitch_media}}
+			]),
+			Agent = make_agent([{endpoints, Endpoints}]),
+			State = #state{agent_rec = Agent},
+			{Agent, State, Endpoints}
+		end,
+		fun({Agent, State, Endpoints}) -> [
+			{"Adding new inband endpoint", fun() ->
+				Expected = [{fast_text, inband} | dict:to_list(Endpoints)],
+				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, fast_text, inband}, "from", idle, State),
+				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
+			end},
+
+			{"Adding new module ref endpoint", fun() ->
+				Expected = [{fast_text, {module, email_media}} | dict:to_list(Endpoints)],
+				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, fast_text, {module, email_media}}, "from", idle, State),
+				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
+			end},
+
+			{"Adding a self-refertial endpoint", fun() ->
+				?assertEqual({reply, {error, self_reference}, idle, State}, handle_sync_event({set_endpoint, fast_text, {module, fast_text}}, "from", idle, State))
+			end},
+
+			{"adding a missing referencital endpoint", fun() ->
+				?assertEqual({reply, {error, module_noexists}, idle, State}, handle_sync_event({set_endpoint, fast_text, {module, goober_pants}}, "from", idle, State))
+				end},
+
+			{"adding arbitary data endpoint", fun() ->
+				Expected = [{fast_text, "data"} | dict:to_list(Endpoints)],
+				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, fast_text, "data"}, "from", idle, State),
+				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
+			end}
+		]
+	end}].
 
 -endif.

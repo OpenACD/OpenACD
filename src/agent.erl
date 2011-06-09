@@ -102,7 +102,15 @@
 	log_loop/4,
 	set_connection/2,
 	set_endpoint/2,
+	get_endpoint/2,
 	blab/2]).
+
+%% Channel Starters
+-export([
+	precall/3,
+	prering/2,
+	ringing/2
+]).
 
 % ======================================================================
 % API
@@ -247,6 +255,15 @@ get_endpoint(Module, Ends) ->
 		{ok, {module, NewMod}} -> get_endpoint(NewMod, Ends);
 		{ok, Data} -> Data
 	end.
+
+precall(Apid, Client, Type) ->
+	gen_fsm:sync_send_event(Apid, {precall, Client, Type}).
+
+prering(Apid, Data) ->
+	gen_fsm:sync_send_event(Apid, {prering, Data}).
+
+ringing(Apid, Call) ->
+	gen_fsm:sync_send_event(Apid, {ringing, Call}).
 
 % ======================================================================
 % INIT

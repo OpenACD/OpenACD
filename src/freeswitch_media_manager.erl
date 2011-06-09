@@ -415,7 +415,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};
-handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration}, endpointdata = EndPointData}, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
+handle_call({ring, EndPointData, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
 	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
 	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
 		{ok, Pid} ->
@@ -423,7 +423,7 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration
 		Error ->
 			{reply, Error, State}
 	end;
-handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data}, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+handle_call({ring, {Type, Data}, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
@@ -438,7 +438,7 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointd
 		Error ->
 			{reply, Error, State}
 	end;
-handle_call({ring, #agent{endpointtype = {undefined, persistant, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
+handle_call({ring, EndPointData, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
 	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
 	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
 		{ok, Pid} ->
@@ -446,7 +446,7 @@ handle_call({ring, #agent{endpointtype = {undefined, persistant, sip_registratio
 		Error ->
 			{reply, Error, State}
 	end;
-handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpointdata = Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+handle_call({ring, {Type, Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
@@ -761,22 +761,19 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								Agent ->
-									DialString = case Agent#agent.endpointtype of
+									DialString = case agent:get_endpoint(freeswitch_media, Agent) of
 										sip_registration ->
-											case Agent#agent.endpointdata of
-												undefined ->
-													"${sofia_contact("++User++"@"++Domain++")}";
-												_ ->
-													"${sofia_contact("++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"@"++Domain++")}"
-											end;
-										sip ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:"), Agent#agent.endpointdata, []);
-										iax2 ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/"), Agent#agent.endpointdata, []);
-										h323 ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Agent#agent.endpointdata, []);
-										pstn ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, [])
+											"${sofia_contact("++User++"@"++Domain++")}";
+										{sip_registration, Data} ->
+											"${sofia_contact("++re:replace(Data, "@", "_", [{return, list}])++"@"++Domain++")}";
+										{sip, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:"), Data, []);
+										{iax2, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/"), Data, []);
+										{h323, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Data, []);
+										{pstn, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Data, [])
 									end,
 									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
 									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString])))
@@ -800,23 +797,25 @@ fetch_domain_user(Node, State) ->
 									User = proplists:get_value("user", Data),
 									Domain = proplists:get_value("domain", Data),
 									Realm = proplists:get_value("sip_auth_realm", Data),
-									case agent_manager:query_agent(User) of
-										{true, Pid} ->
-											try agent:dump_state(Pid) of
-												Agent when Agent#agent.password == 'undefined' ->
-													return_a1_hash(Domain, User, Node, ID);
-												Agent ->
-													Password=Agent#agent.password,
-													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
-													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
-												catch
-													_:_ -> % agent pid is toast?
-														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
-												end;
-											false ->
-												return_a1_hash(Domain, User, Node, ID)
-										end
+									% TODO Can this be done w/o dealing w/ a plain text pw?
+									freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+%									case agent_manager:query_agent(User) of
+%										{true, Pid} ->
+%											try agent:dump_state(Pid) of
+%												Agent when Agent#agent.password == 'undefined' ->
+%													return_a1_hash(Domain, User, Node, ID);
+%												Agent ->
+%													Password=Agent#agent.password,
+%													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
+%													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
+%													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
+%												catch
+%													_:_ -> % agent pid is toast?
+%														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+%												end;
+%											false ->
+%												return_a1_hash(Domain, User, Node, ID)
+%										end
 								end;
 						undefined -> % I guess we're just looking up a user?
 							User = proplists:get_value("user", Data),
@@ -860,24 +859,18 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
-get_agent_dial_string(#agent{endpointtype = {_, Endpointtype}} = Agent, Opts, State) ->
-	get_agent_dial_string(Agent#agent{endpointtype = Endpointtype}, Opts, State);
 get_agent_dial_string(AgentRec, Options, State) ->
-	case AgentRec#agent.endpointtype of
+	case agent:get_endpoint(AgentRec, freeswitch_media) of
 		sip_registration ->
-			case AgentRec#agent.endpointdata of
-				undefined ->
-					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
-				_ ->
-					%"sofia/internal/"++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"%"
-					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.endpointdata, "@", "_", [{return, list}]), Options)
-			end;
-		sip ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State#state.fetch_domain_user, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
-		iax2 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State#state.fetch_domain_user, "iax2/$1"), AgentRec#agent.endpointdata, Options);
-		h323 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
-		pstn ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options)
+			freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
+		{sip_registration, Data} ->
+			freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(Data, "@", "_", [{return, list}]), Options);
+		{sip, Data} ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State#state.fetch_domain_user, "sofia/internal/sip:$1"), Data, Options);
+		{iax2, Data} ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State#state.fetch_domain_user, "iax2/$1"), Data, Options);
+		{h323, Data} ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), Data, Options);
+		{pstn, Data} ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), Data, Options)
 	end.

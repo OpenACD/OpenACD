@@ -434,22 +434,11 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 		{<<"securityLevel">>, Security},
-		{<<"state">>, Agentrec#agent.state},
-		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-		{<<"statetime">>, Agentrec#agent.lastchange},
 		{<<"timestamp">>, util:now()}
 	],
-	Fulljson = case Agentrec#agent.state of
-		oncall ->
-			case agent_web_connection:mediaload(Conn) of
-				undefined ->
-					Basejson;
-				MediaLoad ->
-					[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
-			end;
-		_ ->
-			Basejson
-	end,
+	% TODO when a new connection is established, the channels should do the
+	% media load command.
+	Fulljson = Basejson,
 	Json = {struct, [
 		{<<"success">>, true},
 		{<<"result">>, {struct, Fulljson}} |
@@ -658,18 +647,16 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 						{{allow, Id, Skills, Security, Profile}, _} ->
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = Bandedness, 
 								login = Username, 
 								skills = Skills, 
-								profile=Profile, 
-								password=DecryptedPassword
+								profile=Profile
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
-									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
@@ -677,7 +664,6 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 										{<<"result">>, {struct, [
 											{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
-											{<<"statetime">>, StateTime},
 											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),

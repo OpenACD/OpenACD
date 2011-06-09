@@ -146,11 +146,8 @@ init([Args]) ->
 	AgentRec = #agent{
 			id = proplists:get_value(id, Args, Login),
 			login = Login,
-			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
-			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
-			endpointtype = proplists:get_value(endpoint_type, Args, sip_registration),
-			endpointdata = proplists:get_value(endpoint_data, Args, Login)
+			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 	},
 	{ok, Pid} = case proplists:get_value(remote_node, Args) of
 		undefined ->

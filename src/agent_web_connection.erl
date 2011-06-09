@@ -610,14 +610,6 @@ init([Agent, Security]) ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			agent_web_listener:linkto(self()),
 			State = agent:dump_state(Apid),
-			CurrentCall = case State#agent.statedata of
-				Call when is_record(Call, call) ->
-					Call;
-				{on_hold, Call, calling, _Number} ->
-					Call;
-				_ ->
-					undefined
-			end,
 
 %			case Security of
 %				agent ->
@@ -627,7 +619,7 @@ init([Agent, Security]) ->
 %				admin ->
 %					cpx_monitor:subscribe()
 %			end,
-			{ok, #state{agent_fsm = Apid, current_call = CurrentCall, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
+			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -640,10 +632,9 @@ handle_call(logout, _From, State) ->
 handle_call(get_avail_agents, _From, State) ->
 	Agents = [AgState || {_K, {Pid, _Id, _Time, _Skills}} <-
 		agent_manager:list(),
-		AgState <- [agent:dump_state(Pid)],
-		AgState#agent.state == idle orelse AgState#agent.state == released],
+		AgState <- [agent:dump_state(Pid)]],
 
-	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}, {<<"state">>, Rec#agent.state}]} || Rec <- Agents],
+	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}]} || Rec <- Agents],
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}, {<<"result">>, Noms}]})}, State};
 handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent:set_state(Apid, agent:list_to_state(Statename)) of
@@ -674,25 +665,26 @@ handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid}
 handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
 	{reply, agent:set_endpoint(Apid, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
-	AgentRec = agent:dump_state(AgentPid),
-	case AgentRec#agent.state of
-		precall ->
-			#agent{statedata = Call} = AgentRec,
-			case Call#call.direction of
-				outbound ->
-					case gen_media:call(Call#call.source, {dial, Number}) of
-						ok ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
-						{error, Error} ->
-							?NOTICE("Outbound call error ~p", [Error]),
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(lists:flatten(io_lib:format("~p, Check your phone configuration", [Error])))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}, State}
-					end;
-				_ ->
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
-			end;
-		_ ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not in pre-call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
-	end;
+	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]})}, State};
+%	AgentRec = agent:dump_state(AgentPid),
+%	case AgentRec#agent.state of
+%		precall ->
+%			#agent{statedata = Call} = AgentRec,
+%			case Call#call.direction of
+%				outbound ->
+%					case gen_media:call(Call#call.source, {dial, Number}) of
+%						ok ->
+%							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+%						{error, Error} ->
+%							?NOTICE("Outbound call error ~p", [Error]),
+%							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(lists:flatten(io_lib:format("~p, Check your phone configuration", [Error])))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}, State}
+%					end;
+%				_ ->
+%					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
+%			end;
+%		_ ->
+%			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not in pre-call">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
+%	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, {Astate, State#state.securitylevel}, State};
@@ -741,34 +733,14 @@ handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) 
 	{reply, Reply, State};
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
-	AgentRec = agent:dump_state(Apid), % TODO - avoid
-	Reply = case AgentRec#agent.state of
-		Agentstate when Agentstate =:= released; Agentstate =:= idle ->
-			try list_to_existing_atom(Type) of
-				freeswitch ->
-					case whereis(freeswitch_media_manager) of
-						P when is_pid(P) ->
-							case freeswitch_media_manager:make_outbound_call(Client, Apid, AgentRec#agent.login) of
-								{ok, Pid} ->
-									Call = gen_media:get_call(Pid),
-									agent:set_state(Apid, precall, Call),
-									{200, [], mochijson2:encode({struct, [{success, true}]})};
-								{error, Reason} ->
-									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing outbound call failed (~p)", [Reason]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})} 
-							end;
-						 _ ->
-							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
-					end;
-				% TODO - more outbound types go here :)
-				_ ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
-			catch
-				_:_ ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]})}
-			end;
-		_ ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent must be released or idle">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}
-	end,
+	%AgentRec = agent:dump_state(Apid), % TODO - avoid
+	Reply = case agent:precall(Apid, {precall, Client, Type})of
+		{ok, ChanPid} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		{error, Else} ->
+			?INFO("Could not start precall for ~p of ~p due to ~p", [Client, Type, Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown error">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end, 
 	{reply, Reply, State};
 
 % TODO supervisor handling was here.  Forward requests to 
@@ -842,33 +814,34 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, agent_fsm = Apid} = State) ->
-	AgentRec = agent:dump_state(Apid), % TODO - avoid
-	Json = case cpx:get_env(ring_manager) of
-		{ok, Module} when AgentRec#agent.state == released ->
-			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
-				case EventName of
-					"CHANNEL_ANSWER" ->
-						freeswitch:sendmsg(FsNode, UUID, [
-							{"call-command", "execute"},
-							{"execute-app-name", "delay_echo"},
-							{"execute-app-arg", "1000"}
-						]),
-						{noreply, FunState};
-					_ ->
-						{noreply, FunState}
-				end
-			end,
-			case Module:ring(AgentRec, [{handle_event, HandleEvent}], [no_oncall_on_bridge]) of
-				{ok, _} ->
-					{struct, [{success, true}]};
-				{error, Error} ->
-					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
-			end;
-		undefined ->
-			{struct, [{success, false}, {<<"message">>, <<"no ring manager available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]};
-		_ ->
-			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}, {<<"errcode">>, <<"INVALID_STATE">>}]} 
-	end, 
+	Json = {struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]},
+%	AgentRec = agent:dump_state(Apid), % TODO - avoid
+%	Json = case cpx:get_env(ring_manager) of
+%		{ok, Module} when AgentRec#agent.state == released ->
+%			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
+%				case EventName of
+%					"CHANNEL_ANSWER" ->
+%						freeswitch:sendmsg(FsNode, UUID, [
+%							{"call-command", "execute"},
+%							{"execute-app-name", "delay_echo"},
+%							{"execute-app-arg", "1000"}
+%						]),
+%						{noreply, FunState};
+%					_ ->
+%						{noreply, FunState}
+%				end
+%			end,
+%			case Module:ring(AgentRec, [{handle_event, HandleEvent}], [no_oncall_on_bridge]) of
+%				{ok, _} ->
+%					{struct, [{success, true}]};
+%				{error, Error} ->
+%					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
+%			end;
+%		undefined ->
+%			{struct, [{success, false}, {<<"message">>, <<"no ring manager available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]};
+%		_ ->
+%			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}, {<<"errcode">>, <<"INVALID_STATE">>}]} 
+%	end, 
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/queue_transfer", Opts}, _From, #state{current_call = Call, agent_fsm = Apid} = State) when is_record(Call, call) ->
 	Queue = proplists:get_value("queue", Opts),
@@ -966,9 +939,7 @@ handle_call({supervisor, Request}, From, #state{supervisor_state = undefined} = 
 	Agent = agent:dump_state(State#state.agent_fsm),
 	{ok, SupState} = supervisor_web_connection:init([
 		{login, Agent#agent.login},
-		{endpointtype, Agent#agent.endpointtype},
-		{endpointdata, Agent#agent.endpointdata},
-		{ring_path, Agent#agent.defaultringpath}
+		{agent, Agent}
 	]),
 	NewState = State#state{supervisor_state = SupState},
 	handle_call({supervisor, Request}, From, NewState);
@@ -1483,116 +1454,6 @@ parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}, {<<"errcode">>, <<"BAD_RETURN">>}]})}.
 
--spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
-do_action([], _Do, Acc) ->
-	{true, Acc};
-%% get a list of the agent profiles and how many agents are logged into each
-do_action([Node | Tail], ["agent_profiles"] = Do, Acc) ->
-	Profiles = agent_auth:get_profiles(),
-	Makeprops = fun(#agent_profile{name = Name}) ->
-		{Name, 0}
-	end,
-	Dict = dict:from_list(lists:map(Makeprops, Profiles)),
-	Agents = case rpc:call(Node, agent_manager, list, [], 1000) of
-		{badrpc, timeout} ->
-			[];
-		Else ->
-			Else
-	end,
-	F = fun({_Login, Pid}, Accin) -> 
-		#agent{profile = Profile} = agent:dump_state(Pid),
-		dict:store(Profile, dict:fetch(Profile, Accin) + 1, Accin)
-	end,
-	Newdict = lists:foldl(F, Dict, Agents),
-	Proplist = dict:to_list(Newdict),
-	Makestruct = fun({Name, Count}) ->
-		{struct, [{<<"name">>, list_to_binary(Name)}, {<<"count">>, Count}]}
-	end,
-	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"profiles">>, lists:map(Makestruct, Proplist)}]} | Acc],
-	do_action(Tail, Do, Newacc);
-%% get a list of the queues, and how many calls are in each.
-do_action([Node | Tail], ["queues"] = Do, Acc) ->
-	Queuedict = case rpc:call(Node, queue_manager, print, [], 1000) of
-		{badrpc, timeout} ->
-			dict:new();
-		Else ->
-			Else
-	end,
-	Queuelist = dict:to_list(Queuedict),
-	Makeprops = fun({Qname, Qpid}) ->
-		Count = call_queue:call_count(Qpid),
-		{struct, [{<<"name">>, list_to_binary(Qname)}, {<<"count">>, Count}]}
-	end,
-	Queues = lists:map(Makeprops, Queuelist),
-	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"queues">>, Queues}]} | Acc],
-	do_action(Tail, Do, Newacc);
-%% get the agents that are a member of the given profile, and thier data.
-do_action([Node | Tail], ["agent", Profile] = Do, Acc) ->
-	Binprof = list_to_binary(Profile),
-	Agents = case rpc:call(Node, agent_manager, list, [], 1000) of
-		{badrpc, timeout} ->
-			[];
-		Else ->
-			Else
-	end,
-	States = lists:map(fun({_, Pid}) -> agent:dump_state(Pid) end, Agents),
-	Filter = fun(#agent{profile = Aprof}) ->
-		list_to_binary(Aprof) =:= Binprof
-	end,
-	Filtered = lists:filter(Filter, States),
-	Agentstructs = encode_agents(Filtered, []),
-	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"agents">>, Agentstructs}]} | Acc],
-	do_action(Tail, Do, Newacc);
-%% get the agent state data (id call).
-do_action([_Node | _Tail], ["agent", Agent, "callid"], _Acc) ->
-	case agent_manager:query_agent(Agent) of
-		false ->
-			{false, <<"agent not found">>};
-		{true, Pid} ->
-			#agent{statedata = Call} = agent:dump_state(Pid),
-			case Call of
-				Call when is_record(Call, call) ->
-					{true, encode_call(Call)};
-				_Else ->
-					{false, <<"not a call">>}
-			end
-	end;
-%% get a summary of the given queue
-do_action([_Node | _Tail], ["queue", Queue], _Acc) ->
-	case queue_manager:get_queue(Queue) of
-		undefined ->
-			{false, <<"no such queue">>};
-		Pid when is_pid(Pid) ->
-			Weight = call_queue:get_weight(Pid),
-			Count = call_queue:call_count(Pid),
-			Calls = encode_queue_list(call_queue:get_calls(Pid), []),
-			Encoded = {struct, [
-				{<<"weight">>, Weight},
-				{<<"count">>, Count},
-				{<<"calls">>, Calls}
-			]},
-			{true, Encoded}
-	end;
-%% get a call from the given queue
-do_action([_Node | _Tail], ["queue", Queue, Callid], _Acc) ->
-	case queue_manager:get_queue(Queue) of
-		undefined ->
-			{false, <<"no such queue">>};
-		Pid when is_pid(Pid) ->
-			case call_queue:get_call(Pid, Callid) of
-				{{Weight, {Mega, Sec, _Micro}}, Call} ->
-					{struct, Preweight} = encode_call(Call),
-					Time = (Mega * 100000) + Sec,
-					Props = lists:append([{<<"weight">>, Weight}, {<<"queued">>, Time}], Preweight),
-					{true, {struct, Props}};
-				none ->
-					{false, <<"no such call">>}
-			end
-	end;
-do_action(Nodes, Do, _Acc) ->
-	?INFO("Bumping back unknown request ~p for nodes ~p", [Do, Nodes]),
-	{false, <<"unknown request">>}.
-
 encode_agent(Agent) when is_record(Agent, agent) ->
 	%{Mega, Sec, _Micro} = Agent#agent.lastchange,
 	%Now = (Mega * 1000000) + Sec,
@@ -1605,18 +1466,10 @@ encode_agent(Agent) when is_record(Agent, agent) ->
 	Prestatedata = [
 		{<<"login">>, list_to_binary(Agent#agent.login)},
 		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
-		{<<"profile">>, list_to_binary(Agent#agent.profile)},
-		{<<"state">>, Agent#agent.state},
-		{<<"lastchanged">>, Agent#agent.lastchange}
+		{<<"profile">>, list_to_binary(Agent#agent.profile)}
 		%{<<"remotenumber">>, Remnum}
 	],
-	Statedata = case Agent#agent.statedata of
-		Call when is_record(Call, call) ->
-			list_to_binary(Call#call.id);
-		_Else ->
-			<<"niy">>
-	end,
-	Proplist = [{<<"statedata">>, Statedata} | Prestatedata],
+	Proplist = Prestatedata,
 	{struct, Proplist}.
 
 encode_agents([], Acc) -> 

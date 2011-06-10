@@ -1090,6 +1090,24 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 	end;
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
+
+handle_cast({set_release, Release}, State) ->
+	ReleaseData = case Release of
+		none ->
+			false;
+		{Id, Label, Bias} ->
+			{struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, list_to_binary(Label)},
+				{<<"bias">>, Bias}
+			]}
+	end,
+	Json = {stuct, [
+		{<<"command">>, <<"arelease">>},
+		{<<"releaseData">>, ReleaseData}
+	]},
+	NewState = push_event(Json, State),
+	{noreply, NewState};
 handle_cast({change_state, AgState, Data}, State) ->
 	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 	Headjson = {struct, [

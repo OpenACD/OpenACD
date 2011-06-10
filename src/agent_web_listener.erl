@@ -656,13 +656,15 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
-									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									% TODO make real profile
+%									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
-											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"profile">>, <<"Default">>},
+											%{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
 											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->

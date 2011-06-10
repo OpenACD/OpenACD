@@ -549,7 +549,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
-	Value = {Apid, Aid, 0, Agent#agent.skills, lists:unique(Agent#agent.available_channels), dict:fetch_keys(Agent#agent.endpoints)},
+	Value = {Apid, Aid, 0, Agent#agent.skills, Agent#agent.available_channels, dict:fetch_keys(Agent#agent.endpoints)},
 	Leader = gen_leader:leader_node(Election),
 	case node() of
 		Leader ->
@@ -620,8 +620,8 @@ handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) 
 		Apid =/= Pid
 	end, State#state.route_list),
 	Time = os:timestamp(),
-	Out = {Pid, Id, Time, Skills, lists:unique(Chans), Ends},
-	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, lists:unique(Chans), Ends}, Midroutelist),
+	Out = {Pid, Id, Time, Skills, Chans, Ends},
+	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, Chans, Ends}, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->

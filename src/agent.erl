@@ -402,7 +402,7 @@ released(Msg, State) ->
 
 handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #agent{connection = undefined} = Agent} = State) ->
 	link(Pid),
-	dict:map(fun({ChanPid, V}) ->
+	dict:map(fun(ChanPid, V) ->
 		agent_channel:set_connection(ChanPid, Pid),
 		V
 	end, Agent#agent.used_channels),

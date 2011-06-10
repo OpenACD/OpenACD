@@ -609,7 +609,7 @@ init([Agent, Security]) ->
 		_Else ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			agent_web_listener:linkto(self()),
-			State = agent:dump_state(Apid),
+			%State = agent:dump_state(Apid),
 
 %			case Security of
 %				agent ->
@@ -663,7 +663,7 @@ handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid}
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State} 
 	end; 
 handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
-	{reply, agent:set_endpoint(Apid, Endpoint), State};
+	{reply, agent:set_endpoint(Apid, freeswitch, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]})}, State};
 %	AgentRec = agent:dump_state(AgentPid),

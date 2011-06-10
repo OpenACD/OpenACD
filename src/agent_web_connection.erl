@@ -652,6 +652,8 @@ handle_call({set_release, Release}, _From, #state{agent_fsm = Apid} = State) ->
 			none;
 		false ->
 			none;
+		<<"default">> ->
+			default;
 		<<"Default">> ->
 			default;
 		Else ->
@@ -1098,7 +1100,7 @@ handle_cast({set_release, Release, Time}, State) ->
 		{Id, Label, Bias} ->
 			{struct, [
 				{<<"id">>, list_to_binary(Id)},
-				{<<"label">>, list_to_binary(Label)},
+				{<<"label">>, if is_atom(Label) -> Label; true -> list_to_binary(Label) end},
 				{<<"bias">>, Bias}
 			]}
 	end,

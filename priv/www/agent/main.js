@@ -606,6 +606,7 @@ dojo.addOnLoad(function(){
 		seedConf.username = agent.username;
 		seedConf.securityLevel = agent.securityLevel;
 		seedConf.elapsed = parseInt(agent.stopwatch.time());
+		seedConf.profile = agent.profile;
 		seedConf.skew = agent.skew;
 		seedUI(seedConf);
 	});
@@ -698,22 +699,14 @@ dojo.addOnLoad(function(){
 		node.innerHTML = innerh;
 	});
 
-	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoreleased");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch (data.state) {
-			case 'idle':
-			case 'ringing':
-			case 'precall':
-				widget.attr('label', nlsStrings.GORELEASED);
-				widget.attr('style', 'display:inline');
-				break;
-			case 'released':
-				widget.attr('style', 'display:none');
-				break;
-			default:
-				widget.attr('label', nlsStrings.QUEUERELEASE);
-				widget.attr('style', 'display:inline');
+		if(data.releaseData){
+			widget.attr('style', 'display:none');
+		} else {
+			widget.attr('label', nlsStrings.GORELEASED);
+			widget.attr('style', 'display:inline');
 		}
 	});
 
@@ -722,20 +715,15 @@ dojo.addOnLoad(function(){
 		widget.destroyDescendants();
 	});
 	
-	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	// TODO this no longer pulls double duty of going out of wrapup.
+	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoavail");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch(data.state){
-			case "released":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.GOAVAILABLE);
-				break;
-			case "wrapup":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.ENDWRAPUP);
-				break;
-			default:
-				widget.attr('style', 'display:none');
+		if(data.releaseData){
+			widget.attr('style', 'display:inline');
+			widget.attr('label', nlsStrings.GOAVAILABLE);
+		} else {
+			widget.attr('style', 'display:none');
 		}
 	});
 

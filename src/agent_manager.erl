@@ -678,7 +678,7 @@ handle_cast(_Request, State, _Election) ->
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?NOTICE("Caught exit for ~p with reason ~p", [Pid, Reason]),
-	F = fun(Key, {Value, Id, _Time, _Skills}) ->
+	F = fun(Key, {Value, Id, _Time, _Skills, _Chans, _Ends}) ->
 		case Value =/= Pid of
 			true -> true;
 			false ->

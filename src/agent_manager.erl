@@ -688,7 +688,7 @@ handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 				false
 		end
 	end,
-	Routelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
+	Routelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
 	{noreply, State#state{agents=dict:filter(F, Agents), lists_requested = 0, route_list = Routelist}};

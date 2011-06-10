@@ -1102,7 +1102,7 @@ handle_cast({set_release, Release, Time}, State) ->
 				{<<"bias">>, Bias}
 			]}
 	end,
-	Json = {stuct, [
+	Json = {struct, [
 		{<<"command">>, <<"arelease">>},
 		{<<"releaseData">>, ReleaseData},
 		{<<"changeTime">>, Time * 1000}

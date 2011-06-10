@@ -128,6 +128,7 @@
 %% to make documenting a web api easier, the listener will directly
 %% calls these functions.
 -export([
+	set_release/2,
 	set_state/2,
 	set_state/3,
 	dial/2,
@@ -150,6 +151,7 @@
 ]).
 
 -web_api_functions([
+	{set_release, 2},
 	{set_state, 2},
 	{set_state, 3},
 	{dial, 2},
@@ -210,6 +212,13 @@
 -spec(logout/1 :: (Conn :: pid()) -> any()).
 logout(Conn) ->
 	gen_server:call(Conn, logout).
+
+%% @doc {@web} Sets the release mode of the agent.  If `Release' is
+%% `none', the agent will be set idle, otherwise set to the release mode 
+%% given.
+-spec(set_release/2 :: (Conn :: pid(), Release :: bin_string()) -> any()).
+set_release(Conn, Release) ->
+	gen_server:call(Conn, {set_release, Release}).
 
 %% @doc {@web} Set the agent to the given `Statename' with default state 
 %% data.  No result property as it either worked or didn't.
@@ -636,6 +645,26 @@ handle_call(get_avail_agents, _From, State) ->
 
 	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}]} || Rec <- Agents],
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}, {<<"result">>, Noms}]})}, State};
+
+handle_call({set_release, Release}, _From, #state{agent_fsm = Apid} = State) ->
+	RelData = case Release of
+		<<"none">> ->
+			none;
+		false ->
+			none;
+		<<"Default">> ->
+			default;
+		Else ->
+			[Id, Name, Bias] = util:string_split(binary_to_list(Else), ":"),
+			{Id, Name, list_to_integer(Bias)}
+	end,
+	case agent:set_release(Apid, RelData) of
+		ok ->
+			{reply, ?simple_success(), State};
+		_ ->
+			{reply, ?reply_err(<<"unknown error">>, <<"UNKNOWN_ERR">>), State}
+	end;
+
 handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent:set_state(Apid, agent:list_to_state(Statename)) of
 		ok ->

@@ -387,6 +387,16 @@ OpenACD.Agent.prototype.webApi = function(api, func, opts){
 };
 
 /**
+Set the release mode of the agent.  Handling of the change is not required
+as all state changes are reported through the poll and publish mecahnism.
+@param {String} Release code as "Id:Label:Bias" string, or "none", or 
+	"Default".
+*/
+OpenACD.Agent.prototype.setRelease = function(release){
+	this.agentApi("set_release", {}, release);
+};
+
+/**
 Attempt to set the agent state.  Note that handling the state change is not
 required in the success function as all state changes are reported though 
 the poll and publish mechanism.

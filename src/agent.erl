@@ -92,7 +92,7 @@
 	%start_link/1,
 	start_link/2,
 	stop/1,
-	set_released/2,
+	set_release/2,
 	add_skills/2,
 	remove_skills/2,
 	change_profile/2,
@@ -134,9 +134,9 @@ stop(Pid) ->
 	gen_fsm:send_all_state_event(Pid, stop).
 
 %% @doc Set the agent released or idle.
--spec(set_released/2 :: (Pid :: pid(), Released :: 'none' | 'default' | release_code()) -> 'ok').
-set_released(Pid, Released) ->
-	gen_fsm:sync_send_event(Pid, {set_released, Released}).
+-spec(set_release/2 :: (Pid :: pid(), Released :: 'none' | 'default' | release_code()) -> 'ok').
+set_release(Pid, Released) ->
+	gen_fsm:sync_send_event(Pid, {set_release, Released}).
 
 %% @doc link the given agent  `Pid' to the given connection `Socket'.
 -spec(set_connection/2 :: (Pid :: pid(), Socket :: pid()) -> 'ok' | 'error').

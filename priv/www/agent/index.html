@@ -556,7 +556,7 @@
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setState("idle")>
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setRelease("none")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);

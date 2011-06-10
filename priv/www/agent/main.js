@@ -980,7 +980,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes errored", response]);
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			},
@@ -989,12 +989,12 @@ dojo.addOnLoad(function(){
 				dojo.forEach(response.options, function(obj){
 					items.push(new dijit.MenuItem({
 						label: obj.label,
-						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
+						onClick:function(){window.agentConnection.setRelease(obj.id + ":" + obj.label + ":" + obj.bias); }
 					}));
 				});
 				items.push(new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				}));
 				addItems(items);
 			},
@@ -1002,7 +1002,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			}

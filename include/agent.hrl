@@ -57,7 +57,7 @@
 						%any() |	% state = precall
 						%{release_id(), release_label(), release_bias()} |	% released
 						%{onhold, #call{}, calling, string()},	% warmtransfer
-	%lastchange = util:now() :: pos_integer(),	% at what time did the last state change occur
+	last_change = util:now() :: pos_integer(),	% at what time did the last state change occur
 	%defaultringpath = inband :: 'inband' | 'outband',
 	%endpointtype = {undefined, transient, sip_registration} :: endpointtype(),
 	% data used either to dial the agent on demand or start a perisistant

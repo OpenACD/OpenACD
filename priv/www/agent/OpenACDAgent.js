@@ -28,6 +28,7 @@ OpenACD.Agent = function(options){
 	this.skills = [];
 	this.state = "";
 	this.statedata = "";
+	this.releaseData = false;
 	this.pollfailures = 0;
 	this.skew = 0;
 	this._nags = {};
@@ -117,6 +118,16 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 		 switch (datalist[i].command){
 			case "pong":
 				this.setSkew(datalist[i].timestamp);
+				break;
+
+			case "arelease":
+				this.relaseData = datalist[i].releaseData;
+				try{
+					dojo.publish("OpenACD/Agent/release", [datalist[i]]);
+				} catch(err) {
+					console.error("OpenACD/Agent/release", err);
+				}
+				this.stopwatch.reset();
 				break;
 
 			case "astate":

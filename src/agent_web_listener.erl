@@ -663,7 +663,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
-											{<<"profile">>, <<"Default">>},
+											{<<"profile">>, list_to_binary(Profile)}, 
 											%{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
 											{<<"timestamp">>, util:now()}]}}]})};

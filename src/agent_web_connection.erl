@@ -1091,7 +1091,7 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 
-handle_cast({set_release, Release}, State) ->
+handle_cast({set_release, Release, Time}, State) ->
 	ReleaseData = case Release of
 		none ->
 			false;
@@ -1104,7 +1104,8 @@ handle_cast({set_release, Release}, State) ->
 	end,
 	Json = {stuct, [
 		{<<"command">>, <<"arelease">>},
-		{<<"releaseData">>, ReleaseData}
+		{<<"releaseData">>, ReleaseData},
+		{<<"changeTime">>, Time * 1000}
 	]},
 	NewState = push_event(Json, State),
 	{noreply, NewState};

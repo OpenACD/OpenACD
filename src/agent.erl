@@ -340,8 +340,9 @@ idle({set_release, default}, From, State) ->
 idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
 	gen_server:cast(dispatch_manager, {set_avail, self(), []}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
-	NewAgent = Agent#agent{release_data = Release},
-	inform_connection(Agent, {set_release, Release}),
+	Now = util:now(),
+	NewAgent = Agent#agent{release_data = Release, last_change = Now},
+	inform_connection(Agent, {set_release, Release, Now}),
 	set_cpx_monitor(NewAgent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
@@ -385,14 +386,16 @@ idle(Msg, State) ->
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(dispatch_manager, {set_avail, self(), Agent#agent.available_channels}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
-	NewAgent = Agent#agent{release_data = undefined},
+	Now = util:now(),
+	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
 	set_cpx_monitor(NewAgent, []),
-	inform_connection(Agent, {set_release, none}),
+	inform_connection(Agent, {set_release, none, Now}),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
 
 released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
-	NewAgent = Agent#agent{release_data = Release},
-	inform_connection(Agent, {set_release, Release}),
+	Now = util:now(),
+	NewAgent = Agent#agent{release_data = Release, last_change = Now},
+	inform_connection(Agent, {set_release, Release, Now}),
 	set_cpx_monitor(NewAgent, [{reason, Label}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
@@ -427,6 +430,9 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 	inform_connection(Agent, {set_release, Agent#agent.release_data}),
 	{reply, ok, StateName, State#state{agent_rec = Newagent}};
 
+handle_sync_event(dump_state, _From, StateName, #state{agent_rec = Agent} = State) ->
+	{reply, Agent, StateName, State};
+
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
@@ -453,6 +459,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			Agent#agent.log_pid ! {change_profile, Profile, StateName},
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			inform_connection(Agent, {change_profile, Profile}),
+			inform_connection(Agent, {set_release, Agent#agent.release_data, Agent#agent.last_change}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}

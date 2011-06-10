@@ -341,12 +341,14 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 	gen_server:cast(dispatch_manager, {set_avail, self(), []}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
 	NewAgent = Agent#agent{release_data = Release},
+	inform_connection(Agent, {set_release, Release}),
 	set_cpx_monitor(NewAgent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, precall) of
 		{ok, Pid, NewAgent} ->
+			inform_connection(Agent, {new_channel, Pid, precall, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -355,6 +357,7 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
+			inform_connection(Agent, {new_channel, Pid, prering, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -363,6 +366,7 @@ idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
+			inform_connection(Agent, {new_channel, Pid, ringing, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -383,10 +387,12 @@ released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
 	NewAgent = Agent#agent{release_data = undefined},
 	set_cpx_monitor(NewAgent, []),
+	inform_connection(Agent, {set_release, none}),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
 
 released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
 	NewAgent = Agent#agent{release_data = Release},
+	inform_connection(Agent, {set_release, Release}),
 	set_cpx_monitor(NewAgent, [{reason, Label}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
@@ -418,6 +424,7 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 			ok
 	end,
 	Newagent = Agent#agent{connection = Pid},
+	inform_connection(Agent, {set_release, Agent#agent.release_data}),
 	{reply, ok, StateName, State#state{agent_rec = Newagent}};
 
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
@@ -445,6 +452,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			Agent#agent.log_pid ! {change_profile, Profile, StateName},
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
+			inform_connection(Agent, {change_profile, Profile}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -460,6 +468,7 @@ handle_sync_event({set_endpoint, Module, {module, OtherMod} = Endpoint}, _From, 
 		{ok, _} ->
 			NewEndpoints = dict:store(Module, Endpoint, Agent#agent.endpoints),
 			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			inform_connection(Agent, {new_endpoint, Module, Endpoint}),
 			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
 	end;
 
@@ -470,6 +479,7 @@ handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_r
 		{ok, NewData} ->
 			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
 			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			inform_connection(Agent, {new_endpoint, Module, NewData}),
 			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
 	end;
 	
@@ -480,9 +490,9 @@ handle_sync_event(Msg, _From, StateName, State) ->
 % HANDLE_EVENT
 % ======================================================================
 
-handle_event({blab, Text}, Statename, #state{agent_rec = #agent{connection = Conpid} = _Agent} = State) when is_pid(Conpid) ->
+handle_event({blab, Text}, Statename, #state{agent_rec = Agent} = State) ->
 	?DEBUG("sending blab ~p", [Text]),
-	gen_server:cast(Conpid, {blab, Text}),
+	inform_connection(Agent, {blab, Text}),
 	{next_state, Statename, State};
 
 handle_event(stop, _StateName, State) -> 
@@ -556,6 +566,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 				_ ->
 					ok
 			end,
+			inform_connection(Agent, {channel_died, Pid, NewAvail}),
 			{next_state, StateName, State#state{agent_rec = NewAgent}}
 	end.
 
@@ -602,6 +613,11 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % ======================================================================
 % INTERNAL
 % ======================================================================
+
+inform_connection(#agent{connection = undefined}, _Msg) ->
+	ok;
+inform_connection(#agent{connection = Conn}, Msg) ->
+	gen_server:cast(Conn, Msg).
 
 start_channel(Agent, Call, StateName) ->
 	ChanAvail = lists:member(Call#call.type, Agent#agent.available_channels),

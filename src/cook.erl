@@ -367,9 +367,6 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	Agents2 = lists:flatten(Agents),
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
 	agent_manager:sort_agents_by_elegibility(Agents2).
-	%Out = agent_manager:rotate_based_on_list_count(Agents3),
-	%?DEBUG("The out:  ~p", [Out]),
-	%Out.
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').

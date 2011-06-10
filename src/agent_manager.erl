@@ -91,7 +91,6 @@ lists_requested = 0 :: integer()
 	sort_agents_by_elegibility/1,
 	filtered_route_list/1,
 	filtered_route_list/3,
-	rotate_based_on_list_count/1,
 	find_by_pid/1,
 	blab/2,
 	get_leader/0,
@@ -222,38 +221,6 @@ sort_agents_by_elegibility(AvailSkilledAgents) ->
 %					length(Skills1) =< length(Skills2)
 %			end
 %	end.
-
-
-%% @doc To keep the first agent on a given node from being flooded with 
-%% messages rotate the list based on how many times it's been requested
-%% without the agent list being updated.
--spec(rotate_based_on_list_count/1 :: (Agents :: [{string(), pid(), integer(), [atom()], {atom(), integer()}}]) -> any()).
-rotate_based_on_list_count(Agents) ->
-	Nodemap = create_node_map(Agents),
-	Remap = rotate_based_on_list_count(Agents, Nodemap, 1, []),
-	remap(Agents, Remap).
-
-remap(List, Remap) ->
-	Sort = fun({_O1, N1}, {_O2, N2}) ->
-		N1 =< N2
-	end,
-	remap(List, lists:sort(Sort, Remap), []).
-
-remap(_List, [], Acc) ->
-	lists:reverse(Acc);
-remap(List, [{Old, _New} | Tail], Acc) ->
-	E = lists:nth(Old, List),
-	remap(List, Tail, [E | Acc]).
-
-rotate_based_on_list_count([], _Nodemap, _Nth, Remap) ->
-	lists:reverse(Remap);
-rotate_based_on_list_count([{_Login, _Pid, _Timeavail, _Skills, {Node, Count}} | Tail], Nodemap, Nth, Remap) ->
-	Map = dict:fetch(Node, Nodemap),
-	OriginalIndex = util:list_index(Nth, Map),
-	% clock math.  Given [1, 2, 3] :: 2 + 3 = 2; 1 + 2 = 3; 1 + 4 = 1; 2 + 5 = 3
-	Newindex = case ( (OriginalIndex + Count) rem length(Map) ) of 0 -> length(Map); I -> I end,
-	Newmap = lists:nth(Newindex, Map),
-	rotate_based_on_list_count(Tail, Nodemap, Nth + 1, [{Nth, Newmap} | Remap]).
 
 create_node_map(Agents) ->
 	create_node_map(Agents, 1, dict:new()).
@@ -615,11 +582,18 @@ handle_call(Message, From, State, _Election) ->
 %% @hidden
 handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{Pid, Id, _Time, Skills, OldChans, Ends} = dict:fetch(Nom, Agents),
+	{Pid, Id, OldTime, Skills, OldChans, Ends} = dict:fetch(Nom, Agents),
 	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
-	Time = os:timestamp(),
+	%% If the new channel list is shorter, they likely went on call
+	%% if so, we can consider the 'time they have been idle' as how long
+	%% it's been since they took a call.
+	% TODO This can be gamed by agents by bouncing idle and released
+	Time = case length(OldChans) > length(Chans) of
+		true -> os:timestamp();
+		false -> OldTime
+	end,
 	Out = {Pid, Id, Time, Skills, Chans, Ends},
 	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, Chans, Ends}, Midroutelist),
 	F = fun(_) ->
@@ -772,7 +746,9 @@ handle_call_start_test() ->
 		slave:stop(N)
 	end]}.
 
-sort_eligible_agents_test_() ->
+% the test below is basically only testing lists:keysort/1.
+% teh useless.
+sort_eligible_agents_test_d() ->
 	[{"only difference is the length of the skills list",
 	fun() ->
 		In = [{"3rd", "3rd", 3, [a, b, c, d], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
@@ -812,51 +788,6 @@ sort_eligible_agents_test_() ->
 			{"7th", "7th", 9, ['_all', a], ignored}
 		],
 		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end}].
-
-remap_test() ->
-	Out = [1, 2, 3, 4, 5, 6],
-	In = [3, 6, 5, 4, 1, 2],
-	Remap = [{1, 3}, {2, 6}, {3, 5}, {4, 4}, {5, 1}, {6, 2}],
-	?assertEqual(Out, remap(In, Remap)).
-
-rotate_based_on_list_count_test_() ->
-	[{"No rotation",
-	fun() ->
-		In = [{"1st", "1st", 3, [], {node(), 0}}, {"2nd", "2nd", 6, [], {node(), 0}}, {"3rd", "3rd", 9, [], {node(), 0}}],
-		?assertEqual(In, rotate_based_on_list_count(In))
-	end},
-	{"All same node, rotate one",
-	fun() ->
-		In = [{"1st", "1st", 3, [], {node(), 1}}, {"2nd", "2nd", 6, [], {node(), 1}}, {"3rd", "3rd", 9, [], {node(), 1}}],
-		Out = [{"3rd", "3rd", 9, [], {node(), 1}}, {"1st", "1st", 3, [], {node(), 1}}, {"2nd", "2nd", 6, [], {node(), 1}}],
-		?assertEqual(Out, rotate_based_on_list_count(In))
-	end},
-	{"Diff nodes, no rotates",
-	fun() ->
-		In = [
-			{"1st", "1st", 3, [], {one@node, 0}},
-			{"2nd", "2nd", 3, [], {two@node, 0}},
-			{"3rd", "3rd", 6, [], {one@node, 0}},
-			{"4th", "4th", 6, [], {two@node, 0}}
-		],
-		?assertEqual(In, rotate_based_on_list_count(In))
-	end},
-	{"Diff nodes, one@node rotates",
-	fun() ->
-		In = [
-			{"3rd", "3rd", 3, [], {one@node, 1}},
-			{"2nd", "2nd", 3, [], {two@node, 0}},
-			{"1st", "1st", 6, [], {one@node, 1}},
-			{"4th", "4th", 6, [], {two@node, 0}}
-		],
-		Out = [
-			{"1st", "1st", 6, [], {one@node, 1}},
-			{"2nd", "2nd", 3, [], {two@node, 0}},
-			{"3rd", "3rd", 3, [], {one@node, 1}},
-			{"4th", "4th", 6, [], {two@node, 0}}
-		],
-		?assertEqual(Out, rotate_based_on_list_count(In))
 	end}].
 
 ds() ->
@@ -1049,7 +980,7 @@ single_node_test_() ->
 				}
 			end,
 			fun(_Agent) ->
-				{"Look for a non-existang agent",
+				{"Look for a non-existant agent",
 					fun() -> 
 						?assertMatch(false, query_agent("does not exist"))
 					end
@@ -1074,9 +1005,9 @@ single_node_test_() ->
 						agent:set_state(Agent2Pid, idle),
 						agent:set_state(Agent4Pid, idle),
 						?assertMatch([
-							{_, {Agent3Pid, "A3", _}},
-							{_, {Agent2Pid, "A2", _}},
-							{_, {Agent4Pid, "A4", _}}
+							{_, {Agent3Pid, "A3", _, _, _}},
+							{_, {Agent2Pid, "A2", _, _, _}},
+							{_, {Agent4Pid, "A4", _, _, _}}
 						], find_avail_agents_by_skill([coolskill]))
 					end
 				}
@@ -1092,10 +1023,20 @@ single_node_test_() ->
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
 						agent:set_state(Agent1Pid, idle),
 						agent:set_state(Agent2Pid, idle),
-						?assertMatch([{_, {Agent2Pid, "Agent2", _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
+						?assertMatch([{_, {Agent2Pid, "Agent2", _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
 						receive after 1000 -> ok end,
 						agent:set_state(Agent3Pid, idle),
-						?assertMatch([{_, {Agent2Pid, "Agent2", _}}, {_, {Agent3Pid, "Agent3", _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+						?assertMatch([{_, {Agent2Pid, "Agent2", _, _, _}}, {_, {Agent3Pid, "Agent3", _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"No agents with valid channel found",
+					fun() ->
+						Agent = #agent{login = "agent", id = "agent", skills = ['_all'], endpoints = dict:from_list([{dummy_media, inband}])},
+						{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
+						gen_leader:cast(?MODULE, {set_avail, "agent", []}),
+						?assertEqual([], filtered_route_list([], dummy, dummy_media))
 					end
 				}
 			end
@@ -1159,13 +1100,13 @@ multi_node_test_() ->
 		Agent = #agent{id = "agent", login = "agent", skills = []},
 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
 		List = rpc:call(Master, ?MODULE, list, []),
-		?assertEqual([{"agent", {Apid, "agent", 0, []}}], List)
+		?assertEqual([{"agent", {Apid, "agent", 0, [], [], []}}], List)
 	end} end,
 	fun(TestState) -> {"Master removes agents from dead node", fun() ->
 		Agent = #agent{id = "agent", login = "agent", skills = []},
 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
 		List = rpc:call(Master, ?MODULE, list, []),
-		?assertEqual([{"agent", {Apid, "agent", 0, []}}], List),
+		?assertEqual([{"agent", {Apid, "agent", 0, [], [], []}}], List),
 		rpc:call(Slave, erlang, exit, [TestState#multi_node_test_state.slave_am, kill]),
 		?assertEqual([], rpc:call(Master, ?MODULE, list, []))
 	end} end]}}.

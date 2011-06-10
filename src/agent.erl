@@ -450,11 +450,6 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			{reply, {error, unknown_profile}, StateName, State}
 	end;
 
-handle_sync_event({set_endpoint, Module, inband}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	NewEndpoints = dict:store(Module, inband, Agent#agent.endpoints),
-	NewAgent = Agent#agent{endpoints = NewEndpoints},
-	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
-
 handle_sync_event({set_endpoint, Module, {module, Module}}, _From, StateName, State) ->
 	{reply, {error, self_reference}, StateName, State};
 
@@ -469,9 +464,14 @@ handle_sync_event({set_endpoint, Module, {module, OtherMod} = Endpoint}, _From, 
 	end;
 
 handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	NewEndpoints = dict:store(Module, Data, Agent#agent.endpoints),
-	NewAgent = Agent#agent{endpoints = NewEndpoints},
-	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
+	case Module:prepare_endpoint(Agent, Data) of
+		{error, Err} ->
+			{reply, {error, Err}, StateName, State};
+		{ok, NewData} ->
+			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
+			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
+	end;
 	
 handle_sync_event(Msg, _From, StateName, State) ->
 	{reply, {error, Msg}, StateName, State}.
@@ -613,7 +613,7 @@ start_channel(Agent, Call, StateName) ->
 			{error, noendpoint};
 		{true, Endpoint} ->
 			Self = self(),
-			case agent_channel:start_link(Agent, Call, Endpoint) of
+			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
 					gen_server:cast(dispatch_manager, {set_avail, self(), Available}),

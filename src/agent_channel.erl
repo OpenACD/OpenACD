@@ -47,10 +47,7 @@
 -record(state, {
 	agent_fsm :: pid(),
 	agent_connection :: pid(),
-	ring_fails = 0 :: non_neg_integer(),
-	ringouts = 0 :: non_neg_integer(),
-	max_ringouts = infinity :: 'infinity' | pos_integer(),
-	ring_locked = 'unlocked' :: 'unlocked' | 'locked',
+	endpoint = inband :: any(),
 	state_data :: any()
 }).
 
@@ -99,13 +96,14 @@
 %% api
 -export([
 	start/2,
+	start/4,
 	start_link/2,
+	start_link/4,
 	stop/1, 
 	get_media/1,
 	set_state/2, 
 	set_state/3, 
 	list_to_state/1, 
-	set_endpoint/2, 
 	set_connection/2,
 	agent_transfer/2,
 	queue_transfer/2,
@@ -127,10 +125,16 @@
 start(AgentRec, Options) ->
 	gen_fsm:start(?MODULE, [AgentRec, Options], []).
 
+start(AgentRec, CallRec, EndpointData, InitState) ->
+	gen_fsm:start(?MODULE, [AgentRec, CallRec, EndpointData, InitState]).
+
 %% @doc Start an fsm linked to the calling process.
 -spec(start_link/2 :: (AgentRec :: #agent{}, Options :: start_opts()) -> {'ok', pid()}).
 start_link(AgentRec, Options) ->
 	gen_fsm:start_link(?MODULE, [AgentRec, Options], []).
+
+start_link(AgentRec, CallRec, EndpointData, InitState) ->
+	gen_fsm:start_link(?MODULE, [AgentRec, CallRec, EndpointData, InitState]).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -232,8 +236,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
 	ProtoState = #state{
 		agent_fsm = Agent#agent.source,
-		agent_connection = Agent#agent.connection,
-		max_ringouts = MaxRingouts
+		agent_connection = Agent#agent.connection
 	},
 	InitInfo = proplists:get_value(initial_state, Options, {prering, undefined}),
 	case InitInfo of
@@ -248,7 +251,27 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 			{ok, precall, State};
 		_ ->
 			{stop, badstate}
+	end;
+
+init([Agent, Call, Endpoint, StateName]) ->
+	State = #state{
+		agent_fsm = Agent#agent.source,
+		agent_connection = Agent#agent.connection,
+		endpoint = Endpoint,
+		state_data = Call
+	},
+	case {StateName, Call} of
+		prering when is_record(Call, call) ->
+			{ok, prering, State};
+		precall when is_record(Call, client) ->
+			{ok, precall, State};
+		ringing when is_record(Call, call) ->
+			% TODO tell media to ring
+			{ok, ringing, State};
+		_ ->
+			{stop, badstate}
 	end.
+	
 		
 % ======================================================================
 % PRERING

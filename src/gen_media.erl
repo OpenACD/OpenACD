@@ -61,6 +61,25 @@
 %%		At the time of this doc, the agent web interface prompts the agent
 %%		to adjust the url pop options when doing a queue transfer.
 %%
+%%	<b>prepare_endpoint(Agent, Data) -> Result</b>
+%%		types:	Agent = #agent{}
+%%				Data = 'inband' | any()
+%%				Result = {ok, NewData} | {error, Error}
+%%					NewData = any()
+%%					Error = any()
+%%
+%%		When an agent is given a new endpoint for the callback module, this
+%%		function is called.  If the callback module returns {error, Error} 
+%% 		The agent does not store the given endpoint data.  If {ok, NewData}
+%% 		is returned, NewData is stored for the endpoint.
+%%
+%%		The atom 'inband' indicates an agent will go ringing even if the 
+%%		despite the presense or absence of a ring pid.  If this behavior is
+%%		not desired, Module:prepare_endpoint/2 should return {error, any()},
+%%		preserving any settings in place already.  If there were no settings,
+%%		the endpoint is no longer used, and any media requiring it will fail
+%%		to ring to the agent.
+%%
 %%	<b>handle_ring(Agent, Call, State) -> Result</b>
 %%		types:	Agent = pid()
 %%				Call = #call{}
@@ -377,6 +396,8 @@
 	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
 	[
+		{prepare_endpoint, 2},
+		{init, 1},
 		{handle_ring, 3},
 		{handle_ring_stop, 2},
 		{handle_answer, 3}, 
@@ -601,6 +622,7 @@ handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
+
 handle_call({'$gen_media_spy', Spy, AgentRec}, _From, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
@@ -617,8 +639,10 @@ handle_call({'$gen_media_spy', Spy, AgentRec}, _From, #state{callback = Callback
 					{reply, {error, Error}, State#state{substate = Newstate}}
 			end
 	end;
+
 handle_call({'$gen_media_spy', _Spy, _AgentRec}, _From, State) ->
 	{reply, invalid, State};
+
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
 	cdr:wrapup(State#state.callrec, Ocagent),
@@ -633,9 +657,11 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
 	end;
+
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
 	{reply, invalid, State};
+
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Ocpid}, monitors = Mons} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% Decrement the call's priority by 5 when requeueing
@@ -661,6 +687,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
+
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
 	% Decrement the call's priority by 5 when requeueing
@@ -688,14 +715,15 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
+
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
+
 handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = CachedCall, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, CachedCall#call.id, Timeout]),
-	case set_agent_state(Apid, [ringing, CachedCall#call{cook=QCall#queued_call.cook}]) of
-		ok ->
-			% TODO update callbacks to accept {string(), pid()} structure.
-			case Callback:handle_ring(Apid, State#state.callrec, State#state.substate) of
+	case agent:prering(Apid, CachedCall#call{cook = QCall#queued_call.cook}) of
+		{ok, AgentChan} ->
+			case Callback:handle_ring({Agent, AgentChan}, State#state.callrec, State#state.substate) of
 				Success when element(1, Success) == ok ->
 					{Popopts, Call} = case Success of
 						{ok, Substate} ->
@@ -712,26 +740,27 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					url_pop(Call, Apid, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
-					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
+					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, AgentChan}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
 				{invalid, Substate} ->
-					agent:has_failed_ring(Apid),
-					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
+					agent_channel:stop(AgentChan, ring_fail),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, CachedCall#call.id]),
 			{reply, invalid, State}
 	end;
+
 handle_call({'$gen_media_ring', {_Agent, Apid}, QCall, _Timeout}, _From, #state{callrec = _Call, callback = _Callback, ring_pid = undefined} = State) ->
 	gen_server:cast(QCall#queued_call.cook, {ring_to, Apid, QCall}),
 	{reply, deferred, State};
+
 handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{callrec = Call, callback = _Callback, ring_pid = {RAgent, _Rpid}} = State) ->
 	?NOTICE("Changing ring from ~p to ~p for ~p", [RAgent, Agent, Call#call.id]),
 	Cook = QCall#queued_call.cook,
 	{noreply, Midstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
 	handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, Midstate);
 
-	
+
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_pid = {Agent, Apid}, callrec = Call} = State) ->
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};

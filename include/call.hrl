@@ -28,7 +28,11 @@
 %%
 
 -define(getRingout, element(2, cpx:get_env(default_ringout, 60)) * 1000).
-
+%% slow text is textual medias that do not requrie a particually fast 
+%% response, such as email.  Fast_text is textual medias that require rapid
+%% replies, such as chat.
+-type(channel_category() :: 'dummy' | 'voice' | 'visual' | 'slow_text' | 
+	'fast_text').
 -type(url_format() :: string()).
 -type(client_opt() :: {any(), any()}).
 -type(client_opts() :: [client_opt()]).
@@ -42,7 +46,7 @@
 
 -record(call, {
 		id = erlang:error({undefined, id}) :: string(),
-		type = voice :: 'voice' | 'voicemail' | 'email' | 'chat',
+		type = voice :: channel_category(),
 		callerid = {"Unknown", "Unknown"} :: {string(), string()},
 		dnis = "" :: string(),
 		source = erlang:error({undefined, source}) :: pid(),
@@ -65,6 +69,8 @@
 	media = erlang:error({undefined, media}) :: pid(),
 	id = erlang:error({undefined, id}) :: string(),
 	skills = [] :: [atom() | string()],
+	channel = 'voice' :: channel_category(),
+	module :: atom(),
 	dispatchers = [] :: [pid()],
 	cook :: pid()
 	}).

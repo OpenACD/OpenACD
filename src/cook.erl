@@ -356,7 +356,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 			{unknown_call, get_agents} ->
 				[];
 			Ag ->
-				[{K, {Apid, Aid, Askills, node(Dpid)}} || {K, {Apid, Aid, Askills}} <- Ag]
+				[{K, {Apid, Aid, Askills, node(Dpid)}} || {K, {Apid, Aid, Askills, Chans, Ends}} <- Ag]
 		catch
 			What:Why ->
 				?INFO("Caught:  ~p:~p", [What, Why]),

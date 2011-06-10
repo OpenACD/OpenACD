@@ -52,7 +52,10 @@
 -type(time_avail() :: integer()).
 -type(skill() :: atom() | {atom(), any()}).
 -type(skills() :: [skill()]).
--type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills()}).
+-type(channels() :: [channel_category()]).
+-type(endpoints() :: [atom()]). % list of media modules.
+-type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills(), 
+	channels(), endpoints()}).
 
 %-type(rotations() :: non_neg_integer()).
 %-type(all_skill_flag() :: 'a' | 'z'). % a < z, a meaning it has the all flag,
@@ -87,6 +90,7 @@ lists_requested = 0 :: integer()
 	find_avail_agents_by_skill/1,
 	sort_agents_by_elegibility/1,
 	filtered_route_list/1,
+	filtered_route_list/3,
 	rotate_based_on_list_count/1,
 	find_by_pid/1,
 	blab/2,
@@ -159,10 +163,30 @@ find_avail_agents_by_skill(Skills) ->
 
 %% @doc Locally find all available agents with a particular skillset, and
 %% makes sure the server knows it's for routing.
--spec(filtered_route_list/1 :: (Skills :: [atom()]) -> {integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
+-spec(filtered_route_list/1 :: (Skills :: [atom()]) -> 
+		{integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
 filtered_route_list(Skills) ->
 	Agents = route_list(),
 	filter_avail_agents_by_skill(Agents, Skills).
+
+%% @doc Locally find all available agents with a particular skillset, 
+%% media channel, and media callback module.  Also makes sure the server 
+%% knows it's for routing.
+-spec(filtered_route_list/3 :: (
+	Skills :: [atom()],
+	Chan :: atom(),
+	Endpoint :: atom()) -> 
+		{integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
+filtered_route_list(Skills, Chan, Endpoint) ->
+	Agents = route_list(),
+	[ O ||
+		{_K, {_V, _Aid, AgSkills, AgChans, AgEndpoints}} = O <- Agents,
+		(lists:member('_all', AgSkills) orelse lists:member('_all', Skills) )
+		orelse
+		util:list_contains_all(AgSkills, Skills),
+		lists:member(Chan, AgChans),
+		lists:member(Endpoint, AgEndpoints)
+	].
 
 %% @doc Filter the agents based on the skill list and availability.
 -spec(filter_avail_agents_by_skill/2 :: (Agents :: [any()], Skills :: [atom()]) -> [any()]).
@@ -248,7 +272,7 @@ create_node_map([{_Login, _Pid, _Timeavail, _Skills, {Node, _Count}} | Tail], Nt
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
 	[{K, V, Timeavail, AgSkills} || 
-		{K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
+		{K, {V, _Id, Timeavail, AgSkills, _Chan, _Ends}} <- gen_leader:call(?MODULE, list_agents), 
 		lists:member('_all', AgSkills) orelse util:list_contains_all(AgSkills, Skills)].
 
 %% @doc Gets the login associated with the passed pid().
@@ -340,7 +364,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	mnesia:unsubscribe(system),
 
 	% clean out non-local pids
-	F = fun(_Login, {Apid, _, _, _}) -> 
+	F = fun(_Login, {Apid, _, _, _, _, _}) -> 
 		node() =:= node(Apid)
 	end,
 	Locals = dict:filter(F, Agents),
@@ -350,7 +374,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	end,
 	Dictlist= dict:to_list(Locals),
 	lists:foreach(Notify, Dictlist),
-	RoutlistFilter = fun({_Key, {Pid, _Id, _Skills}}) ->
+	RoutlistFilter = fun({_Key, {Pid, _Id, _Skills, _Chans, _Ends}}) ->
 		node() =:= node(Pid)
 	end,
 	Routelist = gb_trees_filter(RoutlistFilter, State#state.route_list),
@@ -363,7 +387,7 @@ handle_DOWN(Node, #state{agents = Agents} = State, _Election) ->
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
-	Routelist = gb_trees_filter(fun({_Key, {Pid, _Id, _Skills}}) ->
+	Routelist = gb_trees_filter(fun({_Key, {Pid, _Id, _Skills, _Chans, _Ends}}) ->
 		Node =/= node(Pid)
 	end, State#state.route_list),
 	{ok, State#state{agents = Agents2, route_list = Routelist}}.
@@ -374,7 +398,7 @@ handle_leader_call({exists, Agent}, From, #state{agents = _Agents} = State, Elec
 	case handle_leader_call({full_data, Agent}, From, State, Election) of
 		{reply, false, _State} = O ->
 			O;
-		{reply, {Apid, _Id, _Time, _Skills}, NewState} ->
+		{reply, {Apid, _Id, _Time, _Skills, _Chans, _Ends}, NewState} ->
 			{reply, {true, Apid}, NewState}
 	end;
 handle_leader_call({full_data, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) ->
@@ -405,16 +429,16 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
-handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills}, #state{agents = Agents} = State, _Election) -> 
+handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills, Chans, Ends}, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Notified of ~p pid ~p", [Agent, Apid]),
 	case dict:find(Agent, Agents) of
 		error -> 
-			Agents2 = dict:store(Agent, {Apid, Id, TimeAvail, Skills}, Agents),
+			Agents2 = dict:store(Agent, {Apid, Id, TimeAvail, Skills, Chans, Ends}, Agents),
 			Routelist = case TimeAvail of
 				0 ->
 					State#state.route_list;
 				_ ->
-					gb_trees:enter({0, ?has_all(Skills), length(Skills), TimeAvail}, {Apid, Id, Skills}, State#state.route_list)
+					gb_trees:enter({0, ?has_all(Skills), length(Skills), TimeAvail}, {Apid, Id, Skills, Chans, Ends}, State#state.route_list)
 			end,
 			{noreply, State#state{agents = Agents2, route_list = Routelist}};
 		{ok, {Apid, _, _, _}} ->
@@ -423,16 +447,16 @@ handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills}, #state{agents =
 			agent:register_rejected(Apid),
 			{noreply, State}
 	end;
-handle_leader_cast({update_notify, Login, {Pid, Id, Time, Skills} = Value}, #state{agents = Agents} = State, _Election) ->
+handle_leader_cast({update_notify, Login, {Pid, Id, Time, Skills, Chans, Ends} = Value}, #state{agents = Agents} = State, _Election) ->
 	NewAgents = dict:update(Login, fun(_Old) -> Value end, Value, Agents),
-	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _FunId, _FunSkills}}) ->
+	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _FunId, _FunSkills, _Chans, _Ends}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
 	Routelist = case Time of
 		0 ->
 			Midroutelist;
 		_ ->
-			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist)
+			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, Chans, Ends}, Midroutelist)
 	end,
 	{noreply, State#state{agents = NewAgents, route_list = Routelist}};
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
@@ -440,8 +464,8 @@ handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Elect
 	Routelist = case dict:find(Agent, Agents) of
 		error ->
 			State#state.route_list;
-		{ok, {Pid, _Id, _Time, _}} ->
-			gb_trees_filter(fun({_Key, {Apid, _FunId, _Skills}}) ->
+		{ok, {Pid, _Id, _Time, _, _, _}} ->
+			gb_trees_filter(fun({_Key, {Apid, _FunId, _Skills, _Chans, _Ends}}) ->
 				Apid =/= Pid
 			end, State#state.route_list)
 	end,
@@ -451,13 +475,13 @@ handle_leader_cast({blab, Text, {agent, Value}}, #state{agents = Agents} = State
 		error ->
 			% /shrug.  Meh.
 			{noreply, State};
-		{ok, {Apid, _Id, _Time, _Skills}} ->
+		{ok, {Apid, _Id, _Time, _Skills, _Chans, _Ends}} ->
 			agent:blab(Apid, Text),
 			{noreply, State}
 	end;
 handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	F = fun({_Aname, {Apid, _Id, _Time, _Skills}}) -> 
+	F = fun({_Aname, {Apid, _Id, _Time, _Skills, _Chans, _Ends}}) -> 
 		case node(Apid) of
 			Value ->
 				agent:blab(Apid, Text);
@@ -468,7 +492,7 @@ handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State,
 	{noreply, State};
 handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	Foreach = fun({_Aname, {Apid, _Id, _Time, _Skills}}) ->
+	Foreach = fun({_Aname, {Apid, _Id, _Time, _Skills, _Chans, _Ends}}) ->
 		try agent:dump_state(Apid) of
 			#agent{profile = Value} ->
 				agent:blab(Apid, Text);
@@ -525,7 +549,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
-	Value = {Apid, Aid, 0, Agent#agent.skills},
+	Value = {Apid, Aid, 0, Agent#agent.skills, lists:unique(Agent#agent.available_channels), dict:fetch_keys(Agent#agent.endpoints)},
 	Leader = gen_leader:leader_node(Election),
 	case node() of
 		Leader ->
@@ -544,36 +568,36 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 			case gen_leader:leader_call(?MODULE, {full_data, Login}) of
 				false ->
 					{reply, false, State};
-				{Pid, _Id, _Time, _Skills} = V when node(Pid) =:= node() ->
+				{Pid, _Id, _Time, _Skills, _Chans, _Ends} = V when node(Pid) =:= node() ->
 					% leader knows about a local agent, but we didn't!
 					% So we update the local dict
 					Agents2 = dict:store(Login, V, Agents),
 					{reply, {true, Pid}, State#state{agents = Agents2}};
-				{OtherPid, _Id, _Time, _Skills} ->
+				{OtherPid, _Id, _Time, _Skills, _Chans, _Ends} ->
 					{reply, {true, OtherPid}, State}
 			end;
 		error -> % we're the leader
 			{reply, false, State};
-		{ok, {Pid, _Id, _Timeavail, _Skills}} ->
+		{ok, {Pid, _Id, _Timeavail, _Skills, _Chans, _Ends}} ->
 			{reply, {true, Pid}, State}
 	end;
-handle_call({notify, Login, Id, Pid, TimeAvail, Skills}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
+handle_call({notify, Login, Id, Pid, TimeAvail, Skills, Chans, Ends}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
 	case dict:find(Login, Agents) of
 		error ->
 			link(Pid),
 			case gen_leader:leader_node(Election) =:= node() of
 				false -> 
-					gen_leader:leader_cast(?MODULE, {notify, Login, Id, Pid, TimeAvail, Skills});
+					gen_leader:leader_cast(?MODULE, {notify, Login, Id, Pid, TimeAvail, Skills, Chans, Ends});
 				_Else ->
 					ok
 			end,
-			Agents2 = dict:store(Login, {Pid, Id, TimeAvail, Skills}, Agents),
+			Agents2 = dict:store(Login, {Pid, Id, TimeAvail, Skills, Chans, Ends}, Agents),
 			case TimeAvail of
 				0 ->
 					{reply, ok, State#state{agents = Agents2}};
 				_ ->
 					% only clear the lists_requested if the agent is actually available.
-					Midroutelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), TimeAvail}, {Pid, Id, Skills}, State#state.route_list),
+					Midroutelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), TimeAvail}, {Pid, Id, Skills, Chans, Ends}, State#state.route_list),
 					{reply, ok, State#state{agents = Agents2, lists_requested = 0, route_list = clear_rotates(Midroutelist)}}
 			end;
 		{ok, {Pid, _Id}} ->
@@ -589,15 +613,15 @@ handle_call(Message, From, State, _Election) ->
 
 
 %% @hidden
-handle_cast({now_avail, Nom}, #state{agents = Agents} = State, Election) ->
+handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{Pid, Id, _Time, Skills} = dict:fetch(Nom, Agents),
+	{Pid, Id, _Time, Skills, OldChans, Ends} = dict:fetch(Nom, Agents),
 	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
 	Time = os:timestamp(),
-	Out = {Pid, Id, Time, Skills},
-	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist),
+	Out = {Pid, Id, Time, Skills, lists:unique(Chans), Ends},
+	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, lists:unique(Chans), Ends}, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -609,24 +633,24 @@ handle_cast({now_avail, Nom}, #state{agents = Agents} = State, Election) ->
 	end,
 	NewAgents = dict:update(Nom, F, Agents),
 	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = clear_rotates(Routelist)}};
-handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
-	Node = node(),
-	{Pid, Id, _, Skills} = dict:fetch(Nom, Agents),
-	Routelist = gb_trees_filter(fun({_, {Apid, _, _}}) ->
-		Apid =/= Pid
-	end, State#state.route_list),
-	NewAgents = dict:store(Nom, {Pid, Id, 0, Skills}, Agents),
-	case gen_leader:leader_node(Election) of
-		Node ->
-			ok;
-		_ ->
-			gen_leader:leader_cast(?MODULE, {update_notify, Nom, {Pid, Id, 0, Skills}})
-	end,
-	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = Routelist}};
+%handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
+%	Node = node(),
+%	{Pid, Id, _, Skills} = dict:fetch(Nom, Agents),
+%	Routelist = gb_trees_filter(fun({_, {Apid, _, _}}) ->
+%		Apid =/= Pid
+%	end, State#state.route_list),
+%	NewAgents = dict:store(Nom, {Pid, Id, 0, Skills}, Agents),
+%	case gen_leader:leader_node(Election) of
+%		Node ->
+%			ok;
+%		_ ->
+%			gen_leader:leader_cast(?MODULE, {update_notify, Nom, {Pid, Id, 0, Skills}})
+%	end,
+%	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = Routelist}};
 handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{Pid, Id, Time, _} = dict:fetch(Login, Agents),
-	Out = {Pid, Id, Time, Skills},
+	{Pid, Id, Time, _, Chans, Ends} = dict:fetch(Login, Agents),
+	Out = {Pid, Id, Time, Skills, Chans, Ends},
 	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
@@ -634,9 +658,9 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 		0 ->
 			Midroutelist;
 		_ ->
-			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist)
+			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, Chans, Ends}, Midroutelist)
 	end,
-	F = fun({_FunPid, _FunId, _FunTime, _OldSkills}) ->
+	F = fun({_FunPid, _FunId, _FunTime, _OldSkills, _FunChans, _FunEnds}) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
 				ok;
@@ -687,7 +711,7 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 %% @private
 find_via_pid(_Needle, []) ->
 	notfound;
-find_via_pid(Needle, [{Key, {Needle, _, _, _}} | _Tail]) ->
+find_via_pid(Needle, [{Key, {Needle, _, _, _, _, _}} | _Tail]) ->
 	Key;
 find_via_pid(Needle, [{_Key, _NotNeedle} | Tail]) ->
 	find_via_pid(Needle, Tail).
@@ -695,7 +719,7 @@ find_via_pid(Needle, [{_Key, _NotNeedle} | Tail]) ->
 %% @private
 find_via_id(_Needle, []) ->
 	notfound;
-find_via_id(Needle, [{Key, {_, Needle, _, _}} | _Tail]) ->
+find_via_id(Needle, [{Key, {_, Needle, _, _, _, _}} | _Tail]) ->
 	Key;
 find_via_id(Needle, [_Head | Tail]) ->
 	find_via_id(Needle, Tail).

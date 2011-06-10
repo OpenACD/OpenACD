@@ -624,7 +624,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% =====
 
 queue_call(Cookpid, Callrec, Key, State) ->
-	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
+	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id, channel = Callrec#call.type, module = Callrec#call.source_module},
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 	Expandedskills = expand_magic_skills(State, Callrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},

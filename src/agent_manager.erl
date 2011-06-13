@@ -646,7 +646,7 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 	Node = node(),
 	{Pid, Id, Time, _, Chans, Ends} = dict:fetch(Login, Agents),
 	Out = {Pid, Id, Time, Skills, Chans, Ends},
-	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
+	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
 	Routelist = case Time of
@@ -901,12 +901,12 @@ handle_cast_test_() ->
 		fun() ->
 			Pid = ds(),
 			Time = os:timestamp(),
-			Agents = dict:from_list([{"agent", {Pid, "agent", Time, []}}]),
-			Routelist = gb_trees:enter({0, z, 0, Time}, {Pid, "agent", []}, gb_trees:empty()),
+			Agents = dict:from_list([{"agent", {Pid, "agent", Time, [], [dummy], [dummy]}}]),
+			Routelist = gb_trees:enter({0, z, 0, Time}, {Pid, "agent", [], [dummy], [dummy]}, gb_trees:empty()),
 			State = #state{agents = Agents, route_list = Routelist},
 			{noreply, NewState} = handle_cast({update_skill_list, "agent", [skill]}, State, Election),
 			?assertNot(gb_trees:is_empty(NewState#state.route_list)),
-			?assertMatch([{{0, z, 1, _}, {Pid, "agent", [skill]}}], gb_trees:to_list(NewState#state.route_list))
+			?assertMatch([{{0, z, 1, _}, {Pid, "agent", [skill], [dummy], [dummy]}}], gb_trees:to_list(NewState#state.route_list))
 		end}]
 	end}.
 	

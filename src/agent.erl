@@ -102,6 +102,7 @@
 	log_loop/4,
 	set_connection/2,
 	set_endpoint/3,
+	set_endpoints/2,
 	get_endpoint/2,
 	blab/2]).
 
@@ -270,6 +271,12 @@ set_endpoint(Agent, Module, Data) when is_pid(Agent), is_atom(Module) ->
 					{error, badmodule}
 			end
 	end.
+
+%% @doc Set multiple endpoints for an agent.
+-spec(set_endpoints/2 :: (Agent :: pid(), Endpoints :: [{atom(), any()}]) -> 'ok').
+set_endpoints(Agent, Endpoints) when is_pid(Agent) ->
+	NewEndpoints = filter_endpoints(Endpoints),
+	gen_fsm:send_all_state_event(Agent, {set_endpoints, NewEndpoints}).
 
 precall(Apid, Client, Type) ->
 	gen_fsm:sync_send_event(Apid, {precall, Client, Type}).
@@ -517,6 +524,12 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 	Newagent = Agent#agent{skills = NewSkills},
 	{next_state, StateName, State#state{agent_rec = Newagent}};
 
+handle_event({set_endpoints, []}, StateName, State) ->
+	{next_state, StateName, State};
+handle_event({set_endpoints, [{Module, Data} | Tail]}, StateName, State) ->
+	{reply, _, NewStateName, NewState} = handle_sync_event({set_endpoint, Module, Data}, "from", StateName, State),
+	handle_event({set_endpoints, Tail}, NewStateName, NewState);
+
 handle_event(_Msg, StateName, State) ->
 	{next_state, StateName, State}.
 
@@ -620,6 +633,24 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % ======================================================================
 % INTERNAL
 % ======================================================================
+
+filter_endpoints(Endpoints) ->
+	filter_endpoints(Endpoints, []).
+
+filter_endpoints([], Acc) ->
+	lists:reverse(Acc);
+filter_endpoints([{Module, _Data} = Head | Tail], Acc) ->
+	case proplists:get_value(Module, code:all_loaded()) of
+		undefined ->
+			filter_endpoints(Tail, Acc);
+		_ ->
+			case proplists:get_value(behaviour, Module:module_info(attributes)) of
+				[gen_media] ->
+					filter_endpoints(Tail, [Head | Acc]);
+				_ ->
+					filter_endpoints(Tail, Acc)
+			end
+	end.
 
 inform_connection(#agent{connection = undefined}, _Msg) ->
 	ok;

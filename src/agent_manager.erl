@@ -207,7 +207,7 @@ filtered_route_list(Skills, Chan, Endpoint) ->
 -spec(filter_avail_agents_by_skill/2 :: (Agents :: [any()], Skills :: [atom()]) -> [any()]).
 filter_avail_agents_by_skill(Agents, Skills) ->
 	AvailSkilledAgents = [O || 
-		{_K, {_V, _Aid, AgSkills, _, _}} = O <- Agents,
+		{_K, #agent_cache{skills = AgSkills}} = O <- Agents,
 		( % check if either the call or the agent has the _all skill
 			lists:member('_all', AgSkills) orelse
 			lists:member('_all', Skills)
@@ -271,7 +271,8 @@ list() ->
 %% @doc List the available agents on this node.
 -spec(list_avail/0 :: () -> [any()]).
 list_avail() ->
-	gen_leader:call(?MODULE, list_avail_agents).
+	List = gen_leader:call(?MODULE, list_avail_agents),
+	[X || {_, #agent_cache{channels = Chans}} = X <- List, length(Chans) > 0].
 	
 %% @doc Get a list of agents, tagged for how many requests of this type
 %% have been made without the agent list changing in any way.  A change is
@@ -381,7 +382,7 @@ handle_leader_call({exists, Agent}, From, #state{agents = _Agents} = State, Elec
 	case handle_leader_call({full_data, Agent}, From, State, Election) of
 		{reply, false, _State} = O ->
 			O;
-		{reply, {Apid, _Id, _Time, _Skills, _Chans, _Ends}, NewState} ->
+		{reply, #agent_cache{pid = Apid}, NewState} ->
 			{reply, {true, Apid}, NewState}
 	end;
 handle_leader_call({full_data, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) ->
@@ -529,7 +530,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
-	Value = {agent_cache, Apid, Aid, 0, Agent#agent.skills, Agent#agent.available_channels, dict:fetch_keys(Agent#agent.endpoints)},
+	Value = {agent_cache, Apid, Aid, 0, Agent#agent.skills, [], dict:fetch_keys(Agent#agent.endpoints)},
 	Leader = gen_leader:leader_node(Election),
 	case node() of
 		Leader ->
@@ -590,7 +591,7 @@ handle_call(Message, From, State, _Election) ->
 %% @hidden
 handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{agent_cache, Pid, Id, OldTime, Skills, OldChans, Ends} = dict:fetch(Nom, Agents),
+	#agent_cache{pid = Pid} = AgentCache = dict:fetch(Nom, Agents),
 	Midroutelist = gb_trees_filter(fun({_Key, #agent_cache{pid = Apid}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
@@ -598,12 +599,12 @@ handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) 
 	%% if so, we can consider the 'time they have been idle' as how long
 	%% it's been since they took a call.
 	% TODO This can be gamed by agents by bouncing idle and released
-	Time = case length(OldChans) > length(Chans) of
+	Time = case length(AgentCache#agent_cache.channels) > length(Chans) of
 		true -> os:timestamp();
-		false -> OldTime
+		false -> AgentCache#agent_cache.time_avail
 	end,
-	Out = {agent_cache, Pid, Id, Time, Skills, Chans, Ends},
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, {agent_cache, Pid, Id, Skills, Chans, Ends}, Midroutelist),
+	#agent_cache{skills = Skills} = Out = AgentCache#agent_cache{time_avail = Time, channels = Chans},
+	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, Out, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -652,12 +653,12 @@ handle_cast({set_ends, Nom, Ends}, #state{agents = Agents} = State, Election) ->
 %	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = Routelist}};
 handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{agent_cache, Pid, Id, Time, _, Chans, Ends} = dict:fetch(Login, Agents),
-	Out = {agent_cache, Pid, Id, Time, Skills, Chans, Ends},
+	#agent_cache{pid = Pid, time_avail = Time} = AgentCache = dict:fetch(Login, Agents),
+	Out = AgentCache#agent_cache{skills = Skills},
 	Midroutelist = clear_rotates(gb_trees_filter(fun({_, #agent_cache{pid = Apid}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, {agent_cache, Pid, Id, Skills, Chans, Ends}, Midroutelist),
+	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, Out, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -738,9 +739,9 @@ gb_trees_filter(Fun, {Key, Val, Itor}, Tree) ->
 			gb_trees_filter(Fun, gb_trees:next(Itor), Newtree)
 	end.
 
-clear_rotates({{0, _, _, _} = Key, Val, Tree}) ->
+clear_rotates({{agent_key, 0, _, _, _} = Key, Val, Tree}) ->
 	gb_trees:enter(Key, Val, Tree);
-clear_rotates({{_, AllSkillFlag, Len, Time}, Val, Tree}) ->
+clear_rotates({{agent_key, _, AllSkillFlag, Len, Time}, Val, Tree}) ->
 	Newtree = gb_trees:enter({0, AllSkillFlag, Len, Time}, Val, Tree),
 	clear_rotates(gb_trees:take_largest(Newtree));
 clear_rotates(Tree) ->
@@ -820,27 +821,27 @@ ds() ->
 filter_avail_agents_by_skill_test_() ->
 	[{"one in, one out",
 	fun() ->
-		Agents = [{{0, z, 1, {100, 100, 100}}, {ds(), "agent", [skill], [], []}}],
+		Agents = [{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent", 0, [skill], [], []}}],
 		?assertEqual(Agents, filter_avail_agents_by_skill(Agents, [skill]))
 	end},
 	{"two in, one out",
 	fun() ->
 		[Out | _] = Agents = [
-			{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent1", [skill], [], []}},
-			{{agent_key, 0, z, 0, {100, 100, 100}}, {agent_cache, ds(), "agent2", [], [], []}}
+			{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent1", 0, [skill], [], []}},
+			{{agent_key, 0, z, 0, {100, 100, 100}}, {agent_cache, ds(), "agent2", 0, [], [], []}}
 		],
 		?assertEqual([Out], filter_avail_agents_by_skill(Agents, [skill]))
 	end},
 	{"agent with all gets in",
 	fun() ->
-		Agents = [{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent", ['_all'], [], []}}],
+		Agents = [{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent", 0, ['_all'], [], []}}],
 		?assertEqual(Agents, filter_avail_agents_by_skill(Agents, [skill]))
 	end},
 	{"agents get through when all passed in",
 	fun() ->
 		Agents = [
-			{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent1", [skill], [], []}},
-			{{agent_key, 0, z, 0, {100, 100, 100}}, {agent_cache, ds(), "agent2", [], [], []}}
+			{{agent_key, 0, z, 1, {100, 100, 100}}, {agent_cache, ds(), "agent1", 0, [skill], [], []}},
+			{{agent_key, 0, z, 0, {100, 100, 100}}, {agent_cache, ds(), "agent2", 0, [], [], []}}
 		],
 		?assertEqual(Agents, filter_avail_agents_by_skill(Agents, ['_all']))
 	end}].
@@ -888,28 +889,28 @@ handle_cast_test_() ->
 			State = #state{agents = Agents},
 			{noreply, Newstate} = handle_cast({set_avail, "agent", [voice]}, State, Election),
 			?assertNot(gb_trees:is_empty(Newstate#state.route_list)),
-			?assertMatch([{{agent_key, 0, z, 0, _}, {agent_cache, _, "agent", [], [voice], []}}], gb_trees:to_list(Newstate#state.route_list))
+			?assertMatch([{{agent_key, 0, z, 0, _}, {agent_cache, _, "agent", _, [], [voice], []}}], gb_trees:to_list(Newstate#state.route_list))
 		end},
 		{"basic end avail",
 		fun() ->
 			Time = os:timestamp(),
 			Pid = ds(),
 			Agents = dict:from_list([{"agent", {agent_cache, Pid, "agent", Time, [], [voice], []}}]),
-			Routelist = gb_trees:enter({agent_key, 0, z, 0, Time}, {agent_cache, Pid, "agent", [], [voice], []}, gb_trees:empty()),
+			Routelist = gb_trees:enter({agent_key, 0, z, 0, Time}, {agent_cache, Pid, "agent", Time, [], [voice], []}, gb_trees:empty()),
 			State = Seedstate#state{agents = Agents, route_list = Routelist},
 			{noreply, Newstate} = handle_cast({set_avail, "agent", []}, State, Election),
-			?assertMatch([{{agent_key, 0, z, 0, _}, {agent_cache, _, "agent", [], [], []}}], gb_trees:to_list(Newstate#state.route_list))
+			?assertMatch([{{agent_key, 0, z, 0, _}, {agent_cache, _, "agent", _, [], [], []}}], gb_trees:to_list(Newstate#state.route_list))
 		end},
 		{"updatin' a skill list of an idle agent",
 		fun() ->
 			Pid = ds(),
 			Time = os:timestamp(),
 			Agents = dict:from_list([{"agent", {agent_cache, Pid, "agent", Time, [], [dummy], [dummy]}}]),
-			Routelist = gb_trees:enter({agent_key, 0, z, 0, Time}, {agent_cache, Pid, "agent", [], [dummy], [dummy]}, gb_trees:empty()),
+			Routelist = gb_trees:enter({agent_key, 0, z, 0, Time}, {agent_cache, Pid, "agent", Time, [], [dummy], [dummy]}, gb_trees:empty()),
 			State = #state{agents = Agents, route_list = Routelist},
 			{noreply, NewState} = handle_cast({update_skill_list, "agent", [skill]}, State, Election),
 			?assertNot(gb_trees:is_empty(NewState#state.route_list)),
-			?assertMatch([{{agent_key, 0, z, 1, _}, {agent_cache, Pid, "agent", [skill], [dummy], [dummy]}}], gb_trees:to_list(NewState#state.route_list))
+			?assertMatch([{{agent_key, 0, z, 1, _}, {agent_cache, Pid, "agent", _, [skill], [dummy], [dummy]}}], gb_trees:to_list(NewState#state.route_list))
 		end}]
 	end}.
 	
@@ -1022,16 +1023,18 @@ single_node_test_() ->
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
 						{ok, Agent4Pid} = gen_leader:call(?MODULE, {start_agent, Agent4}),
 						agent:set_release(Agent1Pid, none),
+						agent:set_release(Agent2Pid, default),
 						agent:set_release(Agent3Pid, none),
+						agent:set_release(Agent4Pid, default),
 						?DEBUG("agent list:~n~p", [gen_leader:call(?MODULE, list_agents)]),
 						?DEBUG("avail agent list:~n~p", [gen_leader:call(?MODULE, list_avail_agents)]),
-						?assertMatch([{_, {agent_cache, Agent3Pid, "A3", _Skills, _Chans, []}}], find_avail_agents_by_skill([coolskill])),
+						?assertMatch([{_, {agent_cache, Agent3Pid, "A3", 0, _Skills, _Chans, []}}], find_avail_agents_by_skill([coolskill])),
 						agent:set_release(Agent2Pid, none),
 						agent:set_release(Agent4Pid, none),
 						?assertMatch([
-							{_, {agent_cache, Agent3Pid, "A3", _, _, _}},
-							{_, {agent_cache, Agent2Pid, "A2", _, _, _}},
-							{_, {agent_cache, Agent4Pid, "A4", _, _, _}}
+							{_, {agent_cache, Agent3Pid, "A3", 0, _, _, _}},
+							{_, {agent_cache, Agent2Pid, "A2", 0, _, _, _}},
+							{_, {agent_cache, Agent4Pid, "A4", 0, _, _, _}}
 						], find_avail_agents_by_skill([coolskill]))
 					end
 				}
@@ -1047,11 +1050,11 @@ single_node_test_() ->
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
 						agent:set_release(Agent1Pid, none),
 						agent:set_release(Agent2Pid, none),
-						?assertMatch([{_, {agent_cache, Agent2Pid, "Agent2", _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
+						?assertMatch([{_, {agent_cache, Agent2Pid, "Agent2", _, _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
 						receive after 1000 -> ok end,
 						agent:set_release(Agent3Pid, none),
 						?DEBUG("list avail ~p", [list_avail()]),
-						?assertMatch([{_, {agent_cache, Agent2Pid, "Agent2", _, _, _}}, {_, {agent_cache, Agent3Pid, "Agent3", _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+						?assertMatch([{_, {agent_cache, Agent2Pid, "Agent2", _, _, _, _}}, {_, {agent_cache, Agent3Pid, "Agent3", _, _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
 					end
 				}
 			end,

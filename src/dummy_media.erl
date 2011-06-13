@@ -74,6 +74,7 @@
 	handle_info/3,
 	terminate/3, 
 	code_change/4,
+	prepare_endpoint/2,
 	handle_ring/3, 
 	handle_answer/3, 
 	handle_voicemail/3, 
@@ -457,6 +458,10 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
+
+prepare_endpoint(_Agent, _Data) ->
+	{ok, inband}.
+
 -spec(handle_announce/3 :: (Announce :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.

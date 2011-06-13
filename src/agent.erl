@@ -472,29 +472,13 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			{reply, {error, unknown_profile}, StateName, State}
 	end;
 
-handle_sync_event({set_endpoint, Module, {module, Module}}, _From, StateName, State) ->
-	{reply, {error, self_reference}, StateName, State};
-
-handle_sync_event({set_endpoint, Module, {module, OtherMod} = Endpoint}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	case dict:find(OtherMod, Agent#agent.endpoints) of
-		error ->
-			{reply, {error, module_noexists}, StateName, State};
-		{ok, _} ->
-			NewEndpoints = dict:store(Module, Endpoint, Agent#agent.endpoints),
-			NewAgent = Agent#agent{endpoints = NewEndpoints},
-			inform_connection(Agent, {new_endpoint, Module, Endpoint}),
-			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
-	end;
-
 handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	case Module:prepare_endpoint(Agent, Data) of
-		{error, Err} ->
-			{reply, {error, Err}, StateName, State};
-		{ok, NewData} ->
-			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
-			NewAgent = Agent#agent{endpoints = NewEndpoints},
-			inform_connection(Agent, {new_endpoint, Module, NewData}),
-			{reply, ok, StateName, State#state{agent_rec = NewAgent}}
+	case priv_set_endpoint(Agent, Module, Data) of
+		{ok, NewAgent} ->
+			gen_leader:cast(agent_manager, {set_ends, Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
+			{reply, ok, StateName, State#state{agent_rec = NewAgent}};
+		{error, Err} = Error ->
+			{reply, Error, StateName, State}
 	end;
 	
 handle_sync_event(Msg, _From, StateName, State) ->
@@ -524,11 +508,10 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 	Newagent = Agent#agent{skills = NewSkills},
 	{next_state, StateName, State#state{agent_rec = Newagent}};
 
-handle_event({set_endpoints, []}, StateName, State) ->
+handle_event({set_endpoints, Ends}, StateName, State) ->
+	NewAgent = priv_set_endpoints(State#state.agent_rec, Ends),
+	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
 	{next_state, StateName, State};
-handle_event({set_endpoints, [{Module, Data} | Tail]}, StateName, State) ->
-	{reply, _, NewStateName, NewState} = handle_sync_event({set_endpoint, Module, Data}, "from", StateName, State),
-	handle_event({set_endpoints, Tail}, NewStateName, NewState);
 
 handle_event(_Msg, StateName, State) ->
 	{next_state, StateName, State}.
@@ -633,6 +616,41 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % ======================================================================
 % INTERNAL
 % ======================================================================
+
+priv_set_endpoint(_Agent, Module, {module, Module}) ->
+	{error, self_reference};
+priv_set_endpoint(Agent, Module, {module, OtherMod} = Endpoint) ->
+	case dict:find(OtherMod, Agent#agent.endpoints) of
+		error ->
+			{error, module_noexists};
+		{ok, _} ->
+			NewEndpoints = dict:store(Module, Endpoint, Agent#agent.endpoints),
+			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			inform_connection(Agent, {new_endpoint, Module, Endpoint}),
+			{ok, NewAgent}
+	end;
+priv_set_endpoint(Agent, Module, Data) ->
+	case Module:prepare_endpoint(Agent, Data) of
+		{error, Err} ->
+			{error, Err};
+		{ok, NewData} ->
+			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
+			NewAgent = Agent#agent{endpoints = NewEndpoints},
+			inform_connection(Agent, {new_endpoint, Module, NewData}),
+			{ok, NewAgent};
+		Else ->
+			{error, Else}
+	end.
+
+priv_set_endpoints(Agent, []) ->
+	Agent;
+priv_set_endpoints(Agent, [{Module, Data} | Tail]) ->
+	case priv_set_endpoint(Agent, Module, Data) of
+		{ok, NewAgent} ->
+			priv_set_endpoints(NewAgent, Tail);
+		_ ->
+			priv_set_endpoints(Agent, Tail)
+	end.
 
 filter_endpoints(Endpoints) ->
 	filter_endpoints(Endpoints, []).

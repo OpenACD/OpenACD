@@ -583,7 +583,7 @@ handle_call(Message, From, State, _Election) ->
 handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
 	{Pid, Id, OldTime, Skills, OldChans, Ends} = dict:fetch(Nom, Agents),
-	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _, _}}) ->
+	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _, _, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
 	%% If the new channel list is shorter, they likely went on call
@@ -607,6 +607,27 @@ handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) 
 	end,
 	NewAgents = dict:update(Nom, F, Agents),
 	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = clear_rotates(Routelist)}};
+
+handle_cast({set_ends, Nom, Ends}, #state{agents = Agents} = State, Election) ->
+	Node = node(),
+	{Pid, Id, Time, Skills, Chans, OldEnds} = dict:fetch(Nom, Agents),
+	Midroutelist = gb_trees_filter(fun({_Key, {Apid, _, _, _, _}}) ->
+		Apid =/= Pid
+	end, State#state.route_list),
+	Out = {Pid, Id, Time, Skills, Chans, Ends},
+	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills, Chans, Ends}, Midroutelist),
+	F = fun(_) ->
+		case gen_leader:leader_node(Election) of
+			Node ->
+				ok;
+			_ ->
+				gen_leader:leader_cast(?MODULE, {update_notify, Nom, Out})
+		end,
+		Out
+	end,
+	NewAgents = dict:update(Nom, F, Agents),
+	{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = clear_rotates(Routelist)}};
+	
 %handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
 %	Node = node(),
 %	{Pid, Id, _, Skills} = dict:fetch(Nom, Agents),
@@ -860,21 +881,21 @@ handle_cast_test_() ->
 	fun({Seedstate, Election}) ->
 		[{"basic now availalble",
 		fun() ->
-			Agents = dict:from_list([{"agent", {ds(), "agent", 0, []}}]),
+			Agents = dict:from_list([{"agent", {ds(), "agent", 0, [], [], []}}]),
 			State = #state{agents = Agents},
-			{noreply, Newstate} = handle_cast({now_avail, "agent"}, State, Election),
+			{noreply, Newstate} = handle_cast({set_avail, "agent", [voice]}, State, Election),
 			?assertNot(gb_trees:is_empty(Newstate#state.route_list)),
-			?assertMatch([{{0, z, 0, _}, {_, "agent", []}}], gb_trees:to_list(Newstate#state.route_list))
+			?assertMatch([{{0, z, 0, _}, {_, "agent", [], [voice], []}}], gb_trees:to_list(Newstate#state.route_list))
 		end},
 		{"basic end avail",
 		fun() ->
 			Time = os:timestamp(),
 			Pid = ds(),
-			Agents = dict:from_list([{"agent", {Pid, "agent", Time, []}}]),
-			Routelist = gb_trees:enter({0, z, 0, Time}, {Pid, "agent", []}, gb_trees:empty()),
+			Agents = dict:from_list([{"agent", {Pid, "agent", Time, [], [voice], []}}]),
+			Routelist = gb_trees:enter({0, z, 0, Time}, {Pid, "agent", [], [voice], []}, gb_trees:empty()),
 			State = Seedstate#state{agents = Agents, route_list = Routelist},
-			{noreply, Newstate} = handle_cast({end_avail, "agent"}, State, Election),
-			?assert(gb_trees:is_empty(Newstate#state.route_list))
+			{noreply, Newstate} = handle_cast({set_avail, "agent", []}, State, Election),
+			?assertMatch([{{0, z, 0, _}, {_, "agent", [], [], []}}], gb_trees:to_list(Newstate#state.route_list))
 		end},
 		{"updatin' a skill list of an idle agent",
 		fun() ->

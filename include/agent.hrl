@@ -46,7 +46,7 @@
 	profile = "Default" :: string() | 'error',
 	source :: pid(),
 	release_data :: release_code() | 'undefined',
-	available_channels = [voice, visual, slow_text, fast_text, fast_text, fast_text],
+	available_channels = [dummy, voice, visual, slow_text, fast_text, fast_text, fast_text],
 	used_channels = dict:new(),
 	endpoints = dict:new(),
 	ring_channel = none :: 'none' | any(),

@@ -360,7 +360,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	end,
 	Dictlist= dict:to_list(Locals),
 	lists:foreach(Notify, Dictlist),
-	RoutlistFilter = fun({_Key, {#agent_cache{pid = Pid}}}) ->
+	RoutlistFilter = fun({_Key, #agent_cache{pid = Pid}}) ->
 		node() =:= node(Pid)
 	end,
 	Routelist = gb_trees_filter(RoutlistFilter, State#state.route_list),

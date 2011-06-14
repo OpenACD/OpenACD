@@ -345,12 +345,12 @@ idle({set_release, default}, From, State) ->
 	idle({set_release, ?DEFAULT_RELEASE}, From, State);
 
 idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
-	gen_server:cast(dispatch_manager, {set_avail, self(), []}),
+	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
-	set_cpx_monitor(NewAgent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(NewAgent, [{released, true}, {reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
@@ -1089,4 +1089,71 @@ from_release_test_() ->
 		end}
 	end]} end}.
 			
+from_idle_test_() ->
+	util:start_testnode(),
+	Node = util:start_testnode(from_idle_tests),
+	{setup, {spawn, Node}, fun() -> ok end, fun(_) ->
+	{foreach, fun() ->
+		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
+		{ok, Monmock} = cpx_monitor:make_mock(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
+		{ok, Connmock} = gen_server_mock:new(),
+		{ok, Logpid} = gen_server_mock:new(),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Dmock),
+			%gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
+			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
+			ok
+		end,
+		MockPids = #mock_pids{
+			state = #state{agent_rec = Agent},
+			dispatch_manager = Dmock,
+			cpx_monitor = Monmock,
+			agent_manager = AMmock,
+			connection = Connmock,
+			logger = Logpid,
+			assert = Assertmocks
+		},
+		%?ERROR("reference:  ~p", [MockPids]),
+		MockPids
+	end,
+	fun(MockPids) ->
+		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
+		%gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
+		gen_server_mock:stop(MockPids#mock_pids.connection),
+		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
+		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
+		% before the next test runs.
+		ok
+	end,
+	[fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
+		{"From idle to idle", fun() ->
+			Out = idle({set_release, none}, "from", State),
+			?assertEqual({reply, ok, idle, State}, Out),
+			AssertMocks()
+		end}
+	end,
+	fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
+		{"From idle to release", fun() ->
+			#state{agent_rec = Agent} = State,
+			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, true}, {reason, "label"}, {reason_id, "id"}, {bias, -1}], ignore}),
+			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", []}, _State, _Elec) -> ok end),
+			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Time}, _State) -> ok end),
+			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
+			Self = self(),
+			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({end_avail, InPid}, _State) ->
+				InPid = Self,
+				ok
+			end),
+			Out = idle({set_release, {"id", "label", -1}}, "from", State),
+			?assertMatch({reply, ok, released, _NewState}, Out),
+			AssertMocks()
+		end}
+	end]} end}.
+
 -endif.

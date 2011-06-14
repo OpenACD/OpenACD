@@ -391,7 +391,7 @@ idle(Msg, State) ->
 % ======================================================================
 
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(dispatch_manager, {set_avail, self(), Agent#agent.available_channels}),
+	gen_server:cast(dispatch_manager, {set_avail, self()}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
@@ -564,7 +564,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			},
 			case StateName of
 				idle ->
-					gen_server:cast(dispatch_manager, {set_avail, self(), NowAvailChannels}),
+					gen_server:cast(dispatch_manager, {set_avail, self()}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NowAvailChannels});
 				_ ->
 					ok
@@ -688,7 +688,7 @@ start_channel(Agent, Call, StateName) ->
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
-					gen_server:cast(dispatch_manager, {set_avail, self(), Available}),
+					gen_server:cast(dispatch_manager, {set_avail, self()}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
 						available_channels = Available,
@@ -1078,9 +1078,8 @@ from_release_test_() ->
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, none, _Time}, _State) -> ok end),
 			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
 			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({set_avail, InPid, InChans}, _State) ->
+			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({set_avail, InPid}, _State) ->
 				InPid = Self,
-				InChans = Agent#agent.available_channels,
 				ok
 			end),
 			Out = released({set_release, none}, "from", State),

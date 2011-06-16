@@ -128,7 +128,10 @@ start(_Type, StartArgs) ->
 		{ok, Pid} ->
 			application:set_env('OpenACD', uptime, util:now()),
 			?NOTICE("Application OpenACD started sucessfully!", []),
-			start_plugins(application:get_env('OpenACD', plugin_dir)),
+			% to not block the shell.
+			spawn(fun() ->
+				start_plugins(application:get_env('OpenACD', plugin_dir))
+			end),
 			{ok, Pid}
 	catch
 		What:Why ->
@@ -247,10 +250,17 @@ restore_config(Filename, Tables) ->
 		{default_op, skip_tables}
 	]).
 
+plugins_running() ->
+	WhichApps = [N || {N, _, _} <- application:which_applications()],
+	{ok, Uncertain} = cpx:get_env(plugins_started, []),
+	Certain = [C || C <- Uncertain, lists:member(C, WhichApps)],
+	application:set_env('OpenACD', plugins_started, Certain).
+
 %% @doc Based on what is in the plugin dir, start and stop plugin 
 %% applications.
 -spec(reload_plugins/0 :: () -> 'ok' | {'error', any()}).
 reload_plugins() ->
+	plugins_running(),
 	case application:get_env('OpenACD', plugin_dir) of
 		{ok, Dir} ->
 			case filelib:is_dir(Dir) of

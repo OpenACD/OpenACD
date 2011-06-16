@@ -1000,6 +1000,13 @@ start_plugin_apps([Plugin | Tail], Dir, AccApps) ->
 		true ->
 			?INFO("Adding plugin ~p to code path", [Plugin]),
 			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
+			case filelib:is_dir(filename:join([Dir, Plugin, "deps"])) of
+				true ->
+					DepDepsDir = filename:join(Dir, Plugin),
+					add_plugin_deps(file:list_dir(filename:join([DepDepsDir, "deps"])), DepDepsDir);
+				false ->
+					ok
+			end,
 			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
 				{ok, [{application, _, Properties}|_]} ->
 					Apps = proplists:get_value(applications, Properties, []),

@@ -297,6 +297,8 @@ init([Nodename, Options]) ->
 %%--------------------------------------------------------------------
 %% @private
 
+handle_call(dump, _From, #state{bot_dict = Bots} = State) ->
+	{reply, Bots, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,

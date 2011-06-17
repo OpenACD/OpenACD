@@ -539,7 +539,7 @@ do_recipe([{Conditions, Op, Runs, _Comment} = OldAction | Recipe], Ticked, Qpid,
 fast_forward(Recipe, Ticked, Qpid, Call) ->
 	fast_forward(Recipe, Ticked, Qpid, Call, 0, []).
 
-fast_forward([], Ticked, _Qpid, _Call, Ticked, Acc) ->
+fast_forward([], ToTicked, _Qpid, _Call, Ticked, Acc) when Ticked >= ToTicked ->
 	lists:reverse(Acc);
 fast_forward([], ToTick, Qpid, Call, Ticked, Acc) ->
 	fast_forward(lists:reverse(Acc), ToTick, Qpid, Call, Ticked + 1, []);

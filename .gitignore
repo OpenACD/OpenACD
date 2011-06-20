@@ -23,6 +23,7 @@ ebin
 
 /*.config
 OpenACD/
+include/commit_ver.hrl
 
 # unique config files
 www/dynamic/tv_config.js

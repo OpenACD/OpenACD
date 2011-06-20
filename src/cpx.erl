@@ -38,6 +38,7 @@
 -include("agent.hrl").
 -include("queue.hrl").
 -include("cpx.hrl").
+-include("commit_ver.hrl").
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
@@ -50,6 +51,11 @@
 		{chapter2, "chapter2"}
 	]).
 -endif.
+
+-ifndef(OPENACD_COMMIT).
+	-define(OPENACD_COMMIT, undefined).
+-endif.
+
 % behavior cbs.
 -export([start/2, prep_stop/1, stop/1]).
 % some get_env and get_key nicities
@@ -80,6 +86,7 @@
 	get_queue_status/0,
 	get_agent_status/0,
 	get_media/1,
+	get_commit/0,
 	kick_agent/1,
 	kick_call/1,
 	kick_media/1,
@@ -445,6 +452,10 @@ get_medias_managers([_Head | Tail], Needle) ->
 %		_ ->
 %			get_media_agents(Tail, Callref)
 %	end.
+
+-spec(get_commit/0 :: () -> 'undefined' | string()).
+get_commit() ->
+	?OPENACD_COMMIT.
 
 -spec(kick_agent/1 :: (AgentRef :: string() | pid()) -> 'ok' | 'none').
 kick_agent(Pid) when is_pid(Pid) ->

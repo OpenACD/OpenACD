@@ -30,7 +30,7 @@ if(typeof(emailPane) == 'undefined'){
 }
 
 emailPane.sub = dojo.subscribe("emailLib/get_skeleton", function(skel){
-	debug(skel);
+	console.log('got skeleton', skel);
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
 	
@@ -63,7 +63,7 @@ emailPane.sub = dojo.subscribe("emailLib/get_skeleton", function(skel){
 	var paths = emailLib.pathsToFetch(skel);
 	var disp = dojo.byId("emailViewDiv");
 	disp.sub = dojo.subscribe("emailLib/fetchPaths/done", function(fetched){
-		debug(fetched);
+		console.log('fetching of paths complete', fetched);
 		dojo.unsubscribe(disp.sub);
 		disp.innerHTML = fetched;
 		var nodes = dojo.query('* > img', disp);

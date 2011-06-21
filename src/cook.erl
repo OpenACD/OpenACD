@@ -130,19 +130,19 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 %% @private
 init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 	process_flag(trap_exit, true),
-	?DEBUG("Getting call information", []),
 	try gen_media:get_call(Call) of
 		CallRec ->
-			?DEBUG("Cook starting for call ~p from queue ~p", [CallRec#call.id, Queue]),
+			?DEBUG("Cook starting for call ~p from queue ~p (~p)", [CallRec#call.id, Queue, Qpid]),
 			?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 			OptRecipe = optimize_recipe(InRecipe),
 			Now = util:now(),
 			Recipe = case round(Now - (MSec * 1000000 + Sec)) of
 				Ticked when Ticked > 1 ->
+					?DEBUG("fast forwarding", []),
 					fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
 				_Else ->
-					OptRecipe
+					do_recipe(OptRecipe, 0, Qpid, Call)
 			end,
 			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
 			{ok, State}
@@ -539,7 +539,7 @@ do_recipe([{Conditions, Op, Runs, _Comment} = OldAction | Recipe], Ticked, Qpid,
 fast_forward(Recipe, Ticked, Qpid, Call) ->
 	fast_forward(Recipe, Ticked, Qpid, Call, 0, []).
 
-fast_forward([], Ticked, _Qpid, _Call, Ticked, Acc) ->
+fast_forward([], ToTicked, _Qpid, _Call, Ticked, Acc) when Ticked >= ToTicked ->
 	lists:reverse(Acc);
 fast_forward([], ToTick, Qpid, Call, Ticked, Acc) ->
 	fast_forward(lists:reverse(Acc), ToTick, Qpid, Call, Ticked + 1, []);
@@ -662,6 +662,45 @@ sort_conditions_compare(CondA, CondB) ->
 	util:list_index(A, Condlist) < util:list_index(B, Condlist).
 
 -ifdef(TEST).
+
+init_test_() ->
+	{setup,
+	fun() ->
+		{ok, MediaPid} = gen_server_mock:new(),
+		{ok, Qpid} = gen_server_mock:new(),
+		MakeTime = fun(Seconds) ->
+			Fulltime = util:now() - Seconds,
+			Msec = util:floor(Fulltime / 1000000),
+			Sec = Fulltime - Msec,
+			{Msec, Sec, 0}
+		end,
+		Client = #client{label = "testclient", id="testclient"},
+		MediaRec = #call{id = "testmedia", source = MediaPid, client = Client},
+		SeedMedia = fun() ->
+			gen_server_mock:expect_call(MediaPid, fun(A, B, State) ->
+				{ok, MediaRec, State}
+			end)
+		end,
+		?DEBUG("init test call ~p", [MediaRec]),
+		{MediaRec, Qpid, MakeTime, SeedMedia}
+	end,
+	fun({Media, Qpid, _, _}) ->
+		gen_server_mock:stop(Media#call.source),
+		gen_server_mock:stop(Qpid)
+	end,
+	fun({Media, Qpid, MakeTime, SeedMedia}) ->
+		[{"simple priority change based on client on init", fun() ->
+			Recipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
+			SeedMedia(),
+			SeedMedia(),
+			SeedMedia(),
+			gen_server_mock:expect_call(Qpid, fun({get_call, _}, _, GState) -> {ok, {{1, "whatever"}, "whatever"}, GState} end),
+			gen_server_mock:expect_call(Qpid, fun({set_priority, _, _}, _, _) -> ?DEBUG("prioritizing", []), ok end),
+			{ok, State} = init([Media#call.source, Recipe, "default_queue", Qpid, {1, os:timestamp()}]),
+			?assertEqual([], State#state.recipe),
+			gen_server_mock:assert_expectations(Qpid)
+		end}]
+	end}.
 
 fast_forward_test_() ->
 	% if an no_gen_server_mock_expectation occurs, it may be due to a 

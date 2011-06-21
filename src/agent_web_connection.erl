@@ -134,6 +134,7 @@
 	get_avail_agents/1,
 	agent_transfer/2,
 	agent_transfer/3,
+	media_command/3,
 	media_command/4,
 	media_hangup/1,
 	load_media/1,
@@ -155,6 +156,7 @@
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
 	{agent_transfer, 3},
+	{media_command, 3},
 	{media_command, 4},
 	{media_hangup, 1},
 	{load_media, 1},
@@ -281,6 +283,11 @@ media_command(Conn, Command, Mode, Args) ->
 		{"args", Args}
 	],
 	gen_server:call(Conn, {media, Post}).
+
+%% @doc {@web} media_command with an empty argument list.
+-spec(media_command/3 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string()) -> any()).
+media_command(Conn, Command, Mode) ->
+	media_command(Conn, Command, Mode, []).
 
 %% @doc {@web} Start a warmtransfer of the media associated with the 
 %% oncall agent to `Number'.  No result is sent back as it's simply 
@@ -1300,11 +1307,11 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: {string(), any()}, Response :: any()) -> {headers(), mochi_out()}).
-parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
+parse_media_call(#call{type = email}, {<<"attach">>, _Args}, {ok, Filenames}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Filenames),
 	Json = {struct, [
 		{success, true},
-		{<<"filenames">>, Binnames}
+		{<<"result">>, Binnames}
 	]},
 	Html = mochiweb_html:to_html({
 		<<"html">>, [], [
@@ -1315,10 +1322,11 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 		]}),
 	%?DEBUG("html:  ~p", [Html]),
 	{[], Html};
-parse_media_call(#call{type = email}, {"attach", _Args}, {error, Error}) ->
+parse_media_call(#call{type = email}, {<<"attach">>, _Args}, {error, Error}) ->
 	Json = {struct, [
 		{success, false},
-		{<<"message">>, Error}
+		{<<"message">>, Error},
+		{<<"errcode">>, Error}
 	]},
 	Html = mochiweb_html:to_html({
 		<<"html">>, [], [
@@ -1328,22 +1336,22 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {error, Error}) ->
 			]}
 		]}),
 	{[], Html};
-parse_media_call(#call{type = email}, {"detach", _Args}, {ok, Keys}) ->
+parse_media_call(#call{type = email}, {<<"detach">>, _Args}, {ok, Keys}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Keys),
 	Json = {struct, [
 		{success, true},
-		{<<"filenames">>, Binnames}
+		{<<"result">>, Binnames}
 	]},
 	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
+parse_media_call(#call{type = email}, {<<"get_skeleton">>, _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 
 		{<<"subtype">>, Subtype},
 		{<<"headers">>, email_props_to_json(Heads)},
 		{<<"properties">>, email_props_to_json(Props)}
 	]},
-	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
+parse_media_call(#call{type = email}, {<<"get_skeleton">>, _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
 	Fun = fun
 		({Type, Subtype, Heads, Props}, {F, Acc}) ->
 			Head = {struct, [
@@ -1373,8 +1381,8 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 		{<<"properties">>, email_props_to_json(Topprop)},
 		{<<"parts">>, lists:reverse(Jsonlist)}]},
 	%?DEBUG("json:  ~p", [Json]),
-	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
+parse_media_call(#call{type = email}, {<<"get_path">>, _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
 	Emaildispo = email_media:get_disposition(Mime),
 	%?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
 	case {Type, Subtype, Emaildispo} of
@@ -1448,20 +1456,20 @@ parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, 
 %			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 %			{[], <<"404">>}
 	end;
-parse_media_call(#call{type = email}, {"get_path", _Path}, {message, Bin}) when is_binary(Bin) ->
+parse_media_call(#call{type = email}, {<<"get_path">>, _Path}, {message, Bin}) when is_binary(Bin) ->
 	%?DEBUG("Path is a message/Subtype with binary body", []),
 	{[], Bin};
-parse_media_call(#call{type = email}, {"get_from", _}, undefined) ->
-	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}]})};
-parse_media_call(#call{type = email}, {"get_from", _}, {Label, Address}) ->
+parse_media_call(#call{type = email}, {<<"get_from">>, _}, undefined) ->
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}, {<<"errcode">>, <<"REPLYINFO_NOEXISTS">>}]})};
+parse_media_call(#call{type = email}, {<<"get_from">>, _}, {Label, Address}) ->
 	Json = {struct, [
 		{<<"label">>, Label},
 		{<<"address">>, Address}
 	]},
-	{[], mochijson2:encode({struct, [{success, true}, {<<"data">>, Json}]})};
+	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
 parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
-	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}, {<<"errcode">>, <<"BAD_RETURN">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
 do_action([], _Do, Acc) ->

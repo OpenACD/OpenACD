@@ -702,10 +702,15 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 						{ok, Opts, Substate} ->
 							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
 					end,
-					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
+					{ok, Tref} = case Newcall#call.ring_path of
+						outband ->
+							{ok, undefined};
+						inband ->
+							timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook})
+					end,
 					Self = self(),
 					spawn(fun() -> % do this in a subprocess so we don't block
 						Arec = agent:dump_state(Apid),

@@ -1,14 +1,19 @@
 #!/bin/sh
 
-cp proto_src/* src/
 if [ ! -d ebin ]; then
 	mkdir ebin
 fi
 
-if [ "${GIT_UPDATE_DISABLED}" != "1" ]; then
-	echo "Updating submodules..."
-	git submodule init && git submodule update
-fi
+for file in proto_src/*.proto
+do
+	nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
+	nameBase=`echo "$nameBase" | sed -e "s/\.proto$//"`
+	hrlFile="include/${nameBase}_pb.hrl"
+	if [ $file -nt $hrlFile ]
+	then
+		cp $file src/
+	fi
+done
 
 # hack for reltool
 if [ ! -d OpenACD ]; then

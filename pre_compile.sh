@@ -7,9 +7,8 @@ fi
 for file in proto_src/*.proto
 do
 	nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
-	nameBase=`echo "$nameBase" | sed -e "s/\.proto$//"`
-	hrlFile="include/${nameBase}_pb.hrl"
-	if [ $file -nt $hrlFile ]
+	nameBase="src/${nameBase}"
+	if [ ! -e $nameBase -o $file -nt $nameBase ]
 	then
 		cp $file src/
 	fi

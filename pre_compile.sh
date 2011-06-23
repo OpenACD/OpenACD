@@ -4,6 +4,17 @@ if [ ! -d ebin ]; then
 	mkdir ebin
 fi
 
+for file in proto_src/*.proto
+do
+	nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
+	nameBase=`echo "$nameBase" | sed -e "s/\.proto$//"`
+	hrlFile="include/${nameBase}_pb.hrl"
+	if [ $file -nt $hrlFile ]
+	then
+		cp $file src/
+	fi
+done
+
 # hack for reltool
 if [ ! -d OpenACD ]; then
 	mkdir OpenACD

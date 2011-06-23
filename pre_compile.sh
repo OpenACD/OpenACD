@@ -5,11 +5,6 @@ if [ ! -d ebin ]; then
 	mkdir ebin
 fi
 
-if [ "${GIT_UPDATE_DISABLED}" != "1" ]; then
-	echo "Updating submodules..."
-	git submodule init && git submodule update
-fi
-
 # hack for reltool
 if [ ! -d OpenACD ]; then
 	mkdir OpenACD

@@ -292,7 +292,7 @@ dojo.xhrGet({
 		if(res.success){
 			var targetDij = dijit.byId("maxRingouts");
 			targetDij.set('placeHolder', res['default']);
-			if(res.isDefualt){
+			if(res.isDefault){
 				targetDij.set('value', '');
 			} else {
 				targetDij.set('value', res.value);
@@ -319,5 +319,26 @@ dojo.xhrGet({
 	},
 	error:function(err){
 		console.warn(['getting exit_on_max_ring_fails errored', res]);
+	}
+});
+
+dojo.xhrGet({
+	url:"/modules/" + modules.activeNode + "/cpx_supervisor/get/plugin_dir",
+	handleAs:'json',
+	load:function(res){
+		if(res.success){
+			var targetDij = dijit.byId('pluginDir');
+			targetDij.set('value', res['default']);
+			if(res.isDefault){
+				targetDij.set('value', '');
+			} else {
+				targetDij.set('value', res.value);
+			}
+			return;
+		}
+		errMessage(['getting pluginDir failed', res.message]);
+	},
+	error:function(err){
+		console.warn(['getting pluginDir errored', res]);
 	}
 });

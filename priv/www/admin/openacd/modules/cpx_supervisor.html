@@ -149,21 +149,19 @@
 </p>
 <hr />
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setPluginDirForm">
-<p>Tells OpenACD to start "plugin applications".  A plugin application is an
- erlang app the runs on the same node as OpenACD.  They are responsible for 
-supervising themselves, and should expect no help from OpenACD.  They can 
-assume OpenACD is running when they are launched.</p>
+<p>Tells OpenACD to look for "plugin applications".  A plugin application 
+is a set of erlang apps to run on the same node as OpenACD.  They are 
+responsible for supervising themselves, and should expect no help from 
+OpenACD.  They can assume OpenACD is running when they are launched.</p>
 <p>Place erlang applications in {plugin_dir}/{plugin_name} using the usual 
 erlang application structure ({plugin_name}/ebin, {plugin_name}/src, etc).  
-Place any non-plugin dependacies in {plugin_dir}/deps.  These must also be 
-application directories.  The functions of non-plugin dependcies to to allow
- plugin apps to have the apps they need available in a proper erlang manner.
+A properly created plugin will either be a single file ending in '.ez' or
+a directory containing the required structure.  When installing a plugin, 
+there may be several applications to place in the plugin directory.
 </p>
 <p>OpenACD will add all the directories in the plugin path to the code path
- (as well as anything in deps) and for each application directly under the 
-plugin dir, it will read the application file and try to launch any listed 
-application dependancies and then call application:start/1 on the plugin 
-itself.</p>
+and for each application directly under the plugin dir.  To define which
+plugins to start, see the next section.</p>
 <p>
 	<label for="pluginDir" class="translatecol">PLUGIN_DIR</label>
 	<input dojoType="dijit.form.TextBox" name="value" placeHolder="Do not load plugins" id="pluginDir" />
@@ -180,6 +178,30 @@ itself.</p>
 			}
 		</script>
 	</button>
+</p>
+</form>
+<hr />
+<p>A simple list of the names of the plugins.  See the documentation of the
+plugin you wish to start for what to place here.  This will be a shorter 
+list than the number of directories in OpenACD's plugin directory as a 
+plugin's primary application may require other applications to run.  
+OpenACD will search for those applications in the plugin directory and run
+those.</p>
+<p>Green means it's running, red means it's configured but not running.  
+Note unloading a plugin will remove it from this list completely.</p>
+<p>
+	<input dojoType="dijit.form.TextBox" name="value" placeHolder="Plugin Name" id="addPlugin" />
+	<button dojoType="dijit.form.Button" label="+">
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId('addPlugin').get('value');
+			if(newVal && newVal != ''){
+				CPXSupervisor.addPlugin(newVal);
+			}
+		</script>
+	</button>
+</p>
+<p>
+	<ul id="plugins"></ul>
 </p>
 <script type="text/javascript" src="openacd/modules/cpx_supervisor.js"></script>
 </div>

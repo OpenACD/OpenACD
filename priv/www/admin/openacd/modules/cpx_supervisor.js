@@ -194,6 +194,83 @@ CPXSupervisor.setExitMaxRingFails = function(newVal){
 	});
 }
 
+CPXSupervisor.addPlugin = function(plugin){
+	dojo.xhrPost({
+		url:'/modules/' + modules.activeNode + '/cpx_supervisor/update/plugins',
+		handleAs:'json',
+		content:{
+			'plugin':plugin,
+			'action':'load',
+		},
+		load:function(res){
+			if(res.success){
+				CPXSupervisor.reloadPlugins();
+				return;
+			}
+			errMessage(['adding plugin failed', res.message]);
+		},
+		error:function(res){
+			errMessage(['adding plugin errored', res]);
+		}
+	});
+}
+
+CPXSupervisor.removePlugin = function(plugin){
+	dojo.xhrPost({
+		url:'/modules/' + modules.activeNode + '/cpx_supervisor/update/plugins',
+		handleAs:'json',
+		content:{
+			'plugin':plugin,
+			'action':'unload',
+		},
+		load:function(res){
+			if(res.success){
+				CPXSupervisor.reloadPlugins();
+				return;
+			}
+			errMessage(['adding plugin failed', res.message]);
+		},
+		error:function(res){
+			errMessage(['adding plugin errored', res]);
+		}
+	});
+}
+
+CPXSupervisor.reloadPlugins = function(){
+	dojo.xhrGet({
+		url:"/modules/" + modules.activeNode + "/cpx_supervisor/get/plugins",
+		handleAs:'json',
+		load:function(res){
+			if(res.success){
+				var pluginList = dojo.byId("plugins");
+				dojo.query(pluginList).empty();
+				for(var i in res.value){
+					(function(){
+						var li = dojo.place('<li>' + i + '</li>', pluginList);
+						if(res.value[i] == 'running'){
+							li.style.color = 'green';
+						} else {
+							li.style.color = 'red';
+						}
+						var button = dojo.place('<button>-</button>', li);
+						new dijit.form.Button({
+							label:'-',
+							onClick:function(){
+								CPXSupervisor.removePlugin(i);
+							}
+						}, button);
+					})();
+				}
+				return;
+			}
+			errMessage(["get plugins failed", res]);
+		},
+		error:function(err){
+			console.warn(["get plugins exploded", res]);
+		}
+	});
+}
+
 dojo.query(".translate, .translatecol", 'cpx_module').forEach(function(node){
 	var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
 	if(trans){
@@ -342,3 +419,5 @@ dojo.xhrGet({
 		console.warn(['getting pluginDir errored', res]);
 	}
 });
+
+CPXSupervisor.reloadPlugins();

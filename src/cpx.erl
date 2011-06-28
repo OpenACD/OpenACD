@@ -312,7 +312,7 @@ load_plugin(Plugin) ->
 			{error, badarg};
 		ok ->
 			{ok, Plugins} = cpx:get_env(plugins, []),
-			application:set_env('OpenACD', plugins, [Plugin | Plugins]),
+			application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
 			start_plugin_app(Plugin)
 	end.
 

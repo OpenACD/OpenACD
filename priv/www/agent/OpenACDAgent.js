@@ -551,7 +551,9 @@ End the polling and kill the agent on the server side.
 */
 OpenACD.Agent.prototype.logout = function(){
 	// cancel this up front so
-	this._pollHandle.cancel();
+	if(this._pollHandle){
+		this._pollHandle.cancel();
+	}
 	// this should always succeed, so send the agent/logout in all cases
 	var options = {
 		error:function(response, ioargs){

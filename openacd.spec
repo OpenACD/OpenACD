@@ -1,7 +1,8 @@
+%define relno=%{?buildno:%buildno}%{!?buildno:1}
 Name: openacd
 Version: 0.9.5
 Summary: OpenACD Call Center
-Release: %{?buildno:%buildno}%{!?buildno:1}
+Release: %{relno}
 Group: Applications/Communications
 Vendor: Fused Solutions Inc.
 Packager: Douglas Hubler
@@ -24,7 +25,7 @@ OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in
 %setup -n OpenACD
 
 %build
-make compile GIT_UPDATE_DISABLED=1
+make compile GIT_UPDATE_DISABLED=1 OPENACD_COMMIT=%{relno}
 
 %install
 make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD GIT_UPDATE_DISABLED=1

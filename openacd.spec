@@ -1,14 +1,13 @@
-%define relno=%{?buildno:%buildno}%{!?buildno:1}
 Name: openacd
 Version: 0.9.5
 Summary: OpenACD Call Center
-Release: %{relno}
+Release: %{?buildno:%buildno}%{!?buildno:1}
 Group: Applications/Communications
-Vendor: Fused Solutions Inc.
+Vendor: OpenACD
 Packager: Douglas Hubler
 License: CPAL
 AutoReqProv: no
-URL: http://github.com/Vagabond/OpenACD/wiki
+URL: http://github.com/OpenACD/OpenACD/wiki
 Source: OpenACD.tar.gz
 
 BuildRequires: erlang
@@ -25,10 +24,10 @@ OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in
 %setup -n OpenACD
 
 %build
-make compile GIT_UPDATE_DISABLED=1 OPENACD_COMMIT=%{relno}
+make compile
 
 %install
-make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD GIT_UPDATE_DISABLED=1
+make install PREFIX=$RPM_BUILD_ROOT/opt/OpenACD
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -50,5 +49,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/OpenACD/plugin.d/deps
 
 %changelog
+* Fri Jun 24 2011 Micah Warren <micahw@lordnull.com>
+- Updated provider, url, and removed no longer needed enviroment variables.
 * Thu Jan 27 2011 Douglas Hubler <douglas@hubler.us>
 - Initial release

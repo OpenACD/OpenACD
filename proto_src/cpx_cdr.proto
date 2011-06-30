@@ -125,10 +125,10 @@ enum CdrDumpMessageHint {
 
 message CdrDumpMessage {
 	required int32 message_id = 1;
-	required CdrDumpMessageHint message_hint = 1;
-	optional CpxCdrRaw cdr_raw = 2;
-	optional CpxCdrRecord cdr_rec = 3;
-	optional AgentStateChange agent_state_change = 4;
+	required CdrDumpMessageHint message_hint = 2;
+	optional CpxCdrRaw cdr_raw = 3;
+	optional CpxCdrRecord cdr_rec = 4;
+	optional AgentStateChange agent_state_change = 5;
 }
 
 message CdrDumpAck {

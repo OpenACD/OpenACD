@@ -528,8 +528,6 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 
 %% @doc Take the plaintext username and password and attempt to authenticate 
 %% the agent.
--type(skill() :: atom() | {atom(), any()}).
--type(skill_list() :: [skill()]).
 -type(profile_name() :: string()).
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->

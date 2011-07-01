@@ -117,10 +117,21 @@ message AgentStateChange {
 	optional string dialed_number = 13;
 }
 
+message AgentProfileChange {
+	required string agent_id = 1;
+	required string agent_login = 2;
+	required string old_profile = 3;
+	required string new_profile = 4;
+	repeated Skill skills = 5;
+	repeated Skill dropped_skills = 6;
+	repeated Skill gained_skills = 7;
+}
+
 enum CdrDumpMessageHint {
 	CDR_RAW = 1;
 	CDR_REC = 2;
 	AGENT_STATE = 3;
+	AGENT_PROFILE = 4;
 }
 
 message CdrDumpMessage {
@@ -129,6 +140,7 @@ message CdrDumpMessage {
 	optional CpxCdrRaw cdr_raw = 3;
 	optional CpxCdrRecord cdr_rec = 4;
 	optional AgentStateChange agent_state_change = 5;
+	optional AgentProfileChange agent_profile_change = 6;
 }
 
 message CdrDumpAck {

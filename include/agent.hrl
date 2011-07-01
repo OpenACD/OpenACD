@@ -33,6 +33,8 @@
 -type(release_bias() :: -1 | 0 | 1).
 -type(release_label() :: default | string()).
 -type(release_id() :: string()).
+-type(skill() :: atom() | {atom(), any()}).
+-type(skill_list() :: [skill()]).
 
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
@@ -123,4 +125,14 @@
 	profile :: string(),
 	timestamp = util:now() :: integer(),
 	nodes :: [atom()]
+}).
+
+-record(agent_profile_change, {
+	id :: string(),
+	agent :: string(),
+	old_profile :: string(),
+	new_profile :: string(),
+	skills :: skill_list(),
+	dropped_skills :: skill_list(),
+	gain_skills :: skill_list()
 }).

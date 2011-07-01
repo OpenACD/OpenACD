@@ -1113,6 +1113,18 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			Agent#agent.log_pid ! {change_profile, Profile, StateName},
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
+			DroppedSkills = OldSkills -- NewAgentSkills2,
+			GainedSkills = NewAgentSkills2 -- OldSkills,
+			ProfChangeRec = #agent_profile_change{
+				id = Agent#agent.id,
+				agent = Agent#agent.login,
+				old_profile = OldProfile,
+				new_profile = Profile,
+				skills = NewAgentSkills2,
+				dropped_skills = DroppedSkills,
+				gained_skills = GainedSkills
+			},
+			cpx_monitor:info({agent_profile, ProfChangeRec}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}

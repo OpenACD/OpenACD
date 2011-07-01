@@ -134,5 +134,5 @@
 	new_profile :: string(),
 	skills :: skill_list(),
 	dropped_skills :: skill_list(),
-	gain_skills :: skill_list()
+	gained_skills :: skill_list()
 }).

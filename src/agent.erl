@@ -406,7 +406,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 				Orelse -> Orelse
 			end,
 			Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-			Pid ! {Agent#agent.login, login, Agent#agent.state, Agent#agent.statedata},
+			Pid ! {Agent#agent.login, login, Agent#agent.state, {Agent#agent.skills, Agent#agent.statedata}},
 			Agent2#agent{log_pid = Pid};
 		_Orelse ->
 			Agent2
@@ -1338,7 +1338,8 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 log_change(#agent{log_pid = undefined}) ->
 	ok;
 log_change(#agent{log_pid = Pid, state = login} = State) when is_pid(Pid) ->
-	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}};
+	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}},
+	ok;
 log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.

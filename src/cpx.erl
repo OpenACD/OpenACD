@@ -281,7 +281,8 @@ plugins_running() ->
 
 %% @doc Reload the code for all plugins using {@link util:reload/0}.
 reload_plugins() ->
-	[reload_plugin(P) || P <- cpx:get_env(plugins, [])].
+	{ok, Plugins} = cpx:get_env(plugins, []),
+	[reload_plugin(P) || P <- Plugins].
 
 %% @doc Reload the code the plugin and applications plugin depends on using
 %% {@link util:reload/0}.

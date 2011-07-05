@@ -450,7 +450,11 @@ OpenACD.Agent.prototype._handleGetSaltSuccess = function(response){
 		error:this.makeInternalPublishCb("login/error"),
 		failure:this.makeInternalPublishCb("login/failure")
 	};
-	this.agentApi("login", loginOpts, this.username, password);
+	if(this.loginOptions){
+		this.agentApi("login", loginOpts, this.username, password, this.loginOptions);
+	} else {
+		this.agentApi("login", loginOpts, this.username, password);
+	}
 }
 
 /**

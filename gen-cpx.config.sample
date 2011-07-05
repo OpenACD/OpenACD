@@ -13,7 +13,7 @@
 
 	% the following should be here.
 	{console_loglevel, info},
-	{logfiles, [{"full.log", debug}, {"console.log", info}]}
+	{logfiles, [{"full.log", debug}, {"console.log", info}]},
 
 	% everything else is entirely optional.
 	% when OpenACD starts, these are compared to what is in the cpx_value
@@ -68,22 +68,25 @@
 	{max_ringouts, 3},
 
 	% Tells OpenACD to start "plugin applications".  A plugin application
-	% is an erlang app the runs on the same node as OpenACD.  They are 
+	% is an erlang app that runs on the same node asn OpenACD.  They are
 	% responsible for supervising themselves, and should expect no help
 	% from OpenACD.  They can assume OpenACD is running when they are 
 	% launched.
 	%
-	% Place erlang applications in {plugin_dir}/{plugin_name} using the 
-	% usual erlang application structure ({plugin_name}/ebin, {plugin_name}/
-	% src, etc).  Place any non-plugin dependacies in 
-	% {plugin_dir}/deps.  These must also be application directories.  The 
-	% functions of non-plugin dependcies to to allow plugin apps to have 
-	% the apps they need available in a proper erlang manner.
+	% Place erlang applicactions and thier dependancies (if needed) in the
+	% plugins directory.  OpenACD will add all the needed directories on 
+	% demand.  It will load the app file, start any dependancies using
+	% application:start/1, ending with starting the starting the plugin 
+	% itself.
 	%
-	% OpenACD will add all the directories in the plugin path to the 
-	% code path (as well as anything in deps) and for each application 
-	% directly under the plugin dir, it will read the application file and 
-	% try to launch any listed application dependancies and then call
-	% application:start/1 on the plugin itself.
+	% If the plugin stops for any reason, there is no guarentee it's 
+	% dependancies are stopped.  OpenACD handles the case of already running
+	% dependancies gracefully.
+	{plugins, []},
+
+	% Tells OpenACD where to find plugin applications, as well as any 
+	% additional applications that may be needed which are not included
+	% in the standard erlang distribution.
 	{plugin_dir, "plugins"}
+
 ]}].

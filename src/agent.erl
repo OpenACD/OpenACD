@@ -1337,6 +1337,8 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
+log_change(#agent{log_pid = Pid, state = login} = State) when is_pid(Pid) ->
+	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}};
 log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
@@ -1351,7 +1353,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 			ProfileTup
 	end,
 	receive
-		{Agentname, login, State, Statedata} ->
+		{Agentname, login, State, {Skills, Statedata}} ->
 			F = fun() ->
 				Now = util:now(),
 				Login = #agent_state{
@@ -1359,6 +1361,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 					agent = Agentname, 
 					oldstate = login, 
 					state=State,
+					statedata = Skills,
 					start = Now, 
 					ended = Now, 
 					profile= Profile, 

@@ -115,6 +115,7 @@ message AgentStateChange {
 	optional int32 stop_time = 11;
 	optional string profile = 12;
 	optional string dialed_number = 13;
+	repeated Skill skills = 14;
 }
 
 message AgentProfileChange {

@@ -707,16 +707,18 @@ build_tables(Nodes) ->
 			{RecT, RawT}
 	end.
 
+summarize_sorter(#cdr_raw{transaction = cdrinit}, _) ->
+	true;
+summarize_sorter(_, #cdr_raw{transaction = cdrinit}) ->
+	false;
+summarize_sorter(#cdr_raw{start = Start, ended = Aend}, #cdr_raw{start = Start, ended = Bend}) ->
+	Aend =< Bend;
+summarize_sorter(#cdr_raw{start = AStart}, #cdr_raw{start = BStart}) ->
+	AStart =< BStart.
+
 spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 	Summarize = fun() ->
-		Sort = fun(#cdr_raw{start = Astart, ended = Aend}, #cdr_raw{start = Bstart, ended = Bend}) ->
-			case {Astart, Bstart} of
-				{X, X} ->
-					Aend =< Bend;
-				_ ->
-					Astart =< Bstart
-			end
-		end,
+		Sort = fun summarize_sorter/2,
 		Transactions = lists:sort(Sort, UsortedTransactions),
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),

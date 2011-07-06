@@ -60,6 +60,8 @@
 	]).
 -endif.
 
+-type(skill_list() :: [atom() | {atom(), any()}]).
+
 -record(state, {
 		cnode :: atom(),
 		number :: string(),

@@ -402,6 +402,7 @@ init([Call]) ->
 		terminates = infoevent,
 		nodes = Nodes
 	},
+	cpx_monitor:info({cdr_raw, Initraw}),
 	mnesia:transaction(fun() -> 
 		mnesia:write(Cdrrec), 
 		mnesia:write(Initraw)

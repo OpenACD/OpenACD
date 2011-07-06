@@ -71,7 +71,7 @@ message CpxCdrRaw {
 	optional string hangup_by = 12;
 	optional string transfer_to = 13;
 	optional string agent_transfer_recipient = 14;
-	
+	optional CallRecord call_record = 15;
 }
 
 // A more precise version of SimpleKeyValue

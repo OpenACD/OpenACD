@@ -564,17 +564,17 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 			case gen_leader:leader_call(?MODULE, {full_data, Login}) of
 				false ->
 					{reply, false, State};
-				{agent_cache, Pid, _Id, _Time, _Skills, _Chans, _Ends} = V when node(Pid) =:= node() ->
+				#agent_cache{pid = Pid} = V when node(Pid) =:= node() ->
 					% leader knows about a local agent, but we didn't!
 					% So we update the local dict
 					Agents2 = dict:store(Login, V, Agents),
 					{reply, {true, Pid}, State#state{agents = Agents2}};
-				{agent_cache, OtherPid, _Id, _Time, _Skills, _Chans, _Ends} ->
+				#agent_cache{pid = OtherPid} ->
 					{reply, {true, OtherPid}, State}
 			end;
 		error -> % we're the leader
 			{reply, false, State};
-		{ok, {agent_cache, Pid, _Id, _Timeavail, _Skills, _Chans, _Ends}} ->
+		{ok, #agent_cache{pid = Pid}} ->
 			{reply, {true, Pid}, State}
 	end;
 handle_call({notify, Login, #agent_cache{pid = Pid} = AgentCache}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
@@ -642,12 +642,14 @@ handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) 
 
 handle_cast({set_ends, Nom, Ends}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
-	{agent_cache, Pid, Id, Time, Skills, Chans, OldEnds} = dict:fetch(Nom, Agents),
+	#agent_cache{ pid = Pid, id = Id, time_avail = Time, skills = Skills,
+		channels = Chans, endpoints = OldEnds} = dict:fetch(Nom, Agents),
 	Midroutelist = gb_trees_filter(fun({_Key, #agent_cache{pid = Apid}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),
-	Out = {agent_cache, Pid, Id, Time, Skills, Chans, Ends},
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, {agent_cache, Pid, Id, Skills, Chans, Ends}, Midroutelist),
+	Out = #agent_cache{pid = Pid, id = Id, time_avail = Time,
+		skills = Skills, channels = Chans, endpoints = Ends},
+	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, #agent_cache{ pid = Pid, id = Id, skills = Skills, channels = Chans, endpoints = Ends, time_avail = Time}, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -700,7 +702,7 @@ handle_cast(_Request, State, _Election) ->
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?NOTICE("Caught exit for ~p with reason ~p", [Pid, Reason]),
-	F = fun(Key, {agent_cache, Value, Id, _Time, _Skills, _Chans, _Ends}) ->
+	F = fun(Key, #agent_cache{ pid = Value, id = Id}) ->
 		case Value =/= Pid of
 			true -> true;
 			false ->

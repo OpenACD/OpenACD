@@ -75,22 +75,6 @@
 
 -define(has_all(Skills), case lists:member('_all', Skills) of true -> a; false -> z end).
 
--record(agent_cache, {
-	pid,
-	id,
-	time_avail = os:timestamp(),
-	skills,
-	channels,
-	endpoints
-}).
-
--record(agent_key, {
-	rotations = 0,
-	has_all,
-	skill_count,
-	idle_time = os:timestamp()
-}).
-
 % API exports
 -export([
 	start_link/1, 
@@ -440,7 +424,9 @@ handle_leader_cast({update_notify, Login, #agent_cache{pid = Pid} = Value}, #sta
 	end, State#state.route_list),
 	Skills = Value#agent_cache.skills,
 	Time = Value#agent_cache.time_avail,
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, Value, Midroutelist),
+	Routelist = gb_trees:enter(#agent_key{ rotations = 0,
+		has_all = ?has_all(Skills), skill_count = length(Skills),
+		idle_time = Time}, Value, Midroutelist),
 	{noreply, State#state{agents = NewAgents, route_list = Routelist}};
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
 	?NOTICE("leader notified of ~p exiting", [Agent]),
@@ -521,8 +507,9 @@ handle_call(route_list_agents, _From, #state{agents = _Agents, lists_requested =
 		true ->
 			Routelist;
 		false ->
-			{{agent_key, OldCount, AllSkillFlag, Len, Time}, Val, Midroutelist} = gb_trees:take_smallest(Routelist),
-			gb_trees:enter({agent_key, OldCount + 1, AllSkillFlag, Len, Time}, Val, Midroutelist)
+			{#agent_key{rotations = OldCount} = Key, Val, Midroutelist} =
+				gb_trees:take_smallest(Routelist),
+			gb_trees:enter(Key#agent_key{rotations = OldCount + 1}, Val, Midroutelist)
 	end,
 	{reply, List, State#state{lists_requested = Count + 1, route_list = NewRoutelist}};
 handle_call(stop, _From, State, _Election) -> 
@@ -538,7 +525,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = InAgent}, _From, #sta
 		id = Aid,
 		time_avail = os:timestamp(),
 		skills = Agent#agent.skills,
-		channels = [],
+		channels = Agent#agent.available_channels,
 		endpoints = dict:fetch_keys(Agent#agent.endpoints)
 	},
 	Leader = gen_leader:leader_node(Election),
@@ -589,7 +576,9 @@ handle_call({notify, Login, #agent_cache{pid = Pid} = AgentCache}, _From, #state
 			end,
 			Agents2 = dict:store(Login, AgentCache, Agents),
 			#agent_cache{skills = Skills, time_avail = TimeAvail} = AgentCache,
-			Midroutelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), TimeAvail}, AgentCache, State#state.route_list),
+			Midroutelist = gb_trees:enter(#agent_key{rotations = 0,
+				has_all = ?has_all(Skills), skill_count = length(Skills),
+				idle_time = TimeAvail}, AgentCache, State#state.route_list),
 			{reply, ok, State#state{agents = Agents2, lists_requested = 0, route_list = clear_rotates(Midroutelist)}};
 		{ok, {Pid, _Id}} ->
 			{reply, ok, State};
@@ -649,7 +638,9 @@ handle_cast({set_ends, Nom, Ends}, #state{agents = Agents} = State, Election) ->
 	end, State#state.route_list),
 	Out = #agent_cache{pid = Pid, id = Id, time_avail = Time,
 		skills = Skills, channels = Chans, endpoints = Ends},
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, #agent_cache{ pid = Pid, id = Id, skills = Skills, channels = Chans, endpoints = Ends, time_avail = Time}, Midroutelist),
+	Routelist = gb_trees:enter(#agent_key{ rotations = 0,
+		has_all = ?has_all(Skills), skill_count = length(Skills),
+		idle_time = Time}, Out, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -683,7 +674,9 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 	Midroutelist = clear_rotates(gb_trees_filter(fun({_, #agent_cache{pid = Apid}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
-	Routelist = gb_trees:enter({agent_key, 0, ?has_all(Skills), length(Skills), Time}, Out, Midroutelist),
+	Routelist = gb_trees:enter(#agent_key{ rotations = 0,
+		has_all = ?has_all(Skills), skill_count = length(Skills),
+		idle_time = Time}, Out, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->

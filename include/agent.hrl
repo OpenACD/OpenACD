@@ -115,6 +115,22 @@
 	timestamp = util:now() :: pos_integer()
 }).
 
+-record(agent_cache, {
+	pid,
+	id,
+	time_avail = os:timestamp(),
+	skills,
+	channels,
+	endpoints
+}).
+
+-record(agent_key, {
+	rotations = 0,
+	has_all,
+	skill_count,
+	idle_time = os:timestamp()
+}).
+
 -define(DEFAULT_PROFILE, #agent_profile{name = "Default", id = "0", timestamp = util:now()}).
 
 -define(DEFAULT_RELEASE, {"default", default, -1}).

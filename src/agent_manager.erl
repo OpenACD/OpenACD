@@ -50,11 +50,10 @@
 -type(agent_pid() :: pid()).
 -type(agent_id() :: string()).
 -type(time_avail() :: integer()).
--type(skill() :: atom() | {atom(), any()}).
--type(skills() :: [skill()]).
 -type(channels() :: [channel_category()]).
 -type(endpoints() :: [atom()]). % list of media modules.
--type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills(), 
+-type(skills() :: skill_list()).
+-type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills(),
 	channels(), endpoints()}).
 
 %-type(rotations() :: non_neg_integer()).

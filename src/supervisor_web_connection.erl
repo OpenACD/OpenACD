@@ -363,6 +363,8 @@ is_web_api(Function, Arity) ->
 %% 		example, an agent may have logged out, or a media had it's wrapup
 %% 		completed.  In the case of queue, usually means it's removed from the
 %% 		system.</td>
+%%	</tr>
+%% </table>
 -spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
 poll(Pid, Frompid) ->
 	gen_server:cast(Pid, {poll, Frompid}).

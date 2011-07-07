@@ -77,8 +77,6 @@
 -type(endpoint_data() :: {'endpoint_data', string()}).
 -type(id_option() :: {'id', string()}).
 -type(profile() :: {'profile', string()}).
--type(skill() :: atom() | {atom(), any()}).
--type(skill_list() :: [skill()]).
 -type(skills_option() :: {'skills', skill_list()}).
 -type(max_life() :: {'max_life', pos_integer()}).
 -type(release_frequency() :: {'release_frequency', pos_integer()}).
@@ -205,7 +203,8 @@ handle_cast({change_state, wrapup, #call{} = Call}, State) ->
 	{noreply, State#state{calltimer = undefined, wrapuptimer = Tref, call = Call}};
 handle_cast({change_state, released, {_, ring_fail, _}}, State) ->
 	?INFO("Gone into ring fail, so going out of ring_fail", []),
-	agent:set_state(State#state.agent_fsm, idle);
+	agent:set_state(State#state.agent_fsm, idle),
+	{noreply, State};
 handle_cast({change_state, _AgState, _Data}, State) ->
 	{noreply, State};
 handle_cast({change_state, idle}, State) ->

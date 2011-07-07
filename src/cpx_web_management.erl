@@ -1935,6 +1935,43 @@ api({modules, Node, "cpx_supervisor", "get", "plugin_dir"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+api({modules, Node, "cpx_supervisor", "get", "plugins"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx, plugins_running, []) of
+		Apps when is_list(Apps) ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"value">>, {struct, Apps}}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "update", "plugins"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Val = proplists:get_value("plugin", Post),
+	Act = proplists:get_value("action", Post),
+	case {Val, Act} of
+		{Val, "unload"} ->
+			{ok, Plugins} = rpc:call(Atomnode, cpx, get_env, [plugins, []]),
+			case [X || X <- Plugins, Val == atom_to_list(X)] of
+				[] ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				[PluginAtom] ->
+					rpc:call(Atomnode, cpx, unload_plugin, [PluginAtom]),
+					{200, [], mochijson2:encode({struct, [{success, true}]})}
+			end;
+		{Val, "load"} ->
+			case rpc:call(Atomnode, cpx, get_env, [plugin_dir]) of
+				undefined ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"plugins not enabled">>}]})};
+				{ok, Dir} ->
+					{ok, Dirs} = rpc:call(Atomnode, file, list_dir, [Dir]),
+					case [X || X <- Dirs, string:str(X, Val) > 0] of
+						[] ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such plugin">>}]})};
+						_ ->
+							rpc:call(Atomnode, cpx, load_plugin, [list_to_atom(Val)]),
+							{200, [], mochijson2:encode({struct, [{success, true}]})}
+					end
+			end
+	end;
 api({modules, Node, "cpx_supervisor", "update", "plugin_dir"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Res = case proplists:get_value("value", Post) of

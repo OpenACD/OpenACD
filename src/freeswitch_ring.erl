@@ -281,7 +281,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					"hangup_after_bridge="++HangupAfterBridge,
 					ParkAfterBridge,
 					"origination_uuid="++UUID,
-					"originate_timeout="++integer_to_list(Ringout),
+					"originate_timeout="++integer_to_list(round(Ringout / 1000)),
 					"sip_h_X-DNIS='"++Dnis++"'"
 					| proplists:get_value(dial_vars, Options, [])],
 			case InitFun({Fsnode, UUID}, Options) of
@@ -401,10 +401,20 @@ handle_cast(Msg, #state{callbacks = #callbacks{handle_cast = CastFun, state = Cb
 %%--------------------------------------------------------------------
 handle_info({call, {event, [UUID | _Rest]}}, #state{cnode = Cnode, options = Options, uuid = UUID} = State) ->
 	?DEBUG("call", []),
-	OptEvents = lists:sort(proplists:get_value(events, Options, [])),
-	BaseEvents = lists:sort(['CHANNEL_ANSWER', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE', 'CHANNEL_HANGUP']),
-	Events = lists:umerge(OptEvents, BaseEvents),
-	freeswitch:session_setevent(Cnode, Events),
+	case lists:keysearch(eventfun, 1, Options) of
+		{value, {eventfun, _Fun}} ->
+			% TODO - rewrite freeswitch_ring calls which use eventfun to include a list of events they need
+			case lists:keysearch(needed_events, 1, Options) of
+				{value, {needed_events, Events}} ->
+					freeswitch:session_setevent(Cnode, ['CHANNEL_ANSWER', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE', 'CHANNEL_HANGUP']),
+					freeswitch:session_event(Cnode, Events);
+				_ ->
+					?WARNING("freeswitch_ring was unable to filter out unneded events because an eventfun was specified without a list of what events it used", [])
+			end;
+		_ ->
+			% no eventfun is defined, so we can filter
+			freeswitch:session_setevent(Cnode, ['CHANNEL_ANSWER', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE', 'CHANNEL_HANGUP'])
+	end,
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #state{options = _Options, uuid = UUID, callbacks = #callbacks{handle_event = CbHandleEvent} = Callbacks} = State) ->
 	Event = proplists:get_value("Event-Name", Rest),

@@ -944,6 +944,13 @@ dojo.addOnLoad(function(){
 			var attrs = loginform.attr("value");
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
+			window.agentConnection.loginOptions = {
+				voipendpoint: attrs.voipendpoint,
+				voipendpointdata: attrs.voipendpointdata
+			}
+			if(attrs.useoutbandring){
+				window.agentConnection.useoutbandring = true;
+			}
 			window.agentConnection.login();
 		} else {
 			console.warn('Form has invalid value');

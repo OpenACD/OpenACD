@@ -391,7 +391,7 @@ idle(Msg, State) ->
 % ======================================================================
 
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(dispatch_manager, {set_avail, self()}),
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
@@ -467,6 +467,18 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			inform_connection(Agent, {change_profile, Profile}),
 			inform_connection(Agent, {set_release, Agent#agent.release_data, Agent#agent.last_change}),
+			DroppedSkills = OldSkills -- NewAgentSkills2,
+			GainedSkills = NewAgentSkills2 -- OldSkills,
+			ProfChangeRec = #agent_profile_change{
+				id = Agent#agent.id,
+				agent = Agent#agent.login,
+				old_profile = OldProfile,
+				new_profile = Profile,
+				skills = NewAgentSkills2,
+				dropped_skills = DroppedSkills,
+				gained_skills = GainedSkills
+			},
+			cpx_monitor:info({agent_profile, ProfChangeRec}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -564,7 +576,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			},
 			case StateName of
 				idle ->
-					gen_server:cast(dispatch_manager, {set_avail, self()}),
+					gen_server:cast(dispatch_manager, {now_avail, self()}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NowAvailChannels});
 				_ ->
 					ok
@@ -688,7 +700,7 @@ start_channel(Agent, Call, StateName) ->
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
-					gen_server:cast(dispatch_manager, {set_avail, self()}),
+					gen_server:cast(dispatch_manager, {now_avail, self()}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
 						available_channels = Available,
@@ -784,11 +796,16 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 	Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Deatils, Watch).
 
-log_change(#agent{log_pid = undefined}) ->
-	ok;
-log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
-	Pid ! State,
-	ok.
+%log_change(#agent{log_pid = undefined}) ->
+%	ok;
+%log_change(#agent{log_pid = Pid, state = login} = State) when is_pid(Pid) ->
+%	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}},
+%	ok;
+%log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
+%	Pid ! State,
+%	ok.
+
+log_change(_) -> ok.
 
 -spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
 log_loop(Id, Agentname, Nodes, ProfileTup) ->
@@ -800,7 +817,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 			ProfileTup
 	end,
 	receive
-		{Agentname, login, State, Statedata} ->
+		{Agentname, login, State, {Skills, Statedata}} ->
 			F = fun() ->
 				Now = util:now(),
 				Login = #agent_state{
@@ -808,6 +825,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 					agent = Agentname, 
 					oldstate = login, 
 					state=State,
+					statedata = Skills,
 					start = Now, 
 					ended = Now, 
 					profile= Profile, 

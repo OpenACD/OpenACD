@@ -75,7 +75,7 @@
 	handle_info/3,
 	terminate/3, 
 	code_change/4,
-	handle_ring/3, 
+	handle_ring/4, 
 	handle_answer/3, 
 	handle_ring_stop/2,
 	handle_agent_transfer/4,
@@ -533,7 +533,7 @@ handle_answer(Agent, Call, State) ->
 	agent:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
-handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) ->
+handle_ring(_Agent, _RingData, _Call, #state{caseid = CaseID} = State) ->
 	{ok, [{"caseid", CaseID}], State}.
 
 handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->

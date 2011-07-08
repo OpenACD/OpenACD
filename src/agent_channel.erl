@@ -491,7 +491,9 @@ start_endpoint({Mod, Func, XtraArgs}, Agent, Call) ->
 			{ok, Pid};
 		Else ->
 			{error, Else}
-	end.
+	end;
+start_endpoint(E, _, _) ->
+	{error, {badendpoint, E}}.
 
 % ======================================================================
 % TESTS

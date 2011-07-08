@@ -76,7 +76,7 @@
 	terminate/3, 
 	code_change/4,
 	prepare_endpoint/2,
-	handle_ring/3, 
+	handle_ring/4, 
 	handle_answer/3, 
 	handle_voicemail/3, 
 	handle_announce/3, 
@@ -497,7 +497,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			{error, dummy_fail, State#state{fail = Newfail}}
 	end.
 
-handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
+handle_ring(_Agent, _RingData, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
 			{ok, [{"caseid", State#state.caseid}], State};
@@ -594,6 +594,7 @@ start_ring_loop(Agent, undefined, persistant) ->
 	end;
 start_ring_loop(Agent, Call, transient) ->
 	?INFO("Starting transient ring, I guess.", []),
+	gen_media:ring(Call#call.source, Agent#agent.id, transient, takeover),
 	ring_loop(Agent, Call).
 
 ring_loop(Agent, Call) ->

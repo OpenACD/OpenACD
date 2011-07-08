@@ -80,8 +80,9 @@
 %%		the endpoint is no longer used, and any media requiring it will fail
 %%		to ring to the agent.
 %%
-%%	<b>handle_ring(Agent, Call, State) -> Result</b>
-%%		types:	Agent = pid()
+%%	<b>handle_ring(RingData, Agent, Call, State) -> Result</b>
+%%		types:	RingData = any()
+%%				Agent = pid()
 %%				Call = #call{}
 %%				State = any()
 %%				Result = {ok, NewState} | {ok, UrlOptions, NewState} | 
@@ -91,6 +92,9 @@
 %%
 %%		When a call must ring to an agent (either due to out of queue or 
 %%		the start of a transfer), this is called.
+%%
+%%		RingData is the data the ring channel returned when confirming it is
+%%		able to function.  Gen media does not alter or cache it.
 %%
 %%		Agent is the pid of the agent that will be set to ringing if 
 %%		Result is {ok, NewState} or {ok, UrlOptions, NewState}.
@@ -734,8 +738,9 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 			{reply, invalid, State}
 	end;
 
-handle_call({'$gen_media_ring', {Agent, AgentChan}, RingData, takeover}, 
+handle_call({'$gen_media_ring', {Agent, _Apid}, RingData, takeover}, 
 	{Requester, _Tag}, #state{ring_pid = {Agent, AgentChan}} = State) ->
+	?DEBUG("Handling ring takeover by a ring channel pid", []),
 	Callback = State#state.callback,
 	Call = State#state.callrec,
 	GenPopopts = State#state.url_pop_getvars,

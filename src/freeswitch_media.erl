@@ -64,7 +64,7 @@
 -export([
 	init/1,
 	urlpop_getvars/1,
-	handle_ring/3,
+	handle_ring/4,
 	handle_ring_stop/2,
 	handle_answer/3,
 	handle_voicemail/3,
@@ -204,19 +204,19 @@ handle_answer(Apid, Callrec, State) ->
 			{invalid, State}
 	end.
 
-handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
+handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login,
-	handle_ring({Apid, AgentRec}, Callrec, State);
-handle_ring({_Apid, #agent{ring_channel = {undefined, persistant, _}} = Agent}, _Callrec, State) ->
+	handle_ring({Apid, AgentRec}, RingData, Callrec, State);
+handle_ring({_Apid, #agent{ring_channel = {undefined, persistant, _}} = Agent}, _RingData, _Callrec, State) ->
 	?WARNING("Agent (~p) does not have it's persistant channel up yet", [Agent#agent.login]),
 	{invalid, State};
-handle_ring({Apid, #agent{ring_channel = {EndpointPid, persistant, _EndPointType}}} = Agent, Callrec, State) ->
+handle_ring({Apid, #agent{ring_channel = {EndpointPid, persistant, _EndPointType}}} = Agent, _RingData, Callrec, State) ->
 	%% a persisitant ring does the hard work for us
 	%% go right to the okay.
 	?INFO("Ring channel made things happy, I assume", []),
 	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
-handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
+handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, _RingData, Callrec, State) ->
 	% if we get to this point, the ring channel is already up.
 	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
 	%	{ok, Pid} ->

@@ -258,6 +258,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	end;
 
 init([Agent, Call, Endpoint, StateName]) ->
+	process_flag(trap_exit, true),
 	State = #state{
 		agent_fsm = Agent#agent.source,
 		agent_connection = Agent#agent.connection,
@@ -437,6 +438,9 @@ handle_sync_event(_Event, _From, StateName, State) ->
 % HANDLE_INFO
 % ======================================================================
 
+handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
+	?INFO("Exit of endpoint due to ~p", [Why]),
+	{stop, Why, State};
 handle_info(end_wrapup, wrapup, State) ->
 	{stop, normal, State};
 handle_info(_Info, StateName, State) ->

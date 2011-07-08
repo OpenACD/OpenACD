@@ -402,7 +402,7 @@ behaviour_info(callbacks) ->
 	[
 		{prepare_endpoint, 2},
 		{init, 1},
-		{handle_ring, 3},
+		{handle_ring, 4},
 		{handle_ring_stop, 2},
 		{handle_answer, 3}, 
 		%{handle_voicemail, 3}, 
@@ -723,7 +723,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
 
-handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = CachedCall, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
+handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = CachedCall, ring_pid = undefined, monitors = Mons} = State) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, CachedCall#call.id, Timeout]),
 	case agent:prering(Apid, CachedCall#call{cook = QCall#queued_call.cook}) of
 		{ok, AgentChan} ->
@@ -739,7 +739,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 	end;
 
 handle_call({'$gen_media_ring', {Agent, _Apid}, RingData, takeover}, 
-	{Requester, _Tag}, #state{ring_pid = {Agent, AgentChan}} = State) ->
+	{_Requester, _Tag}, #state{ring_pid = {Agent, AgentChan}} = State) ->
 	?DEBUG("Handling ring takeover by a ring channel pid", []),
 	Callback = State#state.callback,
 	Call = State#state.callrec,

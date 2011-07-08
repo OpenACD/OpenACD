@@ -587,21 +587,43 @@ handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 %%--------------------------------------------------------------------
 
 start_ring_loop(Agent, undefined, persistant) ->
-	receive
-		{prering, Agent, Call} ->
-			gen_media:ring(Call#call.source, Agent, persistant, takeover),
-			start_ring_loop(Agent, Call, persistant)
-	end;
+	persistant_ring_loop(Agent, undefined);
 start_ring_loop(Agent, Call, transient) ->
 	?INFO("Starting transient ring, I guess.", []),
 	gen_media:ring(Call#call.source, Agent#agent.id, transient, takeover),
-	ring_loop(Agent, Call).
+	Client = Call#call.client,
+	Opts = Client#client.options,
+	Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+	erlang:send_after(Ringout * 1000, self(), ringout),
+	process_flag(trap_exit, true),
+	transient_ring_loop(Agent, Call).
 
-ring_loop(Agent, Call) ->
+persistant_ring_loop(Agent, undefined) ->
 	receive
+		{prering, Agent, #call{client = Client} = Call} ->
+			gen_media:ring(Call#call.source, Agent, persistant, takeover),
+			Opts = Client#client.options,
+			Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+			erlang:send_after(Ringout * 1000, self(), ringout),
+			persistant_ring_loop(Agent, Call)
+	end;
+persistant_ring_loop(Agent, #call{source = Src} = Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			persistant_ring_loop(Agent, undefined);
+		{'EXIT', Src, Cause} ->
+			persistant_ring_loop(Agent, undefined)
+	end.
+
+transient_ring_loop(Agent, Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			normal;
 		Msg ->
 			?INFO("msg nom:  ~p", [Msg]),
-			ring_loop(Agent, Call)
+			transient_ring_loop(Agent, Call)
 	end.
 
 check_fail(Key, Dict) ->

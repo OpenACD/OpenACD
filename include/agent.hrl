@@ -49,6 +49,7 @@
 	source :: pid(),
 	release_data :: release_code() | 'undefined',
 	available_channels = [dummy, voice, visual, slow_text, fast_text, fast_text, fast_text],
+	all_channels = [dummy, voice, visual, slow_text, fast_text, fast_text, fast_text], % treat as immutable
 	used_channels = dict:new(),
 	endpoints = dict:new(),
 	ring_channel = none :: 'none' | any(),

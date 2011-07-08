@@ -566,11 +566,11 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 					?INFO("unknown exit from ~p", [Pid]),
 					{next_state, StateName, State}
 			end;
-		{ok, NowAvailChannels} ->
-			% TODO This prolly isn't the best way to do it.
-			?DEBUG("unblocking channels ~p", [NowAvailChannels]),
-			NewAvail = lists:merge(Agent#agent.available_channels, NowAvailChannels),
+		{ok, Type} ->
 			NewDict = dict:erase(Pid, Agent#agent.used_channels),
+			Blockers = dict:fold(fun(_, ChanType, Acc) -> [ChanType | Acc] end, [], NewDict),
+			NewAvail = block_channels(Blockers, Agent#agent.all_channels, ?default_category_blocks),
+			?DEBUG("unblocking channels ~p", [NewAvail]),
 			NewAgent = Agent#agent{
 				available_channels = NewAvail,
 				used_channels = NewDict
@@ -578,7 +578,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			case StateName of
 				idle ->
 					gen_server:cast(dispatch_manager, {now_avail, self(), NewAvail}),
-					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NowAvailChannels});
+					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NewAvail});
 				_ ->
 					ok
 			end,
@@ -700,12 +700,12 @@ start_channel(Agent, Call, StateName) ->
 			Self = self(),
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
-					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
+					Available = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
 					gen_server:cast(dispatch_manager, {now_avail, self(), Available}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
 						available_channels = Available,
-						used_channels = dict:store(Pid, [Call#call.type | Blocked], Agent#agent.used_channels)
+						used_channels = dict:store(Pid, Call#call.type, Agent#agent.used_channels)
 					},
 					{ok, Pid, NewAgent};
 				Else ->
@@ -713,35 +713,72 @@ start_channel(Agent, Call, StateName) ->
 			end
 	end.
 
-block_channels(Channel, CurrentAvail, BlocklistDefs) ->
-	Blocklist = proplists:get_value(Channel, BlocklistDefs, []),
-	TrueAvail = lists:delete(Channel, CurrentAvail),
-	block_channels(Channel, TrueAvail, Blocklist, [], []).
+block_channels(Channel, Blockables, BlocklistDefs) when is_atom(Channel) ->
+	block_channels([Channel], Blockables, BlocklistDefs);
+block_channels(_, [], _) ->
+	[];
+block_channels([], Blockables, _) ->
+	Blockables;
+block_channels([Chan | Tail], InBlockables, BlocklistDefs) ->
+	Blocklist = proplists:get_value(Chan, BlocklistDefs, []),
+	Blockables = lists:delete(Chan, InBlockables),
+	case Blocklist of
+		all ->
+			[];
+		none ->
+			block_channels(Tail, Blockables, BlocklistDefs);
+		self ->
+			NewBlockables = [B || B <- Blockables, B =/= Chan],
+			block_channels(Tail, NewBlockables, BlocklistDefs);
+		others ->
+			NewBlockables = [B || B <- Blockables, B == Chan],
+			block_channels(Tail, NewBlockables, BlocklistDefs);
+		List ->
+			NewBlockables = [B || B <- Blockables, not lists:member(B, List)],
+			block_channels(Tail, NewBlockables, BlocklistDefs)
+	end.
+		
 
-block_channels(_Channel, CurrentAvail, none, _, _) ->
-	{[], CurrentAvail};
-block_channels(_Channel, CurrentAvail, all, _, _) ->
-	{CurrentAvail, []};
-block_channels(_Channel, [], _What, AccBlocked, AccAvail) ->
-	{lists:reverse(AccBlocked), lists:reverse(AccAvail)};
-block_channels(Channel, [Channel | Tail], self, AccBlocked, Avail) ->
-	NewBlocked = [Channel | AccBlocked],
-	block_channels(Channel, Tail, self, NewBlocked, Avail);
-block_channels(Channel, [Channel | Tail], others, Blocked, AccAvail) ->
-	NewAvail = [Channel | AccAvail],
-	block_channels(Channel, Tail, others, Blocked, NewAvail);
-block_channels(Channel, [Other | Tail], self, Blocked, AccAvail) ->
-	NewAvail = [Other | AccAvail],
-	block_channels(Channel, Tail, self, Blocked, NewAvail);
-block_channels(Channel, [Other | Tail], others, AccBlocked, Avail) ->
-	NewBlocked = [Other | AccBlocked],
-	block_channels(Channel, Tail, others, NewBlocked, Avail);
-block_channels(Channel, [Other | Tail], ToBlock, AccBlocked, AccAvail) ->
-	{NewBlocked, NewAvail} = case lists:member(Other, ToBlock) of
-		true -> {[Other | AccBlocked], AccAvail};
-		false -> {AccBlocked, [Other | AccAvail]}
-	end,
-	block_channels(Channel, Tail, ToBlock, NewBlocked, NewAvail).
+%
+%block_channels(Channels, Blockables, BlocklistDefs) ->
+%	block_channesl(Channels, Blockables, BlocklistDefs, []).
+%
+%block_channels(_Channels, [], _BlocklistDefs, Acc) ->
+%	Acc;
+%block_channels([], Blockabls
+%block_channels(_Channels, [], _BlocklistDefs) ->
+%	[];
+%block_channels([], Blockables, _BlocklistDefs) ->
+%	
+%block_channels(Channel, CurrentAvail, BlocklistDefs) ->
+%	Blocklist = proplists:get_value(Channel, BlocklistDefs, []),
+%	TrueAvail = lists:delete(Channel, CurrentAvail),
+%	block_channels(Channel, TrueAvail, Blocklist, [], []).
+%
+%block_channels(_Channel, CurrentAvail, none, _, _) ->
+%	{[], CurrentAvail};
+%block_channels(_Channel, CurrentAvail, all, _, _) ->
+%	{CurrentAvail, []};
+%block_channels(_Channel, [], _What, AccBlocked, AccAvail) ->
+%	{lists:reverse(AccBlocked), lists:reverse(AccAvail)};
+%block_channels(Channel, [Channel | Tail], self, AccBlocked, Avail) ->
+%	NewBlocked = [Channel | AccBlocked],
+%	block_channels(Channel, Tail, self, NewBlocked, Avail);
+%block_channels(Channel, [Channel | Tail], others, Blocked, AccAvail) ->
+%	NewAvail = [Channel | AccAvail],
+%	block_channels(Channel, Tail, others, Blocked, NewAvail);
+%block_channels(Channel, [Other | Tail], self, Blocked, AccAvail) ->
+%	NewAvail = [Other | AccAvail],
+%	block_channels(Channel, Tail, self, Blocked, NewAvail);
+%block_channels(Channel, [Other | Tail], others, AccBlocked, Avail) ->
+%	NewBlocked = [Other | AccBlocked],
+%	block_channels(Channel, Tail, others, NewBlocked, Avail);
+%block_channels(Channel, [Other | Tail], ToBlock, AccBlocked, AccAvail) ->
+%	{NewBlocked, NewAvail} = case lists:member(Other, ToBlock) of
+%		true -> {[Other | AccBlocked], AccAvail};
+%		false -> {AccBlocked, [Other | AccAvail]}
+%	end,
+%	block_channels(Channel, Tail, ToBlock, NewBlocked, NewAvail).
 
 %% @private
 -spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).

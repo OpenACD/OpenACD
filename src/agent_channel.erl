@@ -134,7 +134,7 @@ start_link(AgentRec, Options) ->
 	gen_fsm:start_link(?MODULE, [AgentRec, Options], []).
 
 start_link(AgentRec, CallRec, EndpointData, InitState) ->
-	gen_fsm:start_link(?MODULE, [AgentRec, CallRec, EndpointData, InitState]).
+	gen_fsm:start_link(?MODULE, [AgentRec, CallRec, EndpointData, InitState], []).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -242,14 +242,18 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	case InitInfo of
 		{prering, Call} when is_record(Call, call); Call =:= undefined ->
 			State = ProtoState#state{state_data = Call},
+			?DEBUG("Starting in prering", []),
 			{ok, prering, State};
 		{ringing, Call} when is_record(Call, call) ->
 			State = ProtoState#state{state_data = Call},
+			?DEBUG("Starting in ring directly", []),
 			{ok, ringing, State};
 		{precall, Client} when is_record(Client, client) ->
 			State = ProtoState#state{state_data = Client},
+			?DEBUG("Starting in precall", []),
 			{ok, precall, State};
 		_ ->
+			?WARNING("Failed start:  ~p", [InitInfo]),
 			{stop, badstate}
 	end;
 
@@ -260,15 +264,24 @@ init([Agent, Call, Endpoint, StateName]) ->
 		endpoint = Endpoint,
 		state_data = Call
 	},
-	case {StateName, Call} of
-		prering when is_record(Call, call) ->
-			{ok, prering, State};
+	case StateName of
+		prering when is_record(Call, call); Call =:= undefined ->
+			case start_endpoint(Endpoint, Agent, Call) of
+				{ok, Pid} ->
+					?DEBUG("Starting in prering", []),
+					{ok, prering, State#state{endpoint = Pid}};
+				{error, Error} ->
+					{stop, {error, Error}}
+			end;
 		precall when is_record(Call, client) ->
+			?DEBUG("Starting in precall", []),
 			{ok, precall, State};
 		ringing when is_record(Call, call) ->
 			% TODO tell media to ring
+			?DEBUG("Starting in ringing", []),
 			{ok, ringing, State};
 		_ ->
+			?WARNING("Failed start:  ~p", [{StateName, Call}]),
 			{stop, badstate}
 	end.
 	
@@ -279,6 +292,7 @@ init([Agent, Call, Endpoint, StateName]) ->
 
 prering({ringing, Call}, From, State) ->
 	% TODO check if valid
+	?DEBUG("Moving from prering to ringing state", []),
 	{reply, ok, ringing, State#state{state_data = Call}};
 prering(Msg, _From, State) ->
 	?INFO("Msg ~p not understood", [Msg]),
@@ -292,6 +306,7 @@ prering(Msg, State) ->
 % ======================================================================
 
 ringing({oncall, Call}, From, #state{state_data = Call} = State) ->
+	?DEBUG("Moving from ringing to oncall state", []),
 	{reply, ok, oncall, State};
 ringing(Msg, From, State) ->
 	{reply, {error, invalid}, ringing, State}.
@@ -304,6 +319,7 @@ ringing(Msg, State) ->
 % ======================================================================
 
 precall({oncall, #call{client = Client} = Call}, From, #state{state_data = Client} = State) ->
+	?DEBUG("Moving from precall to oncall state", []),
 	{reply, ok, oncall, State#state{state_data = Call}};
 precall(Msg, From, State) ->
 	{reply, {error, invalid}, precall, State}.
@@ -316,6 +332,7 @@ precall(Msg, State) ->
 % ======================================================================
 
 oncall(warmtransfer_hold, From, State) ->
+	?DEBUG("Moving from oncall to warmtransfer_hold", []),
 	{reply, ok, warmtransfer_hold, State};
 oncall({warmtransfer_3rd_party, Data}, From, State) ->
 	case oncall(warmtransfer_hold, From, State) of
@@ -327,6 +344,7 @@ oncall({warmtransfer_3rd_party, Data}, From, State) ->
 oncall(wrapup, From, #state{state_data = Call} = State) ->
 	oncall({wrapup, Call}, From, State);
 oncall({wrapup, Call}, From, #state{state_data = Call} = State) ->
+	?DEBUG("Moving from oncall to wrapup", []),
 	{reply, ok, wrapup, State#state{state_data = Call}};
 oncall(Msg, From, State) ->
 	{reply, {error, invalid}, oncall, State}.
@@ -339,10 +357,13 @@ oncall(Msg, State) ->
 % ======================================================================
 
 warmtransfer_hold(oncall, From, State) ->
+	?DEBUG("Moving from warmtransfer_hold to oncall", []),
 	{reply, ok, oncall, State};
 warmtransfer_hold({warmtransfer_3rd_party, Data}, From, #state{state_data = Call} = State) ->
+	?DEBUG("Moving from warmtransfer_hold to warmtransfer_3rd_party", []),
 	{reply, ok, warmtransfer_3rd_party, State#state{state_data = {Call, Data}}};
 warmtransfer_hold(wrapup, From, State) ->
+	?DEBUG("Moving from warmtransfer_hold to wrapup", []),
 	{reply, ok, wrapup, State};
 warmtransfer_hold(Msg, From, State) ->
 	{reply, {error, invalid}, warmtransfer_hold, State}.
@@ -355,10 +376,13 @@ warmtransfer_hold(Msg, State) ->
 % ======================================================================
 
 warmtransfer_3rd_party(warmtransfer_hold, From, #state{state_data = {Call, _}} = State) ->
+	?DEBUG("Moving from warmtransfer_3rd_party to warmtransfer_hold", []),
 	{reply, ok, warmtransfer_hold, State#state{state_data = Call}};
 warmtransfer_3rd_party(oncall, From, #state{state_data = {Call, _}} = State) ->
+	?DEBUG("Moving from warmtransfer_3rd_party to oncall", []),
 	{reply, ok, oncall, State#state{state_data = Call}};
 warmtransfer_3rd_party(wrapup, From, #state{state_data = {Call, _}} = State) ->
+	?DEBUG("Moving from warmtransfer_3rd_party to wrapup", []),
 	{reply, ok, wrapup, State#state{state_data = Call}};
 warmtransfer_3rd_party(Msg, From, State) ->
 	{reply, {error, invalid}, State}.
@@ -456,6 +480,18 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % INTERNAL FUNCTIONS
 % ======================================================================
 
+start_endpoint(Pid, Agent, Call) when is_pid(Pid) ->
+	link(Pid),
+	Pid ! {prering, {Agent, self()}, Call},
+	{ok, Pid};
+start_endpoint({Mod, Func, XtraArgs}, Agent, Call) ->
+	case apply(Mod, Func, [Agent, Call | XtraArgs]) of
+		{ok, Pid} ->
+			link(Pid),
+			{ok, Pid};
+		Else ->
+			{error, Else}
+	end.
 
 % ======================================================================
 % TESTS

@@ -381,7 +381,7 @@
 	oncall_pid :: 'undefined' | {string(), pid()},
 	queue_failover = true :: 'true' | 'false',
 	queue_pid :: 'undefined' | string() | {string(), pid()},
-	ringout = false:: tref() | 'false',
+	ringout = false:: tref() | pid() | 'false',
 	outband_ring_pid :: 'undefined' | pid(),
 	warm_transfer = false :: boolean(),
 	monitors = #monitors{} :: #monitors{},
@@ -723,57 +723,42 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, CachedCall#call.id, Timeout]),
 	case agent:prering(Apid, CachedCall#call{cook = QCall#queued_call.cook}) of
 		{ok, AgentChan} ->
-			case Callback:handle_ring({Agent, AgentChan}, State#state.callrec, State#state.substate) of
-				Success when element(1, Success) == ok ->
-					{Popopts, Call} = case Success of
-						{ok, Substate} ->
-							{GenPopopts, CachedCall};
-						{ok, RetCall, Substate} when is_record(RetCall, call) ->
-							{GenPopopts, RetCall};
-						{ok, Opts, Substate} ->
-							{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), CachedCall};
-						{ok, Opts, RetCall, Substate} ->
-							{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), RetCall}
-					end,
-					cdr:ringing(Call, Agent),
-					url_pop(Call, Apid, Popopts),
-					Newcall = Call#call{cook = QCall#queued_call.cook},
-%<<<<<<< HEAD
-%=======
-					{ok, Tref} = case Newcall#call.ring_path of
-						outband ->
-							{ok, undefined};
-						inband ->
-							timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook})
-					end,
-%					Self = self(),
-%					spawn(fun() -> % do this in a subprocess so we don't block
-%						Arec = agent:dump_state(Apid),
-%						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
-%							{outband, inband, Pid} when is_pid(Pid) ->
-%								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
-%									{ok, RingChanPid} ->
-%										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid}),
-%										agent:has_successful_ring(Apid);
-%									Else ->
-%										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
-%										agent:has_failed_ring(Apid),
-%										undefined
-%								end;
-%							_ ->
-%								agent:has_failed_ring(Apid),
-%								undefined
-%						end
-%					end),
-%>>>>>>> master
-					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
-					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, AgentChan}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
-				{invalid, Substate} ->
-					agent_channel:stop(AgentChan, ring_fail),
-					{reply, invalid, State#state{substate = Substate}}
-			end;
+			%% set up an internal time in case the ring channel the agent
+			%% channel is supposed to start never gets back to us.
+			{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
+			Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, AgentChan)},
+			Newcall = CachedCall#call{cook = QCall#queued_call.cook},
+			{reply, ok, State#state{ring_pid = {Agent, AgentChan}, ringout=Tref, monitors = Newmons, callrec = Newcall}};
 		Else ->
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, CachedCall#call.id]),
+			{reply, invalid, State}
+	end;
+
+handle_call({'$gen_media_ring', {Agent, AgentChan}, RingData, takeover}, 
+	{Requester, _Tag}, #state{ring_pid = {Agent, AgentChan}} = State) ->
+	Callback = State#state.callback,
+	Call = State#state.callrec,
+	GenPopopts = State#state.url_pop_getvars,
+	case Callback:handle_ring({Agent, AgentChan}, RingData, Call, State#state.substate) of
+		Success when element(1, Success) == ok ->
+			{Popopts, NewCall} = case Success of
+				{ok, Substate} -> {GenPopopts, Call};
+				{ok, RetCall, Substate} when is_record(RetCall, call) ->
+					{GenPopopts, RetCall};
+				{ok, Opts, Substate} ->
+					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), Call};
+				{ok, Opts, RetCall, Substate} ->
+					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), RetCall}
+			end,
+			timer:cancel(State#state.ringout),
+			cdr:ringing(Call, Agent),
+			url_pop(Call, AgentChan, Popopts),
+			{reply, ok, State#state{substate = Substate, ringout=undefined, callrec = NewCall}};
+		{invalid, Substate} ->
+			agent_channel:stop(AgentChan, ring_fail),
+			{reply, invalid, State#state{substate = Substate}};
+		Else ->
+			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
 			{reply, invalid, State}
 	end;
 

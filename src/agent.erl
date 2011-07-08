@@ -568,6 +568,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			end;
 		{ok, NowAvailChannels} ->
 			% TODO This prolly isn't the best way to do it.
+			?DEBUG("unblocking channels ~p", [NowAvailChannels]),
 			NewAvail = lists:merge(Agent#agent.available_channels, NowAvailChannels),
 			NewDict = dict:erase(Pid, Agent#agent.used_channels),
 			NewAgent = Agent#agent{
@@ -704,7 +705,7 @@ start_channel(Agent, Call, StateName) ->
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
 						available_channels = Available,
-						used_channels = dict:store(Pid, Blocked, Agent#agent.used_channels)
+						used_channels = dict:store(Pid, [Call#call.type | Blocked], Agent#agent.used_channels)
 					},
 					{ok, Pid, NewAgent};
 				Else ->

@@ -441,6 +441,9 @@ handle_sync_event(_Event, _From, StateName, State) ->
 handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint due to ~p", [Why]),
 	{stop, Why, State};
+handle_info({'EXIT', Pid, Why}, StateName, #state{agent_fsm = Pid} = State) ->
+	?INFO("Exit of agent fsm due to ~p", [Why]),
+	{stop, Why, State};
 handle_info(end_wrapup, wrapup, State) ->
 	{stop, normal, State};
 handle_info(_Info, StateName, State) ->

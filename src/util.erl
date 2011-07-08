@@ -74,6 +74,8 @@
 	reload/2,
 	reload_all/0,
 	reload_all/1,
+	c/0,
+	c/1,
 	distribution/1,
 	get_number/1,
 	find_first_arc/2,
@@ -451,6 +453,19 @@ reload_all(Mode) ->
 			Errors = [E || {Ok, E} <- Out, Ok == error],
 			{error, Errors}
 	end.
+
+%% @doc Not useful in a production enviroment, but for a dev enviroment.
+%% this will call do `util:c("rebar compile")' on the os command line, and 
+%% output the results.  Why?  Because I'm lazy and don't want to have to 
+%% swap screens just to recompile.
+-spec(c/0 :: () -> 'ok').
+c() ->
+	c("./rebar compile").
+
+%% @doc A generic "do this on the command line and print the results".
+-spec(c/1 :: (Cmd :: string()) -> 'ok').
+c(Cmd) ->
+	io:format("~s", [os:cmd(Cmd)]).
 
 -spec(distribution/1 :: (Mean :: pos_integer()) -> float()).
 distribution(Mean) ->

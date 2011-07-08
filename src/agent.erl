@@ -309,7 +309,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	agent_manager:update_skill_list(Agent2#agent.login, Agent2#agent.skills),
 	StateName = case Agent#agent.release_data of
 		none ->
-			gen_server:cast(dispatch_manager, {now_avail, self()}),
+			gen_server:cast(dispatch_manager, {now_avail, self(), Agent2#agent.available_channels}),
 			idle;
 		_Other ->
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
@@ -391,7 +391,7 @@ idle(Msg, State) ->
 % ======================================================================
 
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(dispatch_manager, {now_avail, self(), Agent#agent.available_channels}),
 	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
@@ -577,7 +577,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			},
 			case StateName of
 				idle ->
-					gen_server:cast(dispatch_manager, {now_avail, self()}),
+					gen_server:cast(dispatch_manager, {now_avail, self(), NewAvail}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NowAvailChannels});
 				_ ->
 					ok
@@ -701,7 +701,7 @@ start_channel(Agent, Call, StateName) ->
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					{Blocked, Available} = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
-					gen_server:cast(dispatch_manager, {now_avail, self()}),
+					gen_server:cast(dispatch_manager, {now_avail, self(), Available}),
 					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
 					NewAgent = Agent#agent{
 						available_channels = Available,

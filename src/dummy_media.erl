@@ -589,13 +589,14 @@ handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 start_ring_loop(Agent, undefined, persistant) ->
 	persistant_ring_loop(Agent, undefined);
 start_ring_loop(Agent, Call, transient) ->
+	process_flag(trap_exit, true),
 	?INFO("Starting transient ring, I guess.", []),
 	gen_media:ring(Call#call.source, Agent#agent.id, transient, takeover),
 	Client = Call#call.client,
 	Opts = Client#client.options,
 	Ringout = proplists:get_value(ringout, Opts, ?getRingout),
-	erlang:send_after(Ringout * 1000, self(), ringout),
-	process_flag(trap_exit, true),
+	Self = self(),
+	erlang:send_after(Ringout, Self, ringout),
 	transient_ring_loop(Agent, Call).
 
 persistant_ring_loop(Agent, undefined) ->
@@ -604,7 +605,8 @@ persistant_ring_loop(Agent, undefined) ->
 			gen_media:ring(Call#call.source, Agent, persistant, takeover),
 			Opts = Client#client.options,
 			Ringout = proplists:get_value(ringout, Opts, ?getRingout),
-			erlang:send_after(Ringout * 1000, self(), ringout),
+			Self = self(),
+			erlang:send_after(Ringout, Self, ringout),
 			persistant_ring_loop(Agent, Call)
 	end;
 persistant_ring_loop(Agent, #call{source = Src} = Call) ->

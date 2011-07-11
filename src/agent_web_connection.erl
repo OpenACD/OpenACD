@@ -237,7 +237,7 @@ set_state(Conn, Channel, Statename) ->
 %% with the given `Statedata'.  No result property as it either worked or 
 %% it didn't.  State data will vary based on state.
 -spec(set_state/4 :: (Conn :: pid(), Channel :: bin_string(), Statename :: bin_string(), Statedata :: any()) -> any()).
-set_state(Conn, Statename, Statedata) ->
+set_state(Conn, Channel, Statename, Statedata) ->
 	gen_server:call(Conn, {set_state, binary_to_list(Channel), binary_to_list(Statename), binary_to_list(Statedata)}).
 
 %% @doc {@web} Attempt to dial the passed number.  Implicitly sets the 
@@ -687,7 +687,7 @@ handle_call({set_state, Channel, Statename}, _From, #state{agent_channels = Chan
 			end
 	end;
 
-handle_call({set_state, Channel, Statename, Statedata}, _From, #state{agent_channels} = State) ->
+handle_call({set_state, Channel, Statename, Statedata}, _From, #state{agent_channels = Channels} = State) ->
 	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
 	case Chans of
 		[] ->
@@ -1128,7 +1128,7 @@ handle_cast({set_channel, Pid, State, Statedata}, #state{agent_channels = AChann
 		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
 	]},
 	NewAChannels = case Statedata of
-		{Call, error} when is_record(call, Call), State =:= wrapup ->
+		{Call, error} when is_record(Call, call), State =:= wrapup ->
 			Store = #channel_state{mediaload = undefined, current_call = Call},
 			dict:store(Pid, Store);
 		{Call, error} when is_record(Call, call) ->

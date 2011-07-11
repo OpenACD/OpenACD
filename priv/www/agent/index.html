@@ -383,6 +383,27 @@
 			<span id="timerdisp">Time</span>
 			<span class="statusdisplay" id="profiledisp">Profile:Goober</span>
 			<span class="statusdisplay" id="statedisp">State:denial</span>
+
+
+
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setRelease("none")>
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
+			</script>
+		</button>
+		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
+			</script>
+			<span>GORELEASED</span>
+			<div dojoType="dijit.Menu" id="releasedmenu">
+			</div>
+		</div>
+
+
+
 		</span>
 
 		<div dojoType="dijit.form.DropDownButton" id="filemenubutton">
@@ -556,21 +577,6 @@
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setRelease("none")>
-			<script type="dojo/method" event="postCreate">
-				this.inherited("postCreate", arguments);
-				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
-			</script>
-		</button>
-		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
-			<script type="dojo/method" event="postCreate">
-				this.inherited("postCreate", arguments);
-				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
-			</script>
-			<span>GORELEASED</span>
-			<div dojoType="dijit.Menu" id="releasedmenu">
-			</div>
-		</div>
 
 		<select id="boutboundcall"></select>
 

@@ -129,8 +129,8 @@
 %% calls these functions.
 -export([
 	set_release/2,
-	set_state/2,
 	set_state/3,
+	set_state/4,
 	dial/2,
 	get_avail_agents/1,
 	agent_transfer/2,
@@ -152,8 +152,8 @@
 
 -web_api_functions([
 	{set_release, 2},
-	{set_state, 2},
 	{set_state, 3},
+	{set_state, 4},
 	{dial, 2},
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
@@ -180,9 +180,15 @@
 
 -type(tref() :: any()).
 
+-record(channel_state, {
+	current_call :: #call{} | 'undefined' | 'expect',
+	mediaload :: any()
+}).
+
 -record(state, {
 	salt :: any(),
 	agent_fsm :: pid() | 'undefined',
+	agent_channels = dict:new() :: dict(),
 	current_call :: #call{} | 'undefined' | 'expect',
 	mediaload :: any(),
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
@@ -220,19 +226,19 @@ logout(Conn) ->
 set_release(Conn, Release) ->
 	gen_server:call(Conn, {set_release, Release}).
 
-%% @doc {@web} Set the agent to the given `Statename' with default state 
-%% data.  No result property as it either worked or didn't.
--spec(set_state/2 :: (Conn :: pid(), Statename :: bin_string()) -> any()).
-set_state(Conn, Statename) ->
-	gen_server:call(Conn, {set_state, binary_to_list(Statename)}).
+%% @doc {@web} Set the agent channel `Channel' to the given `Statename' 
+%% with default state data.  No result property as it either worked or 
+%% didn't.
+-spec(set_state/3 :: (Conn :: pid(), Channel :: bin_string(), Statename :: bin_string()) -> any()).
+set_state(Conn, Channel, Statename) ->
+	gen_server:call(Conn, {set_state, binary_to_list(Channel), binary_to_list(Statename)}).
 
-%% @doc {@web} Set the agent to the given `Statename' with the given 
-%% `Statedata'.  No result property as it either worked or it didn't.  
-%% State data will vary based on state.  For released, it can be either 
-%% the string `"Default"' or a string of `"Id:Name:Bias"'.
--spec(set_state/3 :: (Conn :: pid(), Statename :: bin_string(), Statedata :: any()) -> any()).
+%% @doc {@web} Set the agent channel `Channel' to the given `Statename' 
+%% with the given `Statedata'.  No result property as it either worked or 
+%% it didn't.  State data will vary based on state.
+-spec(set_state/4 :: (Conn :: pid(), Channel :: bin_string(), Statename :: bin_string(), Statedata :: any()) -> any()).
 set_state(Conn, Statename, Statedata) ->
-	gen_server:call(Conn, {set_state, binary_to_list(Statename), binary_to_list(Statedata)}).
+	gen_server:call(Conn, {set_state, binary_to_list(Channel), binary_to_list(Statename), binary_to_list(Statedata)}).
 
 %% @doc {@web} Attempt to dial the passed number.  Implicitly sets the 
 %% agent from precall to outbound.  No results property as it either 
@@ -667,32 +673,34 @@ handle_call({set_release, Release}, _From, #state{agent_fsm = Apid} = State) ->
 			{reply, ?reply_err(<<"unknown error">>, <<"UNKNOWN_ERR">>), State}
 	end;
 
-handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
-	case agent:set_state(Apid, agent:list_to_state(Statename)) of
-		ok ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, ok}]})}, State};
-		invalid ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}, {<<"message">>, <<"invalid state change">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}
+handle_call({set_state, Channel, Statename}, _From, #state{agent_channels = Channels} = State) ->
+	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
+	case Chans of
+		[] ->
+			{reply, ?reply_err(<<"Channel not found">>, <<"CHANNEL_NOEXISTS">>), State};
+		[Chan] ->
+			case agent_channel:set_state(Chan, agent_channel:list_to_state(Statename)) of
+				ok ->
+					{reply, ?simple_success(), State};
+				invalid ->
+					{reply, ?reply_err(<<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
+			end
 	end;
-handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid} = State) ->
-	Statedata = case Statename of
-		"released" ->
-			case InStatedata of
-				"Default" ->
-					default;
-				_ ->
-					[Id, Name, Bias] = util:string_split(InStatedata, ":"),
-					{Id, Name, list_to_integer(Bias)}
-			end;
-		_ ->
-			InStatedata
-	end,
-	case agent:set_state(Apid, agent:list_to_state(Statename), Statedata) of
-		invalid ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}, {<<"message">>, <<"invalid state change">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]})}, State}; 
-		Status -> 
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State} 
-	end; 
+
+handle_call({set_state, Channel, Statename, Statedata}, _From, #state{agent_channels} = State) ->
+	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
+	case Chans of
+		[] ->
+			{reply, ?reply_err(<<"Channel not found">>, <<"CHANNEL_NOEXISTS">>), State};
+		[Chan] ->
+			case agent_channel:set_state(Chan, agent_channel:list_to_state(Statename), Statedata) of
+				ok ->
+					{reply, ?simple_success(), State};
+				invalid ->
+					{reply, ?reply_err(<<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
+			end
+	end;
+
 handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
 	{reply, agent:set_endpoint(Apid, freeswitch, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
@@ -1111,42 +1119,69 @@ handle_cast({set_release, Release, Time}, State) ->
 	]},
 	NewState = push_event(Json, State),
 	{noreply, NewState};
-handle_cast({change_state, AgState, Data}, State) ->
-	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
+
+handle_cast({set_channel, Pid, State, Statedata}, #state{agent_channels = AChannels} = State) ->
 	Headjson = {struct, [
-		{<<"command">>, <<"astate">>},
-		{<<"state">>, AgState},
-		{<<"statedata">>, encode_statedata(Data)}
+		{<<"command">>, <<"setchannel">>},
+		{<<"state">>, State},
+		{<<"statedata">>, encode_statedata(Statedata)},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
 	]},
-	Newstate = push_event(Headjson, State),
-	{noreply, Midstate} = case Data of
-		Call when is_record(Call, call) ->
-			{noreply, Newstate#state{current_call = Call}};
-		{onhold, Call, calling, _Number} ->
-			{noreply, Newstate#state{current_call = Call}};
-		_ ->
-			{noreply, Newstate#state{current_call = undefined}}
+	NewAChannels = case Statedata of
+		{Call, error} when is_record(call, Call), State =:= wrapup ->
+			Store = #channel_state{mediaload = undefined, current_call = Call},
+			dict:store(Pid, Store);
+		{Call, error} when is_record(Call, call) ->
+			Store = #channel_state{current_call = Call, mediaload = Call},
+			dict:store(Pid, Store);
+		{Call, Cache} when State =:= wrapup, is_record(Call, call) ->
+			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
+			dict:store(Pid, Store);
+		{{onhold, Call, calling, Number}, error} ->
+			Store = #channel_state{mediaload = Call, current_call = Call},
+			dict:store(Pid, Store);
+		{{onhold, Call, calling, Number}, Cache} ->
+			Store = Cache#channel_state{mediaload = Call, current_call = Call},
+			dict:store(Pid, Store)
 	end,
-	Fullstate = case AgState of
-		wrapup ->
-			Midstate#state{mediaload = undefined};
-		_ ->
-			Midstate
-	end,
-	{noreply, Fullstate};
-handle_cast({change_state, AgState}, State) ->
-	Headjson = {struct, [
-			{<<"command">>, <<"astate">>},
-			{<<"state">>, AgState}
-		]},
-	Midstate = push_event(Headjson, State),
-	Newstate = case AgState of
-		wrapup ->
-			Midstate#state{mediaload = undefined};
-		_ ->
-			Midstate
-	end,
-	{noreply, Newstate#state{current_call = undefined}};
+	{noreply, State#state{agent_channels = NewAChannels}};
+
+%handle_cast({change_state, AgState, Data}, State) ->
+%	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
+%	Headjson = {struct, [
+%		{<<"command">>, <<"astate">>},
+%		{<<"state">>, AgState},
+%		{<<"statedata">>, encode_statedata(Data)}
+%	]},
+%	Newstate = push_event(Headjson, State),
+%	{noreply, Midstate} = case Data of
+%		Call when is_record(Call, call) ->
+%			{noreply, Newstate#state{current_call = Call}};
+%		{onhold, Call, calling, _Number} ->
+%			{noreply, Newstate#state{current_call = Call}};
+%		_ ->
+%			{noreply, Newstate#state{current_call = undefined}}
+%	end,
+%	Fullstate = case AgState of
+%		wrapup ->
+%			Midstate#state{mediaload = undefined};
+%		_ ->
+%			Midstate
+%	end,
+%	{noreply, Fullstate};
+%handle_cast({change_state, AgState}, State) ->
+%	Headjson = {struct, [
+%			{<<"command">>, <<"astate">>},
+%			{<<"state">>, AgState}
+%		]},
+%	Midstate = push_event(Headjson, State),
+%	Newstate = case AgState of
+%		wrapup ->
+%			Midstate#state{mediaload = undefined};
+%		_ ->
+%			Midstate
+%	end,
+%	{noreply, Newstate#state{current_call = undefined}};
 handle_cast({change_profile, Profile}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"aprofile">>},

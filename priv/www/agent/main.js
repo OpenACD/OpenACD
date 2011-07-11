@@ -268,15 +268,18 @@ function load_media_tab(options){
 	if(! options.media){
 		throw "media is required for tab";
 	}
+	if(! options.channelId){
+		throw "channelId is required for tab";
+	}
 	if(! options.id){
 		options.id = options.media;
 	}
 	if(! (options.href || options.content) ){
 		options.href = options.media + '_media.html';
 	}
-	if(options.fullpane == undefined){
+	//if(options.fullpane == undefined){
 		options.fullpane = true;
-	}
+	//}
 	if(! options.title){
 		options.title = options.media;
 	}
@@ -293,15 +296,19 @@ function load_media_tab(options){
 		return false;
 	}
 	
-	if(options.fullpane){
+	//if(options.fullpane){
 		var pane = new dojox.layout.ContentPane({
 			title:options.title,
 			executeScripts: "true",
 			id: options.id,
 			closable:options.closable 
 		});
+		pane.channelId = options.channelId;
 		if(options.autoClose){
-			pane.unloadListener = dojo.subscribe('OpenACD/Agent/state', function(data){
+			pane.unloadListener = dojo.subscribe('OpenACD/AgentChannel', function(inChannelId, data){
+				if(inChannelID != pane.channelId){
+					return false;
+				}
 				try{
 					if(data.state == 'wrapup'){
 						dojo.unsubscribe(pane.unloadListener);
@@ -321,7 +328,7 @@ function load_media_tab(options){
 				dijit.byId('tabPanel').closeChild(pane);
 			}
 			catch(err){
-				info(['media pan logout listener erred', err]);
+				info(['media pane logout listener erred', err]);
 			}
 		});
 		if(options.content){
@@ -331,7 +338,7 @@ function load_media_tab(options){
 		}
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
-	} else {
+	/*} else {
 		if(! options.width){
 			options.width = '160px';
 		}
@@ -379,7 +386,7 @@ function load_media_tab(options){
 				info(['media pan logout listener erred', err]);
 			}
 		});
-	}
+	}*/
 }
 
 function showErrorReportDialog(conf){

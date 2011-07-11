@@ -8,6 +8,81 @@ if(! window.OpenACD){
 }
 
 /**
+Create a new AgentChannel.
+@param {Object} options The options object.
+@param {String} options.channelId The id of the channel.
+@param {Object} options.stateData The statedata, or media object, for the
+	channel.
+@param {Object} options.agent The OpenACD.Agent to use for server 
+	communication.
+@param {Integer} [options.stateTime] Unix timestamp of the last time the
+	channel changes state based on the server.
+@param {Integer} [options.timestamp] Unix timestamp of 'now' from the 
+	server.  Used to determin skew.
+@class Represents a channel for an agent.  The Agent object is expected
+to maintain a hash and forward appropriate events to a channel.
+*/
+OpenACD.AgentChannel = function(options){
+	this.channelId = '';
+	this.stateData = false;
+	this.agent = false;
+	this.stateTime = new Date();
+	this.timestamp = this.stateTime;
+	
+	if(options.channelId){
+		this.channelId = options.channelId;
+	}
+	if(options.stateData){
+		this.stateData = options.stateData;
+	}
+	if(options.agent){
+		this.agent = options.agent;
+	}
+	if(options.stateTime){
+		this.stateTime = options.stateTime;
+	}
+	if(options.timestamp){
+		this.timestamp = options.timestamp;
+	}
+
+	this.stopwatch = new OpenACD.Stopwatch(statetime);
+	this.stopwatch.onTick = function(){};
+}
+
+OpenACD.AgentChannel.prototype.handleStateChange = function(state, stateData){
+	this.state = state;
+	this.stateData = stateData;
+	try{
+		dojo.publish("OpenACD/AgentChannel", [this.channelId, state, stateData]);
+	} catch(err) {
+		conosle.error("OpenACD/AgentChannel", err);
+	}
+	this.stopwatch.reset();
+}
+
+/**
+Attempt to set the agent channel state.  Note that handling the state 
+change is not required in the success function as all state changes are 
+reported though the poll and publish mechanism.
+@param {String} state The name of the state to go into.
+@param [statedata] Any additional data about the state.
+*/
+OpenACD.AgentChannel.prototype.setState = function(state){
+	//build the request
+	var options = {};
+	var statedata = false;
+	if(arguments.length == 2){
+		statedata = arguments[1];
+	}
+
+	if(statedata){
+		this.agent.agentApi("set_state", options, this.channelId, state, statedata);
+	} else {
+		this.agent.agentApi("set_state", options, this.channelId, state);
+	}
+};
+
+/**
 Create a new Agent.
 @param {Object} options The options object
 @param {String} options.username Agent login name.
@@ -26,6 +101,7 @@ OpenACD.Agent = function(options){
 	this.securitylevel = "";
 	this.profile = "";
 	this.skills = [];
+	this.channels = {};
 	this.state = "";
 	this.statedata = "";
 	this.releaseData = false;
@@ -131,14 +207,17 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				break;
 
 			case "astate":
-				this.state = datalist[i].state;
-				this.statedata = datalist[i].statedata;
-				try{
-					dojo.publish("OpenACD/Agent/state", [datalist[i]]);
-				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+				if(this.channels[datalist[i].channelId]){
+					this.channels[datalist[i].channelId].handleStateChange(datalist[i].state, datalist[i].statedata);
+				} else {
+					this.channels[datalist[i].channelId] = new OpenACD.AgentChannel({
+						channelId: datalist[i].channelId,
+						agent:this,
+						state: datalist[i].state,
+						stateData: datalist[i].statedata
+					});
+					this.channels[datalist[i].channelId].handleStateChange(datalist[i].state, datalist[i].statedata);
 				}
-				this.stopwatch.reset();
 				if(datalist[i].state == 'wrapup'){
 					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
 				} else if(this._wrapupNag){
@@ -405,28 +484,6 @@ as all state changes are reported through the poll and publish mecahnism.
 */
 OpenACD.Agent.prototype.setRelease = function(release){
 	this.agentApi("set_release", {}, release);
-};
-
-/**
-Attempt to set the agent state.  Note that handling the state change is not
-required in the success function as all state changes are reported though 
-the poll and publish mechanism.
-@param {String} state The name of the state to go into.
-@param [statedata] Any additional data about the state.
-*/
-OpenACD.Agent.prototype.setState = function(state){
-	//build the request
-	var options = {};
-	var statedata = false;
-	if(arguments.length == 2){
-		statedata = arguments[1];
-	}
-
-	if(statedata){
-		this.agentApi("set_state", options, state, statedata);
-	} else {
-		this.agentApi("set_state", options, state);
-	}
 };
 
 /**

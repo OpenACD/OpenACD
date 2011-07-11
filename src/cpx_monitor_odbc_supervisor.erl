@@ -563,15 +563,22 @@ build_event_log_call_base(E, Props) ->
 		Q ->
 			Q
 	end,
-	FromHeader = case {proplists:get_value(callerid, Props), proplists:get_value(statedata, Props)} of
-		{undefined, #call{callerid = {_, H}}} ->
-			H;
-		{{_, H}, undefined} ->
-			H
+	{AltHeader, FromHeader} = case {proplists:get_value(callerid, Props), proplists:get_value(statedata, Props)} of
+		{undefined, #call{callerid = {A, H}}} ->
+			{A, H};
+		{{A, H}, undefined} ->
+			{A,H}
 	end,
 	[Ani, Uci, OriginCode, Did | _TailFromHeader] = case string:tokens(FromHeader, "*") of
-		[_, _, _, _ | _] = Out -> Out;
-		_ -> ["err", "err", "err", "err"]
+		[_, _, _, _ | _] = Out ->
+			Out;
+		_ ->
+			case string:tokens(AltHeader, "*") of
+				[_, _, _, _ | _] = Out ->
+					Out;
+				_ ->
+					["Unknown", "Unknown", "Unknown", "Unknown"]
+			end
 	end,
 	E#event_log_row{
 		queue = Queue,

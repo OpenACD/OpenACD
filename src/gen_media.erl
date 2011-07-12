@@ -1079,7 +1079,7 @@ handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false, callrec = C
 	?NOTICE("Ringout is set not to be handled for ~p", [Call#call.id]),
 	{noreply, State};
 handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, callback = Callback, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
-	?INFO("Handling ringout... for ~p", [Call#call.id]),
+	?INFO("Handling ringout... for ~p (TODO set for agent_channel)", [Call#call.id]),
 	Reason = try agent:query_state(Apid) of
 		{ok, ringing} ->
 			set_agent_state(Apid, [idle]),

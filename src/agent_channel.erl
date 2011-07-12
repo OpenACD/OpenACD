@@ -146,10 +146,6 @@ stop(Pid) ->
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 
--spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpointtype(), string()}) -> ok).
-set_endpoint(Pid, Endpoint) ->
-	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
-
 %% @doc The connection can request to call to the agent's media when oncall.
 -spec(media_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
 media_call(Apid, Request) ->
@@ -233,7 +229,7 @@ has_successful_ring(Pid) ->
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([Agent, Options]) when is_record(Agent, agent) ->
-	{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
+	%{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
 	ProtoState = #state{
 		agent_fsm = Agent#agent.source,
 		agent_connection = Agent#agent.connection
@@ -270,16 +266,19 @@ init([Agent, Call, Endpoint, StateName]) ->
 			case start_endpoint(Endpoint, Agent, Call) of
 				{ok, Pid} ->
 					?DEBUG("Starting in prering", []),
+					conn_cast(Agent, {set_channel, self(), prering, Call}),
 					{ok, prering, State#state{endpoint = Pid}};
 				{error, Error} ->
 					{stop, {error, Error}}
 			end;
 		precall when is_record(Call, client) ->
 			?DEBUG("Starting in precall", []),
+			conn_cast(Agent, {set_channel, self(), precall, Call}),
 			{ok, precall, State};
 		ringing when is_record(Call, call) ->
 			% TODO tell media to ring
 			?DEBUG("Starting in ringing", []),
+			conn_cast(Agent, {set_channel, self(), precall, Call}),
 			{ok, ringing, State};
 		_ ->
 			?WARNING("Failed start:  ~p", [{StateName, Call}]),
@@ -291,49 +290,53 @@ init([Agent, Call, Endpoint, StateName]) ->
 % PRERING
 % ======================================================================
 
-prering({ringing, Call}, From, State) ->
+prering({ringing, Call}, _From, State) ->
 	% TODO check if valid
 	?DEBUG("Moving from prering to ringing state", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), ringing, Call}),
 	{reply, ok, ringing, State#state{state_data = Call}};
 prering(Msg, _From, State) ->
 	?INFO("Msg ~p not understood", [Msg]),
 	{reply, {error, invalid}, prering, State}.
 
-prering(Msg, State) ->
+prering(_Msg, State) ->
 	{next_state, prering, State}.
 
 % ======================================================================
 % RINGING
 % ======================================================================
 
-ringing({oncall, Call}, From, #state{state_data = Call} = State) ->
+ringing({oncall, Call}, _From, #state{state_data = Call} = State) ->
 	?DEBUG("Moving from ringing to oncall state", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	{reply, ok, oncall, State};
-ringing(Msg, From, State) ->
+ringing(_Msg, _From, State) ->
 	{reply, {error, invalid}, ringing, State}.
 
-ringing(Msg, State) ->
+ringing(_Msg, State) ->
 	{next_state, ringing, State}.
 
 % ======================================================================
 % PRECALL
 % ======================================================================
 
-precall({oncall, #call{client = Client} = Call}, From, #state{state_data = Client} = State) ->
+precall({oncall, #call{client = Client} = Call}, _From, #state{state_data = Client} = State) ->
 	?DEBUG("Moving from precall to oncall state", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	{reply, ok, oncall, State#state{state_data = Call}};
-precall(Msg, From, State) ->
+precall(_Msg, _From, State) ->
 	{reply, {error, invalid}, precall, State}.
 
-precall(Msg, State) ->
+precall(_Msg, State) ->
 	{next_state, precall, State}.
 
 % ======================================================================
 % ONCALL
 % ======================================================================
 
-oncall(warmtransfer_hold, From, State) ->
+oncall(warmtransfer_hold, _From, State) ->
 	?DEBUG("Moving from oncall to warmtransfer_hold", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), warmtransfer_hold, State#state.state_data}),
 	{reply, ok, warmtransfer_hold, State};
 oncall({warmtransfer_3rd_party, Data}, From, State) ->
 	case oncall(warmtransfer_hold, From, State) of
@@ -344,65 +347,72 @@ oncall({warmtransfer_3rd_party, Data}, From, State) ->
 		end;
 oncall(wrapup, From, #state{state_data = Call} = State) ->
 	oncall({wrapup, Call}, From, State);
-oncall({wrapup, Call}, From, #state{state_data = Call} = State) ->
+oncall({wrapup, Call}, _From, #state{state_data = Call} = State) ->
 	?DEBUG("Moving from oncall to wrapup", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
 	{reply, ok, wrapup, State#state{state_data = Call}};
-oncall(Msg, From, State) ->
+oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 
-oncall(Msg, State) ->
+oncall(_Msg, State) ->
 	{next_state, oncall, State}.
 
 % ======================================================================
 % WARMTRANSFER_HOLD
 % ======================================================================
 
-warmtransfer_hold(oncall, From, State) ->
+warmtransfer_hold(oncall, _From, #state{state_data = Call} = State) ->
 	?DEBUG("Moving from warmtransfer_hold to oncall", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	{reply, ok, oncall, State};
-warmtransfer_hold({warmtransfer_3rd_party, Data}, From, #state{state_data = Call} = State) ->
+warmtransfer_hold({warmtransfer_3rd_party, Data}, _From, #state{state_data = Call} = State) ->
 	?DEBUG("Moving from warmtransfer_hold to warmtransfer_3rd_party", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), warmtransfer_3rd_party, {Call, Data}}),
 	{reply, ok, warmtransfer_3rd_party, State#state{state_data = {Call, Data}}};
-warmtransfer_hold(wrapup, From, State) ->
+warmtransfer_hold(wrapup, _From, State) ->
 	?DEBUG("Moving from warmtransfer_hold to wrapup", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, State#state.state_data}),
 	{reply, ok, wrapup, State};
-warmtransfer_hold(Msg, From, State) ->
+warmtransfer_hold(_Msg, _From, State) ->
 	{reply, {error, invalid}, warmtransfer_hold, State}.
 
-warmtransfer_hold(Msg, State) ->
+warmtransfer_hold(_Msg, State) ->
 	{next_state, warmtransfer_hold, State}.
 
 % ======================================================================
 % WARMTRANSFER_3RD_PARTY
 % ======================================================================
 
-warmtransfer_3rd_party(warmtransfer_hold, From, #state{state_data = {Call, _}} = State) ->
+warmtransfer_3rd_party(warmtransfer_hold, _From, #state{state_data = {Call, _}} = State) ->
 	?DEBUG("Moving from warmtransfer_3rd_party to warmtransfer_hold", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), warmtransfer_hold, Call}),
 	{reply, ok, warmtransfer_hold, State#state{state_data = Call}};
-warmtransfer_3rd_party(oncall, From, #state{state_data = {Call, _}} = State) ->
+warmtransfer_3rd_party(oncall, _From, #state{state_data = {Call, _}} = State) ->
 	?DEBUG("Moving from warmtransfer_3rd_party to oncall", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	{reply, ok, oncall, State#state{state_data = Call}};
-warmtransfer_3rd_party(wrapup, From, #state{state_data = {Call, _}} = State) ->
+warmtransfer_3rd_party(wrapup, _From, #state{state_data = {Call, _}} = State) ->
 	?DEBUG("Moving from warmtransfer_3rd_party to wrapup", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
 	{reply, ok, wrapup, State#state{state_data = Call}};
-warmtransfer_3rd_party(Msg, From, State) ->
+warmtransfer_3rd_party(_Msg, _From, State) ->
 	{reply, {error, invalid}, State}.
 
-warmtransfer_3rd_party(Msg, State) ->
+warmtransfer_3rd_party(_Msg, State) ->
 	{next_state, warmtransfer_3rd_party, State}.
 
 % ======================================================================
 % WRAPUP
 % ======================================================================
 
-wrapup(stop, From, State) ->
+wrapup(stop, _From, State) ->
 	{stop, normal, ok, State};
-wrapup(Msg, From, State) ->
+wrapup(_Msg, _From, State) ->
 	{reply, ok, wrapup, State}.
 
 wrapup(stop, State) ->
 	{stop, normal, State};
-wrapup(Msg, State) ->
+wrapup(_Msg, State) ->
 	{next_state, wrapup, State}.
 
 
@@ -410,7 +420,7 @@ wrapup(Msg, State) ->
 % HANDLE_EVENT
 % ======================================================================
 
-handle_event(Event, StateName, State) ->
+handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 
 % ======================================================================
@@ -419,8 +429,8 @@ handle_event(Event, StateName, State) ->
 
 handle_sync_event(query_state, _From, StateName, State) ->
 	{reply, {ok, StateName}, StateName, State};
-handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_connection = AgentConn} = State) ->
-	gen_server:cast(Pid, {change_state, StateName, State#state.state_data}),
+handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_connection = _AgentConn} = State) ->
+	gen_server:cast(Pid, {set_channel, self(), StateName, State#state.state_data}),
 	case cpx_supervisor:get_value(motd) of
 		{ok, Motd} ->
 			gen_server:cast(Pid, {blab, Motd});
@@ -441,7 +451,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint ~p due to ~p in state ~s", [Pid, Why, StateName]),
 	{stop, Why, State};
-handle_info({'EXIT', Pid, Why}, StateName, #state{agent_fsm = Pid} = State) ->
+handle_info({'EXIT', Pid, Why}, _StateName, #state{agent_fsm = Pid} = State) ->
 	?INFO("Exit of agent fsm due to ~p", [Why]),
 	{stop, Why, State};
 handle_info(end_wrapup, wrapup, State) ->
@@ -453,7 +463,7 @@ handle_info(_Info, StateName, State) ->
 % TERMINATE
 % ======================================================================
 
-terminate(Reason, StateName, _State) ->
+terminate(_Reason, _StateName, _State) ->
 	ok.
 
 % ======================================================================
@@ -486,6 +496,13 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % ======================================================================
 % INTERNAL FUNCTIONS
 % ======================================================================
+
+conn_cast(Agent, Msg) when is_record(Agent, agent) ->
+	conn_cast(Agent#agent.connection, Msg);
+conn_cast(undefined, _Msg) ->
+	ok;
+conn_cast(Conn, Msg) when is_pid(Conn) ->
+	gen_server:cast(Conn, Msg).
 
 start_endpoint(Pid, Agent, Call) when is_pid(Pid) ->
 	link(Pid),

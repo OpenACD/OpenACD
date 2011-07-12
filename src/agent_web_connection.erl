@@ -1134,13 +1134,13 @@ handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AC
 		{Call, error} when is_record(Call, call) ->
 			Store = #channel_state{current_call = Call, mediaload = Call},
 			dict:store(Pid, Store, AChannels);
-		{Call, Cache} when StateName =:= wrapup, is_record(Call, call) ->
+		{Call, {ok, Cache}} when StateName =:= wrapup, is_record(Call, call) ->
 			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
 			dict:store(Pid, Store, AChannels);
-		{{onhold, Call, calling, Number}, error} ->
+		{{Call, Number}, error} ->
 			Store = #channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels);
-		{{onhold, Call, calling, Number}, Cache} ->
+		{{Call, Number}, {ok, Cache}} ->
 			Store = Cache#channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels)
 	end,

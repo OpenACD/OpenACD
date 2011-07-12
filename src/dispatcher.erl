@@ -142,7 +142,7 @@ handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
 		none -> 
-			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
+			%?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
 			case State#state.cook_mon of

@@ -225,7 +225,7 @@ handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	{noreply, State2};
 handle_info(grab, #state{qpid = Qpid} = State) ->
 	% TODO - we should wait to see if more nodes want to bind to make distributed delivery fairer
-	?DEBUG("a dispatcher grabbed the call", []),
+	%?DEBUG("a dispatcher grabbed the call", []),
 	case do_route(State#state.ringstate, Qpid, State#state.call) of
 		nocall ->
 			{stop, {call_not_queued, State#state.call}, State};
@@ -350,7 +350,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
-				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
+				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				%dispatcher:regrab(Dpid),
 				[];
 			{unknown_call, get_agents} ->

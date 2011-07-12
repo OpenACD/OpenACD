@@ -1137,6 +1137,9 @@ handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AC
 		{Call, {ok, Cache}} when StateName =:= wrapup, is_record(Call, call) ->
 			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
 			dict:store(Pid, Store, AChannels);
+		{Call, {ok, Cache}} ->
+			Store = Cache#channel_state{current_call = Call},
+			dict:store(Pid, Store, AChannels);
 		{{Call, Number}, error} ->
 			Store = #channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels);
@@ -1144,7 +1147,18 @@ handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AC
 			Store = Cache#channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels)
 	end,
-	{noreply, State#state{agent_channels = NewAChannels}};
+	NewState = push_event(Headjson, State#state{agent_channels = NewAChannels}),
+	{noreply, NewState};
+
+handle_cast({channel_died, Pid, NewAvail}, #state{agent_channels = AChannels} = State) ->
+	Json = {struct, [
+		{<<"command">>, <<"endchannel">>},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))},
+		{<<"availableChannels">>, NewAvail}
+	]},
+	NewDict = dict:erase(Pid, AChannels),
+	NewState = push_event(Json, State#state{agent_channels = NewDict}),
+	{noreply, NewState};
 
 %handle_cast({change_state, AgState, Data}, State) ->
 %	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),

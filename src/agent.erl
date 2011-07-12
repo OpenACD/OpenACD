@@ -554,10 +554,14 @@ ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{s
 			{stop, ring_fails, State}
 	end;
 ringing({failed_ring, Mpid}, #state{ring_locked = LockState, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) when LockState == unlocked; LockState == wait  ->
-	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
-	Self = self(),
-	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
-	{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}};
+	case ringing(idle, "from", State) of
+		{stop, max_ringouts, NewState} ->
+			{stop, max_ringouts, NewState};
+		{reply, ok, idle, Midstate} ->
+			Self = self(),
+			erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
+			{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}}
+	end;
 ringing({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
 	{next_state, ringing, State#state{ring_locked = unlocked, ring_fails = 0}};
 ringing(register_rejected, State) ->

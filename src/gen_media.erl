@@ -746,24 +746,36 @@ handle_call({'$gen_media_ring', {Agent, _Apid}, RingData, takeover},
 	GenPopopts = State#state.url_pop_getvars,
 	case Callback:handle_ring({Agent, AgentChan}, RingData, Call, State#state.substate) of
 		Success when element(1, Success) == ok ->
-			{Popopts, NewCall} = case Success of
-				{ok, Substate} -> {GenPopopts, Call};
+			{Popopts, NewCall, NewSubstate} = case Success of
+				{ok, Substate} -> {GenPopopts, Call, Substate};
 				{ok, RetCall, Substate} when is_record(RetCall, call) ->
-					{GenPopopts, RetCall};
+					{GenPopopts, RetCall, Substate};
 				{ok, Opts, Substate} ->
-					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), Call};
+					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), Call, Substate};
 				{ok, Opts, RetCall, Substate} ->
-					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), RetCall}
+					{lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts)), RetCall, Substate}
 			end,
-			timer:cancel(State#state.ringout),
-			cdr:ringing(Call, Agent),
-			url_pop(Call, AgentChan, Popopts),
-			{reply, ok, State#state{substate = Substate, ringout=undefined, callrec = NewCall}};
+			try agent_channel:set_state(AgentChan, ringing, NewCall) of
+				ok ->
+					timer:cancel(State#state.ringout),
+					cdr:ringing(Call, Agent),
+					url_pop(Call, AgentChan, Popopts),
+					{reply, ok, State#state{substate = Substate, ringout=undefined, callrec = NewCall}};
+				Else ->
+					?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
+					{noreply, NewState} = handle_info({'$gen_media_stop_ring', AgentChan}, State#state{substate = NewSubstate}),
+					{reply, invalid, NewState}
+			catch
+				exit:{noproc, _} ->
+					?INFO("Agent ~p already gone", [Agent]),
+					{noreply, NewState} = handle_info({'$gen_media_stop_ring', AgentChan}, State#state{substate = NewSubstate}),
+					{reply, invalid, NewState}
+			end;
 		{invalid, Substate} ->
 			agent_channel:stop(AgentChan, ring_fail),
 			{reply, invalid, State#state{substate = Substate}};
 		Else ->
-			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
+			?INFO("Agent ~p callback ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
 			{reply, invalid, State}
 	end;
 

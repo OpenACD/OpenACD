@@ -262,6 +262,12 @@ function loadTab(tabid){
 	storeTab(tabid);
 }
 
+function loadMediaTab(options){
+	console.log("load media tab (true)");
+	var pane = new openacd.MediaTab(options);
+	dijit.byId('tabPanel').addChild(pane);
+	dijit.byId('tabPanel').selectChild(options.id);
+}
 
 function load_media_tab(options){
 	console.log("load_media_tab");
@@ -1161,6 +1167,17 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	};
 	
+	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
+		if(dijit.byId('agentChannelPane.' + chanId)){
+			return true;
+		}
+		loadMediaTab({
+			'channel':chanId,
+			'state':stateName,
+			'stateData':stateData
+		});
+	});
+
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
 		load_media_tab(eventdata);

@@ -1120,29 +1120,29 @@ handle_cast({set_release, Release, Time}, State) ->
 	NewState = push_event(Json, State),
 	{noreply, NewState};
 
-handle_cast({set_channel, Pid, State, Statedata}, #state{agent_channels = AChannels} = State) ->
+handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AChannels} = State) ->
 	Headjson = {struct, [
 		{<<"command">>, <<"setchannel">>},
-		{<<"state">>, State},
+		{<<"state">>, StateName},
 		{<<"statedata">>, encode_statedata(Statedata)},
 		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
 	]},
-	NewAChannels = case Statedata of
-		{Call, error} when is_record(Call, call), State =:= wrapup ->
+	NewAChannels = case {Statedata, dict:find(Pid, AChannels)} of
+		{Call, error} when is_record(Call, call), StateName =:= wrapup ->
 			Store = #channel_state{mediaload = undefined, current_call = Call},
-			dict:store(Pid, Store);
+			dict:store(Pid, Store, AChannels);
 		{Call, error} when is_record(Call, call) ->
 			Store = #channel_state{current_call = Call, mediaload = Call},
-			dict:store(Pid, Store);
-		{Call, Cache} when State =:= wrapup, is_record(Call, call) ->
+			dict:store(Pid, Store, AChannels);
+		{Call, Cache} when StateName =:= wrapup, is_record(Call, call) ->
 			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
-			dict:store(Pid, Store);
+			dict:store(Pid, Store, AChannels);
 		{{onhold, Call, calling, Number}, error} ->
 			Store = #channel_state{mediaload = Call, current_call = Call},
-			dict:store(Pid, Store);
+			dict:store(Pid, Store, AChannels);
 		{{onhold, Call, calling, Number}, Cache} ->
 			Store = Cache#channel_state{mediaload = Call, current_call = Call},
-			dict:store(Pid, Store)
+			dict:store(Pid, Store, AChannels)
 	end,
 	{noreply, State#state{agent_channels = NewAChannels}};
 

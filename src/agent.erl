@@ -305,7 +305,10 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		error:{case_clause, {aborted, _}} ->
 			#agent_profile{name = error}
 	end,
-	Agent2 = Agent#agent{skills = util:merge_skill_lists(expand_magic_skills(Agent, Skills), expand_magic_skills(Agent, Agent#agent.skills), ['_queue', '_brand']), profile = Profile},
+	ProfSkills = expand_magic_skills(Agent, Skills),
+	InherentSkills = expand_magic_skills(Agent, Agent#agent.skills),
+	MergedSkills = util:merge_skill_lists(ProfSkills, InherentSkills, ['_queue', '_brand']),
+	Agent2 = Agent#agent{skills = MergedSkills, profile = Profile, source = self()},
 	agent_manager:update_skill_list(Agent2#agent.login, Agent2#agent.skills),
 	StateName = case Agent#agent.release_data of
 		none ->
@@ -332,7 +335,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 %			Agent2
 %	end,
 	%set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
-	{ok, StateName, #state{agent_rec = Agent}}.
+	{ok, StateName, #state{agent_rec = Agent2}}.
 
 % ======================================================================
 % IDLE
@@ -356,7 +359,7 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, precall) of
 		{ok, Pid, NewAgent} ->
-			inform_connection(Agent, {new_channel, Pid, precall, Call}),
+			inform_connection(Agent, {set_channel, Pid, precall, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -365,7 +368,8 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
-			inform_connection(Agent, {new_channel, Pid, prering, Call}),
+			?DEBUG("Started prering (~s) ~p", [Agent#agent.login, Pid]),
+			inform_connection(Agent, {set_channel, Pid, prering, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -374,7 +378,8 @@ idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
-			inform_connection(Agent, {new_channel, Pid, ringing, Call}),
+			?DEBUG("Started ringing (~s) ~p", [Agent#agent.login, Pid]),
+			inform_connection(Agent, {set_channel, Pid, ringing, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}

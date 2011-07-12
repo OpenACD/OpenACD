@@ -591,7 +591,7 @@ start_ring_loop(Agent, undefined, persistant) ->
 start_ring_loop(Agent, Call, transient) ->
 	process_flag(trap_exit, true),
 	?INFO("Starting transient ring, I guess.", []),
-	gen_media:ring(Call#call.source, Agent#agent.id, transient, takeover),
+	ok = gen_media:ring(Call#call.source, {Agent#agent.login, Agent#agent.source}, transient, takeover),
 	Client = Call#call.client,
 	Opts = Client#client.options,
 	Ringout = proplists:get_value(ringout, Opts, ?getRingout),

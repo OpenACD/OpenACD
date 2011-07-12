@@ -260,10 +260,10 @@ get_endpoint(Module, Ends) ->
 -spec(set_endpoint/3 :: (Agent :: pid(), Module :: atom(), Data :: any()) ->
 'ok' | {'error', any()}).
 set_endpoint(Agent, Module, Data) when is_pid(Agent), is_atom(Module) ->
-	case proplists:get_value(Module, code:all_loaded()) of
-		undefined ->
-			{error, module_noexists};
-		_ ->
+	case code:ensure_loaded(Module) of
+		{error, Err} ->
+			{error, Err};
+		{module, Module} ->
 			case proplists:get_value(behaviour, Module:module_info(attributes)) of
 				[gen_media] ->
 					gen_fsm:sync_send_all_state_event(Agent, {set_endpoint, Module, Data});

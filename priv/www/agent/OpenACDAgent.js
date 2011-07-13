@@ -44,9 +44,6 @@ OpenACD.AgentChannel = function(options){
 	if(options.timestamp){
 		this.timestamp = options.timestamp;
 	}
-
-	this.stopwatch = new OpenACD.Stopwatch(statetime);
-	this.stopwatch.onTick = function(){};
 }
 
 OpenACD.AgentChannel.prototype.handleStateChange = function(state, stateData){
@@ -55,9 +52,17 @@ OpenACD.AgentChannel.prototype.handleStateChange = function(state, stateData){
 	try{
 		dojo.publish("OpenACD/AgentChannel", [this.channelId, state, stateData]);
 	} catch(err) {
-		conosle.error("OpenACD/AgentChannel", err);
+		console.error("OpenACD/AgentChannel", err);
 	}
-	this.stopwatch.reset();
+}
+
+OpenACD.AgentChannel.prototype.destroy = function(data){
+	console.log('Channel ending', data);
+	try{
+		dojo.publish("OpenACD/AgentChannel", [this.channelId, 'destroy']);
+	} catch(err) {
+		console.error("OpenACD/AgentChannel", err);
+	}
 }
 
 /**
@@ -206,23 +211,34 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				this.stopwatch.reset();
 				break;
 
+			case "setchannel":
 			case "astate":
-				if(this.channels[datalist[i].channelId]){
-					this.channels[datalist[i].channelId].handleStateChange(datalist[i].state, datalist[i].statedata);
+				var chan;
+				if(this.channels[datalist[i].channelid]){
+					chan = this.channels[datalist[i].channelid];
 				} else {
-					this.channels[datalist[i].channelId] = new OpenACD.AgentChannel({
-						channelId: datalist[i].channelId,
-						agent:this,
+					chan = new OpenACD.AgentChannel({
+						channelId: datalist[i].channelid,
+						agent: this,
 						state: datalist[i].state,
 						stateData: datalist[i].statedata
 					});
-					this.channels[datalist[i].channelId].handleStateChange(datalist[i].state, datalist[i].statedata);
 				}
+				console.log('das chan', chan);
+				chan.handleStateChange(datalist[i].state, datalist[i].statedata);
+				this.channels[datalist[i]].channelid = chan;
 				if(datalist[i].state == 'wrapup'){
 					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
 				} else if(this._wrapupNag){
 					this.clearNag(this._wrapupNag);
 					delete(this._wrapupNag);
+				}
+				break;
+
+			case "endchannel":
+				if(this.channels[datalist[i].channelid]){
+					this.channels[datalist[i].channelid].destroy(datalist[i]);
+					delete this.channels[datalist[i].channelid];
 				}
 				break;
 

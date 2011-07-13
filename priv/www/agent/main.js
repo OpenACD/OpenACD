@@ -263,8 +263,8 @@ function loadTab(tabid){
 }
 
 function loadMediaTab(options){
-	console.log("load media tab (true)");
-	var pane = new openacd.MediaTab(options);
+	console.log("load media tab", options);
+	var pane = new agentUI.MediaTab(options);
 	dijit.byId('tabPanel').addChild(pane);
 	dijit.byId('tabPanel').selectChild(options.id);
 }
@@ -1168,6 +1168,7 @@ dojo.addOnLoad(function(){
 	};
 	
 	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
+		console.log('machine goes bing!');
 		if(dijit.byId('agentChannelPane.' + chanId)){
 			return true;
 		}

@@ -4,10 +4,10 @@ dojo.require("dijit._Templated");
 dojo.require("dijit.form.Button");
 
 dojo.declare("MediaTab", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("openacd","MediaTab.html"),
+	templatePath: dojo.moduleUrl("agentUI","MediaTab.html"),
 	widgetsInTemplate: true,
 	templateString: "",
-	constructor: function(args){
+	constructor: function(args, srcNodeRef){
 		dojo.safeMixin(this, args);
 	},
 	doAnswer: function(opts){

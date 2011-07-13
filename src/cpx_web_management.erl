@@ -1205,9 +1205,7 @@ api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 					lists:flatten([case X of
 						ssl -> {<<"httpsEnabled">>, true};
 						{port, P} -> [{<<"port">>, P}, {<<"httpEnabled">>, true}];
-						{ssl_port, P} -> {<<"httpsPort">>, P};
-						{ssl_certfile, F} -> {<<"httpsCertfile">>, list_to_binary(F)};
-						{ssl_keyfile, F} -> {<<"httpsKeyfile">>, list_to_binary(F)}
+						{ssl_port, P} -> {<<"httpsPort">>, P}
 					end || X <- List])
 			end,
 			{200, [], mochijson2:encode({struct, [{success, true} | Json]})};
@@ -1222,8 +1220,6 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	StartArgs = lists:flatten([case X of
 		{"port", P} -> {port, list_to_integer(P)};
 		{"sslPort", P} -> {ssl_port, list_to_integer(P)};
-		{"keyfile", F} -> {ssl_keyfile, F};
-		{"certfile", F} -> {ssl_certfile, F};
 		{"ssl", "true"} -> ssl;
 		_ -> []
 	end || X <- Post]),

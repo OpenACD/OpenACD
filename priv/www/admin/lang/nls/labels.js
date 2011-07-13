@@ -102,7 +102,5 @@
 	SECONDS: "seconds.",
 	TRACE: "Trace",
 	HTTP:  "HTTP",
-	HTTPS:  "HTTPS",
-	CERTFILE:  "Certificate file",
-	KEYFILE:  "Key file"
+	HTTPS:  "HTTPS"
 }

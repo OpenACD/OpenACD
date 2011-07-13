@@ -214,8 +214,8 @@ init(Options) ->
 		_ -> Port + 1
 	end,
 	SslPort = proplists:get_value(ssl_port, Options, DefaultSslPort),
-	SslCertfile = proplists:get_value(ssl_certfile, Options, "openacd.crt"),
-	SslKeyfile = proplists:get_value(ssl_keyfile, Options, "key"),
+	SslCertfile = util:get_certfile(),
+	SslKeyfile = util:get_keyfile(),
 	MochiNormalPid = case Port of
 		undefined -> undefined;
 		N when is_integer(N) ->

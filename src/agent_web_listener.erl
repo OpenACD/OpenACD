@@ -112,7 +112,8 @@
 -define(PORT, 5050).
 -endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
--define(MOCHI_NAME, aweb_mochi).
+-define(MOCHI_HTTP_NAME, aweb_http_mochi).
+-define(MOCHI_HTTPS_NAME, aweb_https_mochi).
 
 %% API
 -export([start_link/1, start/1, start/0, start_link/0, stop/0, linkto/1, linkto/3]).
@@ -134,8 +135,9 @@
 -type(web_connection() :: {string(), salt(), connection_handler()}).
 
 -record(state, {
-	connections:: any(), % ets table of the connections
-	mochipid :: pid() % pid of the mochiweb process.
+	connections :: any(), % ets table of the connections
+	mochipid_http :: pid() | 'undefined', % pid of the mochiweb process.
+	mochipid_https :: pid() | 'undefined'
 }).
 
 -type(state() :: #state{}).
@@ -161,8 +163,10 @@ start() ->
 
 %% @doc Starts the web listener on the passed port.
 -spec(start/1 :: (Port :: non_neg_integer()) -> {'ok', pid()}).
-start(Port) -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
+start(Port) when is_integer(Port) -> 
+	gen_server:start({local, ?MODULE}, ?MODULE, [Port], []);
+start(Options) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, Options, []).
 
 %% @doc Start linked on the default port of 5050.
 -spec(start_link/0 :: () -> {'ok', pid()}).
@@ -171,8 +175,10 @@ start_link() ->
 
 %% @doc Start linked on the given port.
 -spec(start_link/1 :: (Port :: non_neg_integer()) -> {'ok', pid()}).
-start_link(Port) -> 
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
+start_link(Port) when is_integer(Port) -> 
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []);
+start_link(Options) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
 %% @doc Stop the web listener.
 -spec(stop/0 :: () -> 'ok').
@@ -193,13 +199,60 @@ linkto(Ref, Salt, Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Port]) ->
-	?DEBUG("Starting on port ~p", [Port]),
+init([Port]) when is_integer(Port) ->
+	?DEBUG("init init", []),
+	init([{port, Port}]);
+init(Options) ->
+	?DEBUG("Init start ~p", [Options]),
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),
-	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
-	{ok, #state{connections=Table, mochipid = Mochi}}.
+	Port = proplists:get_value(port, Options),
+	Ssl = proplists:get_value(ssl, Options),
+	DefaultSslPort = case Port of
+		undefined -> ?PORT + 1;
+		_ -> Port + 1
+	end,
+	SslPort = proplists:get_value(ssl_port, Options, DefaultSslPort),
+	SslCertfile = proplists:get_value(ssl_certfile, Options, "openacd.crt"),
+	SslKeyfile = proplists:get_value(ssl_keyfile, Options, "key"),
+	MochiNormalPid = case Port of
+		undefined -> undefined;
+		N when is_integer(N) ->
+			?DEBUG("Starting plain on port ~p", [Port]),
+			{ok, Mochi1} = mochiweb_http:start([
+				{loop, fun(Req) -> loop(Req, Table) end},
+				{name, ?MOCHI_HTTP_NAME},
+				{port, Port}
+			]),
+			Mochi1
+	end,
+	MochiSslPid = case Ssl of
+		undefined -> undefined;
+		true ->
+			?DEBUG("Starting ssl on port ~p", [SslPort]),
+			{ok, Mochi2} = mochiweb_http:start([
+				{loop, fun(Req) -> loop(Req, Table) end},
+				{name, ?MOCHI_HTTPS_NAME},
+				{ssl, true},
+				{port, SslPort},
+				{ssl_opts, [
+					{certfile, SslCertfile},
+					{keyfile, SslKeyfile}
+				]}
+			]),
+			Mochi2
+	end,
+	case {MochiNormalPid, MochiSslPid} of
+		{undefined, undefined} ->
+			{stop, no_listeners};
+		_ ->
+			{ok, #state{
+				connections=Table,
+				mochipid_http = MochiNormalPid,
+				mochipid_https = MochiSslPid
+			}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -239,14 +292,14 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(shutdown, _State) ->
+terminate(shutdown, State) ->
 	?NOTICE("shutdown", []),
-	mochiweb_http:stop(?MOCHI_NAME),
+	exit_mochis(State),
 	ets:delete(web_connections),
 	ok;
-terminate(normal, _State) ->
+terminate(normal, State) ->
 	?NOTICE("normal exit", []),
-	mochiweb_http:stop(?MOCHI_NAME),
+	exit_mochis(State),
 	ets:delete(web_connections),
 	ok;
 terminate(Reason, _State) ->
@@ -264,6 +317,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+exit_mochis(State) ->
+	case is_pid(State#state.mochipid_http) of
+		true -> mochiweb_http:stop(?MOCHI_HTTP_NAME);
+		_ -> ok
+	end,
+	case is_pid(State#state.mochipid_https) of
+		true -> mochiweb_http:stop(?MOCHI_HTTPS_NAME);
+		_ -> ok
+	end.
 
 %% @doc listens for a new connection.
 %% Based on the path, the loop can take several paths.

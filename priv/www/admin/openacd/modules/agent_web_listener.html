@@ -2,12 +2,57 @@
 <form dojoType="dijit.form.Form" id="agentWebListenerForm">
 <p>
 	<label>&nbsp;</label>
-	<input dojoType="dijit.form.CheckBox" name="enabled" value="enabled" id="agentWebListenerEnabled"/><span class="translate">ENABLED</span>
+	<input dojoType="dijit.form.CheckBox" name="useHttp" value="enabled" id="agentWebListenerEnabled">
+		<script type="dojo/method" event="onClick">
+			if(this.get('checked')){
+				dijit.byId('agentWebListenerPort').set('enabled', true);
+			} else {
+				dijit.byId('agentWebListenerPort').set('enabled', false);
+			}
+		</script>
+	</input>
+	<span class="translate">HTTP</span>
 </p>
 
 <p>
 	<label class="translatecol" for="port">PORT</label>
 	<input dojoType="dijit.form.ValidationTextBox" name="port" id="agentWebListenerPort" regExp="[\d]+" />
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="useHttps" value="enabled" id="agentWebListenerUseHttps" >
+		<script type="dojo/method" event="onClick">
+			if(this.get('checked')){
+				dijit.byId('agentWebListenerHttpsPort').set('enabled', true);
+				dijit.byId('agentWebListenerCertfile').set('enabled', true);
+				dijit.byId('agentWebListenerKeyfile').set('enabled', true);
+			} else {
+				dijit.byId('agentWebListenerHttpsPort').set('enabled', false);
+				dijit.byId('agentWebListenerCertfile').set('enabled', false);
+				dijit.byId('agentWebListenerKeyfile').set('enabled', false);
+			}
+		</script>
+	<span class="translate">HTTPS</span>
+</p>
+
+<p>
+	<label class="translatecol" for="httpsPort">HTTPS_PORT</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="httpsPort" id="agentWebListenerHttpsPort" regExp="[\d]+" placeHolder="5051">
+		<script type="dojo/method" event="postCreate">
+			this.set('placeHolder', dijit.byId('agentWebListenerPort').get('value') + 1);
+		</script>
+	</input>
+</p>
+
+<p>
+	<label class="translatecol" for="httpsCert">CERTFILE</label>
+	<input dojoType="dijit.form.TextBox" name="httpsCertfile" id="agentWebListenerCertfile" placeHolder="openacd.crt" />
+</p>
+
+<p>
+	<label class="translatecol" for="httpsKey">KEYFILE</label>
+	<input dojoType="dijit.form.TextBox" name="httpsKeyfile" id="agentWebListenerKeyfile" placeHolder="key" />
 </p>
 
 <p>
@@ -18,12 +63,29 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			var postUrl = '/modules/' + modules.activeNode + '/agent_web_listener/update';
+			var contentObj = {};
+			if(dijit.byId('agentWebListenerEnabled').get('checked')){
+				if(dijit.byId('agentWebListenerPort').get('value')){
+					contentObj.port = dijit.byId('agentWebListenerPort').get('value');
+				} else {
+					contentObj.port = 5050;
+				}
+			}
+			if(dijit.byId('agentWebListenerUseHttps').get('checked')){
+				contentObj.ssl = 'true';
+				if(dijit.byId('agentWebListenerHttpsPort').get('value')){
+					contentObj.sslPort = dijit.byId('agentWebListenerHttpsPort').get('value');
+				}
+				if(dijit.byId('agentWebListenerCertfile').get('value')){
+					contentObj.certfile = dijit.byId('agentWebListenerCertfile').get('value');
+				}
+				if(dijit.byId('agentWebListenerKeyfile').get('value')){
+					contentObj.keyfile = dijit.byId('agentWebListenerKeyfile').get('value');
+				}
+			}
 			dojo.xhrPost({
 				url: postUrl,
-				content:{
-					enabled:dijit.byId('agentWebListenerEnabled').get('checked'),
-					port:dijit.byId('agentWebListenerPort').get('value')
-				},
+				content: contentObj,
 				handleAs:'json',
 				load:function(res){
 					if(res.success == true){
@@ -58,12 +120,15 @@
 				errMessage('getting settings failed:  ' + res.message);
 				return;
 			}
-			dijit.byId('agentWebListenerEnabled').set('checked', true);
-			if(res.enabled == false){
-				dijit.byId('agentWebListenerEnabled').set('checked', false);
-			}
-			if(res.port){
+			if(res.httpEnabled == true){
+				dijit.byId('agentWebListenerEnabled').set('checked', true);
 				dijit.byId('agentWebListenerPort').set('value', res.port);
+			}
+			if(res.httpsEnabled == true){
+				dijit.byId('agentWebListenerUseHttps').set('checked', true);
+				dijit.byId('agentWebListenerHttpsPort').set('value', res.httpsPort);
+				dijit.byId('agentWebListenerCertfile').set('value', res.httpsCertfile);
+				dijit.byId('agentWebListenerKeyfile').set('value', res.httpsKeyfile);
 			}
 		},
 		error:function(res){

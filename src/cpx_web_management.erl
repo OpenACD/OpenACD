@@ -1195,14 +1195,22 @@ api({modules, Node, "cdr_tcp_pusher", "update"}, ?COOKIE, Post) ->
 api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of
-		#cpx_conf{start_args = Port} ->
-			OutPort = case Port of
+		#cpx_conf{start_args = StartArgs} ->
+			Json = case StartArgs of
 				[] ->
-					5050;
-				[N] ->
-					N
+					[{<<"httpEnabled">>, true}, {<<"port">>, 5050}];
+				[N] when is_integer(N) ->
+					[{<<"httpEnabled">>, true}, {<<"port">>, N}];
+				[List] ->
+					lists:flatten([case X of
+						ssl -> {<<"httpsEnabled">>, true};
+						{port, P} -> [{<<"port">>, P}, {<<"httpEnabled">>, true}];
+						{ssl_port, P} -> {<<"httpsPort">>, P};
+						{ssl_certfile, F} -> {<<"httpsCertfile">>, list_to_binary(F)};
+						{ssl_keyfile, F} -> {<<"httpsKeyfile">>, list_to_binary(F)}
+					end || X <- List])
 			end,
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+			{200, [], mochijson2:encode({struct, [{success, true} | Json]})};
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 5050}]})};
 		Else ->
@@ -1211,19 +1219,24 @@ api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	end;
 api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	case proplists:get_value("enabled", Post) of
-		"true" ->
-			StartArgs = case proplists:get_value("port", Post, "") of
-				"" ->
-					[];
-				List ->
-					[list_to_integer(List)]
-			end,
+	StartArgs = lists:flatten([case X of
+		{"port", P} -> {port, list_to_integer(P)};
+		{"sslPort", P} -> {ssl_port, list_to_integer(P)};
+		{"keyfile", F} -> {ssl_keyfile, F};
+		{"certfile", F} -> {ssl_certfile, F};
+		{"ssl", "true"} -> ssl;
+		_ -> []
+	end || X <- Post]),
+	case StartArgs of
+		[] ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		_ ->
 			Conf = #cpx_conf{
 				id = agent_web_listener,
 				module_name = agent_web_listener,
 				start_function = start_link,
-				start_args = StartArgs,
+				start_args = [StartArgs],
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
@@ -1232,10 +1245,7 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 				{aborted, {start_fail, Why}} ->
 					?WARNING("Could not start agent_web_listener:  ~p", [Why]),
 					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
-			end;
-		_ ->
-			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
-			{200, [], mochijson2:encode({struct, [{success, true}]})}
+			end
 	end;
 api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),

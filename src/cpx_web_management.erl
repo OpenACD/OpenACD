@@ -1385,6 +1385,7 @@ api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
 				{<<"enabled">>, true},
 				{<<"port">>, proplists:get_value(port, Args, ?PORT)},
 				{<<"ip_peers">>, Ippeers},
+				{<<"https">>, proplists:get_value(ssl, Args, false)},
 				{<<"http_basic_peers">>, Httppeers}
 			]}
 	end,
@@ -1412,11 +1413,15 @@ api({modules, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
 					],
 					[{http_basic_peers, Properhttps} | Midargs]
 			end,
+			FullArgs = case proplists:get_value("useHttps", Post) of
+				undefined -> Args;
+				_ -> [ssl | Args]
+			end,
 			Conf = #cpx_conf{
 				id = cpx_web_management,
 				module_name = cpx_web_management,
 				start_function = start_link,
-				start_args = [Args],
+				start_args = [FullArgs],
 				supervisor = management_sup
 			},
 			% spawning up as the supervisor will kill this process before it writes the new one.

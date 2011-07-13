@@ -100,5 +100,9 @@
 	MAX_RESTARTS: "End after restarting",
 	IN: "times in",
 	SECONDS: "seconds.",
-	TRACE: "Trace"
+	TRACE: "Trace",
+	HTTP:  "HTTP",
+	HTTPS:  "HTTPS",
+	CERTFILE:  "Certificate file",
+	KEYFILE:  "Key file"
 }

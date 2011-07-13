@@ -37,7 +37,7 @@
 </p>
 
 <p>
-	<label class="translatecol" for="httpsPort">HTTPS_PORT</label>
+	<label class="translatecol" for="httpsPort">PORT</label>
 	<input dojoType="dijit.form.ValidationTextBox" name="httpsPort" id="agentWebListenerHttpsPort" regExp="[\d]+" placeHolder="5051">
 		<script type="dojo/method" event="postCreate">
 			this.set('placeHolder', dijit.byId('agentWebListenerPort').get('value') + 1);

@@ -125,8 +125,21 @@ start(Opts) ->
 	F = fun(Req) ->
 		?MODULE:loop(Req, NewOpts)
 	end,
-	?INFO("Starting on port ~p", [Port]),
-	mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]).
+	case proplists:get_value(ssl, Opts) of
+		undefined ->
+			mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]);
+		true ->
+			mochiweb_http:start([
+				{loop, F},
+				{name, ?MODULE},
+				{port, Port},
+				{ssl, true},
+				{ssl_opts, [
+					{certfile, util:get_certfile()},
+					{keyfile, util:get_keyfile()}
+				]}
+			])
+	end.
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
@@ -1196,14 +1209,20 @@ api({modules, Node, "cdr_tcp_pusher", "update"}, ?COOKIE, Post) ->
 api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_web_listener]) of
-		#cpx_conf{start_args = Port} ->
-			OutPort = case Port of
+		#cpx_conf{start_args = StartArgs} ->
+			Json = case StartArgs of
 				[] ->
-					5050;
-				[N] ->
-					N
+					[{<<"httpEnabled">>, true}, {<<"port">>, 5050}];
+				[N] when is_integer(N) ->
+					[{<<"httpEnabled">>, true}, {<<"port">>, N}];
+				[List] ->
+					lists:flatten([case X of
+						ssl -> {<<"httpsEnabled">>, true};
+						{port, P} -> [{<<"port">>, P}, {<<"httpEnabled">>, true}];
+						{ssl_port, P} -> {<<"httpsPort">>, P}
+					end || X <- List])
 			end,
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+			{200, [], mochijson2:encode({struct, [{success, true} | Json]})};
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 5050}]})};
 		Else ->
@@ -1212,19 +1231,22 @@ api({modules, Node, "agent_web_listener", "get"}, ?COOKIE, _Post) ->
 	end;
 api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	case proplists:get_value("enabled", Post) of
-		"true" ->
-			StartArgs = case proplists:get_value("port", Post, "") of
-				"" ->
-					[];
-				List ->
-					[list_to_integer(List)]
-			end,
+	StartArgs = lists:flatten([case X of
+		{"port", P} -> {port, list_to_integer(P)};
+		{"sslPort", P} -> {ssl_port, list_to_integer(P)};
+		{"ssl", "true"} -> ssl;
+		_ -> []
+	end || X <- Post]),
+	case StartArgs of
+		[] ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		_ ->
 			Conf = #cpx_conf{
 				id = agent_web_listener,
 				module_name = agent_web_listener,
 				start_function = start_link,
-				start_args = StartArgs,
+				start_args = [StartArgs],
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_web_listener, Conf]) of
@@ -1233,10 +1255,7 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 				{aborted, {start_fail, Why}} ->
 					?WARNING("Could not start agent_web_listener:  ~p", [Why]),
 					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start listener">>}]})}
-			end;
-		_ ->
-			rpc:call(Atomnode, cpx_supervisor, destroy, [agent_web_listener]),
-			{200, [], mochijson2:encode({struct, [{success, true}]})}
+			end
 	end;
 api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -1365,6 +1384,7 @@ api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
 				{<<"enabled">>, true},
 				{<<"port">>, proplists:get_value(port, Args, ?PORT)},
 				{<<"ip_peers">>, Ippeers},
+				{<<"https">>, proplists:get_value(ssl, Args, false)},
 				{<<"http_basic_peers">>, Httppeers}
 			]}
 	end,
@@ -1392,11 +1412,15 @@ api({modules, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
 					],
 					[{http_basic_peers, Properhttps} | Midargs]
 			end,
+			FullArgs = case proplists:get_value("useHttps", Post) of
+				undefined -> Args;
+				_ -> [ssl | Args]
+			end,
 			Conf = #cpx_conf{
 				id = cpx_web_management,
 				module_name = cpx_web_management,
 				start_function = start_link,
-				start_args = [Args],
+				start_args = [FullArgs],
 				supervisor = management_sup
 			},
 			% spawning up as the supervisor will kill this process before it writes the new one.

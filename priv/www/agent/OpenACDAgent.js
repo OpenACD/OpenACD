@@ -226,7 +226,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				}
 				console.log('das chan', chan);
 				chan.handleStateChange(datalist[i].state, datalist[i].statedata);
-				this.channels[datalist[i]].channelid = chan;
+				this.channels[datalist[i].channelid] = chan;
 				if(datalist[i].state == 'wrapup'){
 					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
 				} else if(this._wrapupNag){

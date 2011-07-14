@@ -1168,7 +1168,8 @@ dojo.addOnLoad(function(){
 	};
 	
 	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
-		if(dijit.byId('agentChannelPane.' + chanId)){
+		console.log('agent channel sub', chanId, stateName, stateData);
+		if(stateName != 'ringing'){
 			return true;
 		}
 		loadMediaTab({

@@ -1,6 +1,5 @@
 <div dojoType="dijit.layout.BorderContainer" design="headline" dojoAttachPoint="topNode">
-	<div dojoType="dijit.layout.ContentPane" region="center" dojoAttachPoint="mediaPane"></div>
-	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center" dojoAttachPoint="controlBar">
+	<div dojoType = "dijit.layout.ContentPane" region="top" style="text-align:right" dojoAttachPoint="controlBar">
 
 		<select dojoAttachPoint="outboundcallSelect"></select>
 
@@ -17,7 +16,7 @@
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").AGENT);
 					</script>
 					<script type="dojo/connect" event="onMouseEnter">
-						window.agentConnection.getAvailAgents();
+						//window.agentConnection.getAvailAgents();
 					</script>
 					<span>AGENT</span>
 					<div dojoType="dijit.Menu" dojoAttachPoint="transferToAgentMenuDyn">
@@ -108,3 +107,5 @@
 			</script>
 		</button>
 	</div>
+	<div dojoType="dijit.layout.ContentPane" region="center" dojoAttachPoint="mediaPane"></div>
+</div>

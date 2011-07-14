@@ -265,8 +265,16 @@ function loadTab(tabid){
 function loadMediaTab(options){
 	console.log("load media tab", options);
 	var pane = new agentUI.MediaTab(options);
-	dijit.byId('tabPanel').addChild(pane);
-	dijit.byId('tabPanel').selectChild(pane.id);
+	var tabPane = dijit.byId('tabPanel');
+	tabPane.addChild(pane);
+	tabPane.selectChild(pane.id);
+	var deathSub = dojo.subscribe("OpenACD/AgentChannel", tabPane, function(channelId, eventArg){
+		if(channelId != pane.channelId && eventArg != 'destroy'){
+			return false;
+		}
+		this.closeChild(pane);
+		dojo.unsubscribe(deathSub);
+	});
 	return pane;
 }
 

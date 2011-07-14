@@ -275,6 +275,7 @@ function loadMediaTab(options){
 		this.closeChild(pane);
 		dojo.unsubscribe(deathSub);
 	});
+	pane.startup();
 	return pane;
 }
 

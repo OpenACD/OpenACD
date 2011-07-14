@@ -94,7 +94,7 @@
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
 			</script>
 		</button>
-		<button dojoType="dijit.form.Button" dojoAttachPoint="answerButton" style="display:none" onclick=window.agentConnection.setState("oncall")>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="answerButton" onclick=window.agentConnection.setState("oncall")>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);

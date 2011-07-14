@@ -18,6 +18,16 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 				break;
 		}*/
 	},
+	postCreate: function(){
+		dojo.query('label.narrow', this.domNode).forEach(function(node){
+			var text = dojo.i18n.getLocalization("agentUI", "labels")[node.innerHTML];
+			node.innerHTML = text;
+		});
+		this.agentStateNode.innerHTML = dojo.i18n.getLocalization("agentUI", "labels")[this.state.toUpperCase()];
+		this.agentBrandNode.innerHTML = this.stateData.brandname;
+		this.calleridNode.innerHTML = this.stateData.callerid;
+		this.callTypeNode.innerHTML = this.stateData.type;
+	},
 	_handleAgentChannelPublish: function(channelId, args){
 		if(channelId != this.channel){
 			return false;

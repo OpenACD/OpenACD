@@ -1,6 +1,23 @@
 <div dojoType="dijit.layout.BorderContainer" design="headline" dojoAttachPoint="topNode">
-	<div dojoType = "dijit.layout.ContentPane" region="top" style="text-align:right" dojoAttachPoint="controlBar">
+	<div dojoType="dijit.layout.ContentPane" region="center" dojoAttachPoint="mediaPane"></div>
+	<div dojoType = "dijit.layout.ContentPane" region="right" style="text-align:right" dojoAttachPoint="controlBar">
 
+			<p dojoAttachPoint="agentStateNode">
+				<label for="state" class="narrow"></label>
+				<span>Login needed</span>
+			</p>
+			<p dojoAttachPoint="agentBrandNode">
+				<label for="brand" class="narrow">BRAND</label>
+				<span></span>
+			</p>
+			<p dojoAttachPoint="calleridNode">
+				<label for="callerid" class="narrow">CALLERID</label>
+				<span></span>
+			</p>
+			<p dojoAttachPoint="callTypeNode">
+				<label for="calltype" class="narrow">CALLTYPE</label>
+				<span></span>
+			</p>
 		<select dojoAttachPoint="outboundcallSelect"></select>
 
 		<div dojoType="dijit.form.DropDownButton" dojoAttachPoint="startTransferDropDown" style="display:none">
@@ -107,5 +124,4 @@
 			</script>
 		</button>
 	</div>
-	<div dojoType="dijit.layout.ContentPane" region="center" dojoAttachPoint="mediaPane"></div>
 </div>

@@ -267,6 +267,7 @@ function loadMediaTab(options){
 	var pane = new agentUI.MediaTab(options);
 	dijit.byId('tabPanel').addChild(pane);
 	dijit.byId('tabPanel').selectChild(pane.id);
+	return pane;
 }
 
 function load_media_tab(options){
@@ -545,18 +546,11 @@ dojo.addOnLoad(function(){
 		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("OpenACD/Agent/logout", function(data){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		});
-		/*agent = new OpenACD.Agent(confs);
-		agent.profile = confs.profile;
-		agent.state = confs.state;
-		agent.statedata = confs.statedata;
-		if(agent.state){
-			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);*/
 		if( (window.agentConnection.state == "oncall") && (confs.mediaload) ){
 			var fixedres = confs.mediaload;
 			fixedres.media = confobj.statedata.type;
 			dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
 		}
-		/*}*/
 		buildReleaseMenu();
 		buildOutboundMenu();
 		buildQueueMenu();
@@ -627,7 +621,7 @@ dojo.addOnLoad(function(){
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
 	
-	dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("brand");
 		debug(["byId('brand') stateChanger", data.statedata]);
 		switch(data.state){
@@ -645,9 +639,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("agentbrandp").style.display = "none";
 		}
-	});
+	});*/
 
-	dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -658,9 +652,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("calleridp").style.display = "none";
 		}
-	});
+	});*/
 	
-	dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -671,9 +665,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("calltypep").style.display = "none";
 		}
-	});
+	});*/
 	
-	dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
@@ -703,7 +697,7 @@ dojo.addOnLoad(function(){
 				dojo.removeClass(node, "loss");
 				node.innerHTML = innerh;
 		}
-	});
+	});*/
 
 	dojo.byId("profiledisp").stateChanger = dojo.subscribe("OpenACD/Agent/profile", function(data){
 		var node = dojo.byId("profiledisp");
@@ -740,12 +734,12 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
+	/*dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		var menu = dijit.byId("transferToQueueMenuDyn");
 		menu.destroyDescendants();
-	});
+	});*/
 
-	dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var div = dojo.byId("foo");
 		switch(data.state){
 			//case "warmtransfer":
@@ -755,9 +749,9 @@ dojo.addOnLoad(function(){
 			default:
 				div.style.display="none";
 		}
-	});
+	});*/
 
-	dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bcancel");
 		switch(data.state){
 			//case "warmtransfer":
@@ -767,9 +761,9 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bdial");
 		switch(data.state){
 			case "precall":
@@ -779,17 +773,17 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("wtdial");
 		switch(data.state){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
+	/*dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
 		if(data.event == 'warm_transfer_failed'){
 			this.attr('style', 'display:inline');
 			dojo.byId('foo').style.display = 'inline';
@@ -797,9 +791,9 @@ dojo.addOnLoad(function(){
 			dojo.byId('foo').style.display = 'none';
 			this.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
+	/*dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
 		if(this.suppressHide){
 			delete this.suppressHide;
 			return true;
@@ -809,9 +803,9 @@ dojo.addOnLoad(function(){
 			default:
 				this.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
+	/*dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
 		this.attr('style', 'display:none');
 	});
 	
@@ -888,7 +882,7 @@ dojo.addOnLoad(function(){
 		else{
 			widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miHangup");

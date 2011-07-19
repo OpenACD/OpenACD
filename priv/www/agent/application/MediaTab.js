@@ -39,7 +39,9 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		switch(args){
 			case 'oncall':
 				this.answerButton.domNode.style.display = 'none';
-				this.hangupButton.domNode.style.display = 'inline';
+				if(arguments[2].mediapath == 'inband'){
+					this.hangupButton.domNode.style.display = 'inline';
+				}
 				break;
 		}
 	}/*,

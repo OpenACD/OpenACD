@@ -306,6 +306,34 @@ prering(_Msg, State) ->
 % RINGING
 % ======================================================================
 
+ringing(oncall, {Conn, _}, #state{agent_connection = Conn, endpoint = inband} = State) ->
+	#call{source = Media} = Call = State#state.state_data,
+	case gen_media:oncall(Media) of
+		ok ->
+			conn_cast(Conn, {set_channel, self(), oncall, Call}),
+			{reply, ok, oncall, State};
+		Else ->
+			?WARNING("Didn't go oncall:  ~p", [Else]),
+			{reply, {error, Else}, ringing, State}
+	end;
+ringing(oncall, {Conn, _}, #state{agent_connection = Conn, endpoint = Pid, state_data = #call{ring_path = inband}} = State) ->
+	#call{source = Media} = Call = State#state.state_data,
+	case gen_media:oncall(Media) of
+		ok ->
+			conn_cast(Conn, {set_channel, self(), oncall, Call}),
+			NewEndpoint = case Call#call.media_path of
+				inband ->
+					erlang:exit(Pid, normal),
+					undefined;
+				_ ->
+					Pid
+			end,
+			NewState = State#state{endpoint = NewEndpoint},
+			{reply, ok, oncall, NewState};
+		Else ->
+			?WARNING("Didn't go oncall:  ~p", [Else]),
+			{reply, {error, Else}, ringing, State}
+	end;
 ringing({oncall, Call}, _From, #state{state_data = Call} = State) ->
 	?DEBUG("Moving from ringing to oncall state", []),
 	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),

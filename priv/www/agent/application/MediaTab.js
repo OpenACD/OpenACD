@@ -27,8 +27,7 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		this.agentBrandNode.innerHTML = this.stateData.brandname;
 		this.calleridNode.innerHTML = this.stateData.callerid;
 		this.callTypeNode.innerHTML = this.stateData.type;
-		this.answerButton.connect('onClick', this, function(){
-			console.log('goober');
+		dojo.connect(this.answerButton, 'onClick', this, function(){
 			window.agentConnection.channels[this.channel].setState('oncall');
 		});
 	},

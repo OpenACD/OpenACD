@@ -311,6 +311,7 @@ load_plugin(Plugin) ->
 		{error, badarg} ->
 			{error, badarg};
 		ok ->
+			
 			{ok, Plugins} = cpx:get_env(plugins, []),
 			application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
 			start_plugin_app(Plugin)
@@ -990,9 +991,7 @@ start_plugins(Dir) ->
 			?WARNING("Plugin directory ~p is not a directory!", [Dir]),
 			ok;
 		ok ->
-			{ok, Filenames} = file:list_dir(Dir),
-			{ok, Reg} = re:compile("(.*)\\.app$"),
-			Appfiles = [A || A <- Filenames, {match, [_, {0, _Len}]} <- [re:run(A, Reg)]],
+			Appfiles = filelib:wildcard("*.app", Dir),
 			Plugins = verify_apps(Appfiles, Dir),
 			application:set_env('OpenACD', plugins, Plugins),
 			start_plugin_apps(Plugins)

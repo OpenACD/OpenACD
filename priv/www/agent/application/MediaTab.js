@@ -35,7 +35,13 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		if(channelId != this.channel){
 			return false;
 		}
-		console.log('event', arguments);
+		console.log('event', this, arguments);
+		switch(args){
+			case 'oncall':
+				this.answerButton.domNode.style.display = 'none';
+				this.hangupButton.domNode.style.display = 'inline';
+				break;
+		}
 	}/*,
 	doAnswer: function(opts){
 		if(opts.mode == 'href'){

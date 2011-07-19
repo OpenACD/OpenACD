@@ -295,11 +295,14 @@ reload_plugin(Plugin) ->
 %% @doc Stop the plugin (but not always what the plugin depends on).
 unload_plugin(Plugin) ->
 	{ok, Plugins} = cpx:get_env(plugins, []),
+	{ok, PluginDir} = cpx:get_env(plugin_dir, "plugins.d"),
 	case lists:member(Plugin, Plugins) of
 		false -> ok;
 		true ->
 			application:stop(Plugin),
 			NewPlugins = lists:delete(Plugin, Plugins),
+			Appfile = atom_to_list(Plugin) ++ ".app",
+			file:delete(filename:join(PluginDir, Appfile)),
 			application:set_env('OpenACD', plugins, NewPlugins),
 			ok
 	end.
@@ -311,10 +314,20 @@ load_plugin(Plugin) ->
 		{error, badarg} ->
 			{error, badarg};
 		ok ->
-			
-			{ok, Plugins} = cpx:get_env(plugins, []),
-			application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
-			start_plugin_app(Plugin)
+			case code:where_is_file(atom_to_list(Plugin) ++ ".app") of
+				non_existing ->
+					{error, appfile_noexist};
+				Appfile ->
+					case file:make_link(Appfile, filename:join(PluginDir, atom_to_list(Plugin) ++ ".app")) of
+						ok ->
+							{ok, Plugins} = cpx:get_env(plugins, []),
+							application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
+							start_plugin_app(Plugin);
+						Else ->
+							?INFO("Could not make link:  ~p", [Else]),
+							{error, Else}
+					end
+			end
 	end.
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').

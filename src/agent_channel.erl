@@ -189,7 +189,7 @@ spy(Spy, Target) ->
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
 list_to_state(String) ->
-	Atom = try erlang:list_existing_atom(String) of
+	Atom = try erlang:list_to_existing_atom(String) of
 		A -> A
 	catch
 		error:badarg -> badarg

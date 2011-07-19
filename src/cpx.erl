@@ -76,6 +76,10 @@
 	restore_config/1,
 	restore_config/2,
 	reload_plugins/0,
+	reload_plugin/1,
+	unload_plugin/1,
+	load_plugin/1,
+	plugins_running/0,
 	call_state/1,	
 	get_queue/1,
 	get_agent/1,
@@ -137,7 +141,13 @@ start(_Type, StartArgs) ->
 			?NOTICE("Application OpenACD started sucessfully!", []),
 			% to not block the shell.
 			spawn(fun() ->
-				start_plugins(application:get_env('OpenACD', plugin_dir))
+				case cpx:get_env(plugin_dir) of
+					undefined ->
+						?INFO("No plugins to load, no plugin dir", []);
+					{ok, PluginDir} ->
+						add_plugin_paths(PluginDir),
+						start_plugins(PluginDir)
+				end
 			end),
 			{ok, Pid}
 	catch
@@ -257,69 +267,54 @@ restore_config(Filename, Tables) ->
 		{default_op, skip_tables}
 	]).
 
+%% @doc Return which plugins are running and which are stopped.
 plugins_running() ->
-	WhichApps = [N || {N, _, _} <- application:which_applications()],
-	{ok, Uncertain} = cpx:get_env(plugins_started, []),
-	Certain = [C || C <- Uncertain, lists:member(C, WhichApps)],
-	application:set_env('OpenACD', plugins_started, Certain).
+	{ok, ConfigedPlugins} = cpx:get_env(plugins, []),
+	Running = [N ||
+		{N, _, _} <- application:which_applications(),
+		lists:member(N, ConfigedPlugins)
+	],
+	[case lists:member(P, Running) of
+		true -> {P, running};
+		false -> {P, stopped}
+	end || P <- ConfigedPlugins].
 
-%% @doc Based on what is in the plugin dir, start and stop plugin 
-%% applications.
--spec(reload_plugins/0 :: () -> 'ok' | {'error', any()}).
+%% @doc Reload the code for all plugins using {@link util:reload/0}.
 reload_plugins() ->
-	plugins_running(),
-	case application:get_env('OpenACD', plugin_dir) of
-		{ok, Dir} ->
-			case filelib:is_dir(Dir) of
-				false ->
-					?WARNING("Plugin dir ~p was not a dir", [Dir]),
-					ok;
-				true ->
-					reload_plugins(file:list_dir(Dir), application:get_env('OpenACD', plugins_started))
-			end
+	{ok, Plugins} = cpx:get_env(plugins, []),
+	[reload_plugin(P) || P <- Plugins].
+
+%% @doc Reload the code the plugin and applications plugin depends on using
+%% {@link util:reload/0}.
+reload_plugin(Plugin) ->
+	{ok, Keys} = application:get_all_key(Plugin),
+	Apps = proplists:get_value(applications, Keys),
+	[reload_plugin(P) || P <- Apps],
+	Modules = proplists:get_value(modules, Keys),
+	[util:reload(M) || M <- Modules].
+
+%% @doc Stop the plugin (but not always what the plugin depends on).
+unload_plugin(Plugin) ->
+	{ok, Plugins} = cpx:get_env(plugins, []),
+	case lists:member(Plugin, Plugins) of
+		false -> ok;
+		true ->
+			application:stop(Plugin),
+			NewPlugins = lists:delete(Plugin, Plugins),
+			application:set_env('OpenACD', plugins, NewPlugins),
+			ok
 	end.
 
-reload_plugins({ok, Plugs}, {ok, Started}) ->
-	StartedStrs = [atom_to_list(S) || S <- Started],
-	reload_plugins(lists:sort(Plugs), lists:sort(StartedStrs), []).
-
-reload_plugins(["deps" | Tail], Started, Acc) ->
-	reload_plugins(Tail, Started, Acc);
-reload_plugins([], [], Acc) ->
-	application:set_env('OpenACD', plugins_started, Acc);
-reload_plugins([], [Started | StartedTail], Acc) ->
-	case [A || {A,_,_} <- application:which_applications(), atom_to_list(A) == Started] of
-		[] ->
-			reload_plugins([], StartedTail, Acc);
-		[Atom] ->
-			application:stop(Atom),
-			reload_plugins([], StartedTail, Acc)
-	end;
-reload_plugins([Plug | PlugTail], [], Acc) ->
-	{ok, Dir} = cpx:get_env(plugin_dir),
-	case start_plugin_apps([Plug], Dir, []) of
+%% @doc Add the plugin to the path and start it.
+load_plugin(Plugin) ->
+	{ok, PluginDir} = cpx:get_env(plugin_dir, "plugins.d"),
+	case add_plugin_paths(PluginDir) of
+		{error, badarg} ->
+			{error, badarg};
 		ok ->
-			reload_plugins(PlugTail, [], [list_to_atom(Plug) | Acc]);
-		_ ->
-			reload_plugins(PlugTail, [], Acc)
-	end;
-reload_plugins([Plug | PlugTail], [Plug | StartedTail], Acc) ->
-	reload_plugins(PlugTail, StartedTail, [list_to_atom(Plug) | Acc]);
-reload_plugins([Plug | PlugTail] = Plugs, [Started | StartedTail], Acc) when Plug > Started ->
-	case [A || {A,_,_} <- application:which_applications(), atom_to_list(A) == Started] of
-		[] ->
-			reload_plugins(Plugs, StartedTail, Acc);
-		[Atom] ->
-			application:stop(Atom),
-			reload_plugins(Plugs, StartedTail, Acc)
-	end;
-reload_plugins([Plug | PlugTail], [Started | StartedTail] = Started, Acc) when Plug < Started ->
-	{ok, Dir} = cpx:get_env(plugin_dir),
-	case start_plugin_apps([Plug], Dir, []) of
-		[] ->
-			reload_plugins(PlugTail, StartedTail, Acc);
-		[NewApp] ->
-			reload_plugins(PlugTail, StartedTail, [NewApp | Acc])
+			{ok, Plugins} = cpx:get_env(plugins, []),
+			application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
+			start_plugin_app(Plugin)
 	end.
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').
@@ -970,70 +965,116 @@ find_cdr_test(_, _) ->
 start_plugins(undefined) ->
 	?NOTICE("No plugin directory configured", []),
 	ok;
-start_plugins({ok, Dir}) ->
-	case filelib:is_dir(Dir) of
-		false ->
+start_plugins(Dir) ->
+	case add_plugin_paths(Dir) of
+		{error, badarg} ->
 			?WARNING("Plugin directory ~p is not a directory!", [Dir]),
 			ok;
-		true ->
-			case filelib:is_dir(filename:join([Dir, "deps"])) of
-				true ->
-					add_plugin_deps(file:list_dir(filename:join([Dir, "deps"])), Dir);
-				false ->
-					ok
-			end,
-			start_plugin_apps(file:list_dir(Dir), Dir)
+		ok ->
+			start_plugin_apps(application:get_env('OpenACD', plugins))
 	end.
 
-add_plugin_deps({ok, Deps}, Dir) ->
-	add_plugin_deps(Deps, Dir);
-add_plugin_deps([], _) ->
+start_plugin_apps(undefined) ->
+	?INFO("No plugins to start", []),
 	ok;
-add_plugin_deps([Dep | Tail], Dir) ->
-	case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
-		true ->
-			?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
-			true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
+start_plugin_apps({ok, Plugins}) ->
+	start_plugin_apps(Plugins);
+start_plugin_apps([]) ->
+	?INFO("Plugins started", []),
+	ok;
+start_plugin_apps([Plugin | Tail]) ->
+	start_plugin_app(Plugin),
+	start_plugin_apps(Tail).
+
+start_plugin_app(Plugin) ->
+	StartFun = fun() ->
+		case application:start(Plugin) of
+			ok ->
+				?INFO("Started plugin ~p", [Plugin]),
+				ok;
+			{error, {already_started, Plugin}} ->
+				?INFO("Plugin ~p already started; perhaps something else depends on it?", [Plugin]),
+				ok;
+			{error, Else} ->
+				?INFO("Plugin ~p not started due to ~p", [Plugin, Else]),
+				ok
+		end
+	end,
+	case application:load(Plugin) of
+		{error, {already_loaded, Plugin}} ->
+			StartFun();
+		{error, Reason} ->
+			?INFO("Plugin ~p app load failed:  ~p", [Plugin, Reason]),
+			ok;
+		ok ->
+			{ok, Keys} = application:get_all_key(Plugin),
+			Deps = proplists:get_value(applications, Keys),
+			start_plugin_apps(Deps),
+			StartFun()
+	end.
+
+add_plugin_paths(PluginDir) ->
+	case filelib:is_dir(PluginDir) of
 		false ->
+			?ERROR("plugin_dir ~p not a directory", [PluginDir]),
+			{error, badarg};
+		true ->
+			{ok, AppDirs} = file:list_dir(PluginDir),
+			Paths = [filename:join([PluginDir, AppDir, "ebin"]) ||
+				AppDir <- AppDirs],
+			code:add_pathsz(Paths),
 			ok
-	end,
-	add_plugin_deps(Tail, Dir).
+	end.
 
-start_plugin_apps({ok, Plugins}, Dir) ->
-	start_plugin_apps(Plugins, Dir, []).
+%add_plugin_deps({ok, Deps}, Dir) ->
+%	add_plugin_deps(Deps, Dir);
+%add_plugin_deps([], _) ->
+%	ok;
+%add_plugin_deps([Dep | Tail], Dir) ->
+%	case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
+%		true ->
+%			?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
+%			true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
+%		false ->
+%			ok
+%	end,
+%	add_plugin_deps(Tail, Dir).
 
-start_plugin_apps([], _, Apps) ->
-	application:set_env('OpenACD', plugins_started, Apps);
-start_plugin_apps(["deps" | Tail], Dir, Apps) ->
-	start_plugin_apps(Tail, Dir, Apps);
-start_plugin_apps([Plugin | Tail], Dir, AccApps) ->
-	NewAcc = case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
-		true ->
-			?INFO("Adding plugin ~p to code path", [Plugin]),
-			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
-			case filelib:is_dir(filename:join([Dir, Plugin, "deps"])) of
-				true ->
-					DepDepsDir = filename:join(Dir, Plugin),
-					add_plugin_deps(file:list_dir(filename:join([DepDepsDir, "deps"])), DepDepsDir);
-				false ->
-					ok
-			end,
-			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
-				{ok, [{application, _, Properties}|_]} ->
-					Apps = proplists:get_value(applications, Properties, []),
-					[application:start(App) || App <- Apps],
-					PluginApp = list_to_atom(Plugin),
-					StartRes = application:start(PluginApp),
-					?INFO("starting plugin ~p:  ~p", [Plugin, StartRes]),
-					[PluginApp | AccApps];
-				{error, Err} ->
-					?WARNING("Plugin ~s failed to start due to app file read error ~p.", [Plugin, Err]),
-					AccApps
-			end;
-		false ->
-			AccApps
-	end,
-	start_plugin_apps(Tail, Dir, NewAcc).
+%start_plugin_apps({ok, Plugins}, Dir) ->
+%	start_plugin_apps(Plugins, Dir, []).
+%
+%start_plugin_apps([], _, Apps) ->
+%	application:set_env('OpenACD', plugins_started, Apps);
+%start_plugin_apps(["deps" | Tail], Dir, Apps) ->
+%	start_plugin_apps(Tail, Dir, Apps);
+%start_plugin_apps([Plugin | Tail], Dir, AccApps) ->
+%	NewAcc = case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
+%		true ->
+%			?INFO("Adding plugin ~p to code path", [Plugin]),
+%			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
+%			case filelib:is_dir(filename:join([Dir, Plugin, "deps"])) of
+%				true ->
+%					DepDepsDir = filename:join(Dir, Plugin),
+%					add_plugin_deps(file:list_dir(filename:join([DepDepsDir, "deps"])), DepDepsDir);
+%				false ->
+%					ok
+%			end,
+%			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
+%				{ok, [{application, _, Properties}|_]} ->
+%					Apps = proplists:get_value(applications, Properties, []),
+%					[application:start(App) || App <- Apps],
+%					PluginApp = list_to_atom(Plugin),
+%					StartRes = application:start(PluginApp),
+%					?INFO("starting plugin ~p:  ~p", [Plugin, StartRes]),
+%					[PluginApp | AccApps];
+%				{error, Err} ->
+%					?WARNING("Plugin ~s failed to start due to app file read error ~p.", [Plugin, Err]),
+%					AccApps
+%			end;
+%		false ->
+%			AccApps
+%	end,
+%	start_plugin_apps(Tail, Dir, NewAcc).
 	
 -ifdef(TEST).
 

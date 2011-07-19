@@ -11,6 +11,12 @@
 </p>
 
 <p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="useHttps" value="useHttps" id="cpxWebManagementUseHttps" />
+	<span class="translate">HTTPS</span>
+</p>
+
+<p>
 	<label class="translatecol">IP_PEERS</label>
 	<input dojoType="dijit.form.ValidationTextBox" name="ippeerinput" id="ippeerinput" regExp="[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}" />
 	<button dojoType="dijit.form.Button" name="ippeerinputadd" label="+">
@@ -107,6 +113,9 @@
 				enabled:true,
 				port:dijit.byId('cpxWebManagementPort').get('value')
 			};
+			if(dijit.byId('cpxWebManagementUseHttps').get('checked')){
+				contentObj.useHttps = "true";
+			}
 			var select = dojo.byId('ipList');
 			var ipList = [];
 			for(var i = 0; i < select.childNodes.length; i++){
@@ -200,6 +209,9 @@
 			if(res.enabled == false){
 				dijit.byId('cpxWebManagementEnabled').set('checked', false);
 				return;
+			}
+			if(res.https){
+				dijit.byId('cpxWebManagementUseHttps').set('checked', true);
 			}
 			dijit.byId('cpxWebManagementEnabled').set('checked', true);
 			dijit.byId('cpxWebManagementPort').set('value', res.port);

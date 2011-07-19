@@ -50,8 +50,7 @@
 -type(agent_pid() :: pid()).
 -type(agent_id() :: string()).
 -type(time_avail() :: integer()).
--type(skill() :: atom() | {atom(), any()}).
--type(skills() :: [skill()]).
+-type(skills() :: skill_list()).
 -type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills()}).
 
 %-type(rotations() :: non_neg_integer()).

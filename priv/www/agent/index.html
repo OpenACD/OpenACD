@@ -251,12 +251,12 @@
 				</script>
 			</label>
 			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
-			<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
+			<!--<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					endpointselect();
 				</script>
-			</div>
+			</div>-->
 		</p>
 		<p>
 			<label>&nbsp;</label>
@@ -265,13 +265,13 @@
 			<script type="text/javascript">
 				dojo.byId("useoutbandringlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_OUTBAND_RING;
 			</script>
-			<div dojoType="dijit.Tooltip" connectId="useoutbandring" label="OUTBAND_RING_TIP" id="outbandringtip">
+			<!--<div dojoType="dijit.Tooltip" connectId="useoutbandring" label="OUTBAND_RING_TIP" id="outbandringtip">
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').OUTBAND_RING_TIP);
 					
 				</script>
-			</div>
+			</div>-->
 		</p>
 		<p>
 			<label>&nbsp;</label>
@@ -280,12 +280,12 @@
 			<script type="text/javascript">
 				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
 			</script>
-			<div dojoType="dijit.Tooltip" connectId="usepersistantringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
+			<!--<div dojoType="dijit.Tooltip" connectId="usepersistantringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);
 				</script>
-			</div>
+			</div>-->
 		<p>
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">

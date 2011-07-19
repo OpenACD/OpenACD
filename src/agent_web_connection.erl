@@ -682,7 +682,7 @@ handle_call({set_state, Channel, Statename}, _From, #state{agent_channels = Chan
 			case agent_channel:set_state(Chan, agent_channel:list_to_state(Statename)) of
 				ok ->
 					{reply, ?simple_success(), State};
-				invalid ->
+				{error, invalid} ->
 					{reply, ?reply_err(<<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
 			end
 	end;

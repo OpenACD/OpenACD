@@ -145,7 +145,6 @@ start(_Type, StartArgs) ->
 					undefined ->
 						?INFO("No plugins to load, no plugin dir", []);
 					{ok, PluginDir} ->
-						add_plugin_paths(PluginDir),
 						start_plugins(PluginDir)
 				end
 			end),
@@ -296,11 +295,14 @@ reload_plugin(Plugin) ->
 %% @doc Stop the plugin (but not always what the plugin depends on).
 unload_plugin(Plugin) ->
 	{ok, Plugins} = cpx:get_env(plugins, []),
+	{ok, PluginDir} = cpx:get_env(plugin_dir, "plugins.d"),
 	case lists:member(Plugin, Plugins) of
 		false -> ok;
 		true ->
 			application:stop(Plugin),
 			NewPlugins = lists:delete(Plugin, Plugins),
+			Appfile = atom_to_list(Plugin) ++ ".app",
+			file:delete(filename:join(PluginDir, Appfile)),
 			application:set_env('OpenACD', plugins, NewPlugins),
 			ok
 	end.
@@ -312,9 +314,20 @@ load_plugin(Plugin) ->
 		{error, badarg} ->
 			{error, badarg};
 		ok ->
-			{ok, Plugins} = cpx:get_env(plugins, []),
-			application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
-			start_plugin_app(Plugin)
+			case code:where_is_file(atom_to_list(Plugin) ++ ".app") of
+				non_existing ->
+					{error, appfile_noexist};
+				Appfile ->
+					case file:make_link(Appfile, filename:join(PluginDir, atom_to_list(Plugin) ++ ".app")) of
+						ok ->
+							{ok, Plugins} = cpx:get_env(plugins, []),
+							application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),
+							start_plugin_app(Plugin);
+						Else ->
+							?INFO("Could not make link:  ~p", [Else]),
+							{error, Else}
+					end
+			end
 	end.
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').
@@ -961,6 +974,26 @@ find_cdr_test(_, _) ->
 % start_spec pretty print.
 % cpx:start_spec
 
+verify_apps(Appfiles, Dir) ->
+	verify_apps(Appfiles, Dir, []).
+
+verify_apps([], _Dir, Acc) ->
+	Acc;
+verify_apps([Appfile | Tail], Dir, Acc) ->
+	case file:consult(filename:join(Dir, Appfile)) of
+		{ok, AppList} when is_list(AppList) ->
+			FilteredApplist = [Appname || {application, Appname, _} <- AppList, atom_to_list(Appname) ++ ".app" =:= Appfile],
+			case FilteredApplist of
+				[] ->
+					?INFO("consulting ~s did not find app config", [Appfile]),
+					verify_apps(Tail, Dir, Acc);
+				[Appname] ->
+					verify_apps(Tail, Dir, [Appname | Acc])
+			end;
+		_ ->
+			?INFO("consulting ~s reveals it is not an app file.", [Appfile]),
+			verify_apps(Tail, Dir, Acc)
+	end.
 
 start_plugins(undefined) ->
 	?NOTICE("No plugin directory configured", []),
@@ -971,7 +1004,10 @@ start_plugins(Dir) ->
 			?WARNING("Plugin directory ~p is not a directory!", [Dir]),
 			ok;
 		ok ->
-			start_plugin_apps(application:get_env('OpenACD', plugins))
+			Appfiles = filelib:wildcard("*.app", Dir),
+			Plugins = verify_apps(Appfiles, Dir),
+			application:set_env('OpenACD', plugins, Plugins),
+			start_plugin_apps(Plugins)
 	end.
 
 start_plugin_apps(undefined) ->
@@ -982,7 +1018,7 @@ start_plugin_apps({ok, Plugins}) ->
 start_plugin_apps([]) ->
 	?INFO("Plugins started", []),
 	ok;
-start_plugin_apps([Plugin | Tail]) ->
+start_plugin_apps([Plugin | Tail]) when is_atom(Plugin) ->
 	start_plugin_app(Plugin),
 	start_plugin_apps(Tail).
 

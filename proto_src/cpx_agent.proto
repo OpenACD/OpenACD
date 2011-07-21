@@ -183,7 +183,7 @@ message LoginRequest {
 	optional VoipEndpoint voipendpoint = 3 [default=SIP];
 	optional string voipendpointdata = 4;
 	optional bool use_outband_ring = 5;
-	optional bool use_persistant_ring = 6;
+	optional bool use_persistent_ring = 6;
 }
 
 message AgentTransferRequest {

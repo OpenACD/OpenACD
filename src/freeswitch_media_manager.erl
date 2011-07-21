@@ -451,7 +451,7 @@ handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpoint
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
 		h323 -> "opal/h323:$1";
-		pstn -> ""
+		pstn -> State#state.dialstring
 	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	NewOptions = [{dialstring, BaseDialString}, {destination, Data}],

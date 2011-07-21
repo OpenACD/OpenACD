@@ -390,16 +390,43 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			{Reply, State};
 		{allow, Id, Skills, Security, Profile} ->
+			EndpointType = case LoginRequest#loginrequest.voipendpoint of
+				'SIP' -> sip;
+				'SIP_REGISTRATION' -> sip_registration;
+				'IAX' -> iax;
+				'H323' -> h323;
+				'PSTN' -> pstn
+			end,
+			Endpointdata = LoginRequest#loginrequest.voipendpointdata,
+			Persistance = LoginRequest#loginrequest.use_persistant_ring,
+			Username = LoginRequest#loginrequest.username,
+			Endpoint = case {EndpointType, Endpointdata, Persistance} of
+				{undefined, _, true} ->
+					{{persistant, sip_registration}, Username};
+				{undefined, _, _} ->
+					{sip_registration, Username};
+				{sip_registration, undefined, true} ->
+					{{persistant, sip_registration}, Username};
+				{sip_registration, undefined, false} ->
+					{sip_registration, Username};
+				{EndpointType, _, true} ->
+					{{persistant, EndpointType}, Endpointdata};
+				{EndpointType, _, _} ->
+					{EndpointType, Endpointdata}
+			end,
 			Agent = #agent{
 				id = Id, 
 				defaultringpath = outband, 
 				login = LoginRequest#loginrequest.username, 
 				skills = Skills, 
 				profile=Profile, 
-				password=DecryptedPass
+				password=DecryptedPass,
+				endpointtype = Endpoint,
+				endpointdata = Endpointdata
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
+					agent:set_endpoint(Pid, Endpoint),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),

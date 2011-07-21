@@ -965,7 +965,7 @@ dojo.addOnLoad(function(){
 			}
 			if(attrs.usepersistantringchannel != false){
 				window.agentConnection.loginOptions.usepersistantringchannel = true;
-			{
+			}
 			window.agentConnection.login();
 		} else {
 			console.warn('Form has invalid value');

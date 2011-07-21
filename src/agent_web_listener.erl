@@ -726,7 +726,9 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 								login = Username, 
 								skills = Skills, 
 								profile=Profile, 
-								password=DecryptedPassword
+								password=DecryptedPassword,
+								endpointtype = Endpoint,
+								endpointdata = Endpointdata
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->

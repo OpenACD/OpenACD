@@ -90,6 +90,7 @@
 	password,
 	voipendpoint,
 	voipendpoint_data,
+	persistant_ring,
 	port,
 	server,
 	silent
@@ -124,6 +125,7 @@
 ).
 -type(voipendpoint_option() :: {voipendpoint, voipendpoint()}).
 -type(voipendpoint_data_option() :: {voipendpoint_data, string()}).
+-type(persistant_ring_option() :: 'persistant_ring').
 -type(start_option() :: 
 	server_option() |
 	port_option() | 
@@ -131,7 +133,8 @@
 	password_option() | 
 	voipendpoint_option() | 
 	voipendpoint_data_option() |
-	silent_option()
+	silent_option() |
+	persistant_ring_option()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -271,6 +274,7 @@ init(Options) ->
 	Port = proplists:get_value(port, Options, ?port),
 	Server = proplists:get_value(server, Options, "localhost"),
 	Silent = proplists:get_value(silent, Options, false),
+	Persistance = proplists:get_value(persistant_ring, Options),
 	{ok, Socket} = gen_tcp:connect(Server, Port, [binary, {packet, raw}]),
 	%timer:send_interval(10000, do_tick),
 	?INFO("~s started.", [?MODULE]),
@@ -278,6 +282,7 @@ init(Options) ->
 		username = Username,
 		password = Password,
 		voipendpoint = Voip,
+		persistant_ring = Persistance,
 		voipendpoint_data = VoipData,
 		port = Port,
 		server = Server,
@@ -607,7 +612,8 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket
 				username = Username,
 				password = Password,
 				voipendpoint = Voipendpoint,
-				voipendpointdata = VoipEndPointData
+				voipendpointdata = VoipEndPointData,
+				use_persistant_ring = Options#options.persistant_ring
 			},
 			{NewId, Bin} = make_bin(LoginRequest, State#state.last_req_id),
 			ok = Mod:send(Socket, Bin),

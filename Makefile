@@ -5,8 +5,6 @@ all: deps compile
 
 deps:
 	./rebar get-deps update-deps force=1
-	git submodule init
-	git submodule update
 
 compile:
 	./rebar compile generate force=1
@@ -23,13 +21,14 @@ install: compile
 	mkdir -p ${PREFIX}/plugin.d/deps
 
 dist: deps
-	GIT_UPDATE_DISABLED=1 ./pre_compile.sh
+	./pre_compile.sh
 	git archive --format tar --prefix OpenACD/ HEAD > $(TARBALL:.gz=)
 	tar -rf $(TARBALL:.gz=) \
 		OpenACD/deps/* \
 		OpenACD/priv/www/contrib/dojo/dojo \
 		OpenACD/priv/www/contrib/dojo/dojox \
-		OpenACD/priv/www/contrib/dojo/dijit
+		OpenACD/priv/www/contrib/dojo/dijit \
+		OpenACD/include/commit_ver.hrl
 	cat $(TARBALL:.gz=) | gzip > $(TARBALL)
 
 rpm: dist

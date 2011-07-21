@@ -430,7 +430,7 @@
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="LOGOUT" id="miLogout" onclick=logout(window.agentConnection);>
+				<div dojoType="dijit.MenuItem" label="LOGOUT" id="miLogout" onclick=window.agentConnection.logout();>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").LOGOUT);

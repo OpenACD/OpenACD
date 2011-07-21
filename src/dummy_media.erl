@@ -112,8 +112,7 @@
 -type(type_option() :: {'type', atom()}).
 -type(callerid_option() :: {'callerid', {string(), string()}}).
 -type(client_option() :: {'client', #client{}}).
--type(skill() :: atom() | {atom(), string()}).
--type(skills_option() :: {'skills', [skill()]}).
+-type(skills_option() :: {'skills', skill_list()}).
 -type(priority_option() :: {'priority', pos_integer() | {'distribution', pos_integer()} | {pos_integer(), pos_integer()}}).
 -type(start_option() :: 
 	queue_option() | 

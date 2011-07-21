@@ -954,12 +954,18 @@ dojo.addOnLoad(function(){
 				dojo.byId("loginerrspan").innerHTML = message;
 			};
 			var attrs = loginform.attr("value");
-			if(attrs.usepersistantringchannel != false){
-				attrs.usepersistantringchannel = true;
-			}
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
-			window.agentConnection.loginOpts = attrs;
+			window.agentConnection.loginOptions = {
+				voipendpoint: attrs.voipendpoint,
+				voipendpointdata: attrs.voipendpointdata
+			}
+			if(attrs.useoutbandring){
+				window.agentConnection.loginOptions.useoutbandring = true;
+			}
+			if(attrs.usepersistantringchannel != false){
+				window.agentConnection.loginOptions.usepersistantringchannel = true;
+			{
 			window.agentConnection.login();
 		} else {
 			console.warn('Form has invalid value');

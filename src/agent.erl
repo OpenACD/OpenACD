@@ -406,7 +406,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 				Orelse -> Orelse
 			end,
 			Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-			Pid ! {Agent#agent.login, login, Agent#agent.state, Agent#agent.statedata},
+			Pid ! {Agent#agent.login, login, Agent#agent.state, {Agent#agent.skills, Agent#agent.statedata}},
 			Agent2#agent{log_pid = Pid};
 		_Orelse ->
 			Agent2
@@ -647,10 +647,14 @@ ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{s
 			{stop, ring_fails, State}
 	end;
 ringing({failed_ring, Mpid}, #state{ring_locked = LockState, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) when LockState == unlocked; LockState == wait  ->
-	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
-	Self = self(),
-	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
-	{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}};
+	case ringing(idle, "from", State) of
+		{stop, max_ringouts, NewState} ->
+			{stop, max_ringouts, NewState};
+		{reply, ok, idle, Midstate} ->
+			Self = self(),
+			erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
+			{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}}
+	end;
 ringing({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
 	{next_state, ringing, State#state{ring_locked = unlocked, ring_fails = 0}};
 ringing(register_rejected, State) ->
@@ -1242,6 +1246,18 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			Agent#agent.log_pid ! {change_profile, Profile, StateName},
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
+			DroppedSkills = OldSkills -- NewAgentSkills2,
+			GainedSkills = NewAgentSkills2 -- OldSkills,
+			ProfChangeRec = #agent_profile_change{
+				id = Agent#agent.id,
+				agent = Agent#agent.login,
+				old_profile = OldProfile,
+				new_profile = Profile,
+				skills = NewAgentSkills2,
+				dropped_skills = DroppedSkills,
+				gained_skills = GainedSkills
+			},
+			cpx_monitor:info({agent_profile, ProfChangeRec}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -1477,6 +1493,9 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
+log_change(#agent{log_pid = Pid, state = login} = State) when is_pid(Pid) ->
+	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}},
+	ok;
 log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
@@ -1491,7 +1510,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 			ProfileTup
 	end,
 	receive
-		{Agentname, login, State, Statedata} ->
+		{Agentname, login, State, {Skills, Statedata}} ->
 			F = fun() ->
 				Now = util:now(),
 				Login = #agent_state{
@@ -1499,6 +1518,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 					agent = Agentname, 
 					oldstate = login, 
 					state=State,
+					statedata = Skills,
 					start = Now, 
 					ended = Now, 
 					profile= Profile, 

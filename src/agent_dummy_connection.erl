@@ -70,9 +70,11 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
-
+-type(endpoints() :: any()).
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
+-type(endpoint_type() :: {'endpoint_type', endpoints()}).
+-type(endpoint_data() :: {'endpoint_data', string()}).
 -type(id_option() :: {'id', string()}).
 -type(profile() :: {'profile', string()}).
 -type(skill() :: atom() | {atom(), any()}).
@@ -86,9 +88,12 @@
 -type(wrapup() :: {'wrapup', pos_integer()}).
 -type(maxcalls() :: {'maxcalls', pos_integer()}).
 -type(scale() :: {'scale', pos_integer()}).
+-type(remote_node() :: {'remote_node', atom()}).
 -type(start_option() :: 
 	login_option() |
 	password_option() |
+	endpoint_type() |
+	endpoint_data() |
 	id_option() |
 	profile() |
 	skills_option() |
@@ -99,7 +104,8 @@
 	oncall() |
 	wrapup() |
 	maxcalls() |
-	scale()
+	scale() |
+	remote_node()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -137,13 +143,21 @@ clear_bot() ->
 init([Args]) ->
 	crypto:start(),
 	Login = proplists:get_value(login, Args, lists:flatten(io_lib:format("~p", [make_ref()]))),
-	{ok, Pid} = agent_manager:start_agent(#agent{
+	AgentRec = #agent{
 			id = proplists:get_value(id, Args, Login),
 			login = Login,
 			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
-			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
-		}),
+			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
+			endpointtype = proplists:get_value(endpoint_type, Args, sip_registration),
+			endpointdata = proplists:get_value(endpoint_data, Args, Login)
+	},
+	{ok, Pid} = case proplists:get_value(remote_node, Args) of
+		undefined ->
+			agent_manager:start_agent(AgentRec);
+		RemoteNode ->
+			rpc:call(RemoteNode, agent_manager, start_agent, [AgentRec])
+	end,
 	ok = agent:set_state(Pid, idle),
 	ok = agent:set_connection(Pid, self()),
 	?NOTICE("Created new dummy agent connection", []),
@@ -192,6 +206,10 @@ handle_cast({change_state, wrapup, #call{} = Call}, State) ->
 	?INFO("ending wrapup after ~p", [Time]),
 	{ok, Tref} = timer:send_after(Time, endwrapup),
 	{noreply, State#state{calltimer = undefined, wrapuptimer = Tref, call = Call}};
+handle_cast({change_state, released, {_, ring_fail, _}}, State) ->
+	?INFO("Gone into ring fail, so going out of ring_fail", []),
+	agent:set_state(State#state.agent_fsm, idle),
+	{noreply, State};
 handle_cast({change_state, _AgState, _Data}, State) ->
 	{noreply, State};
 handle_cast({change_state, idle}, State) ->

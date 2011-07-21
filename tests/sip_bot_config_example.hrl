@@ -32,4 +32,9 @@
 ]}.
 % The realm agents us to authenticate.  Defaults to gateway.
 {realm, "realm.example.com"}.
-
+% Just like a soft-phone, the listen port for sip can be configured.  
+% Freeswitch's internal default is 5060, so in cases where both the sip bot
+% manager and target OpenACD instance are running, sip bot's freeswitch will
+% fail to register to OpenACD's freeswitch.  This is why sip bot's sip-port
+% defaults to 5061.
+{sip_port, 5061}.

@@ -21,6 +21,10 @@ deps
 ebin
 .eunit
 
+/*.config
+OpenACD/
+include/commit_ver.hrl
+
 # unique config files
 www/dynamic/tv_config.js
 www/dynamic/all.json

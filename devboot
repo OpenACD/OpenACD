@@ -19,6 +19,7 @@ function help_dump {
 	echo "-b defaults to rel/openacd/releases/1/openacd"
 	echo "-nb disables use of a boot file.  -b and -nb override eachother."
 	echo "-f defaults to \"single\""
+	echo "-e defaults to \"erl\""
 }
 
 EBIN="ebin"
@@ -27,6 +28,7 @@ NAMETYPE="-sname"
 NODENAME="openacddev"
 CONFIG="single"
 BOOT="-boot rel/openacd/releases/1/openacd"
+ERL_PATH="erl"
 
 OPENACD_RUN_DIR="rel/openacd/run"
 export OPENACD_RUN_DIR
@@ -64,6 +66,9 @@ do
 		"-f")
 			let i=$i+1
 			CONFIG="${args[${i}]}";;
+		"-e")
+			let i=$i+1
+			ERL_PATH="${args[${i}]}";;
 		*)
 			help_dump
 			exit 0
@@ -107,7 +112,7 @@ fi
 
 export OPENACD_RUN_DIR=`pwd`
 
-CMD="erl +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG $BOOT"
+CMD="$ERL_PATH +K true -pa $EBIN $morepa -setcookie $COOKIE $NAMETYPE $NODENAME -config $CONFIG $BOOT"
 
 #echo $CMD
 exec $CMD

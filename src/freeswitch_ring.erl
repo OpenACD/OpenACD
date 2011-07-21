@@ -281,7 +281,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					"hangup_after_bridge="++HangupAfterBridge,
 					ParkAfterBridge,
 					"origination_uuid="++UUID,
-					"originate_timeout="++integer_to_list(Ringout),
+					"originate_timeout="++integer_to_list(round(Ringout / 1000)),
 					"sip_h_X-DNIS='"++Dnis++"'"
 					| proplists:get_value(dial_vars, Options, [])],
 			case InitFun({Fsnode, UUID}, Options) of

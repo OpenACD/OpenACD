@@ -1240,17 +1240,27 @@ api({modules, Node, "agent_web_listener", "update"}, ?COOKIE, Post) ->
 	end;
 api({modules, Node, "agent_tcp_listener", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
+	Defaults = [
+		{port, 1337},
+		{radix, 10},
+		{ssl_upgrade, false}
+	],
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_tcp_listener]) of
-		#cpx_conf{start_args = Port} ->
-			OutPort = case Port of
-				[] ->
-					1337;
-				[N] ->
-					N
-			end,
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, true}, {<<"port">>, OutPort}]})};
+		#cpx_conf{start_args = [Options]} ->
+			Port = proplists:get_value(port, Options, false),
+			Radix = proplists:get_value(radix, Options, false),
+			Ssl = proplists:get_value(socket_type, Options, false),
+			OutProps = [
+				{success, true},
+				{<<"enabled">>, true},
+				{port, Port},
+				{radix, Radix},
+				{ssl_upgrade, Ssl},
+				{<<"defaults">>, {struct, Defaults}}
+			],
+			{200, [], mochijson2:encode({struct, OutProps})};
 		undefined ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"port">>, 1337}]})};
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}, {<<"defaults">>, {struct, Defaults}}]})};
 		Else ->
 			?WARNING("Error getting agent_tcp_listener settings:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not load settings">>}]})}
@@ -1259,16 +1269,21 @@ api({modules, Node, "agent_tcp_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		"true" ->
-			StartArgs = case proplists:get_value("port", Post, "") of
-				"" ->
-					[];
-				List ->
-					[list_to_integer(List)]
+			AccFun = fun
+				({"port", Val}, Acc) ->
+					[{port, list_to_integer(Val)} | Acc];
+				({"ssl", "true"}, Acc) ->
+					[{socket_type, ssl_upgrade} | Acc];
+				({"radix", Val}, Acc) ->
+					[{radix, list_to_integer(Val)} | Acc];
+				(_, Acc) ->
+					Acc
 			end,
+			StartArgs = lists:foldl(AccFun, [], Post),
 			Conf = #cpx_conf{
 				id = agent_tcp_listener,
 				module_name = agent_tcp_listener,
-				start_function = start_link, start_args = StartArgs,
+				start_function = start_link, start_args = [StartArgs],
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_tcp_listener, Conf]) of
@@ -2316,7 +2331,7 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 	Json = encode_client(Client),
 	{200, [], mochijson2:encode(Json)};
 api({clients, "setDefault"}, ?COOKIE, Post) ->
-	Baseoptions = try list_to_integer(proplists:get_value("autowrapup", Post)) of
+	Baseoptions = try list_to_integer(proplists:get_value("autoend_wrapup", Post)) of
 		I ->
 			[{autoend_wrapup, I}]
 	catch
@@ -2366,7 +2381,23 @@ api({clients, "add"}, ?COOKIE, Post) ->
 	end;
 api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 	Label = proplists:get_value("label", Post),
-	case call_queue_config:set_client(ClientId, Label, []) of
+	AccFun = fun({Key, Value}, Acc) ->
+		case Key of
+			"autoend_wrapup" ->
+				try list_to_integer(Value) of
+					0 -> Acc;
+					N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
+				catch
+					error:badarg -> Acc
+				end;
+			"url_pop" ->
+				[{url_pop, Value} | Acc];
+			_BadKey ->
+				Acc
+		end
+	end,
+	Options = lists:foldl(AccFun, [], Post),
+	case call_queue_config:set_client(ClientId, Label, Options) of
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->
@@ -2537,19 +2568,23 @@ decrypt_password(Password) ->
 	binary_to_list(Bar).
 
 encode_client(Client) ->
-	Optionslist = encode_client_options(Client#client.options),
+	FirstOptionsList = encode_client_options(Client#client.options),
+	Optionslist = case proplists:get_value(autowrapup, FirstOptionsList) of
+		undefined -> [{autowrapup, 0} | FirstOptionsList];
+		_ -> FirstOptionsList
+	end,
 	{struct, [
 		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
 		{<<"id">>, (case is_list(Client#client.id) of true -> list_to_binary(Client#client.id); false -> <<"">> end)},
-		{<<"integration">>, Client#client.last_integrated},
-		{<<"options">>, {struct, Optionslist}}
+		{<<"integration">>, Client#client.last_integrated} |
+		Optionslist
 	]}.
 		
 encode_client_options(List) ->
 	encode_client_options(List, []).
 
 encode_client_options([], Acc) ->
-	[{<<"_type">>, <<"json">>}, {<<"_value">>, {struct, lists:reverse(Acc)}}];
+	lists:reverse(Acc);
 encode_client_options([{url_pop, Format} | Tail], Acc) ->
 	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
 encode_client_options([{autoend_wrapup, N} | Tail], Acc) ->

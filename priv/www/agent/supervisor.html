@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Agent UI</title>
+<style type="text/css">
+  @import "/dojo/dijit/themes/soria/soria.css";
+  @import "/dojo/dijit/themes/tundra/tundra.css";
+  @import "/dojo/dijit/themes/nihilo/nihilo.css";
+  @import "/dojo/dojox/form/resources/FileUploader.css";
+  .statusdisplay {
+		padding-left:0.5em;
+  }
+  
+  label{
+        width: 10em;
+        float: left;
+        text-align:right;
+        margin-right:0.1em;
+        display:block;
+        font-weight:bold;
+        clear:both;
+	}
+	#loginpane .dijitDialogCloseIcon{
+		display: none;
+	}
+
+
+	.label{
+		text-align:right;
+		margin-right:0.1em;
+		font-weight:bold;
+	}
+	
+	label.narrow{
+		width: 5em;
+	}
+	
+	p label.narrow{
+		width: 7em;
+	}
+	
+	.smaller{
+		font-size:smaller;
+	}
+	
+	#emailView th{
+		text-align:right;
+		vertical-align:top;
+	}
+	
+	#emailRawHeadersSpan p{
+		font-family:monospace;
+		padding:0 0 0 0;
+		margin:0 0 0 2em;
+		text-indent: -2em;
+	}
+	
+	.rightFloater{
+		display:inline-block;
+		float:right;
+		position:relative;
+		z-index:100;
+	}
+	
+	.cpxIconBug {
+		background-image: url('/images/bug.png');
+		background-repeat: no-repeat;
+		height: 18px;
+		text-align: center;
+		width: 18px;
+	}
+	
+	.softText {
+		font-size: smaller;
+		font-style: italic;
+		color:gray;
+	}
+	
+	.profit {
+		color:green;
+	}
+	
+	.loss {
+		color:red;
+	}
+	
+	html, body, #containerDiv {
+		width: 99.9%;
+		height: 99.9%;
+		border: 0; 
+		padding: 0; 
+		margin: 0;
+	}
+</style>
+<link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />	
+<link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />
+<link rel="stylesheet" href="/application/css/email.css" />
+<script type="text/javascript">
+	var cookies = document.cookie.split('; ');
+	var locale = "";
+	for(var i = 0; i < cookies.length; i++) {
+		var stuff = cookies[i].split("=");
+		if (stuff[0] == "cpx_lang") {
+			locale = stuff[1];
+		}
+	}
+	var djConfig = {
+		modulePaths: {agentUI: "/application"},
+		parseOnLoad: true,
+		isDebug: false,
+		locale: locale
+	};
+
+
+</script>
+
+<!-- Javascript RSA encryption support -->
+<script language="JavaScript" type="text/javascript" src="jsbn/jsbn.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/prng4.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rng.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rsa.js"></script>
+
+<!-- SoundManager2 -->
+<!--<script type="text/javascript" src="SoundManager2/soundmanager2.js"></script>-->
+<script type="text/javascript" src="SoundManager2/soundmanager2-nodebug-jsmin.js"></script>
+
+<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript">
+	dojo.require("dijit.layout.BorderContainer");
+	dojo.require("dijit.layout.ContentPane");
+	dojo.require("dijit.layout.TabContainer");
+	dojo.require("dijit.form.SimpleTextarea");
+	dojo.require("dijit.form.Button");
+	dojo.require("dijit.form.Form");
+	dojo.require("dijit.form.CheckBox");
+	dojo.require("dijit.form.FilteringSelect");
+	dojo.require("dijit.Dialog");
+	dojo.require("dojox.encoding.digests.MD5");
+	dojo.require("dijit.form.ComboBox");
+	dojo.require("dojox.layout.ContentPane");
+	dojo.require("dojox.layout.FloatingPane");
+	dojo.require("dojo.cookie");
+	dojo.require("dojo.data.ItemFileReadStore");
+	dojo.require("dijit.Editor");
+	dojo.require("dojox.widget.Standby");
+	//dojo.require("dijit.Menu");
+	dojo.require("agentUI.logLib");
+	dojo.require("agentUI.util");
+	dojo.requireLocalization("agentUI", "labels");
+	function postEventHandler(event){
+		console.log(event.source, event.origin, event.data);
+	}
+	function init() {
+		if (dojo.config.locale == "") {
+			dojo.byId("loginerrp").style.display = "block";
+			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
+		}
+		if(dojo.cookie('agentui-settings')) {
+			var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+			dijit.byId('username').attr('value', settings.username);
+			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
+			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
+			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
+			if (settings.theme)
+				document.getElementsByTagName("body")[0].className = settings.theme;
+		}
+
+		//openacdWindow = dojo.query('iframe#OpenACDWidget')[0].contentWindow;
+		window.addEventListener("message", postEventHandler, false);
+	} /* end of init() */
+
+	if(dojo.cookie("agentui-log")){
+		window.setLogLevel(dojo.cookie("agentui-log"));
+	}
+	dojo.addOnLoad(init);
+	soundManager.url = '/SoundManager2/';
+
+	soundManager.onready(function(oStatus) {
+		if (!oStatus.success) {
+			return false;
+		}
+
+		soundManager.createSound({
+			id: 'gong',
+			url: '/SoundManager2/59239__info_in_tune.nl__gong.mp3',
+			volume: 25
+		});
+		soundManager.createSound({
+			id: 'chime',
+			url: '/SoundManager2/36365__matiasromero__clareira_sininho.mp3',
+			volume: 25
+		});
+	});
+</script>
+<!--<script type="text/javascript" src="/OpenACDAgent.js"></script>-->
+</head>
+<body class="nihilo">
+	hi!
+	<!--<iframe name="OpenACDWidget" id="OpenACDWidget" src="/widget.html" />-->
+	<script type="text/javascript" src="/widget.js"></script>
+</body>
+</html>

@@ -174,11 +174,11 @@
 	record_outage/3,
 	fetch_domain_user/2,
 	new_voicemail/5,
-	%ring_agent/3,
-	%ring_agent/4,
-	%ring_agent_echo/4,
-	%ring/3,
-	%ring/4,
+	ring_agent/3,
+	ring_agent/4,
+	ring_agent_echo/4,
+	ring/3,
+	ring/4,
 	get_media/1,
 	get_default_dial_string/0,
 	do_dial_string/3,
@@ -272,34 +272,34 @@ new_voicemail(UUID, File, Queue, Priority, Client) ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
-%ring(#agent{endpointdata = undefined} = Agent, RingCbs, Options) ->
-%	ring(Agent#agent.endpointtype, Agent#agent.login, RingCbs, Options);
-%ring(Agent, RingCbs, Options) when is_record(Agent, agent) ->
-%	ring(Agent#agent.endpointtype, Agent#agent.endpointdata, RingCbs, Options).
-%
-%ring(EndpointType, Dialstring, RingCbs, Options) ->
-%	gen_server:call(?MODULE, {ring, EndpointType, Dialstring, RingCbs, Options}).
+ring(#agent{endpointdata = undefined} = Agent, RingCbs, Options) ->
+	ring(Agent#agent.endpointtype, Agent#agent.login, RingCbs, Options);
+ring(Agent, RingCbs, Options) when is_record(Agent, agent) ->
+	ring(Agent#agent.endpointtype, Agent#agent.endpointdata, RingCbs, Options).
 
-%% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
-%% Yes, this is a prank call function.
-%-spec(ring_agent/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
-%ring_agent(AgentPid, Agent, Call, Timeout) ->
-%	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
+ring(EndpointType, Dialstring, RingCbs, Options) ->
+	gen_server:call(?MODULE, {ring, EndpointType, Dialstring, RingCbs, Options}).
 
-%% @doc This functions primary use is to create a persistant ring channel to
-%% the agent; ie:  off hook agent.  `Opts' is the same as what 
-%% {@link freeswitch_ring:start/5} takes.
-%% @see freeswitch_ring:start/5
-%-spec(ring_agent/3 :: (Apid :: pid(), Agent :: #agent{}, Opts :: [any()]) -> {'ok', pid()} | {'error', any()}).
-%ring_agent(Apid, Agent, Opts) ->
-%	gen_server:call(?MODULE, {ring_agent, Apid, Agent, Opts}).
+% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
+% Yes, this is a prank call function.
+-spec(ring_agent/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
+ring_agent(AgentPid, Agent, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
 
-%% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
-%% Yes, this is a prank call function.
-%-spec(ring_agent_echo/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
-%ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
-%	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Agent, Call, Timeout}).
-%
+% @doc This functions primary use is to create a persistant ring channel to
+% the agent; ie:  off hook agent.  `Opts' is the same as what 
+% {@link freeswitch_ring:start/5} takes.
+% @see freeswitch_ring:start/5
+-spec(ring_agent/3 :: (Apid :: pid(), Agent :: #agent{}, Opts :: [any()]) -> {'ok', pid()} | {'error', any()}).
+ring_agent(Apid, Agent, Opts) ->
+	gen_server:call(?MODULE, {ring_agent, Apid, Agent, Opts}).
+
+% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
+% Yes, this is a prank call function.
+-spec(ring_agent_echo/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
+ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Agent, Call, Timeout}).
+
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
@@ -353,7 +353,7 @@ init([Nodename, Options]) ->
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
-			case proplists:get_value(Options, not_ring_manager) of
+			case proplists:get_value(not_ring_manager, Options) of
 				true ->
 					ok;
 				_ ->
@@ -461,66 +461,66 @@ handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpoint
 		Error ->
 			{reply, Error, State}
 	end;
-%handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
-%	{reply, {error, noconnection}, State};
-%handle_call({ring, {undefined, transient, sip_registration}, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
-%	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData} | Options],
-%	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
-%	{reply, Out, State};
-%handle_call({ring, {undefined, transient, Type}, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
-%	Default = case Type of
-%		sip -> "sofia/internal/sip:$1";
-%		iax2 -> "iax2/$1";
-%		h323 -> "opal/h3232:$1";
-%		pstn -> ""
-%	end,
-%	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
-%	NewOptions = [{dialstring, BaseDialString}, {destination, EndPointData} | Options],
-%	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
-%	{reply, Out, State};
-%handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
-%	{reply, {error, noconnection}, State};
-%handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
-%	Fun = fun(_) ->
-%		fun(_, _) -> ok end
-%	end,
-%	DialString = get_agent_dial_string(Agent, [], State),
-%	Options = [{dialstring, DialString} | Opts],
-%	Out = freeswitch_ring:start(Node, Agent, Apid, Fun, Options),
-%	{reply, Out, State};
-%handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
-%	case State#state.freeswitch_up of
-%		true ->
-%			Fun = fun(_) ->
-%				fun(_, _) -> ok end
-%			end,
-%			DialString = get_agent_dial_string(Agent, [], State),
-%			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg, {dialstring, DialString}]),
-%			{reply, Out, State};
-%		false ->
-%			{reply, {error, noconnection}, State}
-%	end;
-%handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
-%	case State#state.freeswitch_up of
-%		true ->
-%			Fun = fun(UUID) ->
-%				fun(ok, _Reply) ->
-%					freeswitch:sendmsg(Node, UUID,
-%						[{"call-command", "execute"},
-%						{"execute-app-name", "delay_echo"},
-%						{"execute-app-arg", "1000"}]);
-%				(error, Reply) ->
-%					agent:blab(AgentPid, lists:flatten(io_lib:format("ring test failed: ~p", [Reply]))),
-%					%?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
-%					ok
-%				end
-%			end,
-%			DialString = get_agent_dial_string(Agent, [], State),
-%			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge, {dialstring, DialString}]),
-%			{reply, Out, State};
-%		false ->
-%			{reply, {error, noconnection}, State}
-%	end;
+handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+handle_call({ring, {undefined, transient, sip_registration}, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
+	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData} | Options],
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
+	{reply, Out, State};
+handle_call({ring, {undefined, transient, Type}, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	Default = case Type of
+		sip -> "sofia/internal/sip:$1";
+		iax2 -> "iax2/$1";
+		h323 -> "opal/h3232:$1";
+		pstn -> ""
+	end,
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
+	NewOptions = [{dialstring, BaseDialString}, {destination, EndPointData} | Options],
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
+	{reply, Out, State};
+handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
+	Fun = fun(_) ->
+		fun(_, _) -> ok end
+	end,
+	DialString = get_agent_dial_string(Agent, [], State),
+	Options = [{dialstring, DialString} | Opts],
+	Out = freeswitch_ring:start(Node, Agent, Apid, Fun, Options),
+	{reply, Out, State};
+handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+	case State#state.freeswitch_up of
+		true ->
+			Fun = fun(_) ->
+				fun(_, _) -> ok end
+			end,
+			DialString = get_agent_dial_string(Agent, [], State),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg, {dialstring, DialString}]),
+			{reply, Out, State};
+		false ->
+			{reply, {error, noconnection}, State}
+	end;
+handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+	case State#state.freeswitch_up of
+		true ->
+			Fun = fun(UUID) ->
+				fun(ok, _Reply) ->
+					freeswitch:sendmsg(Node, UUID,
+						[{"call-command", "execute"},
+						{"execute-app-name", "delay_echo"},
+						{"execute-app-arg", "1000"}]);
+				(error, Reply) ->
+					agent:blab(AgentPid, lists:flatten(io_lib:format("ring test failed: ~p", [Reply]))),
+					%?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
+					ok
+				end
+			end,
+			DialString = get_agent_dial_string(Agent, [], State),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge, {dialstring, DialString}]),
+			{reply, Out, State};
+		false ->
+			{reply, {error, noconnection}, State}
+	end;
 handle_call({get_media, MediaPid}, _From, #state{call_dict = Dict} = State) when is_pid(MediaPid) ->
 	Folder = fun(Id, Pid, _Acc) ->
 		case Pid of

@@ -39,7 +39,7 @@
 
 -behaviour(gen_server).
 
--export([start/2, start_link/2, negotiate/1]).
+-export([start/3, start_link/3, negotiate/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
@@ -58,10 +58,11 @@
 % other systems that catch deadified agents, killing the fsm, which will
 % kill this.
 %-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
-
+-type(socket_module() :: 'gen_tcp' | 'ssl').
+-type(socket_type() :: 'gen_tcp' | 'ssl_upgrade').
 -record(state, {
 		salt :: pos_integer(),
-		socket :: port(),
+		socket :: {socket_module(), port()},
 		radix :: integer(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
@@ -73,7 +74,8 @@
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 		state,
 		statedata,
-		mediaload
+		mediaload,
+		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade'
 	}).
 
 -type(state() :: #state{}).
@@ -84,17 +86,21 @@
 % API
 % =====
 
-%% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
-start(Socket, Radix) ->
-	gen_server:start(?MODULE, [Socket, Radix], []).
+%% @doc start the conection unlinked on the given Socket to be changd or 
+%% not depending on SocketType.  This is usually done by agent_tcp_listener.
+-spec(start/3 :: (Socket :: port(), Radix :: integer(), SocketType :: socket_type()) -> {'ok', pid()}).
+start(Socket, Radix, SocketType) ->
+	gen_server:start(?MODULE, [Socket, Radix, SocketType], []).
 
-%% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener.
--spec(start_link/2 :: (Socket :: port(), Radix :: integer()) -> {'ok', pid()}).
-start_link(Socket, Radix) ->
-	gen_server:start_link(?MODULE, [Socket, Radix], []).
+%% @doc start the conection linked on the given Socket to be changed or not
+%% depending on the SocketType.  This is usually done by agent_tcp_listener.
+-spec(start_link/3 :: (Socket :: port(), Radix :: integer(), SocketType :: socket_type()) -> {'ok', pid()}).
+start_link(Socket, Radix, SocketType) ->
+	gen_server:start_link(?MODULE, [Socket, Radix, SocketType], []).
 
-%% @doc Notify the client that it should begin the login proceedure.
+%% @doc Notify the client that it should begin the login proceedure.  If 
+%% the socket is supposed to be upgraded to ssl, this is the time it is 
+%% done.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
@@ -104,9 +110,13 @@ negotiate(Pid) ->
 % =====
 
 %% @hidden
-init([Socket, Radix]) ->
+init([Socket, Radix, SocketType]) ->
+	{SocketModule, Upgrade} = case SocketType of
+		gen_tcp -> {gen_tcp, never};
+		ssl_upgrade -> {gen_tcp, ssl_upgrade}
+	end,
 	%timer:send_interval(10000, do_tick),
-	{ok, #state{socket=Socket, radix = Radix}}.
+	{ok, #state{socket={SocketModule, Socket}, radix = Radix, socket_upgrade = Upgrade}}.
 
 % =====
 % handle_call
@@ -122,25 +132,46 @@ handle_call(Request, _From, State) ->
 
 %% @hidden
 % negotiate the client's protocol version and such
-handle_cast(negotiate, State) ->
+handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 	?DEBUG("starting negotiation...", []),
-	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
-	Statechange = #statechange{ agent_state = 'PRELOGIN'},
+	ok = inet:setopts(element(2, State#state.socket), [{packet, raw}, binary, {active, once}]),
+	Statechange = case SockUpgrade of
+		ssl_upgrade -> #statechange{ agent_state = 'PRELOGIN', ssl_upgrade = true};
+		_ -> #statechange{ agent_state = 'PRELOGIN'}
+	end,
 	Command = #serverevent{
 		command = 'ASTATE',
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	O = gen_tcp:recv(State#state.socket, 0), % TODO timeout
+	{O, NewSocket} = case SockUpgrade of
+		ssl_upgrade ->
+			inet:setopts(element(2, State#state.socket), [{active, false}]),
+			%{ok, CaCertFile} = cpx:get_env(cacertfile, "cacertfile.pem"),
+			CertFile = util:get_certfile(),
+			Keyfile = util:get_keyfile(),
+			{ok, SSLSocket} = ssl:ssl_accept(element(2, State#state.socket), [
+			%	{cacertfile, CaCertFile},
+				{certfile, CertFile},
+				{keyfile, Keyfile}
+			]),
+			Data = ssl:recv(SSLSocket, 0),
+			ssl:setopts(SSLSocket, [{active, once}]),
+			{Data, {ssl, SSLSocket}};
+		_ ->
+			Data = gen_tcp:recv(element(2, State#state.socket), 0), % TODO timeout
+			inet:setopts(element(2, State#state.socket), [{active, once}]),
+			{Data, State#state.socket}
+	end,
 	case O of
 		{ok, Packet} ->
 			?DEBUG("packet: ~p.~n", [Packet]),
-			{_Rest, Bins} = protobuf_util:netsting_to_bins(Packet),
-			NewState = service_requests(Bins, State),
+			{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet),
+			NewState = service_requests(Bins, State#state{socket = NewSocket, socket_upgrade = never}),
 			{noreply, NewState};
 		Else ->
 			?DEBUG("O was ~p", [Else]),
-			{noreply, State}
+			{noreply, State#state{socket = NewSocket}}
 	end;
 handle_cast({change_state, Statename, Statedata}, State) ->
 	Statechange = case Statename of
@@ -243,15 +274,22 @@ handle_cast(Msg, State) ->
 % =====
 
 %% @hidden
-handle_info({tcp, Socket, Packet}, #state{socket = Socket} = State) ->
+handle_info({tcp, Socket, Packet}, #state{socket = {_Mod, Socket}} = State) ->
 	?DEBUG("got packet ~p", [Packet]),
 	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet, State#state.radix),
 	NewState = service_requests(Bins, State),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{noreply, NewState};
-handle_info({tcp_closed, Socket}, #state{socket = Socket} = State) ->
+handle_info({tcp_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
 	{stop, tcp_closed, State};
-
+handle_info({ssl, Socket, Packet}, #state{socket = {_Mod, Socket}} = State) ->
+	?DEBUG("got packet ~p", [Packet]),
+	{_Rest, Bins} = protobuf_util:netstring_to_bins(Packet, State#state.radix),
+	NewState = service_requests(Bins, State),
+	ssl:setopts(Socket, [{active, once}]),
+	{noreply, NewState};
+handle_info({ssl_closed, Socket}, #state{socket = {_Mod, Socket}} = State) ->
+	{stop, ssl_closed, State};
 handle_info(Info, State) ->
 	?DEBUG("Unhandled info ~p", [Info]),
 	{noreply, State}.
@@ -283,16 +321,13 @@ server_event(Socket, Record, Radix) ->
 	},
 	send(Socket, Outrec, Radix).
 
-send(Socket, Record, Radix) ->
-	?DEBUG("pre encode:  ~p", [Record]),
+send({Mod, Socket}, Record, Radix) ->
 	Bin = cpx_agent_pb:encode(Record),
-	?DEBUG("post encode:  ~p", [Bin]),
 	%Size = list_to_binary(integer_to_list(size(Bin))),
 	%?DEBUG("Das size:  ~p", [Size]),
 	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
 	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
-	?DEBUG("Das outbin:  ~p", [Outbin]),
-	ok = gen_tcp:send(Socket, Outbin).
+	ok = Mod:send(Socket, Outbin).
 
 service_requests([], State) ->
 	State;
@@ -345,9 +380,52 @@ service_request(#agentrequest{request_hint = 'GET_SALT'}, BaseReply, State) ->
 		salt_and_key = SaltReply
 	},
 	{Reply, State#state{salt = Salt}};
+service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, #state{socket = {ssl, _}} = State) ->
+	DecryptedPass = LoginRequest#loginrequest.password,
+	case agent_auth:auth(LoginRequest#loginrequest.username, DecryptedPass) of
+		deny ->
+			Reply = BaseReply#serverreply{
+				error_message = "invalid username or password",
+				error_code = "INVALID_LOGIN"
+			},
+			{Reply, State};
+		{allow, Id, Skills, Security, Profile} ->
+			Agent = #agent{
+				id = Id, 
+				defaultringpath = outband, 
+				login = LoginRequest#loginrequest.username, 
+				skills = Skills, 
+				profile=Profile, 
+				password=DecryptedPass
+			},
+			case agent_manager:start_agent(Agent) of
+				{ok, Pid} ->
+					ok = agent:set_connection(Pid, self()),
+					RawQueues = call_queue_config:get_queues(),
+					RawBrands = call_queue_config:get_clients(),
+					RawReleases = agent_auth:get_releases(),
+					Releases = [protobuf_util:release_to_protobuf({X#release_opt.id, X#release_opt.label, X#release_opt.bias}) || X <- RawReleases],
+					Queues = protobuf_util:proplist_to_protobuf([{X#call_queue.name, X#call_queue.name} || X <- RawQueues]),
+					Brands = protobuf_util:proplist_to_protobuf([{X#client.id, X#client.label} || X <- RawBrands, X#client.id =/= undefined]),
+					Reply = BaseReply#serverreply{
+						success = true,
+						release_opts = Releases,
+						queues = Queues,
+						brands = Brands
+					},
+					{Reply, State#state{agent_login = LoginRequest#loginrequest.username, agent_fsm = Pid, securitylevel = Security}};
+				{exists, _Pid} ->
+					Reply = BaseReply#serverreply{
+						error_message = "Multiple login detected",
+						error_code = "MULTIPLE_LOGINS"
+					},
+					{Reply, State}
+			end
+	end;
 service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, State) ->
 	Salt = State#state.salt,
-	case decrypt_password(LoginRequest#loginrequest.password) of
+	CryptedPass = list_to_binary(LoginRequest#loginrequest.password),
+	case decrypt_password(CryptedPass) of
 		{ok, Decrypted} ->
 			case string:substr(Decrypted, 1, length(Salt)) of
 				Salt ->

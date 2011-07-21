@@ -356,13 +356,13 @@ keep_alive({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 keep_alive(_) ->
 	ok.
 
-send_to_connection(badcookie, _Function, _Args) ->
+send_to_connection(_ApiArea, badcookie, _Function, _Args) ->
 	?DEBUG("sent to connection with bad cookie", []),
 	check_cookie(badcookie);
-send_to_connection({_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
+send_to_connection(_ApiArea, {_Ref, _Salt, undefined} = Cookie, _Function, _Args) ->
 	?DEBUG("sent to connection with no connection pid", []),
 	check_cookie(Cookie);
-send_to_connection({_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
+send_to_connection(api, {_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
 	agent_web_connection:poll(Conn, self()),
 	receive
 		{poll, Return} ->
@@ -372,27 +372,34 @@ send_to_connection({_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
 			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
 			{408, Headers, Body}
 	end;
-send_to_connection(Cookie, Func, Args) when is_binary(Func) ->
+send_to_connection(ApiArea, Cookie, Func, Args) when is_binary(Func) ->
 	try list_to_existing_atom(binary_to_list(Func)) of
 		Atom ->
-			send_to_connection(Cookie, Atom, Args)
+			send_to_connection(ApiArea, Cookie, Atom, Args)
 	catch
 		error:badarg ->
 			?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>)
 	end;
-send_to_connection(Cookie, Func, Arg) when is_binary(Arg) ->
-	send_to_connection(Cookie, Func, [Arg]);
-send_to_connection({Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
-	case is_process_alive(Conn) of
-		false ->
+send_to_connection(ApiArea, Cookie, Func, Arg) when is_binary(Arg) ->
+	send_to_connection(ApiArea, Cookie, Func, [Arg]);
+send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn) ->
+	case {is_process_alive(Conn), ApiArea} of
+		{false, _} ->
 			ets:delete(web_connections, Ref),
 			api(checkcookie, badcookie, []);
-		true ->
+		{true, api} ->
 			case agent_web_connection:is_web_api(Function, length(Args) + 1) of
 				false ->
 					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
 				true ->
 					erlang:apply(agent_web_connection, Function, [Conn | Args])
+			end;
+		{true, supervisor} ->
+			case supervisor_web_connection:is_web_api(Function, length(Args) + 1) of
+				false ->
+					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+				true ->
+					erlang:apply(supervisor_web_connection, Function, [Conn | Args])
 			end
 	end.
 
@@ -562,10 +569,18 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"voipendpoint":  "sip_registration" | "sip" | "iax2" | "h323" | "pstn",
 %% 	"useoutbandring":  boolean(); optional,
 %%  "usepersistantring":  boolean(); optional
+%%  "supervisor":boolean(); optional
 %% }</pre>
 %% 
 %% If `"voipendpoint"' is defined but `"voipendpointdata"' is not,
 %% `"username"' is used.
+%%
+%% If `"supervisor"' is `true', no agent is logged in and only supervisor
+%% calls will be available ({@link supervisor_web_connection}).  A poll is 
+%% still created.  If the credentials given do not point to an agent with 
+%% `supervisor' or `admin' security level, an error is generated.  An 
+%% agent with sufficient security clearance can request supervisor actions
+%% and polling.
 %%
 %% Note an agent starts out in a relased state with reason of default.
 %%  
@@ -585,6 +600,7 @@ login({_Ref, undefined, _Conn}, _, _, _) ->
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 	Endpointdata = proplists:get_value(voipendpointdata, Opts),
 	Persistantness = proplists:get_value(use_persistant_ring, Opts),
+	?INFO("login opts:  ~p", [Opts]),
 	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata, Persistantness} of
 		{undefined, _, true} ->
 			{{persistant, sip_registration}, Username};
@@ -612,10 +628,35 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 				string:substr(Decrypted, length(Salt) + 1)
 			of
 				DecryptedPassword ->
-					case agent_auth:auth(Username, DecryptedPassword) of
-						deny ->
+					AuthResponse = agent_auth:auth(Username, DecryptedPassword),
+					SupervisorReq = proplists:get_value(supervisor, Opts),
+					case {AuthResponse, SupervisorReq} of
+						{deny, _} ->
 							?reply_err(<<"Authentication failed">>, <<"AUTH_FAILED">>);
-						{allow, Id, Skills, Security, Profile} ->
+						{{allow, Id, Skills, agent, Profile}, true} ->
+							?WARNING("Agent ~s tried to act as a supervisor.  Slap 'em.", [Id]),
+							?reply_err(<<"Authentication failed">>, <<"AUTH_FAILED">>);
+						{{allow, Id, Skills, _, Profile}, true} ->
+							SupStartOpts = [
+								{login, Username},
+								{ring_path, Bandedness},
+								{endpoint, Endpoint},
+								{endpointdata, Endpointdata}
+							],
+							case supervisor_web_connection:start(SupStartOpts) of
+								{ok, Pid} ->
+									?INFO("~s (~s) supervising", [Username, Id]),
+									linkto(Pid),
+									ets:insert(web_connections, {Ref, Salt, Pid}),
+									{200, [], mochijson2:encode({struct, [{success, true}]})};
+								ignore ->
+									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
+									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);
+								{error, Error} ->
+									?ERROR("Error ~p trying to start connection for ~p ~p", [Error, Ref, Username]),
+									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
+							end;
+						{{allow, Id, Skills, Security, Profile}, _} ->
 							Agent = #agent{
 								id = Id, 
 								defaultringpath = Bandedness, 
@@ -705,7 +746,7 @@ get_release_opts() ->
 	]} || R <- Opts],
 	?reply_success(Encoded).
 
-api(api, Cookie, Post) ->
+api(ApiArea, Cookie, Post) when ApiArea =:= api; ApiArea =:= supervisor ->
 	Request = proplists:get_value("request", Post),
 	{struct, Props} = mochijson2:decode(Request),
 	%?DEBUG("The request:  ~p", [Props]),
@@ -719,6 +760,7 @@ api(api, Cookie, Post) ->
 		{<<"login">>, [Username, Password]} ->
 			login(Cookie, binary_to_list(Username), binary_to_list(Password), []);
 		{<<"login">>, [Username, Password, {struct, LoginProps}]} ->
+			?INFO("Login opts:  ~p", [LoginProps]),
 			LoginOpts = lists:flatten([case X of
 				{<<"voipendpointdata">>, <<>>} ->
 					{voipendpointdata, undefined};
@@ -749,7 +791,7 @@ api(api, Cookie, Post) ->
 		{<<"get_release_opts">>, _} ->
 			get_release_opts();
 		{Function, Args} ->
-			send_to_connection(Cookie, Function, Args)
+			send_to_connection(ApiArea, Cookie, Function, Args)
 	end;
 api(checkcookie, Cookie, _Post) ->
 	check_cookie(Cookie);
@@ -766,91 +808,8 @@ api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	Cookie = io_lib:format("cpx_id=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
 	catch agent_web_connection:api(Conn, logout),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
-api(login, {_Reflist, undefined, _Conn}, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Your client is requesting a login without first requesting a salt.">>}]})};
-api(login, {_Reflist, _Salt, _Conn} = Cookie, Post) ->
-	Username = proplists:get_value("username", Post, ""),
-	Password = proplists:get_value("password", Post, ""),
-	Opts = [],
-	Opts2 = case proplists:get_value("voipendpointdata", Post) of
-		undefined ->
-			Opts;
-		[] ->
-			Opts;
-		Other ->
-			[{voipendpointdata, Other} | Opts]
-	end,
-	Opts3 = case proplists:get_value("voipendpoint", Post) of
-		"SIP Registration" ->
-			[{voipendpoint, sip_registration} | Opts2];
-		"SIP URI" ->
-			[{voipendpoint, sip} | Opts2];
-		"IAX2 URI" ->
-			[{voipendpoint, iax2} | Opts2];
-		"H323 URI" ->
-			[{voipendpoint, h323} | Opts2];
-		"PSTN Number" ->
-			[{voipendpoint, pstn} | Opts2];
-		_ ->
-			Opts2
-	end,
-	Opts4 = case proplists:get_value("useoutbandring", Post) of
-		"useoutbandring" ->
-			[use_outband_ring | Opts3];
-		_ ->
-			Opts3
-	end,
-	login(Cookie, Username, Password, Opts4);
-api(getsalt, {Reflist, Salt, Conn}, _Post) ->
-	get_salt({Reflist, Salt, Conn});
 api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
 	{403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no connection">>}]})};
-	
-api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
-	case call_queue_config:get_clients() of
-	[] ->
-		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})};
-	Brands ->
-		Converter = fun
-			(#client{label = undefined}, Acc) ->
-				Acc;
-			(#client{label = Label, id = ID}, Acc) ->
-				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, list_to_binary(ID)}]} | Acc]
-		end,
-		Jsons = lists:foldl(Converter, [], Brands),
-		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
-	end;
-api(queuelist, {_Reflist, _Salt, _Conn}, _Post) ->
-	case call_queue_config:get_queues() of
-	[] ->
-		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No queues defined">>}]})};
-	Brands ->
-		Converter = fun
-			(#call_queue{name = Name}, Acc) ->
-				[{struct, [{<<"name">>, list_to_binary(Name)}]} | Acc]
-		end,
-		Jsons = lists:foldl(Converter, [], Brands),
-		{200, [], mochijson2:encode({struct, [{success, true}, {<<"queues">>, Jsons}]})}
-	end;
-
-api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
-	Releaseopts = agent_auth:get_releases(),
-	Converter = fun(#release_opt{label = Label, id = Id, bias = Bias}) ->
-		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}, {<<"bias">>, Bias}]}
-	end,
-	Jsons = lists:map(Converter, Releaseopts),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"options">>, Jsons}]})};	
-	
-api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
-	agent_web_connection:poll(Conn, self()),
-	receive
-		{poll, Return} ->
-			%?DEBUG("Got poll message, spitting back ~p", [Return]),
-			 Return; 
-		{kill, Headers, Body} -> 
-			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
-			{408, Headers, Body}
-	end;
 api({undefined, Path}, {_Reflist, _Salt, Conn}, Post) when is_pid(Conn) ->
 	case Post of
 		[] ->
@@ -898,22 +857,10 @@ parse_path(Path) ->
 			{file, {"index.html", util:priv_dir("www/agent") ++ "/"}};
 		"/api" ->
 			{api, api};
-		"/poll" ->
-			{api, poll};
 		"/logout" ->
 			{api, logout};
-		"/login" ->
-			{api, login};
-		"/getsalt" ->
-			{api, getsalt};
-		"/releaseopts" ->
-			{api, releaseopts};
-		"/brandlist" ->
-			{api, brandlist};
-		"/queuelist" ->
-			{api, queuelist};
-		"/checkcookie" ->
-			{api, checkcookie};
+		"/supervisor" ->
+			{api, supervisor};
 		_Other ->
 			["" | Tail] = util:string_split(Path, "/"),
 			case Tail of 
@@ -931,46 +878,6 @@ parse_path(Path) ->
 						false ->
 							{api, {undefined, Path}}
 					end;
-				["state", Statename] ->
-					{api, {set_state, Statename}};
-				["state", Statename, Statedata] ->
-					{api, {set_state, Statename, Statedata}};
-				["ack", Counter] ->
-					{api, {ack, Counter}};
-				["err", Counter] ->
-					{api, {err, Counter}};
-				["err", Counter, Message] ->
-					{api, {err, Counter, Message}};
-				["dial", Number] ->
-					{api, {dial, Number}};
-				["get_avail_agents"] ->
-					{api, get_avail_agents};
-				["agent_transfer", Agent] ->
-					{api, {agent_transfer, Agent}};
-				["agent_transfer", Agent, CaseID] ->
-					{api, {agent_transfer, Agent, CaseID}};
-				["media"] ->
-					{api, media};
-				["mediapull" | Pulltail] ->
-					?DEBUG("pulltail:  ~p", [Pulltail]),
-					% TODO Is this even used anymore?
-					{api, {mediapull, Pulltail}};
-				["mediapush"] ->
-					{api, mediapush};
-				["warm_transfer", Number] ->
-					{api, {warm_transfer, Number}};
-				["warm_transfer_complete"] ->
-					{api, warm_transfer_complete};
-				["warm_transfer_cancel"] ->
-					{api, warm_transfer_cancel};
-				["queue_transfer", Number] ->
-					{api, {queue_transfer, Number}};
-%				["queue_transfer", Number, CaseID] ->
-%					{api, {queue_transfer, Number, CaseID}};
-				["init_outbound", Client, Type] ->
-					{api, {init_outbound, Client, Type}};
-				["supervisor" | Supertail] ->
-					{api, {supervisor, Supertail}};
 				_Allother ->
 					% is there an actual file to serve?
 					case {filelib:is_regular(string:concat(util:priv_dir("www/agent"), Path)), filelib:is_regular(string:concat(util:priv_dir("www/contrib"), Path))} of

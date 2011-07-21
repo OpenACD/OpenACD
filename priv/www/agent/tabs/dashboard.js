@@ -46,13 +46,11 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.getStatus = function(){
-		dojo.xhrGet({
-			url:'/supervisor/status',
-			handleAs:'json',
-			load:function(res){
-				debug(res);
+		window.agentConnection.webApi('supervisor', 'status', {
+			success:function(res){
+				//console.log('got status', arguments);
 				var real = [];
-				var items = res.data.items;
+				var items = res.items;
 				for(var i = 0; i < items.length; i++){
 					if(items[i].type == 'media' || items[i].type == 'agent'){
 						var fixedItem = {
@@ -88,66 +86,53 @@ if(typeof(dashboard) == 'undefined'){
 	// =====
 	
 	dashboard.showMotdDialog = function(nodename){
-		dojo.xhrGet({
-			url:'/supervisor/getmotd',
-			handleAs:'json',
-			load:function(res){
-				if(! res.success){
-					errMessage(["Failed getting motd", res.message]);
-					return false;
-				}
-				
+		window.agentConnection.webApi('supervisor', 'get_motd', {
+			failure:function(res){
+				console.warn('Failed getting motd', res);
+				errMessage(["Failed getting motd", res.message]);
+			},
+			success:function(res){
 				var dialog = dijit.byId("blabDialog");
 				dialog.attr('title', 'MotD');
-				if(res.motd){
-					dialog.attr('value', {'message':res.motd});
+				if(res){
+					dialog.attr('value', {'message':res});
 				} else {
 					dialog.attr('value', {'message':'Type the Message of the Day here.  Leave blank to unset.'});
 				}
 				var submitblab = function(){
 					var data = dialog.attr('value').message;
-					dojo.xhrPost({
-						url:'/supervisor/motd',
-						handleAs:'json',
-						content:{
-							message:data,
-							node:nodename
-						},
-						load:function(res){
-							if(res.success){
-								return true;
-							}
-							errMessage(["setting motd failed", res.message]);
+					window.agentConnection.webApi('supervisor', 'set_motd', {
+						failure:function(res, msg){
+							console.warn("setting motd failed", res);
+							errMessage(["setting motd failed", msg]);
 						},
 						error:function(res){
+							console.error('setting motd erred', res);
 							errMessage(["setting motd errored", res]);
 						}
-					});
+					}, data, nodename);
 				}
 				dialog.attr('execute', submitblab);
 				dialog.show();
 			},
 			error: function(res){
+				console.error('Geting motd erred', res);
 				errMessage(["Errored getting motd", res]);
 			}
 		});
 	}
 	
 	dashboard.showProblemRecordingDialog = function(){
-		dojo.xhrGet({
-			url:'/brandlist',
-			handleAs:'json',
-			load:function(res){
-				if(! res.success){
-					errMessage(["failed loading brands", res.message]);
-					return false;
-				}
-
+		window.agentConnection.webApi('api', 'get_brand_list', {
+			failure:function(res){
+				errMessage(["failed loading brands", res.message]);
+			},
+			success:function(res){
 				var sel = dojo.byId('supervisorClientSelect');
-				for(var i = 0; i < res.brands.length; i++){
+				for(var i = 0; i < res.length; i++){
 					var optionnode = document.createElement('option');
-					optionnode.value = res.brands[i].id;
-					optionnode.innerHTML = res.brands[i].label;
+					optionnode.value = res[i].id;
+					optionnode.innerHTML = res[i].label;
 					sel.appendChild(optionnode);
 				}
 
@@ -155,20 +140,16 @@ if(typeof(dashboard) == 'undefined'){
 				dialog.attr('execute', function(){
 					var clientId = dojo.byId('supervisorClientSelect').value;
 					if(dialog.attr('value').set.length < 1){
-						dojo.xhrGet({
-							url:'/supervisor/remove_problem_recording/' + escape(clientId),
-							handleAs: 'json',
-							load:function(res){
-								if(res.success){
-									return true
-								}
-
-								errMessage(['removing problem recording failed', res.message]);
+						window.agentConnection.webApi('supervisor', 'remove_problem_recording', {
+							failure:function(res, message){
+								console.warn("removing problem recording failed", res, message);
+								errMessage(['removing problem recording failed', message]);
 							},
 							error:function(res){
+								console.error("removing problem recording erred", res);
 								errMessage(['error removing problem recording', res]);
 							}
-						});
+						}, clientId);
 					} else {
 						dashboard.startProblemRecording(clientId);
 					}
@@ -182,20 +163,16 @@ if(typeof(dashboard) == 'undefined'){
 	}
 	
 	dashboard.startProblemRecording = function(clientId){
-		dojo.xhrGet({
-			url: '/supervisor/start_problem_recording/' + agent.login + '/' + escape(clientId),
-			handleAs: 'json',
-			load: function(res){
-				if(res.success){
-					return true;
-				}
-				
-				errMessage(['Starting problem recording failed', res.message]);
+		window.agentConnection.webApi('supervisor', 'start_problem_recording', {
+			failure: function(res, msg){
+				console.warn('Starting problem recording failed', res, msg);
+				errMessage(['Starting problem recording failed', msg]);
 			},
 			error: function(res){
+				console.error('Starting problem recording erred', res);
 				errMessage(['Starting problem recofing errored', res]);
 			}
-		});
+		}, clientId);
 	}
 	
 	dashboard.now = function(){
@@ -203,17 +180,21 @@ if(typeof(dashboard) == 'undefined'){
 	}
 }
 
-dashboard.masterSub = dojo.subscribe("agent/supervisortab", dashboard, function(supevent){
-	if(supevent.data.type == 'media' && supevent.data.action == 'drop'){
+dashboard.masterSetSub = dojo.subscribe("OpenACD/Agent/supervisorSet", dashboard, function(supevent){
+	if(supevent.data.type){
 		delete this.medias[supevent.data.name];
-	} else if(supevent.data.type == 'media'){
-		if(this.medias[supevent.data.name]){
-			this.medias[supevent.data.name] = supevent.data;
-		} else {
-			this.medias[supevent.data.name] = supevent.data;
-		}
 	}
-	
+	supevent.data.action = 'set';
+	dojo.publish('dashboard/supevent/' + supevent.data.type, [supevent.data]);
+});
+
+dashboard.masterDropSub = dojo.subscribe("OpenACD/Agent/supervisorDrop", dashboard, function(supevent){
+	if(this.medias[supevent.data.name]){
+		this.medias[supevent.data.name] = supevent.data;
+	} else {
+		this.medias[supevent.data.name] = supevent.data;
+	}
+	supevent.data.action = 'drop';
 	dojo.publish('dashboard/supevent/' + supevent.data.type, [supevent.data]);
 });
 

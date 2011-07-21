@@ -564,6 +564,10 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
 	end;
+ringing({oncall, Call}, {CallPid, _Tag} = From, #state{ring_locked = wait, agent_rec = #agent{statedata = #call{source = CallPid}}= Agent} = State) ->
+	ringing({oncall, Call}, From, State#state{ring_locked = unlocked});
+ringing({oncall, _Call}, _From, #state{ring_locked = wait} = State) ->
+	{reply, invalid, ringing, State};
 ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) ->
 	% for when the media asks to go oncall.
 	case Statecall#call.id of
@@ -642,13 +646,13 @@ ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{s
 			?INFO("~s has failed too many rings.  Sending out the hit man.", [Agent#agent.login]),
 			{stop, ring_fails, State}
 	end;
-ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
+ringing({failed_ring, Mpid}, #state{ring_locked = LockState, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) when LockState == unlocked; LockState == wait  ->
 	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
 	Self = self(),
 	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
 	{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}};
 ringing({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
-	{next_state, ringing, State#state{ring_fails = 0}};
+	{next_state, ringing, State#state{ring_locked = unlocked, ring_fails = 0}};
 ringing(register_rejected, State) ->
 	{stop, register_rejected, State};
 ringing(_Msg, State) ->
@@ -1900,6 +1904,25 @@ from_ringing_tests() ->
 			application:set_env('OpenACD', agent_ringout_lock, 0)
 	 end}
 	end,
+	fun({#state{agent_rec = Agent} = InState, AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to idle while waiting for an outband ring response",
+		fun() ->
+			State = InState#state{ring_locked = wait},
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			{reply, ok, idle, #state{ringouts = Ringouts, ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
+			?assertEqual(unlocked, Newlocked),
+			?assertEqual(1, Ringouts),
+			Assertmocks()
+	 end}
+	end,
 	fun({State, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"max_ringouts met/exceeded", fun() ->
 			TestState = State#state{max_ringouts = 3, ringouts = 3},
@@ -1985,6 +2008,47 @@ from_ringing_tests() ->
 			Assertmocks()
 		end}
 	end,
+	fun({#state{agent_rec = InAgentRec} = InAgent, AMmock, Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from media while waiting on outband ring success/fail with outband media path",
+		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = outband},
+			AgentRec = InAgentRec#agent{statedata = Call},
+			Agent = InAgent#state{ring_locked = wait, agent_rec = AgentRec},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
+				Inrec = AgentRec#agent.statedata,
+				ok
+			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_info(AgentRec#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
+			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, AgentRec#agent.statedata}, {Call#call.source, "tag"}, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = InAgentRec} = InAgent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from connection while waiting on outband ring success/fail with outband media path",
+		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = outband},
+			AgentRec = InAgentRec#agent{statedata = Call},
+			Agent = InAgent#state{ring_locked = wait},
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, {Connmock, "tag"}, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = InAgentRec} = InAgent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall from connection while waiting on outband ring success/fail with inband media path",
+		fun() ->
+			InCall = InAgentRec#agent.statedata,
+			Call = InCall#call{ring_path = outband, media_path = inband},
+			AgentRec = InAgentRec#agent{statedata = Call},
+			Agent = InAgent#state{ring_locked = wait},
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, AgentRec#agent.statedata}, {Connmock, "tag"}, Agent)),
+			Assertmocks()
+		end}
+	end,
 	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
@@ -2060,9 +2124,42 @@ from_ringing_tests() ->
 			Assertmocks()
 		end}
 	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = _Agent} = Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"Ring success clears the wait state",
+		fun() ->
+			State = Seedstate#state{ring_locked = wait},
+			?assertEqual({next_state, ringing, Seedstate}, ringing({has_successful_ring, Callrec#call.source}, State)),
+			Assertmocks()
+		end}
+	end,
 	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = Seedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"gets a ring_failed message with < 3 ring fails",
 		fun() ->
+			Aself = self(),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			?assertMatch({next_state, idle, #state{ring_fails = 1} = _State}, ringing({failed_ring, Callrec#call.source}, Seedstate)),
+			Gotmsg = receive
+				ring_unlock ->
+					ok
+			after (?RING_LOCK_DURATION + 50) ->
+				error
+			end,
+			?assertEqual(ok, Gotmsg),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = InSeedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"gets a ring_failed message with < 3 ring fails and wait lock state",
+		fun() ->
+			Seedstate = InSeedstate#state{ring_locked = wait},
 			Aself = self(),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->

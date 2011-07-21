@@ -38,6 +38,7 @@
 -include("agent.hrl").
 -include("queue.hrl").
 -include("cpx.hrl").
+-include("commit_ver.hrl").
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
@@ -50,6 +51,11 @@
 		{chapter2, "chapter2"}
 	]).
 -endif.
+
+-ifndef(OPENACD_COMMIT).
+	-define(OPENACD_COMMIT, undefined).
+-endif.
+
 % behavior cbs.
 -export([start/2, prep_stop/1, stop/1]).
 % some get_env and get_key nicities
@@ -69,6 +75,7 @@
 	backup_config/1,
 	restore_config/1,
 	restore_config/2,
+	reload_plugins/0,
 	call_state/1,	
 	get_queue/1,
 	get_agent/1,
@@ -79,6 +86,7 @@
 	get_queue_status/0,
 	get_agent_status/0,
 	get_media/1,
+	get_commit/0,
 	kick_agent/1,
 	kick_call/1,
 	kick_media/1,
@@ -127,7 +135,10 @@ start(_Type, StartArgs) ->
 		{ok, Pid} ->
 			application:set_env('OpenACD', uptime, util:now()),
 			?NOTICE("Application OpenACD started sucessfully!", []),
-			start_plugins(application:get_env('OpenACD', plugin_dir)),
+			% to not block the shell.
+			spawn(fun() ->
+				start_plugins(application:get_env('OpenACD', plugin_dir))
+			end),
 			{ok, Pid}
 	catch
 		What:Why ->
@@ -245,6 +256,71 @@ restore_config(Filename, Tables) ->
 		{clear_tables, Tables},
 		{default_op, skip_tables}
 	]).
+
+plugins_running() ->
+	WhichApps = [N || {N, _, _} <- application:which_applications()],
+	{ok, Uncertain} = cpx:get_env(plugins_started, []),
+	Certain = [C || C <- Uncertain, lists:member(C, WhichApps)],
+	application:set_env('OpenACD', plugins_started, Certain).
+
+%% @doc Based on what is in the plugin dir, start and stop plugin 
+%% applications.
+-spec(reload_plugins/0 :: () -> 'ok' | {'error', any()}).
+reload_plugins() ->
+	plugins_running(),
+	case application:get_env('OpenACD', plugin_dir) of
+		{ok, Dir} ->
+			case filelib:is_dir(Dir) of
+				false ->
+					?WARNING("Plugin dir ~p was not a dir", [Dir]),
+					ok;
+				true ->
+					reload_plugins(file:list_dir(Dir), application:get_env('OpenACD', plugins_started))
+			end
+	end.
+
+reload_plugins({ok, Plugs}, {ok, Started}) ->
+	StartedStrs = [atom_to_list(S) || S <- Started],
+	reload_plugins(lists:sort(Plugs), lists:sort(StartedStrs), []).
+
+reload_plugins(["deps" | Tail], Started, Acc) ->
+	reload_plugins(Tail, Started, Acc);
+reload_plugins([], [], Acc) ->
+	application:set_env('OpenACD', plugins_started, Acc);
+reload_plugins([], [Started | StartedTail], Acc) ->
+	case [A || {A,_,_} <- application:which_applications(), atom_to_list(A) == Started] of
+		[] ->
+			reload_plugins([], StartedTail, Acc);
+		[Atom] ->
+			application:stop(Atom),
+			reload_plugins([], StartedTail, Acc)
+	end;
+reload_plugins([Plug | PlugTail], [], Acc) ->
+	{ok, Dir} = cpx:get_env(plugin_dir),
+	case start_plugin_apps([Plug], Dir, []) of
+		ok ->
+			reload_plugins(PlugTail, [], [list_to_atom(Plug) | Acc]);
+		_ ->
+			reload_plugins(PlugTail, [], Acc)
+	end;
+reload_plugins([Plug | PlugTail], [Plug | StartedTail], Acc) ->
+	reload_plugins(PlugTail, StartedTail, [list_to_atom(Plug) | Acc]);
+reload_plugins([Plug | PlugTail] = Plugs, [Started | StartedTail], Acc) when Plug > Started ->
+	case [A || {A,_,_} <- application:which_applications(), atom_to_list(A) == Started] of
+		[] ->
+			reload_plugins(Plugs, StartedTail, Acc);
+		[Atom] ->
+			application:stop(Atom),
+			reload_plugins(Plugs, StartedTail, Acc)
+	end;
+reload_plugins([Plug | PlugTail], [Started | StartedTail] = Started, Acc) when Plug < Started ->
+	{ok, Dir} = cpx:get_env(plugin_dir),
+	case start_plugin_apps([Plug], Dir, []) of
+		[] ->
+			reload_plugins(PlugTail, StartedTail, Acc);
+		[NewApp] ->
+			reload_plugins(PlugTail, StartedTail, [NewApp | Acc])
+	end.
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').
 get_queue(Queue) ->
@@ -376,6 +452,10 @@ get_medias_managers([_Head | Tail], Needle) ->
 %		_ ->
 %			get_media_agents(Tail, Callref)
 %	end.
+
+-spec(get_commit/0 :: () -> 'undefined' | string()).
+get_commit() ->
+	?OPENACD_COMMIT.
 
 -spec(kick_agent/1 :: (AgentRef :: string() | pid()) -> 'ok' | 'none').
 kick_agent(Pid) when is_pid(Pid) ->
@@ -898,37 +978,63 @@ start_plugins({ok, Dir}) ->
 		true ->
 			case filelib:is_dir(filename:join([Dir, "deps"])) of
 				true ->
-					lists:foreach(fun(Dep) ->
-								case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
-									true ->
-										?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
-										true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
-									false ->
-										ok
-								end
-						end,
-						element(2, file:list_dir(filename:join([Dir, "deps"]))));
+					add_plugin_deps(file:list_dir(filename:join([Dir, "deps"])), Dir);
 				false ->
 					ok
 			end,
-			lists:foreach(fun("deps") ->
-						ok;
-					(Plugin) ->
-						case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
-							true ->
-								?INFO("Adding plugin ~p to code path", [Plugin]),
-								true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
-								{ok, [{application, _, Properties}|_]} = file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])),
-								lists:foreach(fun(App) -> application:start(App) end, proplists:get_value(applications, Properties, [])),
-								?INFO("starting plugin ~p:  ~p", [Plugin, application:start(list_to_atom(Plugin))]);
-							false ->
-								ok
-						end
-				end,
-				element(2, file:list_dir(Dir)))
+			start_plugin_apps(file:list_dir(Dir), Dir)
 	end.
 
+add_plugin_deps({ok, Deps}, Dir) ->
+	add_plugin_deps(Deps, Dir);
+add_plugin_deps([], _) ->
+	ok;
+add_plugin_deps([Dep | Tail], Dir) ->
+	case filelib:is_dir(filename:join([Dir, "deps", Dep, "ebin"])) of
+		true ->
+			?INFO("Adding plugin dependancy  ~p to code path", [Dep]),
+			true = code:add_pathz(filename:join([Dir, "deps", Dep, "ebin"]));
+		false ->
+			ok
+	end,
+	add_plugin_deps(Tail, Dir).
 
+start_plugin_apps({ok, Plugins}, Dir) ->
+	start_plugin_apps(Plugins, Dir, []).
+
+start_plugin_apps([], _, Apps) ->
+	application:set_env('OpenACD', plugins_started, Apps);
+start_plugin_apps(["deps" | Tail], Dir, Apps) ->
+	start_plugin_apps(Tail, Dir, Apps);
+start_plugin_apps([Plugin | Tail], Dir, AccApps) ->
+	NewAcc = case filelib:is_dir(filename:join([Dir, Plugin, "ebin"])) of
+		true ->
+			?INFO("Adding plugin ~p to code path", [Plugin]),
+			true = code:add_pathz(filename:join([Dir, Plugin, "ebin"])),
+			case filelib:is_dir(filename:join([Dir, Plugin, "deps"])) of
+				true ->
+					DepDepsDir = filename:join(Dir, Plugin),
+					add_plugin_deps(file:list_dir(filename:join([DepDepsDir, "deps"])), DepDepsDir);
+				false ->
+					ok
+			end,
+			case file:consult(filename:join([Dir, Plugin, "ebin", [Plugin, ".app"]])) of
+				{ok, [{application, _, Properties}|_]} ->
+					Apps = proplists:get_value(applications, Properties, []),
+					[application:start(App) || App <- Apps],
+					PluginApp = list_to_atom(Plugin),
+					StartRes = application:start(PluginApp),
+					?INFO("starting plugin ~p:  ~p", [Plugin, StartRes]),
+					[PluginApp | AccApps];
+				{error, Err} ->
+					?WARNING("Plugin ~s failed to start due to app file read error ~p.", [Plugin, Err]),
+					AccApps
+			end;
+		false ->
+			AccApps
+	end,
+	start_plugin_apps(Tail, Dir, NewAcc).
+	
 -ifdef(TEST).
 
 pretty_print_time_test_() ->

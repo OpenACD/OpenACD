@@ -59,7 +59,7 @@
 
 -record(state, {
 	dispatchers = [] :: [pid()],
-	agents = [] :: [pid()]
+	agents = dict:new() :: dict()
 	}).
 	
 -type(state() :: #state{}).
@@ -142,17 +142,25 @@ handle_call(Request, _From, State) ->
 %% @private
 handle_cast({now_avail, AgentPid}, State) -> 
 	?DEBUG("Someone's (~p) available now.", [AgentPid]),
-	case lists:member(AgentPid, State#state.agents) of
+	case dict:is_key(AgentPid, State#state.agents) of
 		true -> 
 			{noreply, balance(State)};
 		false -> 
-			erlang:monitor(process, AgentPid),
-			State2 = State#state{agents = [AgentPid | State#state.agents]},
+			Ref = erlang:monitor(process, AgentPid),
+			State2 = State#state{agents = dict:store(AgentPid, Ref, State#state.agents)},
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
 	?DEBUG("An agent (~p) is no longer available.", [AgentPid]),
-	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
+	NewDict = case dict:is_key(AgentPid, State#state.agents) of
+		true ->
+			{ok, Ref} = dict:find(AgentPid, State#state.agents),
+			erlang:demonitor(Ref),
+			dict:erase(AgentPid, State#state.agents);
+		false ->
+			State#state.agents
+	end,
+	State2 = State#state{agents = NewDict},
 	{noreply, balance(State2)};
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
 	Fun = fun(Pid) ->
@@ -174,7 +182,13 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
 	?DEBUG("Announcement that an agent (~p) is down, balancing in response.", [Object]),
-	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
+	NewDict = dict:filter(fun(InObject, MonRef) ->
+		case InObject of
+			Object -> false;
+			_ -> true
+		end
+	end, State#state.agents),
+	State2 = State#state{agents = NewDict},
 	{noreply, balance(State2)};
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	case (Reason =:= normal orelse Reason =:= shutdown) of
@@ -211,14 +225,23 @@ code_change(_OldVsn, State, _Extra) ->
 	
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
-balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agents) > length(Dispatchers) -> 
-	?DEBUG("Starting new dispatcher",[]),
-	case dispatcher:start_link() of
-		{ok, Pid} ->
-			balance(State#state{dispatchers = [ Pid | Dispatchers]});
+balance(#state{dispatchers = Dispatchers} = State) ->
+	NumAgents = dict:size(State#state.agents),
+	NumDisp = length(Dispatchers),
+	case NumAgents of
+		X when X > NumDisp ->
+			?DEBUG("Starting new dispatcher",[]),
+			case dispatcher:start_link() of
+				{ok, Pid} ->
+					balance(State#state{dispatchers = [ Pid | Dispatchers]});
+				_ ->
+					balance(State)
+			end;
 		_ ->
-			balance(State)
-	end;
+			?DEBUG("It is fully balanced!",[]),
+			State
+	end.
+
 %balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
 %	%?DEBUG("Killing a dispatcher",[]),
 %	%[Pid | Dispatchers] = State#state.dispatchers,
@@ -241,9 +264,9 @@ balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agent
 %		_ ->
 %			State
 %	end;
-balance(State) -> 
-	?DEBUG("It is fully balanced!",[]),
-	State.
+%balance(State) -> 
+%	?DEBUG("It is fully balanced!",[]),
+%	State.
 
 %balance_down(Out, _In, 0, _Force) ->
 %	lists:reverse(Out);
@@ -276,6 +299,42 @@ test_primer() ->
 	mnesia:create_schema([node()]),
 	mnesia:start().
 
+count_downs(FilterPid, N) ->
+	receive
+		{'DOWN', _MonRef, process, FilterPid, _Info} ->
+			count_downs(FilterPid, N+1)
+	after 0 ->
+		N
+	end.
+
+zombie() ->
+	receive headshot -> exit end.
+
+monitor_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(dispatch_manger_monitor_tests),
+	{spawn, N, {inorder, {foreach, 
+	fun() ->
+		test_primer(),
+		agent_manager:start([node()]),
+		queue_manager:start([node()]),
+		ok
+	end,
+	fun(ok) ->
+		ok
+	end,
+	[{"An agent gets monitored only once", fun() ->
+		{ok, State} = init([]),
+		FakeAgent = spawn(fun zombie/0),
+		{noreply, S1} = handle_cast({now_avail, FakeAgent}, State),
+		{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
+		{noreply, S3} = handle_cast({now_avail, FakeAgent}, S2),
+		{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
+		FakeAgent ! headshot,
+		Count = count_downs(FakeAgent, 0),
+		?assertEqual(0, Count)
+	end}]}}}.
+
 balance_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(dispatch_manager_balance_tests),
@@ -300,12 +359,12 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertEqual([], State1#state.agents),
+		?assertEqual(dict:new(), State1#state.agents),
 		?assertEqual([], State1#state.dispatchers)
 	end},
 	{"Agent started then set available, so a dispatcher starts", fun() ->
 		State1 = dump(),
-		?assertEqual([], State1#state.agents),
+		?assertEqual(dict:new(), State1#state.agents),
 		?assertEqual([], State1#state.dispatchers),
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
@@ -314,7 +373,7 @@ balance_test_() ->
 			ok
 		end,
 		State2 = dump(),
-		?assertEqual([Apid], State2#state.agents),
+		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
 		?assertEqual(1, length(State2#state.dispatchers))
 	end},
 	{"Agent died, but dispatchers don't die automatically", fun() ->
@@ -325,7 +384,7 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertEqual([Apid], State1#state.agents),
+		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		exit(Apid, kill),
 		receive
@@ -333,7 +392,7 @@ balance_test_() ->
 			ok
 		end,
 		State2 = dump(),
-		?assertEqual([], State2#state.agents),
+		?assertEqual(dict:new(), State2#state.agents),
 		?assertEqual(1, length(State2#state.dispatchers))
 	end},
 	{"Unexpected dispatcher death", fun() ->
@@ -357,7 +416,7 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertEqual([Apid], State1#state.agents),
+		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		agent:set_state(Apid, released, default),
 		receive
@@ -365,8 +424,8 @@ balance_test_() ->
 			ok
 		end,
 		State2 = dump(),
-		?assertEqual([], State2#state.agents),
-		?assertEqual([], State2#state.agents)
+		?assertEqual(dict:new(), State2#state.agents),
+		?assertEqual(dict:new(), State2#state.agents)
 	end},
 	{"Agent avail and already tracked", fun() ->
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
@@ -376,11 +435,11 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertEqual([Apid], State1#state.agents),
+		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		gen_server:cast(?MODULE, {now_avail, Apid}),
 		State2 = dump(),
-		?assertEqual([Apid], State2#state.agents),
+		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
 		?assertEqual(1, length(State1#state.dispatchers))
 	end},
 	{"Dispatcher unfortunately dies, but notices agents on it's return.", fun() ->
@@ -399,14 +458,14 @@ balance_test_() ->
 		#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
 		?DEBUG("Expected:  ~p", [Expectedagents]),
 		?DEBUG("New agents:  ~p", [Newagents]),
-		?assertEqual(length(Expectedagents), length(Newagents)),
+		?assertEqual(length(dict:to_list(Expectedagents)), length(dict:to_list(Newagents))),
 		?assertEqual(5, length(Newdispathers)),
 		lists:foreach(fun(I) ->
 			?assertNot(lists:member(I, Unexpecteddispatchers))
 		end, Newdispathers),
-		lists:foreach(fun(I) ->
-			?assert(lists:member(I, Expectedagents))
-		end, Newagents)
+		lists:foreach(fun({I, _}) ->
+			?assert(dict:is_key(I, Expectedagents))
+		end, dict:to_list(Newagents))
 	end}]}}}.
 
 gen_server_test_start() ->

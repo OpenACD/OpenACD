@@ -437,8 +437,8 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = State) ->
 	?INFO("~s rejected a ring request due to ring_locked.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
-idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefined, persistant, _}} = Agent} = State) ->
-	?INFO("~s rejected a ring request since persistant ring channel is not yet established.", [Agent#agent.login]),
+idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefined, persistent, _}} = Agent} = State) ->
+	?INFO("~s rejected a ring request since persistent ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
 idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
 	case cpx:get_env(ring_manager) of
@@ -490,14 +490,14 @@ idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefin
 	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Incall, lastchange = util:now(), endpointtype = NewEp},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-idle({ringing, Incall}, {RingPid, _Tag}, #state{agent_rec = #agent{endpointtype = {RingPid, persistant, _EpType}} = Agent} = State) ->
+idle({ringing, Incall}, {RingPid, _Tag}, #state{agent_rec = #agent{endpointtype = {RingPid, persistent, _EpType}} = Agent} = State) ->
 	%% If my ring pid says so.
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Incall#call{ring_path = inband, media_path = inband}}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	Newagent = Agent#agent{state = ringing, oldstate = idle, statedata = Incall, lastchange = util:now()},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {RingPid, persistant, _EpType}} = Agent} = State) ->
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {RingPid, persistent, _EpType}} = Agent} = State) ->
 	case gen_server:call(RingPid, {agent_state, ringing, Incall}) of
 		ok ->
 			% fake the call answerabled and hangup-able, because our
@@ -1196,15 +1196,15 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
-handle_sync_event({set_endpoint, {{persistant, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
+handle_sync_event({set_endpoint, {{persistent, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	
-	case create_persistant_endpoint(Agent#agent{endpointtype = {undefined, persistant, Endpointtype}, endpointdata = Endpointdata}) of
+	case create_persistent_endpoint(Agent#agent{endpointtype = {undefined, persistent, Endpointtype}, endpointdata = Endpointdata}) of
 		{ok, Pid, _AnswerHangupSetting} ->
 			link(Pid),
 			?INFO("Linking to ~p", [Pid]),
-			{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistant, Endpointtype}, endpointdata = Endpointdata}}};
+			{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistent, Endpointtype}, endpointdata = Endpointdata}}};
 		{error, Error} ->
-			?ERROR("Couldn't start persistant channel:  ~p", [Error]),
+			?ERROR("Couldn't start persistent channel:  ~p", [Error]),
 			{reply, {error, Error}, StateName, State}
 	end;
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
@@ -1278,16 +1278,16 @@ handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid
 	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
 	Newagent = Agent#agent{log_pid = Pid},
 	{next_state, Statename, State#state{agent_rec = Newagent}};
-handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, persistant, Endpointtype}, endpointdata = _Endpointdata} = InAgent} = State) ->
+handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, persistent, Endpointtype}, endpointdata = _Endpointdata} = InAgent} = State) ->
 	?ERROR("Persistant endpoint ~p died due to ~p", [From, Reason]),
-	Agent = InAgent#agent{endpointtype = {undefined, persistant, Endpointtype}},
-	case create_persistant_endpoint(Agent) of
+	Agent = InAgent#agent{endpointtype = {undefined, persistent, Endpointtype}},
+	case create_persistent_endpoint(Agent) of
 		{ok, Pid, _AnswerHangupPaths} ->
 			link(Pid),
-			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistant, Endpointtype}}}};
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistent, Endpointtype}}}};
 		Error ->
-			?ERROR("Cound not recreate persistant ring channel:  ~p", [Error]),
-			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {undefined, persistant, Endpointtype}}}}
+			?ERROR("Cound not recreate persistent ring channel:  ~p", [Error]),
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {undefined, persistent, Endpointtype}}}}
 	end;
 handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, transient, EpType}} = Agent} = State) ->
 	?INFO("Transient ring pid ~p died; maybe it was supposed to?", [From]),
@@ -1468,7 +1468,7 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 %% Internal functions
 %% =====
 
-create_persistant_endpoint(Agent) ->
+create_persistent_endpoint(Agent) ->
 	case cpx:get_env(ring_manager) of
 		undefined ->
 			{error, no_ring_manager};
@@ -1751,7 +1751,7 @@ from_idle_tests() ->
 	fun({#state{agent_rec = SeedAgent} = Seedstate, AMmock, _Dmmock, _Monmock, Connmock, Assertmocks}) ->
 		{"to ringing with down perisistant ring",
 		fun() ->
-			#state{agent_rec = Agent} = State = Seedstate#state{agent_rec = SeedAgent#agent{endpointtype = {undefined, persistant, sip_registration}}}, 
+			#state{agent_rec = Agent} = State = Seedstate#state{agent_rec = SeedAgent#agent{endpointtype = {undefined, persistent, sip_registration}}}, 
 			Self = self(),
 			Call = #call{
 				id = "testcall",
@@ -2581,9 +2581,9 @@ from_oncall_tests() ->
 		end}
 	end,
 	fun({#state{agent_rec = #agent{endpointtype = {RingChanPid, _, _}} = BaseAgent} = BaseState, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
-		{"to wrapup with persistant ring channel",
+		{"to wrapup with persistent ring channel",
 		fun() ->
-			Agent = BaseAgent#agent{endpointtype = {RingChanPid, persistant, sip_registration}},
+			Agent = BaseAgent#agent{endpointtype = {RingChanPid, persistent, sip_registration}},
 			State = BaseState#state{agent_rec = Agent},
 			Call = Agent#agent.statedata,
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
@@ -2595,7 +2595,7 @@ from_oncall_tests() ->
 			Out = oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State),
 
 			?DEBUG("Das out:  ~p", [Out]),
-			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {RingChanPid, persistant, _}}} = _State}, Out),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {RingChanPid, persistent, _}}} = _State}, Out),
 			Assertmocks()
 		end}
 	end,

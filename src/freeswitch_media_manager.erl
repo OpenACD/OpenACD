@@ -55,7 +55,7 @@
 %% The endpoint type is a 3 element tuple.  The first element is the ring
 %% channel pid, if there is one.  This can usually be ignored as the agent
 %% will requrest a ring only if it does not have a ring pid.  The second 
-%% element is either `persistant' or `transient'.  `persistant' means the 
+%% element is either `persistent' or `transient'.  `persistent' means the 
 %% will use the returned pid for any future ringing.  `transient' means the
 %% returned pid will be used only for the given ring duration and then 
 %% promply dropped like a bad habit.  The final bit is an end point type
@@ -68,14 +68,14 @@
 %% combined with the sip, iax2, h323, or dialstring options (depending on
 %% the endpointtype).
 %% 
-%% Finally, the Callrec will be either `persistant' when setting up a 
-%% persistant ring channel, `test' when checking to see if an agent is 
+%% Finally, the Callrec will be either `persistent' when setting up a 
+%% persistent ring channel, `test' when checking to see if an agent is 
 %% ringable, or the actual call record the ring channel will be used to 
 %% ring for.  This allows the ring_manager to tailor the ring channel used 
 %% to the media that is needed, without the agent needed to know much.  In 
 %% freeswith_media_manager's case, this allows it to choose between 
 %% freeswitch_transient that will die when answered (non freeswitch media) 
-%% or hang around until the call ends (freeswitch medias).  For persistant 
+%% or hang around until the call ends (freeswitch medias).  For persistent 
 %% ring channels, they will get the call record when they need to start 
 %% ringing, allowing them to make the choice.
 %%
@@ -286,7 +286,7 @@ ring(EndpointType, Dialstring, RingCbs, Options) ->
 ring_agent(AgentPid, Agent, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
 
-% @doc This functions primary use is to create a persistant ring channel to
+% @doc This functions primary use is to create a persistent ring channel to
 % the agent; ie:  off hook agent.  `Opts' is the same as what 
 % {@link freeswitch_ring:start/5} takes.
 % @see freeswitch_ring:start/5
@@ -438,15 +438,15 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointd
 		Error ->
 			{reply, Error, State}
 	end;
-handle_call({ring, #agent{endpointtype = {undefined, persistant, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
+handle_call({ring, #agent{endpointtype = {undefined, persistent, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
 	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
-	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
 		{ok, Pid} ->
 			{reply, {ok, Pid, both}, State};
 		Error ->
 			{reply, Error, State}
 	end;
-handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpointdata = Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+handle_call({ring, #agent{endpointtype = {undefined, persistent, Type}, endpointdata = Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
@@ -455,7 +455,7 @@ handle_call({ring, #agent{endpointtype = {undefined, persistant, Type}, endpoint
 	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	NewOptions = [{dialstring, BaseDialString}, {destination, Data}],
-	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
 		{ok, Pid} ->
 			{reply, {ok, Pid, both}, State};
 		Error ->

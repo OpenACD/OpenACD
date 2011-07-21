@@ -520,7 +520,7 @@ dojo.addOnLoad(function(){
 			voipendpoint:false,
 			voipendpointdata:false,
 			useoutbandring:true,
-			usepersistantchannel:false,
+			usepersistentchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -565,7 +565,7 @@ dojo.addOnLoad(function(){
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
-		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;
+		settings.usepersistentchannel = confs.usepersistentchannel ? confs.usepersistnatchannel : settings.usepersistentchannel;
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);
@@ -963,8 +963,8 @@ dojo.addOnLoad(function(){
 			if(attrs.useoutbandring){
 				window.agentConnection.loginOptions.useoutbandring = true;
 			}
-			if(attrs.usepersistantringchannel != false){
-				window.agentConnection.loginOptions.usepersistantringchannel = true;
+			if(attrs.usepersistentringchannel != false){
+				window.agentConnection.loginOptions.usepersistentringchannel = true;
 			}
 			window.agentConnection.login();
 		} else {

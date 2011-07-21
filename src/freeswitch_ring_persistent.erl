@@ -29,7 +29,7 @@
 
 %% @doc A transient ring channel.
 
--module(freeswitch_ring_persistant).
+-module(freeswitch_ring_persistent).
 
 -include("log.hrl").
 -include("call.hrl").

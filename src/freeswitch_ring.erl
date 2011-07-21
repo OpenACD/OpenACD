@@ -151,7 +151,7 @@
 -type(caller_id() :: string()).
 -type(caller_id_opt() :: {'caller_id', {caller_name(), caller_id()}}).
 -type(ringout_opt() :: {'ringout', pos_integer()}).
--type(persistant_opt() :: 'persistant').
+-type(persistent_opt() :: 'persistent').
 -type(dial_vars_opt() :: {'dial_vars', [{string(), string()}]}).
 -type(dialstring_opt() :: {'dialstring', string()}).
 -type(destination_opt() :: {'destination', string()}).
@@ -161,7 +161,7 @@
 	call_opt() |
 	caller_id_opt() |
 	ringout_opt() |
-	persistant_opt() |
+	persistent_opt() |
 	dial_vars_opt() |
 	dialstring_opt() |
 	destination_opt() |
@@ -215,7 +215,7 @@ hangup(Pid) ->
 get_uuid(Pid) ->
 	gen_server:call(Pid, {'$freeswitch_ring', get_uuid}).
 
-%% @doc In the case of a persistant ring channel, send tones to the agent
+%% @doc In the case of a persistent ring channel, send tones to the agent
 %% to indicate the phone is ringing.
 -spec(ring/3 :: (RingPid :: pid(), CallId :: string(), Ringout :: pos_integer()) -> 'ok').
 ring(RingPid, CallId, Ringout) ->
@@ -267,11 +267,11 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 				RingoutElse ->
 					{ok, RingoutElse}
 			end,
-			HangupAfterBridge = case proplists:get_value(persistant, Options) of
+			HangupAfterBridge = case proplists:get_value(persistent, Options) of
 				true -> "false";
 				_ -> "true"
 			end,
-			ParkAfterBridge = case proplists:get_value(persistant, Options) of
+			ParkAfterBridge = case proplists:get_value(persistent, Options) of
 				true -> "park_after_bridge=true";
 				_ -> ""
 			end,
@@ -352,7 +352,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 %%--------------------------------------------------------------------
 handle_call({'$freeswitch_ring', get_uuid}, _From, #state{uuid = UUID} = State) ->
 	{reply, UUID, State};
-%handle_call({ring, _OtherLeg, Ringout}, _From, #state{uuid = UUID, persistant = true} = State) ->
+%handle_call({ring, _OtherLeg, Ringout}, _From, #state{uuid = UUID, persistent = true} = State) ->
 %	TrueRing = case round(Ringout / 100) of
 %		0 ->
 %			"1";
@@ -377,9 +377,9 @@ handle_call(Request, From, #state{callbacks = #callbacks{handle_call = CbCall} =
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-%handle_cast(hangup, #state{uuid = UUID, persistant = true} = State) ->
+%handle_cast(hangup, #state{uuid = UUID, persistent = true} = State) ->
 %	Callback = fun(OkErr, Res) ->
-%		?DEBUG("hungup persistant callback fun res:  ~p:~p", [OkErr,Res])
+%		?DEBUG("hungup persistent callback fun res:  ~p:~p", [OkErr,Res])
 %	end,
 %	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " -both 'park' inline", Callback),
 %	{noreply, State};
@@ -491,11 +491,11 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = _Options, uui
 %		ReturnVal ->
 %			ReturnVal
 %	end;
-%handle_info(call_hangup, #state{persistant = undefined} = State) ->
+%handle_info(call_hangup, #state{persistent = undefined} = State) ->
 %	?DEBUG("Call hangup info", []),
 %	{stop, normal, State};
 %handle_info(call_hangup, State) ->
-%	?WARNING("Call hangup when this is supposed to be persistant; ending messily", []),
+%	?WARNING("Call hangup when this is supposed to be persistent; ending messily", []),
 %	{stop, call_hangup, State};
 handle_info(Info, #state{callbacks = #callbacks{handle_info = CbInfoFun} = Callbacks} = State) ->
 	case CbInfoFun(Info, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state) of

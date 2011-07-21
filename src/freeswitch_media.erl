@@ -208,10 +208,10 @@ handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login,
 	handle_ring({Apid, AgentRec}, Callrec, State);
-handle_ring({_Apid, #agent{endpointtype = {undefined, persistant, _}} = Agent}, _Callrec, State) ->
-	?WARNING("Agent (~p) does not have it's persistant channel up yet", [Agent#agent.login]),
+handle_ring({_Apid, #agent{endpointtype = {undefined, persistent, _}} = Agent}, _Callrec, State) ->
+	?WARNING("Agent (~p) does not have it's persistent channel up yet", [Agent#agent.login]),
 	{invalid, State};
-handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistant, _EndPointType}}} = Agent, Callrec, State) ->
+handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType}}} = Agent, Callrec, State) ->
 	%% a persisitant ring does the hard work for us
 	%% go right to the okay.
 	?INFO("Ring channel made things happy, I assume", []),

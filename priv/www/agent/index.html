@@ -160,7 +160,7 @@
 			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
 			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
 			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
-			dijit.byId('usepersistantringchannel').attr('checked', settings.usepersistantring);
+			dijit.byId('usepersistentringchannel').attr('checked', settings.usepersistentring);
 			if (settings.theme)
 				document.getElementsByTagName("body")[0].className = settings.theme;
 		}
@@ -274,12 +274,12 @@
 		</p>
 		<p>
 			<label>&nbsp;</label>
-			<input type="checkbox" name="usepersistantringchannel" id="usepersistantringchannel", value="true" dojoType="dijit.form.CheckBox" />
+			<input type="checkbox" name="usepersistentringchannel" id="usepersistentringchannel", value="true" dojoType="dijit.form.CheckBox" />
 			<span class="translate" id="usePersistantRingChannelLabel">USE_PERSISTANT_RING_CHANNEL</span>
 			<script type="text/javascript">
 				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
 			</script>
-			<div dojoType="dijit.Tooltip" connectId="usepersistantringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
+			<div dojoType="dijit.Tooltip" connectId="usepersistentringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);

@@ -631,7 +631,7 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"voipendpointdata":  string(),
 %% 	"voipendpoint":  "sip_registration" | "sip" | "iax2" | "h323" | "pstn",
 %% 	"useoutbandring":  boolean(); optional,
-%%  "usepersistantring":  boolean(); optional
+%%  "usepersistentring":  boolean(); optional
 %%  "supervisor":boolean(); optional
 %% }</pre>
 %% 
@@ -662,19 +662,19 @@ login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 	Endpointdata = proplists:get_value(voipendpointdata, Opts),
-	Persistantness = proplists:get_value(use_persistant_ring, Opts),
+	Persistantness = proplists:get_value(use_persistent_ring, Opts),
 	?INFO("login opts:  ~p", [Opts]),
 	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata, Persistantness} of
 		{undefined, _, true} ->
-			{{persistant, sip_registration}, Username};
+			{{persistent, sip_registration}, Username};
 		{undefined, _, _} ->
 			{sip_registration, Username};
 		{sip_registration, undefined, true} ->
-			{{persistant, sip_registration}, Username};
+			{{persistent, sip_registration}, Username};
 		{sip_registration, undefined, false} ->
 			{sip_registration, Username};
 		{EndpointType, _, true} ->
-			{{persistant, EndpointType}, Endpointdata};
+			{{persistent, EndpointType}, Endpointdata};
 		{EndpointType, _, _} ->
 			{EndpointType, Endpointdata}
 	end,
@@ -843,8 +843,8 @@ api(ApiArea, Cookie, Post) when ApiArea =:= api; ApiArea =:= supervisor ->
 					{voipendpoint, pstn};
 				{<<"useoutbandring">>, true} ->
 					use_outband_ring;
-				{<<"usepersistantringchannel">>, true} ->
-					use_persistant_ring;
+				{<<"usepersistentringchannel">>, true} ->
+					use_persistent_ring;
 				{_, _} ->
 					[]
 			end || X <- LoginProps]),

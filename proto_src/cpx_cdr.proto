@@ -28,6 +28,7 @@
 //
 
 import "cpx_base.proto";
+package openacd.cdr;
 
 enum CdrTransactionType {
 	CDRINIT = 1;

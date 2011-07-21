@@ -30,6 +30,9 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		dojo.connect(this.answerButton, 'onClick', this, function(){
 			window.agentConnection.channels[this.channel].setState('oncall');
 		});
+		dojo.connect(this.hangupButton, 'onClick', this, function(){
+			window.agentConnection.channels[this.channel].setState('wrapup');
+		}
 	},
 	_handleAgentChannelPublish: function(channelId, args){
 		if(channelId != this.channel){

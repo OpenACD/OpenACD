@@ -488,6 +488,9 @@ handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = St
 	Options = [{dialstring, DialString} | Opts],
 	Out = freeswitch_ring:start(Node, Agent, Apid, Fun, Options),
 	{reply, Out, State};
+handle_call({ring_agent, _Apid, #agent{endpointtype = {Pid, _, _}} = Agent, Call, _Timout}, _From, #state{freeswitch_up = true} = State) when is_pid(Pid) ->
+	?INFO("~s already has a ring channel in ~p", [Agent#agent.login, Pid]),
+	{reply, {ok, Pid}, State};
 handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->

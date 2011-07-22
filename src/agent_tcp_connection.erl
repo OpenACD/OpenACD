@@ -534,6 +534,8 @@ service_request(#agentrequest{request_hint = 'GO_RELEASED', go_released_request 
 			default
 	end,
 	case agent:set_state(State#state.agent_fsm, released, ReleaseReason) of
+		queued ->
+			{BaseReply#serverreply{success = true}, State};
 		ok ->
 			{BaseReply#serverreply{success = true}, State};
 		invalid ->

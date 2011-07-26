@@ -131,6 +131,7 @@
 	set_release/2,
 	set_state/3,
 	set_state/4,
+	end_wrapup/2,
 	dial/2,
 	get_avail_agents/1,
 	agent_transfer/2,
@@ -154,6 +155,7 @@
 	{set_release, 2},
 	{set_state, 3},
 	{set_state, 4},
+	{end_wrapup, 2},
 	{dial, 2},
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
@@ -239,6 +241,13 @@ set_state(Conn, Channel, Statename) ->
 -spec(set_state/4 :: (Conn :: pid(), Channel :: bin_string(), Statename :: bin_string(), Statedata :: any()) -> any()).
 set_state(Conn, Channel, Statename, Statedata) ->
 	gen_server:call(Conn, {set_state, binary_to_list(Channel), binary_to_list(Statename), binary_to_list(Statedata)}).
+
+%% @doc {@web} End wrapup the agent channel 'Channel'.  This also kills 
+%% the channel, making it available for use again.  No result property as 
+%% it iether worked or didn't.
+-spec(end_wrapup/2 :: (Conn :: pid(), Channel :: bin_string()) -> any()).
+end_wrapup(Conn, Channel) ->
+	gen_server:call(Conn, {end_wrapup, binary_to_list(Channel)}).
 
 %% @doc {@web} Attempt to dial the passed number.  Implicitly sets the 
 %% agent from precall to outbound.  No results property as it either 
@@ -698,6 +707,20 @@ handle_call({set_state, Channel, Statename, Statedata}, _From, #state{agent_chan
 					{reply, ?simple_success(), State};
 				invalid ->
 					{reply, ?reply_err(<<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
+			end
+	end;
+
+handle_call({end_wrapup, Channel}, _From, #state{agent_channels = Channels} = State) ->
+	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
+	case Chans of
+		[] ->
+			{reply, ?reply_err(<<"Channel not found">>, <<"CHANNEL_NOEXISTS">>)};
+		[Chan] ->
+			case agent_channel:end_wrapup(Chan) of
+				ok ->
+					{reply, ?simple_success(), State};
+				invalid ->
+					{reply, ?reply_err(<<"Channel not stopped">>, <<"INVALID_STATE_CHANGE">>), State}
 			end
 	end;
 

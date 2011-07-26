@@ -88,6 +88,14 @@ OpenACD.AgentChannel.prototype.setState = function(state){
 };
 
 /**
+Attempt to end the agent channel by ending the wrapup state.  Like all other
+state changes, there is no need to handle the return directly.
+*/
+OpenACD.AgentChannel.prototype.endWrapup = function(){
+	this.agent.agentApi("end_wrapup", {}, this.channelId);
+}
+
+/**
 Create a new Agent.
 @param {Object} options The options object
 @param {String} options.username Agent login name.

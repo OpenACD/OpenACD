@@ -102,7 +102,8 @@
 	stop/1, 
 	get_media/1,
 	set_state/2, 
-	set_state/3, 
+	set_state/3,
+	end_wrapup/1,
 	list_to_state/1, 
 	set_connection/2,
 	agent_transfer/2,
@@ -173,6 +174,11 @@ set_state(Pid, State) ->
                      (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}, infinity).
+
+%% @doc End the channel while in wrapup.
+-spec(end_wrapup/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+end_wrapup(Pid) ->
+	gen_fsm:sync_send_event(Pid, stop).
 
 %% @doc attmept to push data from the media connection to the agent.  It's up to
 %% the agent connection to interpret this correctly.

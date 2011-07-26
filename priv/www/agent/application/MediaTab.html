@@ -124,6 +124,12 @@
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
 			</script>
 		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="endWrapupButton" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ENDWRAPUP);
+			</script>
+		</button>
 	</div>
 </div>
 </div>

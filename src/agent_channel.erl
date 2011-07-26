@@ -317,6 +317,7 @@ ringing(oncall, {Conn, _}, #state{agent_connection = Conn, endpoint = inband} = 
 	case gen_media:oncall(Media) of
 		ok ->
 			conn_cast(Conn, {set_channel, self(), oncall, Call}),
+			?DEBUG("Moving from ringing to oncall state", []),
 			{reply, ok, oncall, State};
 		Else ->
 			?WARNING("Didn't go oncall:  ~p", [Else]),
@@ -335,6 +336,7 @@ ringing(oncall, {Conn, _}, #state{agent_connection = Conn, endpoint = Pid, state
 					Pid
 			end,
 			NewState = State#state{endpoint = NewEndpoint},
+			?DEBUG("Moving from ringing to oncall state", []),
 			{reply, ok, oncall, NewState};
 		Else ->
 			?WARNING("Didn't go oncall:  ~p", [Else]),
@@ -381,10 +383,23 @@ oncall({warmtransfer_3rd_party, Data}, From, State) ->
 		end;
 oncall(wrapup, From, #state{state_data = Call} = State) ->
 	oncall({wrapup, Call}, From, State);
-oncall({wrapup, Call}, _From, #state{state_data = Call} = State) ->
-	?DEBUG("Moving from oncall to wrapup", []),
-	conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
-	{reply, ok, wrapup, State#state{state_data = Call}};
+oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
+	case Call#call.source of
+		From ->
+			?DEBUG("Moving from oncall to wrapup", []),
+			conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
+			{reply, ok, wrapup, State#state{state_data = Call}};
+		CallSource ->
+			case gen_media:wrapup(CallSource) of
+				ok ->
+					?DEBUG("Moving from oncall to wrapup", []),
+					conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
+					{reply, ok, wrapup, State#state{state_data = Call}};
+				Else ->
+					{reply, Else, oncall, State}
+			end
+	end;
+					
 oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 

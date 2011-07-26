@@ -225,6 +225,10 @@ function loadTab(tabid){
 			href = 'tabs/dashboard.html';
 			title = 'Dashboard';
 			break;
+		case 'endpointsTab':
+			href = 'tabs/endpoints.html';
+			title = 'Endpoints';
+			break;
 		default:
 			return false;
 	}
@@ -540,10 +544,10 @@ dojo.addOnLoad(function(){
 			profile:'',
 			statedata:'',
 			state:'',
-			voipendpoint:false,
-			voipendpointdata:false,
-			useoutbandring:true,
-			usepersistantchannel:false,
+			//voipendpoint:false,
+			//voipendpointdata:false,
+			//useoutbandring:true,
+			//usepersistantchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -578,10 +582,10 @@ dojo.addOnLoad(function(){
 			}
 		}
 		settings.username = confs.username;
-		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
+		/*settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
-		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;
+		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;*/
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);
@@ -961,12 +965,12 @@ dojo.addOnLoad(function(){
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
 			window.agentConnection.loginOptions = {
-				voipendpoint: attrs.voipendpoint,
-				voipendpointdata: attrs.voipendpointdata
+				/*voipendpoint: attrs.voipendpoint,
+				voipendpointdata: attrs.voipendpointdata*/
 			}
-			if(attrs.useoutbandring){
+			/*if(attrs.useoutbandring){
 				window.agentConnection.useoutbandring = true;
-			}
+			}*/
 			window.agentConnection.login();
 		} else {
 			console.warn('Form has invalid value');
@@ -1187,7 +1191,7 @@ dojo.addOnLoad(function(){
 		load_media_tab(eventdata);
 	});
 });
-
+/*
 function endpointselect() {
 	switch(dijit.byId("voipendpoint").attr('value')) {
 		case "SIP Registration":
@@ -1209,4 +1213,4 @@ function endpointselect() {
 			dijit.byId("voipendpointdatahint").label = "???";
 			break;
 	}
-}
+}*/

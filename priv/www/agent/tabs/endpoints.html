@@ -1,0 +1,39 @@
+<div dojoType="dijit.layout.AccordionContainer" id="endpointsMain" style="height:900px">
+	<div dojoType="dijit.layout.ContentPane" id="freeswitchEndpointPane" title="FreeSWITCH (Voip)">
+		<form dojoType="dijit.form.Form" id="freeswitchEndpointForm" jsId="freeswitchEndpointForm" action="javascript:void(0);" method="post">
+
+			<p>
+				<label for="endpointType" class="translatecol">TYPE</label>
+				<select dojoType="dijit.form.FilteringSelect" id="freeswitchEndpointType" name="endpointType">
+				<script type="dojo/method" event="onChange">
+					//endpointselect()
+				</script>
+					<option value="sip_registration" selected="selected" class="translate">SIP Registration</option>
+					<option value="sip" class="translate">SIP URI</option>
+					<option value="iax" class="translate">IAX2 URI</option>
+					<option value="h323" class="translate">H323 URI</option>
+					<option value="pstn" class="translate">PSTN Number</option>
+				</select>
+			</p>
+	
+			<p>
+				<label for="endpointData" class="translatecol">DATA</label>
+				<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
+			</p>
+	
+			<p>
+				<label>&nbsp;</label>
+				<input type="checkbox" name="usepersistantringchannel" id="freeswitchRingPersistant", value="true" dojoType="dijit.form.CheckBox" />
+				<span class="translate">USE_PERSISTANT_RING_CHANNEL</span>
+			</p>
+		</form>
+	</div>
+
+	<div dojoType="dijit.layout.ContentPane" id="emailEndpointPane" title="Email">
+		Email
+	</div>
+
+	<div dojoType="dijit.layout.ContentPane" id="dummyEndpointPane" title="Dummy Media">
+		Dummy
+	</div>
+</div>

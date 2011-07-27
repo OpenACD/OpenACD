@@ -69,7 +69,8 @@
 
 %% gen_media callbacks
 -export([
-	init/1, 
+	init/1,
+	prepare_endpoint/2,
 	handle_call/4, 
 	handle_cast/3, 
 	handle_info/3,
@@ -236,7 +237,7 @@ init(Options) ->
 	end,
 	Proto = #call{
 		id = Defaultid,
-		type = email,
+		type = slow_text,
 		callerid = Callerid,
 		client = Mailmap#mail_map.client,
 		skills = Mailmap#mail_map.skills,
@@ -257,7 +258,14 @@ init(Options) ->
 				caseid = CaseID,
 				mail_map_address = Mailmap#mail_map.address},
 			{Mailmap#mail_map.queue, Proto}}}.
-	
+
+%%--------------------------------------------------------------------
+%% prepare_endpoint
+%%--------------------------------------------------------------------
+
+prepare_endpoint(Agent, _Data) ->
+	{ok, {module, dummy_media}}.
+
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------

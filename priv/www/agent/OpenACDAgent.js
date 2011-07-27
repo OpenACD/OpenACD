@@ -56,6 +56,21 @@ OpenACD.AgentChannel.prototype.handleStateChange = function(state, stateData){
 	}
 }
 
+OpenACD.AgentChannel.prototype.handleCommand = function(args){
+	if(args.channelid != this.channelId){
+		return false;
+	}
+	var command = args.command;
+	delete args.command;
+	delete args.channelid;
+	var pubChannel = "OpenACD/AgentChannel/" + command + "/" + this.channelid;
+	try{
+		dojo.publish(pubChannel, [args]);
+	} catch (err) {
+		console.error(pubChannel, err);
+	}
+}
+
 OpenACD.AgentChannel.prototype.destroy = function(data){
 	console.log('Channel ending', data);
 	try{

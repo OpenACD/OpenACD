@@ -1038,7 +1038,7 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
-handle_cast({mediaload, #call{type = email} = Call}, State) ->
+handle_cast({mediapush, _S, {mediaload, #call{source_module = email_media} = Call}}, State) ->
 	Midstate = case State#state.current_call of
 		expect ->
 			State#state{current_call = Call};

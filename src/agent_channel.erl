@@ -108,9 +108,9 @@
 	set_connection/2,
 	agent_transfer/2,
 	queue_transfer/2,
-	media_call/2,
-	media_cast/2,
-	media_push/2,
+	media_call/2, % conn asking the media stuff
+	media_cast/2, % conn telling media stuff
+	media_push/2, % media telling conn stuff
 	spy/2,
 	has_successful_ring/1,
 	has_failed_ring/1
@@ -403,7 +403,8 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 
-oncall(_Msg, State) ->
+oncall({mediapush, From, Data}, #state{agent_connection = Conn} = State) ->
+	gen_server:cast(Conn, {mediapush, From, Data}),
 	{next_state, oncall, State}.
 
 % ======================================================================

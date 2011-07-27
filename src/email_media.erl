@@ -538,7 +538,8 @@ format_status(_, [_PDict, State]) ->
 %% gen_media specific callbacks
 handle_answer(Agent, Call, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	agent:conn_cast(Agent, {mediaload, Call}),
+	agent_channel:media_push(Agent, {mediaload, Call}),
+	%agent_channel:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
 handle_ring(_Agent, _RingData, _Call, #state{caseid = CaseID} = State) ->
@@ -558,7 +559,7 @@ handle_wrapup(_Callrec, State) ->
 
 -spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> 'ok').
 handle_spy({Spy, _AgentRec}, Callrec, State) ->
-	agent:conn_cast(Spy, {mediaload, Callrec}),
+	%agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
 	
 %%--------------------------------------------------------------------

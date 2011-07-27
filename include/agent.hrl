@@ -95,6 +95,7 @@
 	profile = "Default" :: string(),
 	firstname = "" :: string(),
 	lastname = "" :: string(),
+	endpoints = [] :: [{atom(), any()}],
 	extended_props = [] :: [{atom(), any()}],
 	timestamp = util:now() :: pos_integer()
 }).

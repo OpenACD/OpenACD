@@ -528,7 +528,7 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 handle_event({set_endpoints, Ends}, StateName, State) ->
 	NewAgent = priv_set_endpoints(State#state.agent_rec, Ends),
 	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
-	{next_state, StateName, State};
+	{next_state, StateName, State#state{agent_rec = NewAgent}};
 
 handle_event(_Msg, StateName, State) ->
 	{next_state, StateName, State}.
@@ -636,10 +636,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % ======================================================================
 
 priv_set_endpoint(_Agent, Module, {module, Module}) ->
+	?DEBUG("endpoint ~s is a circular reference", [Module]),
 	{error, self_reference};
 priv_set_endpoint(Agent, Module, {module, OtherMod} = Endpoint) ->
 	case dict:find(OtherMod, Agent#agent.endpoints) of
 		error ->
+			?DEBUG("Endpoint ~s references non-existant endpoing ~s", [Module, OtherMod]),
 			{error, module_noexists};
 		{ok, _} ->
 			NewEndpoints = dict:store(Module, Endpoint, Agent#agent.endpoints),
@@ -650,6 +652,7 @@ priv_set_endpoint(Agent, Module, {module, OtherMod} = Endpoint) ->
 priv_set_endpoint(Agent, Module, Data) ->
 	case Module:prepare_endpoint(Agent, Data) of
 		{error, Err} ->
+			?DEBUG("Didn't set endpoint ~s due to ~p", [Module, Err]),
 			{error, Err};
 		{ok, NewData} ->
 			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
@@ -676,14 +679,16 @@ filter_endpoints(Endpoints) ->
 filter_endpoints([], Acc) ->
 	lists:reverse(Acc);
 filter_endpoints([{Module, _Data} = Head | Tail], Acc) ->
-	case proplists:get_value(Module, code:all_loaded()) of
-		undefined ->
+	case code:ensure_loaded(Module) of
+		{error, Err} ->
+			?DEBUG("Code not loaded for endpoint ~s:  ~p", [Module, Err]),
 			filter_endpoints(Tail, Acc);
-		_ ->
+		{module, Module} ->
 			case proplists:get_value(behaviour, Module:module_info(attributes)) of
 				[gen_media] ->
 					filter_endpoints(Tail, [Head | Acc]);
 				_ ->
+					?DEBUG("endpoint ~s is not a gen_media", [Module]),
 					filter_endpoints(Tail, Acc)
 			end
 	end.

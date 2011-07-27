@@ -708,6 +708,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
 							end;
 						{{allow, Id, Skills, Security, Profile}, _} ->
+							{atomic, [AgentAuth]} = agent_auth:get_agent(id, Id),
 							Agent = #agent{
 								id = Id, 
 								login = Username, 
@@ -716,13 +717,10 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
-									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
+									?INFO("~s logged in", [Username]),
 									linkto(Pid),
-									agent:set_endpoints(Pid, [
-										{freeswitch_media, Endpoint},
-										{dummy_media, inband},
-										{email_media, inband}
-									]),
+									{true, Apid} = agent_manager:query_agent(Username),
+									agent:set_endpoints(Apid, AgentAuth#agent_auth.endpoints),
 									% TODO make real profile
 %									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),

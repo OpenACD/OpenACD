@@ -273,11 +273,11 @@ function loadMediaTab(options){
 	tabPane.addChild(pane);
 	tabPane.selectChild(pane.id);
 	var deathSub = dojo.subscribe("OpenACD/AgentChannel", tabPane, function(channelId, eventArg){
-		if(channelId != pane.channelId && eventArg != 'destroy'){
-			return false;
+		console.log('death sub', pane.channel, channelId, eventArg);
+		if(channelId == pane.channel && eventArg == 'destroy'){
+			this.closeChild(pane);
+			dojo.unsubscribe(deathSub);
 		}
-		this.closeChild(pane);
-		dojo.unsubscribe(deathSub);
 	});
 	pane.startup();
 	return pane;

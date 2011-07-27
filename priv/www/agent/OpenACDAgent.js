@@ -236,10 +236,9 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				chan.handleStateChange(datalist[i].state, datalist[i].statedata);
 				this.channels[datalist[i].channelid] = chan;
 				if(datalist[i].state == 'wrapup'){
-					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
-				} else if(this._wrapupNag){
-					this.clearNag(this._wrapupNag);
-					delete(this._wrapupNag);
+					this.setNag(datalist[i].channelid, "You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
+				} else {
+					this.clearNag(datalist[i].channelid);
 				}
 				break;
 
@@ -248,6 +247,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 					this.channels[datalist[i].channelid].destroy(datalist[i]);
 					delete this.channels[datalist[i].channelid];
 				}
+				this.clearNag(datalist[i].channelid);
 				break;
 
 			case "aprofile":
@@ -711,7 +711,7 @@ matically when an agent goes idle.
 @param {Number} time How many milliseconds to wait before nagging.
 @returns Reference usuable with clearNag
 */
-OpenACD.Agent.prototype.setNag = function(message, time){
+OpenACD.Agent.prototype.setNag = function(channelid, message, time){
 	var ref = this;
 	var nag = setTimeout(function(){
 		try{
@@ -719,9 +719,9 @@ OpenACD.Agent.prototype.setNag = function(message, time){
 		} catch (err) {
 			console.error("OpenACD/Agent/blab", err);
 		}
-			delete(ref._nags[nag]);
+		delete(ref._nags[channelid]);
 	}, time);
-	this._nags[nag] = true;
+	this._nags[channelid] = nag;
 	return nag;
 }
 
@@ -731,7 +731,7 @@ Remove a queues nag.
 */
 OpenACD.Agent.prototype.clearNag = function(nagref){
 	if(this._nags[nagref]){
-		clearTimeout(nagref);
+		clearTimeout(this._nags[nagref]);
 	}
 	delete this._nags[nagref];
 }

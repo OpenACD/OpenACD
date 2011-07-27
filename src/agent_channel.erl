@@ -403,8 +403,9 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 
-oncall({mediapush, From, Data}, #state{agent_connection = Conn} = State) ->
-	gen_server:cast(Conn, {mediapush, From, Data}),
+oncall({mediapush, From, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) ->
+	Self = self(),
+	gen_server:cast(Conn, {mediapush, Self, Data}),
 	{next_state, oncall, State}.
 
 % ======================================================================

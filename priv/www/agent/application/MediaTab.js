@@ -13,6 +13,11 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		dojo.safeMixin(this, args);
 		this.title = args.stateData.type + ' - ' + args.channel;
 		this._agentSub = dojo.subscribe("OpenACD/AgentChannel", this, this._handleAgentChannelPublish);
+		this._agentCommandSubs = {};
+		this._agentCommandSubs.mediaload = dojo.subscribe("OpenACD/AgentChannel/" + this.channel + "/mediaload", this, function(args){
+			console.log("loading media", args);
+			this.mediaPane.attr('href', "tabs/" + args.media + "_media.html");
+		});
 		/*switch(args.state){
 			case 'ringing':
 				this.answerButton.domNode.style.display = '';
@@ -42,7 +47,6 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 			window.agentConnection.channels[this.channel].endWrapup();
 		});
 	},
-
 
 	_handleAgentChannelPublish: function(channelId, args){
 		if(channelId != this.channel){

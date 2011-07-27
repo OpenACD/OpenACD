@@ -60,10 +60,11 @@ OpenACD.AgentChannel.prototype.handleCommand = function(args){
 	if(args.channelid != this.channelId){
 		return false;
 	}
+	console.log("handling command", this.channelId, args);
 	var command = args.command;
 	delete args.command;
 	delete args.channelid;
-	var pubChannel = "OpenACD/AgentChannel/" + command + "/" + this.channelid;
+	var pubChannel = "OpenACD/AgentChannel/" + this.channelId + "/" + command;
 	try{
 		dojo.publish(pubChannel, [args]);
 	} catch (err) {
@@ -274,13 +275,13 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				}
 				break;
 
-			case "urlpop":
+			/*case "urlpop":
 				try{
 					dojo.publish("OpenACD/Agent/urlpop", [datalist[i]]);
 				} catch (err) {
 					console.error("OpenACD/Agent/urlpop", err);
 				}
-				break;
+				break;*/
 			
 			case "blab":
 				try{
@@ -290,7 +291,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				}
 				break;
 			
-			case "mediaload":
+			/*case "mediaload":
 				try{
 					dojo.publish("OpenACD/Agent/mediaload", [datalist[i]]);
 				} catch (err) {
@@ -304,10 +305,17 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				} catch (err) {
 					console.error("OpenACD/Agent/mediaevent", err);
 				}
-				break;
+				break;*/
 			
 			default:
+				if(datalist[i].channelid){
+					if(this.channels[datalist[i].channelid]){
+						this.channels[datalist[i].channelid].handleCommand(datalist[i]);
+					}
+					return true;
+				}
 				try{
+					console.log("publishing by self", datalist[i]);
 					dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
 				} catch (err) {
 					console.error("OpenACD/Agent/" + datalist[i].command, err);

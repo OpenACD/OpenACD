@@ -1156,7 +1156,7 @@ dojo.addOnLoad(function(){
 		
 		popOptions.id = popOptions.title + '_urlpop';
 		
-		load_media_tab(popOptions);
+		//load_media_tab(popOptions);
 	});
 
 	dijit.byId("main").blab = dojo.subscribe("OpenACD/Agent/blab", function(data){
@@ -1188,7 +1188,7 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
-		load_media_tab(eventdata);
+		//load_media_tab(eventdata);
 	});
 });
 /*

@@ -1238,7 +1238,7 @@ format_status(terminate, [PDict, #state{callback = Mod, substate = SubState, cal
 %%--------------------------------------------------------------------
 
 set_agent_state(Apid, Args) ->
-	try apply(agent, set_state, [Apid | Args]) of
+	try apply(agent_channel, set_state, [Apid | Args]) of
 		ok ->
 			ok;
 		Res ->
@@ -1278,95 +1278,120 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 	end,
 	Return.
 
-handle_custom_return(Return, #state{monitors = Mons} = State, noreply) ->
-	case Return of
-		{noreply, NewState} ->
-			{noreply, State#state{substate = NewState}};
-		{noreply, NewState,  Timeout} ->
-			{noreply, State#state{substate = NewState}, Timeout};
-		{stop, Reason, NewState} ->
-			Newstop = handle_stop(Reason, State),
-			{stop, Newstop, State#state{substate = NewState}};
-		{queue, Queue, PCallrec, NewState} ->
-			Callrec = correct_client(PCallrec),
-			case priv_queue(Queue, Callrec, State#state.queue_failover) of
-				{default, Qpid} ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, "default_queue"),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
-					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
-				invalid ->
-					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
-					{noreply, State#state{callrec = Callrec, substate = NewState}};
-				Qpid ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, Queue}]),
-					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
-			end;
-		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
-			priv_voicemail(State),
-			{noreply, State#state{substate = NewState, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined}};
-		Tuple when element(1, Tuple) =:= outbound ->
-			{_Reply, NewState} = outgoing(Tuple, State),
-			{noreply, NewState};
-		{Interact, NewState} ->
-			Midstate = agent_interact(Interact, State),
-			{noreply, Midstate#state{substate = NewState}}
+%% ============================================================
+%% handle custom return, noreply.
+%% ============================================================
+handle_custom_return({noreply, NewState}, #state{monitors = Mons} = State, noreply) ->
+	{noreply, State#state{substate = NewState}};
+
+handle_custom_return({noreply, NewState,  Timeout}, #state{monitors = Mons} = State, noreply) ->
+	{noreply, State#state{substate = NewState}, Timeout};
+
+handle_custom_return({stop, Reason, NewState}, #state{monitors = Mons} = State, noreply) ->
+	Newstop = handle_stop(Reason, State),
+	{stop, Newstop, State#state{substate = NewState}};
+
+handle_custom_return({queue, Queue, PCallrec, NewState}, #state{monitors = Mons} = State, noreply) ->
+	Callrec = correct_client(PCallrec),
+	case priv_queue(Queue, Callrec, State#state.queue_failover) of
+		{default, Qpid} ->
+			cdr:cdrinit(Callrec),
+			cdr:inqueue(Callrec, "default_queue"),
+			set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
+			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+		invalid ->
+			?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
+			{noreply, State#state{callrec = Callrec, substate = NewState}};
+		Qpid ->
+			cdr:cdrinit(Callrec),
+			cdr:inqueue(Callrec, Queue),
+			set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, Queue}]),
+			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
-handle_custom_return(Return, #state{monitors = Mons} = State, reply) ->
-	case Return of
-		{reply, Reply, NewState} ->
-			{reply, Reply, State#state{substate = NewState}};
-		{reply, Reply, Newstate, Timeout}  ->
-			{reply, Reply, State#state{substate = Newstate}, Timeout};
-		{noreply, NewState} ->
-			{noreply, State#state{substate = NewState}};
-		{noreply, NewState, Timeout} ->
-			{noreply, State#state{substate = NewState}, Timeout};
-		{stop, Reason, Reply, NewState} ->
-			Newreason = handle_stop(Reason, State),
-			{stop, Newreason, Reply, State#state{substate = NewState}};
-		{stop, Reason, NewState} ->
-			Newreason = handle_stop(Reason, State),
-			{stop, Newreason, State#state{substate = NewState}};
-		{queue, Queue, PCallrec, NewState} ->
-			Callrec = correct_client(PCallrec),
-			case priv_queue(Queue, Callrec, State#state.queue_failover) of
-				invalid ->
-					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
-					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
-				{default, Qpid} ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, "default_queue"),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, "default_queue"}]),
-					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
-				Qpid ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}, [{queue, Queue}]),
-					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
-			end;
-		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
-			priv_voicemail(State),
-			Newqnom = case State#state.queue_pid of
-				undefined ->
-					undefined;
-				{Nom, _} ->
-					Nom
-			end,
-			{reply, ok, State#state{substate = NewState, queue_pid = Newqnom, ring_pid = undefined}};
-		Tuple when element(1, Tuple) =:= outbound ->
-			{Reply, NewState} = outgoing(Tuple, State),
-			{reply, Reply, NewState};
-		{Agentact, Reply, NewState} ->
-			Midstate = agent_interact(Agentact, State),
-			{reply, Reply, Midstate#state{substate = NewState}}
-	end.
+
+handle_custom_return({voicemail, NewState}, #state{
+		monitors = Mons
+		} = State, noreply) when 
+			is_tuple(State#state.queue_pid) orelse 
+			State#state.oncall_pid == undefined ->
+	priv_voicemail(State),
+	{noreply, State#state{substate = NewState, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined}};
+
+handle_custom_return(Tuple, #state{monitors = Mons} = State, noreply) when element(1, Tuple) =:= outbound ->
+	{_Reply, NewState} = outgoing(Tuple, State),
+	{noreply, NewState};
+
+handle_custom_return({Interact, NewState}, #state{monitors = Mons} = State, noreply) ->
+	Midstate = agent_interact(Interact, State),
+	{noreply, Midstate#state{substate = NewState}};
+
+%% ============================================================
+%% handle custom return, reply.
+%% ============================================================
+
+handle_custom_return({reply, Reply, NewState}, #state{monitors = Mons} = State, reply) ->
+	{reply, Reply, State#state{substate = NewState}};
+
+handle_custom_return({reply, Reply, Newstate, Timeout}, #state{monitors = Mons} = State, reply) ->
+	{reply, Reply, State#state{substate = Newstate}, Timeout};
+
+handle_custom_return({noreply, NewState}, #state{monitors = Mons} = State, reply) ->
+	{noreply, State#state{substate = NewState}};
+
+handle_custom_return({noreply, NewState, Timeout}, #state{monitors = Mons} = State, reply) ->
+	{noreply, State#state{substate = NewState}, Timeout};
+
+handle_custom_return({stop, Reason, Reply, NewState}, #state{monitors = Mons} = State, reply) ->
+	Newreason = handle_stop(Reason, State),
+	{stop, Newreason, Reply, State#state{substate = NewState}};
+
+handle_custom_return({stop, Reason, NewState}, #state{monitors = Mons} = State, reply) ->
+	Newreason = handle_stop(Reason, State),
+	{stop, Newreason, State#state{substate = NewState}};
+
+handle_custom_return({queue, Queue, PCallrec, NewState}, #state{monitors = Mons} = State, reply) ->
+	Callrec = correct_client(PCallrec),
+	case priv_queue(Queue, Callrec, State#state.queue_failover) of
+		invalid ->
+			?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
+			{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
+		{default, Qpid} ->
+			cdr:cdrinit(Callrec),
+			cdr:inqueue(Callrec, "default_queue"),
+			set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, "default_queue"}]),
+			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+		Qpid ->
+			cdr:cdrinit(Callrec),
+			cdr:inqueue(Callrec, Queue),
+			set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}, [{queue, Queue}]),
+			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+	end;
+
+handle_custom_return({voicemail, NewState},
+		#state{monitors = Mons} = State, reply)
+		when is_tuple(State#state.queue_pid) orelse
+			State#state.oncall_pid == undefined ->
+	priv_voicemail(State),
+	Newqnom = case State#state.queue_pid of
+		undefined ->
+			undefined;
+		{Nom, _} ->
+			Nom
+	end,
+	{reply, ok, State#state{substate = NewState, queue_pid = Newqnom, ring_pid = undefined}};
+
+handle_custom_return(Tuple, #state{monitors = Mons} = State, reply) 
+		when element(1, Tuple) =:= outbound ->
+	{Reply, NewState} = outgoing(Tuple, State),
+	{reply, Reply, NewState};
+
+handle_custom_return({Agentact, Reply, NewState}, #state{monitors = Mons} = State, reply) ->
+	Midstate = agent_interact(Agentact, State),
+	{reply, Reply, Midstate#state{substate = NewState}}.
 
 url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 	#client{options = DefaultOptions} = correct_client_sub(undefined),
@@ -1645,12 +1670,13 @@ agent_interact({hangup, _Who}, #state{queue_pid = undefined, oncall_pid = undefi
 	?INFO("Truely orphaned call, no queue, agents, or even a call record", []),
 	State.
 
+%% TODO resturcture to use agent_channel instead
 %% These should crash the media if the agent doesn't exist.
 outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = State) when is_record(State#state.callrec, call) ->
 	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
-			agent:set_state(Apid, outgoing, State#state.callrec),
+			agent_channel:set_state(Apid, oncall, State#state.callrec),
 			cdr:oncall(State#state.callrec, Agent),
 			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
 			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState, monitors = NewMons}};

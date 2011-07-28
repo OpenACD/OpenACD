@@ -136,9 +136,13 @@
 	get_avail_agents/1,
 	agent_transfer/2,
 	agent_transfer/3,
-	media_command/3,
-	media_command/4,
+	%media_command/3,
+	%media_command/4,
 	media_hangup/1,
+	media_call/3,
+	media_call/4,
+	media_cast/3,
+	media_cast/4,
 	load_media/1,
 	ring_test/1,
 	get_agent_profiles/1,
@@ -160,9 +164,13 @@
 	{get_avail_agents, 1},
 	{agent_transfer, 2},
 	{agent_transfer, 3},
-	{media_command, 3},
-	{media_command, 4},
+	%{media_command, 3},
+	%{media_command, 4},
 	{media_hangup, 1},
+	{media_call, 3},
+	{media_call, 4},
+	{media_cast, 3},
+	{media_cast, 4},
 	{load_media, 1},
 	{ring_test, 1},
 	{get_agent_profiles, 1},
@@ -289,6 +297,33 @@ agent_transfer(Conn, Agent) ->
 -spec(agent_transfer/3 :: (Conn :: pid(), Agent :: bin_string(), Caseid :: bin_string()) -> any()).
 agent_transfer(Conn, Agent, Caseid) ->
 	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent), binary_to_list(Caseid)}).
+
+%% @doc {@web} {@see media_call/4}
+-spec(media_call/3 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string()) -> any()).
+media_call(Conn, Channel, Command) ->
+	media_call(Conn, Channel, Command, []).
+
+%% @doc {@web} Forward a request to the media associated with an oncall
+%% agent channel.  `Command' is the name of the request to make.  `Args'
+%% is a list of arguments to be sent with the `Command'.  Check the
+%% documentation of the media modules to see what possible returns there
+%% are.
+-spec(media_call/4 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string(), Args :: [any()]) -> any()).
+media_call(Conn, Channel, Command, Args) ->
+	gen_server:call(Conn, {media_call, Channel, Command, Args}).
+
+%% @doc {@web} {@see media_cast/4}
+-spec(media_cast/3 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string()) -> any()).
+media_cast(Conn, Channel, Command) ->
+	media_cast(Conn, Channel, Command, []).
+
+%% @doc {@web} Forward a command to the media associated with an oncall
+%% agent channel.  `Command' is the name of the command to send.  `Args'
+%% is a list of arguments to send with the `Command'.  There is no reply
+%% expected, so a simple success is always returned.
+-spec(media_cast/4 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string(), Args :: [any()]) -> any()).
+media_cast(Conn, Channel, Command, Args) ->
+	gen_server:call(Conn, {media_cast, Channel, Command, Args}).
 
 %% @doc {@web} Forward a command or request to the media associated with 
 %% an oncall agent.  `Command' is the name of the request to make.  `Mode' 
@@ -584,6 +619,7 @@ encode_statedata(Callrec) when is_record(Callrec, call) ->
 		{<<"ringpath">>, Callrec#call.ring_path},
 		{<<"mediapath">>, Callrec#call.media_path},
 		{<<"callid">>, list_to_binary(Callrec#call.id)},
+		{<<"source_module">>, Callrec#call.source_module},
 		{<<"type">>, Callrec#call.type}]};
 encode_statedata(Clientrec) when is_record(Clientrec, client) ->
 	Label = case Clientrec#client.label of
@@ -807,6 +843,34 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 
 % TODO supervisor handling was here.  Forward requests to 
 % supervisor_web_connection module for teh happy.
+
+handle_call({media_call, Channel, Command, Args}, _From, #state{agent_channels = Channels} = State) ->
+	case fetch_channel(Channel, Channels) of
+		none ->
+			{reply, {200, [], ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>)}, State};
+		{_ChanPid, #call{source = CallPid} = Call} ->
+			{Heads, Data} = try gen_media:call(CallPid, {?MODULE, Command, Args}) of
+				invalid ->
+					?DEBUG("media call returned invalid", []),
+					{[], ?reply_err(<<"invalid media call">>, <<"INVALID_MEDIA_CALL">>)};
+				Response ->
+					parse_media_call(Call, {?MODULE, Command, Args}, Response)
+			catch
+				exit:{noproc, _} ->
+					?DEBUG("Media no longer exists.", []),
+					{[], ?reply_err(<<"media no longer exists">>, <<"MEDIA_NOEXISTS">>)}
+			end,
+			{reply, {200, Heads, Data}, State}
+	end;
+
+handle_call({media_cast, Channel, Command, Args}, _From, #state{agent_channels = Channels} = State) ->
+	case fetch_channel(Channel, Channels) of
+		none ->
+			{reply, {200, [], ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>)}, State};
+		{_ChanPid, #call{source = CallPid} = Call} ->
+			gen_media:cast(CallPid, {?MODULE, Command, Args}),
+			{reply, {200, [], ?simple_success()}, State}
+	end;
 
 handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Commande = proplists:get_value("command", Post),
@@ -1048,7 +1112,7 @@ handle_cast({mediapush, ChanPid, {mediaload, #call{source_module = email_media} 
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
 		{<<"channelid">>, list_to_binary(pid_to_list(ChanPid))},
-		{<<"media">>, <<"email">>}
+		{<<"media">>, Call#call.source_module}
 	]},
 	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate#state{mediaload = []}};
@@ -1362,6 +1426,13 @@ format_status(terminate, [_PDict, State]) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+fetch_channel(Channel, Channels) ->
+	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
+	case Chans of
+		[] ->	none;
+		[Chan] -> {Chan, dict:fetch(Chan, Channels)}
+	end.
+
 -spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
 push_event(Eventjson, State) ->
 	Newqueue = [Eventjson | State#state.poll_queue],
@@ -1604,6 +1675,7 @@ encode_call(Call) when is_record(Call, call) ->
 	{struct, [
 		{<<"id">>, list_to_binary(Call#call.id)},
 		{<<"type">>, Call#call.type},
+		{<<"source_module">>, Call#call.source_module},
 		{<<"callerid">>, list_to_binary(element(1, Call#call.callerid) ++ " " ++ element(2, Call#call.callerid))},
 		{<<"client">>, encode_client(Call#call.client)},
 		{<<"skills">>, cpx_web_management:encode_skills(Call#call.skills)},

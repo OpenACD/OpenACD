@@ -60,11 +60,18 @@ OpenACD.AgentChannel.prototype.handleCommand = function(args){
 	if(args.channelid != this.channelId){
 		return false;
 	}
-	console.log("handling command", this.channelId, args);
+	console.log("handling command", this.channelId, args.command, args);
 	var command = args.command;
 	delete args.command;
 	delete args.channelid;
-	var pubChannel = "OpenACD/AgentChannel/" + this.channelId + "/" + command;
+	var pubChannel = "OpenACD/AgentChannel/" + this.channelId + "/"
+	if(command == 'mediaevent' || command == 'mediaload'){
+		pubChannel += args.media + '/' + command;
+		delete args.media;
+	} else {
+		pubChannel += command;
+	}
+	console.log('pubChannel', pubChannel);
 	try{
 		dojo.publish(pubChannel, [args]);
 	} catch (err) {

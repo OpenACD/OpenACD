@@ -2,6 +2,17 @@
 <img src='/images/popout.png' class='popout' />
 </a>
 
-<div class="emailMediaHolder"></div>
+<div class="emailMediaHolder" init="initializeEmailMedia"></div>
 
+<script type="text/javascript">
+	dojo.require('agentUI.EmailPane');
+	function initializeEmailMedia(agentChannel, topNode){
+		console.log('initializeEmailMedia', agentChannel, topNode);
+		var node = dojo.query('div.emailMediaHolder', topNode)[0];
+		var emailPane = new agentUI.EmailPane({
+			channelId:agentChannel
+		}, node);
+		console.log('the email pane', emailPane);
+	}
+</script>
 <!--<script type="text/javascript" src="tabs/email_media.js"></script>-->

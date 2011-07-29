@@ -18,10 +18,10 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 	widgetsInTemplate: true,
 
 	constructor: function(args, srcNodeRef){
-		console.log('email pane construction', args);
+		console.log('email pane construction', args, srcNodeRef);
 		dojo.safeMixin(this, args);
 		if(args.channelId){
-			this.channel = window.agentConnection[args.channelId];
+			this.channel = window.agentConnection.channels[args.channelId];
 		}
 		this.skeletonSub = dojo.subscribe('emailLib/get_skeleton/' + this.channelId, this, function(skel){
 			this._handleGetSkeleton(skel);
@@ -34,18 +34,13 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 		this.attachmentDropSub = dojo.subscribe('emailPane/attachment/drop/' + this.channelId, this, function(data){
 			this._rebuildAttachmentList(data);
 		});
-
-		var replyDiv = this.emailReplyDiv;
-		setTimeout(function(){
-			replyDiv.style.display = 'none';
-		}, 250);
 	},
 
 	postCreate: function(){
 		var nodes = dojo.query('.translatecol, .translate', 'emailView', this.domNode);
 		var out = [];
 		for(var i = 0; i < nodes.length; i++){
-			var trans = dojo.i18n.getLocalization("agentUI", "emailPane")[nodes[i].innerHTML];
+			var trans = dojo.i18n.getLocalization("agentUI", "EmailPane")[nodes[i].innerHTML];
 			if(trans){
 				if(dojo.hasClass(nodes[i], 'translatecol')){
 					trans += ':';
@@ -54,7 +49,12 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			}
 		}
 
-		dojo.connect(this.toggleRawHeaderButton, this, 'onClick', function(){
+		var replyDiv = this.emailReplyDiv;
+		setTimeout(function(){
+			replyDiv.style.display = 'none';
+		}, 250);
+
+		dojo.connect(this.toggleRawHeaderButton, 'onClick', this, function(){
 			var target = this.emailRawHeadersSpan;
 			if(target.style.display == 'none'){
 				target.style.display = 'inline-block';
@@ -65,9 +65,9 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			}
 		});
 
-		this.emailReply.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").REPLY);
+		this.emailReply.attr('label', dojo.i18n.getLocalization("agentUI", "EmailPane").REPLY);
 
-		dojo.connect(this.emailReply, this, 'onClick', function(){
+		dojo.connect(this.emailReply, 'onClick', this, function(){
 			this.emailView.style.display = 'none';
 			this.emailReplyDiv.style.display = 'block';
 			var replyBase = dojo.doc.createElement('div');
@@ -91,7 +91,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 				showProgress:true,
 				showLabel:false,
 				iconClass:'attachIcon',
-				//TODO media?
+				//TODO media? was media
 				uploadUrl:'/api',
 				hoverClass:'attachIcon',
 				activeClass:'attachIcon',
@@ -111,8 +111,8 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			button.insideNode.style.backgroundImage = "url('images/paperclip.png')";
 		});
 
-		this.emailUploadButton.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").UPLOAD);
-		dojo.connect(this.emailUploadButton, this, 'onClick', function(){
+		this.emailUploadButton.attr('label', dojo.i18n.getLocalization("agentUI", "EmailPane").UPLOAD);
+		dojo.connect(this.emailUploadButton, 'onClick', this, function(){
 			this.fileuploader.upload({
 				'function':'media_call',
 				'channel':this.channelId,
@@ -124,15 +124,15 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			});
 		});
 
-		this.emailSubmit.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").SUBMIT);
+		this.emailSubmit.attr('label', dojo.i18n.getLocalization("agentUI", "EmailPane").SUBMIT);
 
-		dojo.connect(this.emailSubmit, this, 'onClick', function(){
+		dojo.connect(this.emailSubmit, 'onClick', this, function(){
 			this.submit();
 		});
 
-		this.emailCancel.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
+		this.emailCancel.attr('label', dojo.i18n.getLocalization("agentUI", "EmailPane").CANCEL);
 
-		dojo.connect(this.emailCancel, this, 'onClick', function(){
+		dojo.connect(this.emailCancel, 'onClick', this, function(){
 			this.emailReplyEditor.destroy();
 			this.emailView.style.display = 'block';
 			this.emailReplyDiv.style.display = 'none';
@@ -272,7 +272,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 		});
 	},
 
-	_rebuildAttachmentList = function(filenames){
+	_rebuildAttachmentList: function(filenames){
 		var listNode = this.attachmentListNode;
 		this.filenames = filenames;
 		while(listNode.firstChild){
@@ -293,7 +293,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			buttonNode.src = '/images/redx.png';
 			buttonNode.setAttribute('fileIndex', i);
 			buttonNode.setAttribute('filename', filenames[i]);
-			dojo.connection(li.firstChild, this, 'onclick', function(e){
+			dojo.connection(li.firstChild, 'onclick', this, function(e){
 				var index = parseInt(e.target.getAttribute('fileIndex'));
 				var nom = e.target.getAttribute('filename');
 				var pubChan = 'emailPane/attachment/drop/' + this.channelId;
@@ -306,7 +306,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			});
 		}
 	}
-}
+});
 
 //TODO
 	//This could be set up when spying, so disable reply, and allow closability.

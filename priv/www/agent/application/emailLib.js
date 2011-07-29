@@ -17,15 +17,17 @@ if(typeof(emailLib) === 'undefined'){
 		} else {
 			this.mode = 'api';
 		}
-	}
+	};
 
 	emailLib.Email.prototype.getSkeleton = function(){
 		var pubChan = 'emailLib/get_skeleton/' + this.channel.channelId;
+		var chanId = this.channel.channelId;
 		this.channel.agent.webApi(this.mode, 'media_call', {
 			success:function(res){
 				dojo.publish(pubChan, [res]);
-		}, this.channel.channelId, 'get_skeleton');
-	}
+			}
+		}, chanId, 'get_skeleton');
+	};
 	
 	/*emailLib.getSkeleton = function(){
 		// yay globals!
@@ -38,7 +40,6 @@ if(typeof(emailLib) === 'undefined'){
 	
 	emailLib.Email.prototype.getPath = function(path){
 		var pubChan = 'emailLib/get_path/' + this.channel.channelId;
-		this.channel.agent.agentApi(
 		this.channel.agent.webApi(this.mode, 'media_call', {
 			success:function(res){
 				dojo.publish(pubChan + '/' + path, [res]);
@@ -54,7 +55,7 @@ if(typeof(emailLib) === 'undefined'){
 	};
 
 	emailLib.Email.prototype.fetchPaths = function(fetchObjs, fetched){
-		debug(["fetchPaths", fetchObjs[0]]);
+		console.log(["fetchPaths", fetchObjs[0]]);
 		if(this.fetchSub){
 			return false;
 		}
@@ -139,7 +140,7 @@ if(typeof(emailLib) === 'undefined'){
 			return out;
 		};
 		
-		debug(["pathsToFetch", skeleton, path]);
+		console.log(["pathsToFetch", skeleton, path]);
 		var tpath;
 		var i = 0;
 		if( (skeleton.type === "multipart") && (skeleton.subtype === "alternative") ){
@@ -178,7 +179,7 @@ if(typeof(emailLib) === 'undefined'){
 				}
 			}
 			
-			debug(["fetches", fetches]);
+			console.log("fetches", fetches);
 			return fetches;
 		}
 		

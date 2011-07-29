@@ -315,70 +315,9 @@ handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
 	
 %% now the web calls.
-handle_call({<<"get_skeleton">>, _Post}, _From, _Callrec, State) ->
-	{reply, State#state.skeleton, State};
-handle_call({<<"get_path">>, Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
-	Path = lists:flatten(proplists:get_value("args", Post)),
-	Out = get_part(Path, Mime),
-	{reply, Out, State};
-handle_call({<<"attach">>, Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
-	case proplists:get_value("attachFiles", Postdata) of
-		{_Name, Bin} = T ->
-			case byte_size(Bin) + State#state.attachment_size of
-				Toobig when Toobig > 5242880 ->
-					%Size = State#state.attachment_size,
-					{reply, {error, toobig}, State};
-				Size ->
-					Attachments = [T | Oldattachments],
-					Keys = get_prop_keys(Attachments),
-					?DEBUG("files list:  ~p (~p)", [Keys, Callrec#call.id]),
-					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
-			end;
-		_Else ->
-			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
-			{reply, {error, nofile}, State}
-	end;
-handle_call({<<"detach">>, Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
-	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
-		false ->
-			{reply, {error, badarg}, State};
-		[Nth, Namebin] ->
-			Name = binary_to_list(Namebin),
-			case (Nth > length(Attachments)) of
-				true ->
-					{reply, {error, out_of_range, Nth}, State};
-				false ->
-					case lists:split(Nth - 1, Attachments) of
-						{Toplist, [{Name, _Bin} | Tail]} ->
-							Newattaches = lists:append(Toplist, Tail),
-							%Newsize = State#state.attachment_size - byte_size(Bin),
-							Keys = get_prop_keys(Newattaches),
-							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
-						{_, [{Gotname, _} | _]} ->
-							{reply, {error, bad_name, Gotname}, State}
-					end
-			end
-	end;
-handle_call({<<"get_from">>, _Post}, _From, #call{client = Client}, State) ->
-	#client{options = Options} = Client,
-	case proplists:get_value(emailfrom, Options) of
-		undefined ->
-			{reply, undefined, State};
-		{Label, Address} when is_atom(Label), is_atom(Address) ->
-			{reply, undefined, State};
-		{_Label, Address} when is_atom(Address) ->
-			{reply, undefined, State};
-		{Label, Address} ->
-			FixedLabel = case {Label, Client#client.label} of
-				{Label, undefined} when is_atom(Label) ->
-					undefined;
-				{Label, _} when is_list(Label) ->
-					list_to_binary(Client#client.label);
-				{Label, _} ->
-					Label
-			end,
-			{reply, {FixedLabel, Address}, State}
-	end;
+handle_call({agent_web_connection, Command, Args}, _From, Callrec, State) ->
+	handle_web_call(Command, Args, Callrec, State);
+
 handle_call({peek, PeekingApid}, _From, Callrec, State) ->
 	agent:conn_cast(PeekingApid, {mediaload, Callrec}),
 	{reply, ok, State};
@@ -565,7 +504,76 @@ handle_spy({Spy, _AgentRec}, Callrec, State) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-	
+
+handle_web_call(<<"get_skeleton">>, _Post, _Callrec, State) ->
+	{reply, State#state.skeleton, State};
+
+handle_web_call(<<"get_path">>, Post, _Callrec, #state{mimed = Mime} = State) ->
+	Path = lists:flatten(proplists:get_value("args", Post)),
+	Out = get_part(Path, Mime),
+	{reply, Out, State};
+
+handle_web_call(<<"attach">>, Postdata, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
+	case proplists:get_value("attachFiles", Postdata) of
+		{_Name, Bin} = T ->
+			case byte_size(Bin) + State#state.attachment_size of
+				Toobig when Toobig > 5242880 ->
+					%Size = State#state.attachment_size,
+					{reply, {error, toobig}, State};
+				Size ->
+					Attachments = [T | Oldattachments],
+					Keys = get_prop_keys(Attachments),
+					?DEBUG("files list:  ~p (~p)", [Keys, Callrec#call.id]),
+					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
+			end;
+		_Else ->
+			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
+			{reply, {error, nofile}, State}
+	end;
+
+handle_web_call(<<"detach">>, Postdata, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
+	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
+		false ->
+			{reply, {error, badarg}, State};
+		[Nth, Namebin] ->
+			Name = binary_to_list(Namebin),
+			case (Nth > length(Attachments)) of
+				true ->
+					{reply, {error, out_of_range, Nth}, State};
+				false ->
+					case lists:split(Nth - 1, Attachments) of
+						{Toplist, [{Name, _Bin} | Tail]} ->
+							Newattaches = lists:append(Toplist, Tail),
+							%Newsize = State#state.attachment_size - byte_size(Bin),
+							Keys = get_prop_keys(Newattaches),
+							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
+						{_, [{Gotname, _} | _]} ->
+							{reply, {error, bad_name, Gotname}, State}
+					end
+			end
+	end;
+
+handle_web_call(<<"get_from">>, _Post, #call{client = Client}, State) ->
+	#client{options = Options} = Client,
+	case proplists:get_value(emailfrom, Options) of
+		undefined ->
+			{reply, undefined, State};
+		{Label, Address} when is_atom(Label), is_atom(Address) ->
+			{reply, undefined, State};
+		{_Label, Address} when is_atom(Address) ->
+			{reply, undefined, State};
+		{Label, Address} ->
+			FixedLabel = case {Label, Client#client.label} of
+				{Label, undefined} when is_atom(Label) ->
+					undefined;
+				{Label, _} when is_list(Label) ->
+					list_to_binary(Client#client.label);
+				{Label, _} ->
+					Label
+			end,
+			{reply, {FixedLabel, Address}, State}
+	end.
+
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.
 get_prop_keys(List) ->

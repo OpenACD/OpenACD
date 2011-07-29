@@ -847,29 +847,30 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 handle_call({media_call, Channel, Command, Args}, _From, #state{agent_channels = Channels} = State) ->
 	case fetch_channel(Channel, Channels) of
 		none ->
-			{reply, {200, [], ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>)}, State};
-		{_ChanPid, #call{source = CallPid} = Call} ->
-			{Heads, Data} = try gen_media:call(CallPid, {?MODULE, Command, Args}) of
+			{reply, ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>), State};
+		{_ChanPid, #channel_state{current_call = #call{source = CallPid} = Call}} ->
+			Reply = try gen_media:call(CallPid, {?MODULE, Command, Args}) of
 				invalid ->
 					?DEBUG("media call returned invalid", []),
-					{[], ?reply_err(<<"invalid media call">>, <<"INVALID_MEDIA_CALL">>)};
+					?reply_err(<<"invalid media call">>, <<"INVALID_MEDIA_CALL">>);
 				Response ->
-					parse_media_call(Call, {?MODULE, Command, Args}, Response)
+					{H, D} = parse_media_call(Call, {?MODULE, Command, Args}, Response),
+					{200, H, D}
 			catch
 				exit:{noproc, _} ->
 					?DEBUG("Media no longer exists.", []),
-					{[], ?reply_err(<<"media no longer exists">>, <<"MEDIA_NOEXISTS">>)}
+					?reply_err(<<"media no longer exists">>, <<"MEDIA_NOEXISTS">>)
 			end,
-			{reply, {200, Heads, Data}, State}
+			{reply, Reply, State}
 	end;
 
 handle_call({media_cast, Channel, Command, Args}, _From, #state{agent_channels = Channels} = State) ->
 	case fetch_channel(Channel, Channels) of
 		none ->
-			{reply, {200, [], ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>)}, State};
-		{_ChanPid, #call{source = CallPid} = Call} ->
+			{reply, ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>), State};
+		{_ChanPid, #channel_state{current_call = #call{source = CallPid} = Call}} ->
 			gen_media:cast(CallPid, {?MODULE, Command, Args}),
-			{reply, {200, [], ?simple_success()}, State}
+			{reply, ?simple_success(), State}
 	end;
 
 handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
@@ -1426,7 +1427,10 @@ format_status(terminate, [_PDict, State]) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+fetch_channel(Channel, Channels) when is_binary(Channel) ->
+	fetch_channel(binary_to_list(Channel), Channels);
 fetch_channel(Channel, Channels) ->
+	?DEBUG("The chan:  ~p, The channels:  ~p", [Channel, Channels]),
 	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
 	case Chans of
 		[] ->	none;

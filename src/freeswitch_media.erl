@@ -64,6 +64,7 @@
 -export([
 	init/1,
 	urlpop_getvars/1,
+	prepare_endpoint/2,
 	handle_ring/4,
 	handle_ring_stop/2,
 	handle_answer/3,
@@ -153,6 +154,29 @@ handle_announce(Announcement, Callrec, State) ->
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
+
+%%--------------------------------------------------------------------
+%% perpare_endpoint
+%%--------------------------------------------------------------------
+
+prepare_endpoint(Agent, Options) ->
+	{Node, Dialstring, Dest} = freeswitch_media_manager:get_ring_data(Agent, Options),
+	case proplists:get_value(persistant, Options) of
+		undefined ->
+			{ok, {freeswitch_ring, start, [Node, freeswitch_ring_transient, [
+				{destination, Dest},
+				{dialstring, Dialstring}]]}};
+		true ->
+			freeswitch_ring:start([Node, freeswitch_persistant_ring, [
+				{destination, Dest},
+				{dialstring, Dialstring},
+				persistant
+			]])
+	end.
+
+%%--------------------------------------------------------------------
+%% handle_answer
+%%--------------------------------------------------------------------
 
 handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),

@@ -49,7 +49,8 @@
 %% replies, such as chat.
 %-type(channel_category() :: 'dummy' | 'voice' | 'visual' | 'slow_text' | 'fast_text').
 -record(state, {
-	agent_rec :: #agent{}
+	agent_rec :: #agent{},
+	original_endpoints = dict:new()
 }).
 
 -type(state() :: #state{}).
@@ -295,6 +296,7 @@ ringing(Apid, Call) ->
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([Agent, Options]) when is_record(Agent, agent) ->
 	process_flag(trap_exit, true),
+	OriginalEnds = Agent#agent.endpoints,
 	#agent_profile{name = Profile, skills = Skills} = try agent_auth:get_profile(Agent#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [Agent#agent.login, Agent#agent.profile]),
@@ -335,7 +337,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 %			Agent2
 %	end,
 	%set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
-	{ok, StateName, #state{agent_rec = Agent2}}.
+	{ok, StateName, #state{agent_rec = Agent2, original_endpoints = OriginalEnds}}.
 
 % ======================================================================
 % IDLE
@@ -489,11 +491,12 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			{reply, {error, unknown_profile}, StateName, State}
 	end;
 
-handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_rec = Agent} = State) ->
+handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_rec = Agent, original_endpoints = OEnds} = State) ->
 	case priv_set_endpoint(Agent, Module, Data) of
 		{ok, NewAgent} ->
+			NewOEnds = dict:store(Module, Data, OEnds),
 			gen_leader:cast(agent_manager, {set_ends, Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
-			{reply, ok, StateName, State#state{agent_rec = NewAgent}};
+			{reply, ok, StateName, State#state{agent_rec = NewAgent, original_endpoints = NewOEnds}};
 		{error, Err} = Error ->
 			{reply, Error, StateName, State}
 	end;
@@ -526,7 +529,7 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 	{next_state, StateName, State#state{agent_rec = Newagent}};
 
 handle_event({set_endpoints, Ends}, StateName, State) ->
-	NewAgent = priv_set_endpoints(State#state.agent_rec, Ends),
+	NewAgent = priv_set_endpoints(State#state.agent_rec, State#state.original_endpoints, Ends),
 	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
 	{next_state, StateName, State#state{agent_rec = NewAgent}};
 
@@ -562,13 +565,22 @@ handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connect
 handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State) ->
 	case dict:find(Pid, Agent#agent.used_channels) of
 		error ->
-			case whereis(agent_manager) of
-				undefined ->
-					agent_manager_exit(Reason, StateName, State);
-				From when is_pid(From) ->
-					agent_manager_exit(Reason, StateName, State);
-				_Else ->
-					?INFO("unknown exit from ~p", [Pid]),
+			case util:dict_find_by_value(Pid, Agent#agent.endpoints) of
+				error ->
+					case whereis(agent_manager) of
+						undefined ->
+							agent_manager_exit(Reason, StateName, State);
+						From when is_pid(From) ->
+							agent_manager_exit(Reason, StateName, State);
+						_Else ->
+							?INFO("unknown exit from ~p", [Pid]),
+							{next_state, StateName, State}
+					end;
+				{ok, DeadEnds} ->
+					Self = self(),
+					Oends = State#state.original_endpoints,
+					NewEnds = [{End, Data} || End <- DeadEnds, {ok, Data} = dict:fetch(End, Oends)],
+					?MODULE:set_endpoints(Self, NewEnds),
 					{next_state, StateName, State}
 			end;
 		{ok, Type} ->
@@ -663,14 +675,15 @@ priv_set_endpoint(Agent, Module, Data) ->
 			{error, Else}
 	end.
 
-priv_set_endpoints(Agent, []) ->
+priv_set_endpoints(Agent, _, []) ->
 	Agent;
-priv_set_endpoints(Agent, [{Module, Data} | Tail]) ->
+priv_set_endpoints(Agent, OEnds, [{Module, Data} | Tail]) ->
 	case priv_set_endpoint(Agent, Module, Data) of
 		{ok, NewAgent} ->
-			priv_set_endpoints(NewAgent, Tail);
+			NewOEnds = dict:store(Module, Data, OEnds),
+			priv_set_endpoints(NewAgent, NewOEnds, Tail);
 		_ ->
-			priv_set_endpoints(Agent, Tail)
+			priv_set_endpoints(Agent, OEnds, Tail)
 	end.
 
 filter_endpoints(Endpoints) ->

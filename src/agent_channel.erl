@@ -234,30 +234,30 @@ has_successful_ring(Pid) ->
 
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
-init([Agent, Options]) when is_record(Agent, agent) ->
-	%{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
-	ProtoState = #state{
-		agent_fsm = Agent#agent.source,
-		agent_connection = Agent#agent.connection
-	},
-	InitInfo = proplists:get_value(initial_state, Options, {prering, undefined}),
-	case InitInfo of
-		{prering, Call} when is_record(Call, call); Call =:= undefined ->
-			State = ProtoState#state{state_data = Call},
-			?DEBUG("Starting in prering", []),
-			{ok, prering, State};
-		{ringing, Call} when is_record(Call, call) ->
-			State = ProtoState#state{state_data = Call},
-			?DEBUG("Starting in ring directly", []),
-			{ok, ringing, State};
-		{precall, Client} when is_record(Client, client) ->
-			State = ProtoState#state{state_data = Client},
-			?DEBUG("Starting in precall", []),
-			{ok, precall, State};
-		_ ->
-			?WARNING("Failed start:  ~p", [InitInfo]),
-			{stop, badstate}
-	end;
+%init([Agent, Options]) when is_record(Agent, agent) ->
+%	%{ok, MaxRingouts} = cpx:get_env(max_ringouts, infinity),
+%	ProtoState = #state{
+%		agent_fsm = Agent#agent.source,
+%		agent_connection = Agent#agent.connection
+%	},
+%	InitInfo = proplists:get_value(initial_state, Options, {prering, undefined}),
+%	case InitInfo of
+%		{prering, Call} when is_record(Call, call); Call =:= undefined ->
+%			State = ProtoState#state{state_data = Call},
+%			?DEBUG("Starting in prering", []),
+%			{ok, prering, State};
+%		{ringing, Call} when is_record(Call, call) ->
+%			State = ProtoState#state{state_data = Call},
+%			?DEBUG("Starting in ring directly", []),
+%			{ok, ringing, State};
+%		{precall, Client} when is_record(Client, client) ->
+%			State = ProtoState#state{state_data = Client},
+%			?DEBUG("Starting in precall", []),
+%			{ok, precall, State};
+%		_ ->
+%			?WARNING("Failed start:  ~p", [InitInfo]),
+%			{stop, badstate}
+%	end;
 
 init([Agent, Call, Endpoint, StateName]) ->
 	process_flag(trap_exit, true),

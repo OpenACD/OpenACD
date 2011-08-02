@@ -99,7 +99,9 @@
 %% API
 -export([
 	start/3,
+	start/5,
 	start_link/3,
+	start_link/5,
 	hangup/1,
 	get_uuid/1,
 	ring/3
@@ -188,9 +190,17 @@
 start(Fsnode, Callbacks, Options) ->
 	gen_server:start(?MODULE, [Fsnode, Callbacks, Options], []).
 
+start(Agent, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+	NewOptions = [{call, Call} | Options],
+	gen_server:start(?MODULE, [Fsnode, Callbacks, NewOptions], []).
+
 -spec(start_link/3 :: (Fsnode :: atom(), Callbacks :: atom() | callbacks(), Options :: start_opts()) -> {'ok', pid()}).
 start_link(Fsnode, Callbacks, Options) ->
 	gen_server:start_link(?MODULE, [Fsnode, Callbacks, Options], []).
+
+start_link(Agent, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+	NewOptions = [{call, Call} | Options],
+	gen_server:start_link(?MODULE, [Fsnode, Callbacks, NewOptions], []).
 
 %% @doc Used by erlang to detmine if a module implementing this behavor is 
 %% valid.
@@ -226,6 +236,12 @@ ring(RingPid, CallId, Ringout) ->
 %% gen_server callbacks
 %%====================================================================
 
+%init([Agent, Call, Fsnode, Callbacks, Options]) ->
+%	NewOpts = case is_record(Call, call) of
+%		true -> [{call, Call} | Options];
+%		_ -> Options
+%	end,
+%	init([Fsnode, Callbacks, NewOpts]);
 init([Fsnode, Module, Options]) when is_atom(Module) ->
 	Callbacks = #callbacks{
 		init = fun(FsRefs, Args) -> Module:init(FsRefs, Args) end,

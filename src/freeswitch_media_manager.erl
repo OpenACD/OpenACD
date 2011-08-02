@@ -180,6 +180,7 @@
 	%ring/3,
 	%ring/4,
 	get_media/1,
+	get_ring_data/2,
 	get_default_dial_string/0,
 	do_dial_string/3,
 	get_agent_dial_string/2,
@@ -304,6 +305,9 @@ stop() ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+get_ring_data(Agent, Options) ->
+	gen_server:call(?MODULE, {get_ring_data, Agent, Options}).
+
 -spec(get_default_dial_string/0 :: () -> string()).
 get_default_dial_string() ->
 	gen_server:call(?MODULE, get_default_dial_string).
@@ -338,6 +342,10 @@ monitor_agent(Agent, Watcher) ->
 monitor_client(Client, Watcher) ->
 	gen_server:call(?MODULE, {monitor, client, Client, Watcher}).
 
+-spec(get_node/0 :: () -> atom()).
+get_node() ->
+	gen_server:call(?MODULE, get_node).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -353,12 +361,6 @@ init([Nodename, Options]) ->
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
-			case proplists:get_value(Options, not_ring_manager) of
-				true ->
-					ok;
-				_ ->
-					application:set_env('OpenACD', ring_manager, ?MODULE)
-			end,
 			link(Pid),
 			{Lpid, Pid, StrippedOpts};
 		_ ->
@@ -372,6 +374,31 @@ init([Nodename, Options]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
+
+handle_call({get_ring_data, Agent, Options}, _From, #state{fetch_domain_user = UserOpts} = State) ->
+	Node = State#state.nodename,
+	Type = proplists:get_value(type, Options, sip_registration),
+	Data = proplists:get_value(data, Options),
+	{Base, Destination} = case {Type, Data} of
+		{sip_registration, undefined} ->
+			{"sofia/internal/$1%", re:replace(Agent#agent.login, "@", "_", [{return, list}])};
+		{sip_registration, Data} ->
+			{"sofia/internal/$1%", re:replace(Data, "@", "_", [{return, list}])};
+		{_, undefined} ->
+			{error, undefined};
+		{sip, Data} ->
+			{proplists:get_value(sip, UserOpts, "sofia/internal/sip:$1"), Data};
+		{iax2, Data} ->
+			{proplists:get_value(iax2, UserOpts, "iax2/$1"), Data};
+		{h323, Data} ->
+			{proplists:get_value(h323, UserOpts, "opal/h323:$1"), Data};
+		{pstn, Data} ->
+			{proplists:get_value(dialstring, UserOpts, State#state.dialstring), Data}
+	end,
+	case Base of
+		error -> {reply, {error, bad_destination}, State};
+		_ -> {reply, {Node, Base, Destination}, State}
+	end;
 
 handle_call({make_outbound_call, Client, AgentPid, Agent}, _From, #state{nodename = Node, dialstring = DS, freeswitch_up = FS} = State) when FS == true ->
 	{ok, Pid} = freeswitch_outbound:start(Node, Agent, AgentPid, Client, DS, 30),
@@ -859,9 +886,13 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
-get_agent_dial_string(AgentRec, Options, State) ->
-	case agent:get_endpoint(AgentRec, freeswitch_media) of
-		sip_registration ->
+get_agent_dial_string(AgentRec, InOptions, State) ->
+	%EndpointOpts = agent:get_endpoint(freeswitch_media, AgentRec),
+	Type = proplists:get_value(type, InOptions, sip_registration),
+	Data = proplists:get_value(data, InOptions),
+	Options = proplists:delete(data, proplists:delete(type, InOptions)),
+	case {Type, Data} of
+		{sip_registration, undefined} ->
 			freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
 		{sip_registration, Data} ->
 			freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(Data, "@", "_", [{return, list}]), Options);

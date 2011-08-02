@@ -59,6 +59,7 @@
 	string_interpolate/2,
 	list_contains_all/2,
 	list_map_with_index/2,
+	dict_find_by_value/2,
 	bin_to_hexstr/1,
 	hexstr_to_bin/1,
 	build_table/2,
@@ -192,6 +193,17 @@ list_map_with_index(_Fun, [], _Counter, Acc) ->
 	lists:reverse(Acc);
 list_map_with_index(Fun, [H|T], Counter, Acc) ->
 	list_map_with_index(Fun, T, Counter + 1, [Fun(Counter, H) | Acc]).
+
+%% @doc Find the key(s) in the dictory by it's value.  Return's `error' if 
+%% the value is not in the dictionary.
+-spec(dict_find_by_value/2 :: (Value :: any(), Dict :: dict()) -> 'error' | {'ok', [any()]}).
+dict_find_by_value(Value, Dict) ->
+	List = dict:to_list(Dict),
+	Found = [K || {K, Value} <- List],
+	case Found of
+		[] -> error;
+		_ -> {ok, Found}
+	end.
 
 %% code below shamelessly 'borrowed' from Steve Vinoski in his comments at
 % http://necrobious.blogspot.com/2008/03/binary-to-hex-string-back-to-binary-in.html

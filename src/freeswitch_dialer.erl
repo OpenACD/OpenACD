@@ -58,9 +58,8 @@
 		{"test 1", "http://subdomain.example.com?ivroption=#{ivroption}&callid=#{callid}"},
 		{"test 2", "http://subdomain2.example.com?number=#{number}&clientid=#{clientid}"}
 	]).
+	-type(skill_list() :: [atom() | {atom(), any()}]).
 -endif.
-
--type(skill_list() :: [atom() | {atom(), any()}]).
 
 -record(state, {
 		cnode :: atom(),

@@ -2,21 +2,21 @@ dojo.require("agentUI.logLib");
 
 dojo.provide("agentUI.util");
 
-function encodeHTML(str) {
+window.encodeHTML = function(str) {
 	if (!str || !str.replace){
 		return str;
 	}
 	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/, '&gt;');
 }
 
-function decodeHTML(str) {
+window.decodeHTML = function(str) {
 	if (!str || !str.replace){
 		return str;
 	}
 	return str.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
-function formatseconds(seconds) {
+window.formatseconds = function(seconds) {
 	var d = new Date();
 	d.setHours(0);
 	d.setMinutes(0);
@@ -35,7 +35,7 @@ function formatseconds(seconds) {
 	return s;
 }
 
-function inArray(needle, haystack){
+window.inArray = function(needle, haystack){
 	for(var i = 0; i < haystack.length; i++){
 		if(haystack[i] == needle){
 			return true;
@@ -44,7 +44,7 @@ function inArray(needle, haystack){
 	return false;
 }
 
-function replaceUrls(text){
+window.replaceUrls = function(text){
 	var exp = /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
 	return text.replace(exp,"<a href='$1' target='_blank'>$1</a>");
 }

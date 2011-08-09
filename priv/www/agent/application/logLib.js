@@ -74,9 +74,9 @@ window.getLogLevel = function(){
 };
 
 window.setLogLevel = function(levelstring){
-	var int = window._logLevelToNumber(levelstring);
-	if(int >= 0){
-		window._logLevel = int;
+	var levelint = window._logLevelToNumber(levelstring);
+	if(levelint >= 0){
+		window._logLevel = levelint;
 		notice(["log level set", levelstring]);
 	}
 	else{

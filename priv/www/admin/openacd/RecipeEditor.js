@@ -591,6 +591,22 @@ openacd.RecipeEditor.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"="},
 				{_reference:">"},
 				{_reference:"<"}
+			]},
+			{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERNAME,
+			"value":"caller_name",
+			"type":"property",
+			"filter":"any",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:"!="}
+			]},
+			{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERID,
+			"value":"caller_id",
+			"type":"property",
+			"filter":"any",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:"!="}
 			]}
 		]
 	}

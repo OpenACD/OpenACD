@@ -2929,7 +2929,11 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 		{<<"mediatype">>, Comp, Val} ->
 			{type, Comp, Val};
 		{<<"client_calls_queued">>, Comp, Val} when is_integer(Val) ->
-			{client_calls_queued, Comp, Val}
+			{client_calls_queued, Comp, Val};
+		{<<"caller_id">>, Comp, Val} ->
+			{caller_id, Comp, Val};
+		{<<"caller_name">>, Comp, Val} ->
+			{caller_name, Comp, Val}
 	end,
 	decode_recipe_conditions(Tail, [Tuple | Acc]).	
 	

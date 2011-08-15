@@ -853,7 +853,7 @@ dojo.addOnLoad(function(){
 	});
 	
 	dijit.byId('transferToAgentMenu').startup();
-	dijit.byId('transferToAgentMenu').connect('onmouseenter', function(){
+	dojo.connect(dijit.byId('btransfer'), 'onClick', dijit.byId('btransfer'), function(){
 		console.log('time to build agent transfer list');
 		window.agentConnection.getAvailAgents({
 			success:function(agentList){

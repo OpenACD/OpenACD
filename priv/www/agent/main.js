@@ -871,7 +871,7 @@ dojo.addOnLoad(function(){
 			var m = new dijit.MenuItem({
 				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
 				onClick: function(){
-					window.agentConnection.transfer(escape(i.name));
+					window.agentConnection.agentTransfer(escape(i.name), {});
 				}
 			});
 			widget.addChild(m);

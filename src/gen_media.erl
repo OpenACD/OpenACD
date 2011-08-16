@@ -295,7 +295,7 @@
 -module(gen_media).
 -author(micahw).
 
--behaviour(gen_server).
+-behaviour(gen_fsm).
 
 -include("log.hrl").
 -include("call.hrl").
@@ -313,8 +313,17 @@
 ]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3, format_status/2]).
+%-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+%	 terminate/2, code_change/3, format_status/2]).
+
+%% gen_fsm callbacks
+-export([
+	init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3,
+	code_change/4, inivr/2, inivr/3, inqueue/2, inqueue/3, oncall/2, 
+	oncall/3, oncall_ringing/2, oncall_ringing/3, wrapup/2, wrapup/3,
+	warm_transfer_hold/2, warm_transfer_hold/3, warm_transfer_3rd_party/2,
+	warm_transfer_3rd_party/3, warm_transfer_merged/2, warm_transfer_merged/3
+]).
 
 %% gen_media api
 -export([
@@ -328,6 +337,7 @@
 	warm_transfer_begin/2,
 	warm_transfer_cancel/1,
 	warm_transfer_complete/1,
+	warm_transfer_merge/1,
 	queue/2,
 	call/2,
 	call/3,
@@ -345,6 +355,67 @@
 -type(tref() :: any()).
 -type(proplist_item() :: atom() | {any(), any()}).
 -type(proplist() :: [proplist_item()]).
+
+%% gen_media states
+-define(states, [
+	inivr, inqueue, inqueue_ringing, oncall, oncall_ringing, wrapup, 
+	warm_transfer_hold, warm_transfer_3rd_party, warm_transfer_merged
+]).
+
+%% state changes
+%% init -> inivr, inqueue, oncall (in case of outbound)
+%% inivr -> inqueue
+%% inqueue -> inqueue_ringing
+%% inqueue_ringing -> inqueue, oncall
+%% oncall -> oncall_ringing, wrapup, warmtransfer_hold, inqueue
+%% oncall_ringing -> oncall (same state), oncall (new agent)
+%% wrapup -> *
+%% warm_transfer_hold -> warmtransfer_3rd_party, oncall, wrapup
+%% warm_transfer_3rd_party -> warm_transfer_merged, warmtransfer_hold
+%% warm_transfer_merged -> oncall, wrapup
+
+-record(base_state, {
+	callback :: atom(),
+	substate :: any(),
+	callrec :: 'undefined' | #call{},
+	queue_failover,
+	url_pop_get_vars = []
+}).
+
+-record(inivar_state, {}).
+
+-record(inqueue_state, {
+	queue_mon :: 'undefined' | reference(),
+	cook :: 'undefined' | reference()
+}).
+
+-record(inqueue_ringing_state, {
+	queue_mon :: 'undefined' | reference(),
+	cook :: 'undefined' | reference(),
+	ring_mon :: 'undefined' | reference(),
+	ring_pid :: {string, pid()},
+	outband_ring_pid :: 'undefined' | pid()
+}).
+
+-record(oncall_state, {
+	oncall_mon :: 'undefined' | reference(),
+	oncall_pid :: {string(), pid()}
+}).
+
+-record(oncall_ringing_state, {
+	oncall_mon :: 'undefined' | reference(),
+	oncall_pid :: {string(), pid()},
+	ring_mon,
+	ring_pid
+}).
+
+-record(wrapup_state, {}).
+
+-record(warm_transfer_hold, {}).
+
+-record(warm_transfer_3rd_party, {}).
+
+-record(warm_transfer_merged, {}).
 
 -record(monitors, {
 	queue_pid :: 'undefined' | reference(),
@@ -549,11 +620,21 @@ start(Callback, Args) ->
 init([Callback, Args]) ->
 	case Callback:init(Args) of
 		{ok, {Substate, undefined}} ->
-		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
+				BaseState = #base_state{
+					callback = Callback,
+					substate = Substate,
+					callrec = undefined
+				},
+				{ok, inivr, {BaseState, #inivr_state{}}};
 		{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			cpx_monitor:set({media, Callrec#call.id}, [], self()),
+			BaseState = #base_state{
+				callback = Callback,
+				substate = Substate,
+				callrec = Callrec
+			},
 			{Qnom, Qpid} = case priv_queue(Queue, Callrec, true) of
 				invalid when Queue =/= "default_queue" ->
 					% this clause, if hit, will cause a (justifiable) crash
@@ -570,19 +651,31 @@ init([Callback, Args]) ->
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					{Queue, Else}
 			end,
-			Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons}};
+			InqState = #inqueue_state{
+				queue_mon = erlang:monitor(process, Qpid)
+			},
+			{ok, inqueue, {BaseState, InqState}};
 		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
 			set_cpx_mon(#state{callrec = Callrec}, [], self()),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
+			BaseState = #base_state{
+				callback = Callback,
+				substate = Substate,
+				callrec = Callrec
+			},
+			{ok, inivr, {BaseState, #inivr_state{}}};
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			set_cpx_mon(#state{callrec = Callrec}, [], self()),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
+			BaseState = #base_state{
+				callback = Callback,
+				substate = Substate,
+				callrec = Callrec
+			},
+			{ok, inivr, {BaseState, #inivr_state{}}};
 		{stop, Reason} = O ->
 			?WARNING("init aborted due to ~p", [Reason]),
 			O;
@@ -591,51 +684,56 @@ init([Callback, Args]) ->
 			ignore
 	end.
 
+
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
+%% oncall
 %%--------------------------------------------------------------------
 
-%% @private
-handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
-	%% Can't spy on yourself.
+oncall({'$gen_media_spy', Spy, _}, _From, {_, #oncall_state{oncall_pid = {_Nom, Spy}}} = State) ->
 	?DEBUG("Can't spy on yourself", []),
-	{reply, invalid, State};
-handle_call({'$gen_media_spy', Spy, AgentRec}, _From, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
+	{reply, invalid, oncall, State};
+
+oncall({'$gen_media_spy', Spy, AgentRec}, _From, {BaseState, Oncall} = State) ->
+	Callback = BaseState#base_state.callback,
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
 			?DEBUG("Callback ~p doesn't support spy for ~p", [Callback, Call#call.id]),
-			{reply, invalid, State};
+			{reply, invalid, oncall, State};
 		true ->
-			case Callback:handle_spy({Spy, AgentRec}, Call, State#state.substate) of
+			case Callback:handle_spy({Spy, AgentRec}, oncall, Call, BaseState#base_state.substate) of
 				{ok, Newstate} ->
-					{reply, ok, State#state{substate = Newstate}};
+					{reply, ok, oncall, {BaseState#base_state{substate = Newstate}, Oncall}};
 				{invalid, Newstate} ->
-					{reply, invalid, State#state{substate = Newstate}};
+					{reply, invalid, oncall, {BaseState#base_state{substate = Newstate}, Oncall}};
 				{error, Error, Newstate} ->
 					?INFO("Callback ~p errored ~p on spy for ~p", [Callback, Error, Call#call.id]),
-					{reply, {error, Error}, State#state{substate = Newstate}}
+					{reply, {error, Error}, oncall, {BaseState#base_state{substate = Newstate}, Oncall}}
 			end
 	end;
-handle_call({'$gen_media_spy', _Spy, _AgentRec}, _From, State) ->
-	{reply, invalid, State};
-handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
+
+oncall('$gen_media_wrapup', {Ocpid, _Tag},
+		{#base_state{callrec = Call} = BaseState,
+		#oncall_state{oncall_pid = {Ocagent, Ocpid}} = Oncall})
+		when Call#call.media_path =:= inband ->
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
-	cdr:wrapup(State#state.callrec, Ocagent),
-	case Callback:handle_wrapup(State#state.callrec, State#state.substate) of
+	cdr:wrapup(Call, Ocagent),
+	case Callback:handle_wrapup(Call, BaseState#base_state.substate) of
 		{ok, NewState} ->
-			erlang:demonitor(Mons#monitors.oncall_pid),
-			Newmons = Mons#monitors{oncall_pid = undefined},
-			{reply, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}};
+			erlang:demonitor(Oncall#oncall_state.oncall_mon),
+			{reply, ok, wrapup, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};
 		{hangup, NewState} ->
 			cdr:hangup(State#state.callrec, "agent"),
-			erlang:demonitor(Mons#monitors.oncall_pid),
-			Newmons = Mons#monitors{oncall_pid = undefined},
-			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
+			erlang:demonitor(Oncall#oncall_state.oncall_mon),
+			{stop, normal, ok, {BaseState#base_state{substate = NewState}, Oncall#oncall_state{oncall_mon = undefined}}}
 	end;
-handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) ->
+
+oncall('$gen_media_wrapup', {Ocpid, _Tag}, {#base_state{callrec = Call} = BaseState, #oncall_state{oncall_pid = {_Agent, Ocpid}}} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
-	{reply, invalid, State};
-handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Ocpid}, monitors = Mons} = State) ->
+	{reply, invalid, oncall, State};
+
+oncall({'$gen_media_queue', Queue}, {Ocpid, _},
+		{#base_state{callback = Callback, callrec = Call} = BaseState,
+		#oncall_state{oncall_mon = Mons, oncall_pid = {Ocagent, Ocpid}} = Oncall} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% Decrement the call's priority by 5 when requeueing
 	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
@@ -660,6 +758,12 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
+
+%%--------------------------------------------------------------------
+%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
+%%--------------------------------------------------------------------
+
+%% @private
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
 	% Decrement the call's priority by 5 when requeueing

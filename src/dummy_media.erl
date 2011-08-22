@@ -53,6 +53,7 @@
 	start/0,
 	start/1,
 	start/2,
+	start_ring/3,
 	ring_agent/2,
 	stop/1,
 	stop/2,
@@ -74,7 +75,8 @@
 	handle_info/3,
 	terminate/3, 
 	code_change/4,
-	handle_ring/3, 
+	prepare_endpoint/2,
+	handle_ring/4, 
 	handle_answer/3, 
 	handle_voicemail/3, 
 	handle_announce/3, 
@@ -224,7 +226,11 @@ make_id() ->
 	Ref = erlang:ref_to_list(make_ref()),
 	Fullmdf = erlang:md5(lists:append([Now, Ref])),
 	string:sub_string(util:bin_to_hexstr(Fullmdf), 1, 8).
-	
+
+start_ring(Agent, Call, Mode) ->
+	Pid = spawn(fun() -> start_ring_loop(Agent, Call, Mode) end),
+	{ok, Pid}.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -456,6 +462,17 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
+prepare_endpoint(#agent{ring_channel = none}, ring_channel) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(#agent{ring_channel = RingChan}, ring_channel) ->
+	{ok, RingChan};
+prepare_endpoint(_Agent, inband) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(_Agent, outband) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(Agent, persistant) ->
+	{ok, dummy_media:start_ring(Agent, undefined, persistant)}.
+
 -spec(handle_announce/3 :: (Announce :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
@@ -480,7 +497,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			{error, dummy_fail, State#state{fail = Newfail}}
 	end.
 
-handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
+handle_ring(_Agent, _RingData, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
 			{ok, [{"caseid", State#state.caseid}], State};
@@ -568,6 +585,48 @@ handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+start_ring_loop(Agent, undefined, persistant) ->
+	persistant_ring_loop(Agent, undefined);
+start_ring_loop(Agent, Call, transient) ->
+	process_flag(trap_exit, true),
+	?INFO("Starting transient ring, I guess.", []),
+	ok = gen_media:ring(Call#call.source, {Agent#agent.login, Agent#agent.source}, transient, takeover),
+	Client = Call#call.client,
+	Opts = Client#client.options,
+	Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+	Self = self(),
+	erlang:send_after(Ringout, Self, ringout),
+	transient_ring_loop(Agent, Call).
+
+persistant_ring_loop(Agent, undefined) ->
+	receive
+		{prering, Agent, #call{client = Client} = Call} ->
+			gen_media:ring(Call#call.source, Agent, persistant, takeover),
+			Opts = Client#client.options,
+			Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+			Self = self(),
+			erlang:send_after(Ringout, Self, ringout),
+			persistant_ring_loop(Agent, Call)
+	end;
+persistant_ring_loop(Agent, #call{source = Src} = Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			persistant_ring_loop(Agent, undefined);
+		{'EXIT', Src, Cause} ->
+			persistant_ring_loop(Agent, undefined)
+	end.
+
+transient_ring_loop(Agent, Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			normal;
+		Msg ->
+			?INFO("msg nom:  ~p", [Msg]),
+			transient_ring_loop(Agent, Call)
+	end.
 
 check_fail(Key, Dict) ->
 	case dict:fetch(Key, Dict) of

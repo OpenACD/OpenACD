@@ -143,7 +143,7 @@
 -type(route_hint() :: {string(), #call{}} | 'undefined' | #call{}).
 
 -spec(init/1 :: (Args :: any()) -> {'ok', {state(), route_hint()}} | {'ok', {state(), #call{}, {transaction_type(), any()}}} | {'stop', any()} | 'ignore').
--spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
+-spec(handle_ring/4 :: (Agent :: pid(), RingData :: any(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_ring_stop/2 :: (Call :: #call{}, State :: state()) -> {'ok', state()}).
 -spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_agent_transfer/4 :: (Agent :: pid(), Timeout :: pos_integer(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).

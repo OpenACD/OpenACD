@@ -59,6 +59,7 @@
 	string_interpolate/2,
 	list_contains_all/2,
 	list_map_with_index/2,
+	dict_find_by_value/2,
 	bin_to_hexstr/1,
 	hexstr_to_bin/1,
 	build_table/2,
@@ -74,6 +75,8 @@
 	reload/2,
 	reload_all/0,
 	reload_all/1,
+	c/0,
+	c/1,
 	distribution/1,
 	get_number/1,
 	find_first_arc/2,
@@ -190,6 +193,17 @@ list_map_with_index(_Fun, [], _Counter, Acc) ->
 	lists:reverse(Acc);
 list_map_with_index(Fun, [H|T], Counter, Acc) ->
 	list_map_with_index(Fun, T, Counter + 1, [Fun(Counter, H) | Acc]).
+
+%% @doc Find the key(s) in the dictory by it's value.  Return's `error' if 
+%% the value is not in the dictionary.
+-spec(dict_find_by_value/2 :: (Value :: any(), Dict :: dict()) -> 'error' | {'ok', [any()]}).
+dict_find_by_value(Value, Dict) ->
+	List = dict:to_list(Dict),
+	Found = [K || {K, Value} <- List],
+	case Found of
+		[] -> error;
+		_ -> {ok, Found}
+	end.
 
 %% code below shamelessly 'borrowed' from Steve Vinoski in his comments at
 % http://necrobious.blogspot.com/2008/03/binary-to-hex-string-back-to-binary-in.html
@@ -451,6 +465,19 @@ reload_all(Mode) ->
 			Errors = [E || {Ok, E} <- Out, Ok == error],
 			{error, Errors}
 	end.
+
+%% @doc Not useful in a production enviroment, but for a dev enviroment.
+%% this will call do `util:c("rebar compile")' on the os command line, and 
+%% output the results.  Why?  Because I'm lazy and don't want to have to 
+%% swap screens just to recompile.
+-spec(c/0 :: () -> 'ok').
+c() ->
+	c("./rebar compile").
+
+%% @doc A generic "do this on the command line and print the results".
+-spec(c/1 :: (Cmd :: string()) -> 'ok').
+c(Cmd) ->
+	io:format("~s", [os:cmd(Cmd)]).
 
 -spec(distribution/1 :: (Mean :: pos_integer()) -> float()).
 distribution(Mean) ->

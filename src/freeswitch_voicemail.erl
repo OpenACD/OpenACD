@@ -53,7 +53,7 @@
 %% gen_media callbacks
 -export([
 	init/1, 
-	handle_ring/3,
+	handle_ring/4,
 	handle_ring_stop/2,
 	handle_answer/3,
 	handle_agent_transfer/4,
@@ -159,7 +159,7 @@ handle_answer(Apid, Callrec, #state{file=File} = State) ->
 			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid, answered = true}}.
 
-handle_ring(Apid, Callrec, State) ->
+handle_ring(Apid, _RingData, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->

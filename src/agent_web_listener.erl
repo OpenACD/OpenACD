@@ -497,22 +497,11 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 		{<<"securityLevel">>, Security},
-		{<<"state">>, Agentrec#agent.state},
-		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-		{<<"statetime">>, Agentrec#agent.lastchange},
 		{<<"timestamp">>, util:now()}
 	],
-	Fulljson = case Agentrec#agent.state of
-		oncall ->
-			case agent_web_connection:mediaload(Conn) of
-				undefined ->
-					Basejson;
-				MediaLoad ->
-					[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
-			end;
-		_ ->
-			Basejson
-	end,
+	% TODO when a new connection is established, the channels should do the
+	% media load command.
+	Fulljson = Basejson,
 	Json = {struct, [
 		{<<"success">>, true},
 		{<<"result">>, {struct, Fulljson}} |
@@ -632,6 +621,7 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"voipendpoint":  "sip_registration" | "sip" | "iax2" | "h323" | "pstn",
 %% 	"useoutbandring":  boolean(); optional,
 %%  "supervisor":boolean(); optional
+%%  "usepersistantring":  boolean(); optional
 %% }</pre>
 %% 
 %% If `"voipendpoint"' is defined but `"voipendpointdata"' is not,
@@ -661,12 +651,19 @@ login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 	Endpointdata = proplists:get_value(voipendpointdata, Opts),
-	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata} of
-		{undefined, _} ->
+	Persistantness = proplists:get_value(use_persistant_ring, Opts),
+	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata, Persistantness} of
+		{undefined, _, true} ->
+			{{persistant, sip_registration}, Username};
+		{undefined, _, _} ->
 			{sip_registration, Username};
-		{sip_registration, undefined} ->
+		{sip_registration, undefined, true} ->
+			{{persistant, sip_registration}, Username};
+		{sip_registration, undefined, false} ->
 			{sip_registration, Username};
-		{EndpointType, _} ->
+		{EndpointType, _, true} ->
+			{{persistant, EndpointType}, Endpointdata};
+		{EndpointType, _, _} ->
 			{EndpointType, Endpointdata}
 	end,
 	Bandedness = case proplists:get_value(use_outband_ring, Opts) of
@@ -711,28 +708,29 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
 							end;
 						{{allow, Id, Skills, Security, Profile}, _} ->
+							{atomic, [AgentAuth]} = agent_auth:get_agent(id, Id),
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = Bandedness, 
 								login = Username, 
 								skills = Skills, 
-								profile=Profile, 
-								password=DecryptedPassword
+								profile=Profile
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
-									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									?INFO("~s logged in", [Username]),
 									linkto(Pid),
-									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									{true, Apid} = agent_manager:query_agent(Username),
+									agent:set_endpoints(Apid, AgentAuth#agent_auth.endpoints),
+									% TODO make real profile
+%									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
-											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"profile">>, list_to_binary(Profile)}, 
+											%{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
-											{<<"statetime">>, StateTime},
 											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
@@ -831,6 +829,8 @@ api(ApiArea, Cookie, Post) when ApiArea =:= api; ApiArea =:= supervisor ->
 					{voipendpoint, pstn};
 				{<<"useoutbandring">>, true} ->
 					use_outband_ring;
+				{<<"usepersistantringchannel">>, true} ->
+					use_persistant_ring;
 				{_, _} ->
 					[]
 			end || X <- LoginProps]),

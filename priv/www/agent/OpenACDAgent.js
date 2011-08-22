@@ -8,6 +8,117 @@ if(! window.OpenACD){
 }
 
 /**
+Create a new AgentChannel.
+@param {Object} options The options object.
+@param {String} options.channelId The id of the channel.
+@param {Object} options.stateData The statedata, or media object, for the
+	channel.
+@param {Object} options.agent The OpenACD.Agent to use for server 
+	communication.
+@param {Integer} [options.stateTime] Unix timestamp of the last time the
+	channel changes state based on the server.
+@param {Integer} [options.timestamp] Unix timestamp of 'now' from the 
+	server.  Used to determin skew.
+@class Represents a channel for an agent.  The Agent object is expected
+to maintain a hash and forward appropriate events to a channel.
+*/
+OpenACD.AgentChannel = function(options){
+	this.channelId = '';
+	this.stateData = false;
+	this.agent = false;
+	this.stateTime = new Date();
+	this.timestamp = this.stateTime;
+	
+	if(options.channelId){
+		this.channelId = options.channelId;
+	}
+	if(options.stateData){
+		this.stateData = options.stateData;
+	}
+	if(options.agent){
+		this.agent = options.agent;
+	}
+	if(options.stateTime){
+		this.stateTime = options.stateTime;
+	}
+	if(options.timestamp){
+		this.timestamp = options.timestamp;
+	}
+}
+
+OpenACD.AgentChannel.prototype.handleStateChange = function(state, stateData){
+	this.state = state;
+	this.stateData = stateData;
+	try{
+		dojo.publish("OpenACD/AgentChannel", [this.channelId, state, stateData]);
+	} catch(err) {
+		console.error("OpenACD/AgentChannel", err);
+	}
+}
+
+OpenACD.AgentChannel.prototype.handleCommand = function(args){
+	if(args.channelid != this.channelId){
+		return false;
+	}
+	console.log("handling command", this.channelId, args.command, args);
+	var command = args.command;
+	delete args.command;
+	delete args.channelid;
+	var pubChannel = "OpenACD/AgentChannel/" + this.channelId + "/"
+	if(command == 'mediaevent' || command == 'mediaload'){
+		pubChannel += args.media + '/' + command;
+		delete args.media;
+	} else {
+		pubChannel += command;
+	}
+	console.log('pubChannel', pubChannel);
+	try{
+		dojo.publish(pubChannel, [args]);
+	} catch (err) {
+		console.error(pubChannel, err);
+	}
+}
+
+OpenACD.AgentChannel.prototype.destroy = function(data){
+	console.log('Channel ending', data);
+	try{
+		dojo.publish("OpenACD/AgentChannel", [this.channelId, 'destroy']);
+	} catch(err) {
+		console.error("OpenACD/AgentChannel", err);
+	}
+}
+
+/**
+Attempt to set the agent channel state.  Note that handling the state 
+change is not required in the success function as all state changes are 
+reported though the poll and publish mechanism.
+@param {String} state The name of the state to go into.
+@param [statedata] Any additional data about the state.
+*/
+OpenACD.AgentChannel.prototype.setState = function(state){
+	//build the request
+	var options = {};
+	var statedata = false;
+	if(arguments.length == 2){
+		statedata = arguments[1];
+	}
+
+	if(statedata){
+		this.agent.agentApi("set_state", options, this.channelId, state, statedata);
+	} else {
+		this.agent.agentApi("set_state", options, this.channelId, state);
+	}
+};
+
+/**
+Attempt to end the agent channel by ending the wrapup state.  Like all other
+state changes, there is no need to handle the return directly.
+*/
+OpenACD.AgentChannel.prototype.endWrapup = function(){
+	this.agent.agentApi("end_wrapup", {}, this.channelId);
+}
+
+/**
 Create a new Agent.
 @param {Object} options The options object
 @param {String} options.username Agent login name.
@@ -26,8 +137,10 @@ OpenACD.Agent = function(options){
 	this.securitylevel = "";
 	this.profile = "";
 	this.skills = [];
+	this.channels = {};
 	this.state = "";
 	this.statedata = "";
+	this.releaseData = false;
 	this.pollfailures = 0;
 	this.skew = 0;
 	this._nags = {};
@@ -119,21 +232,45 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				this.setSkew(datalist[i].timestamp);
 				break;
 
-			case "astate":
-				this.state = datalist[i].state;
-				this.statedata = datalist[i].statedata;
+			case "arelease":
+				this.relaseData = datalist[i].releaseData;
 				try{
-					dojo.publish("OpenACD/Agent/state", [datalist[i]]);
-				} catch (err) {
-					console.error("OpenACD/Agent/state", err);
+					dojo.publish("OpenACD/Agent/release", [datalist[i]]);
+				} catch(err) {
+					console.error("OpenACD/Agent/release", err);
 				}
 				this.stopwatch.reset();
-				if(datalist[i].state == 'wrapup'){
-					this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
-				} else if(this._wrapupNag){
-					this.clearNag(this._wrapupNag);
-					delete(this._wrapupNag);
+				break;
+
+			case "setchannel":
+			case "astate":
+				var chan;
+				if(this.channels[datalist[i].channelid]){
+					chan = this.channels[datalist[i].channelid];
+				} else {
+					chan = new OpenACD.AgentChannel({
+						channelId: datalist[i].channelid,
+						agent: this,
+						state: datalist[i].state,
+						stateData: datalist[i].statedata
+					});
 				}
+				console.log('das chan', chan);
+				chan.handleStateChange(datalist[i].state, datalist[i].statedata);
+				this.channels[datalist[i].channelid] = chan;
+				if(datalist[i].state == 'wrapup'){
+					this.setNag(datalist[i].channelid, "You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
+				} else {
+					this.clearNag(datalist[i].channelid);
+				}
+				break;
+
+			case "endchannel":
+				if(this.channels[datalist[i].channelid]){
+					this.channels[datalist[i].channelid].destroy(datalist[i]);
+					delete this.channels[datalist[i].channelid];
+				}
+				this.clearNag(datalist[i].channelid);
 				break;
 
 			case "aprofile":
@@ -145,13 +282,13 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				}
 				break;
 
-			case "urlpop":
+			/*case "urlpop":
 				try{
 					dojo.publish("OpenACD/Agent/urlpop", [datalist[i]]);
 				} catch (err) {
 					console.error("OpenACD/Agent/urlpop", err);
 				}
-				break;
+				break;*/
 			
 			case "blab":
 				try{
@@ -161,7 +298,7 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				}
 				break;
 			
-			case "mediaload":
+			/*case "mediaload":
 				try{
 					dojo.publish("OpenACD/Agent/mediaload", [datalist[i]]);
 				} catch (err) {
@@ -175,10 +312,17 @@ OpenACD.Agent.prototype._handleServerCommand = function(datalist){
 				} catch (err) {
 					console.error("OpenACD/Agent/mediaevent", err);
 				}
-				break;
+				break;*/
 			
 			default:
+				if(datalist[i].channelid){
+					if(this.channels[datalist[i].channelid]){
+						this.channels[datalist[i].channelid].handleCommand(datalist[i]);
+					}
+					return true;
+				}
 				try{
+					console.log("publishing by self", datalist[i]);
 					dojo.publish("OpenACD/Agent/" + datalist[i].command, [datalist[i]]);
 				} catch (err) {
 					console.error("OpenACD/Agent/" + datalist[i].command, err);
@@ -387,25 +531,13 @@ OpenACD.Agent.prototype.webApi = function(api, func, opts){
 };
 
 /**
-Attempt to set the agent state.  Note that handling the state change is not
-required in the success function as all state changes are reported though 
-the poll and publish mechanism.
-@param {String} state The name of the state to go into.
-@param [statedata] Any additional data about the state.
+Set the release mode of the agent.  Handling of the change is not required
+as all state changes are reported through the poll and publish mecahnism.
+@param {String} Release code as "Id:Label:Bias" string, or "none", or 
+	"Default".
 */
-OpenACD.Agent.prototype.setState = function(state){
-	//build the request
-	var options = {};
-	var statedata = false;
-	if(arguments.length == 2){
-		statedata = arguments[1];
-	}
-
-	if(statedata){
-		this.agentApi("set_state", options, state, statedata);
-	} else {
-		this.agentApi("set_state", options, state);
-	}
+OpenACD.Agent.prototype.setRelease = function(release){
+	this.agentApi("set_release", {}, release);
 };
 
 /**
@@ -609,7 +741,7 @@ matically when an agent goes idle.
 @param {Number} time How many milliseconds to wait before nagging.
 @returns Reference usuable with clearNag
 */
-OpenACD.Agent.prototype.setNag = function(message, time){
+OpenACD.Agent.prototype.setNag = function(channelid, message, time){
 	var ref = this;
 	var nag = setTimeout(function(){
 		try{
@@ -617,9 +749,9 @@ OpenACD.Agent.prototype.setNag = function(message, time){
 		} catch (err) {
 			console.error("OpenACD/Agent/blab", err);
 		}
-			delete(ref._nags[nag]);
+		delete(ref._nags[channelid]);
 	}, time);
-	this._nags[nag] = true;
+	this._nags[channelid] = nag;
 	return nag;
 }
 
@@ -629,7 +761,7 @@ Remove a queues nag.
 */
 OpenACD.Agent.prototype.clearNag = function(nagref){
 	if(this._nags[nagref]){
-		clearTimeout(nagref);
+		clearTimeout(this._nags[nagref]);
 	}
 	delete this._nags[nagref];
 }

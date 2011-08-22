@@ -225,6 +225,10 @@ function loadTab(tabid){
 			href = 'tabs/dashboard.html';
 			title = 'Dashboard';
 			break;
+		case 'endpointsTab':
+			href = 'tabs/endpoints.html';
+			title = 'Endpoints';
+			break;
 		default:
 			return false;
 	}
@@ -262,11 +266,30 @@ function loadTab(tabid){
 	storeTab(tabid);
 }
 
+function loadMediaTab(options){
+	console.log("load media tab", options);
+	var pane = new agentUI.MediaTab(options);
+	var tabPane = dijit.byId('tabPanel');
+	tabPane.addChild(pane);
+	tabPane.selectChild(pane.id);
+	var deathSub = dojo.subscribe("OpenACD/AgentChannel", tabPane, function(channelId, eventArg){
+		console.log('death sub', pane.channel, channelId, eventArg);
+		if(channelId == pane.channel && eventArg == 'destroy'){
+			this.closeChild(pane);
+			dojo.unsubscribe(deathSub);
+		}
+	});
+	pane.startup();
+	return pane;
+}
 
 function load_media_tab(options){
 	console.log("load_media_tab");
 	if(! options.media){
 		throw "media is required for tab";
+	}
+	if(! options.channelId){
+		throw "channelId is required for tab";
 	}
 	if(! options.id){
 		options.id = options.media;
@@ -274,9 +297,9 @@ function load_media_tab(options){
 	if(! (options.href || options.content) ){
 		options.href = options.media + '_media.html';
 	}
-	if(options.fullpane == undefined){
+	//if(options.fullpane == undefined){
 		options.fullpane = true;
-	}
+	//}
 	if(! options.title){
 		options.title = options.media;
 	}
@@ -293,15 +316,19 @@ function load_media_tab(options){
 		return false;
 	}
 	
-	if(options.fullpane){
+	//if(options.fullpane){
 		var pane = new dojox.layout.ContentPane({
 			title:options.title,
 			executeScripts: "true",
 			id: options.id,
 			closable:options.closable 
 		});
+		pane.channelId = options.channelId;
 		if(options.autoClose){
-			pane.unloadListener = dojo.subscribe('OpenACD/Agent/state', function(data){
+			pane.unloadListener = dojo.subscribe('OpenACD/AgentChannel', function(inChannelId, data){
+				if(inChannelID != pane.channelId){
+					return false;
+				}
 				try{
 					if(data.state == 'wrapup'){
 						dojo.unsubscribe(pane.unloadListener);
@@ -321,7 +348,7 @@ function load_media_tab(options){
 				dijit.byId('tabPanel').closeChild(pane);
 			}
 			catch(err){
-				info(['media pan logout listener erred', err]);
+				info(['media pane logout listener erred', err]);
 			}
 		});
 		if(options.content){
@@ -331,7 +358,7 @@ function load_media_tab(options){
 		}
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
-	} else {
+	/*} else {
 		if(! options.width){
 			options.width = '160px';
 		}
@@ -379,7 +406,7 @@ function load_media_tab(options){
 				info(['media pan logout listener erred', err]);
 			}
 		});
-	}
+	}*/
 }
 
 function showErrorReportDialog(conf){
@@ -517,9 +544,10 @@ dojo.addOnLoad(function(){
 			profile:'',
 			statedata:'',
 			state:'',
-			voipendpoint:false,
-			voipendpointdata:false,
-			useoutbandring:true,
+			//voipendpoint:false,
+			//voipendpointdata:false,
+			//useoutbandring:true,
+			//usepersistantchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -531,18 +559,11 @@ dojo.addOnLoad(function(){
 		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("OpenACD/Agent/logout", function(data){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		});
-		/*agent = new OpenACD.Agent(confs);
-		agent.profile = confs.profile;
-		agent.state = confs.state;
-		agent.statedata = confs.statedata;
-		if(agent.state){
-			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);*/
 		if( (window.agentConnection.state == "oncall") && (confs.mediaload) ){
 			var fixedres = confs.mediaload;
 			fixedres.media = confobj.statedata.type;
 			dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
 		}
-		/*}*/
 		buildReleaseMenu();
 		buildOutboundMenu();
 		buildQueueMenu();
@@ -561,9 +582,10 @@ dojo.addOnLoad(function(){
 			}
 		}
 		settings.username = confs.username;
-		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
+		/*settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
+		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;*/
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);
@@ -604,6 +626,7 @@ dojo.addOnLoad(function(){
 		seedConf.username = agent.username;
 		seedConf.securityLevel = agent.securityLevel;
 		seedConf.elapsed = parseInt(agent.stopwatch.time());
+		seedConf.profile = agent.profile;
 		seedConf.skew = agent.skew;
 		seedUI(seedConf);
 	});
@@ -611,7 +634,7 @@ dojo.addOnLoad(function(){
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
 	
-	dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("brand");
 		debug(["byId('brand') stateChanger", data.statedata]);
 		switch(data.state){
@@ -629,9 +652,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("agentbrandp").style.display = "none";
 		}
-	});
+	});*/
 
-	dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -642,9 +665,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("calleridp").style.display = "none";
 		}
-	});
+	});*/
 	
-	dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		switch(data.state){
 			case 'ringing':
 			case 'oncall':
@@ -655,9 +678,9 @@ dojo.addOnLoad(function(){
 			default:
 				dojo.byId("calltypep").style.display = "none";
 		}
-	});
+	});*/
 	
-	dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
@@ -687,7 +710,7 @@ dojo.addOnLoad(function(){
 				dojo.removeClass(node, "loss");
 				node.innerHTML = innerh;
 		}
-	});
+	});*/
 
 	dojo.byId("profiledisp").stateChanger = dojo.subscribe("OpenACD/Agent/profile", function(data){
 		var node = dojo.byId("profiledisp");
@@ -696,22 +719,14 @@ dojo.addOnLoad(function(){
 		node.innerHTML = innerh;
 	});
 
-	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoreleased");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch (data.state) {
-			case 'idle':
-			case 'ringing':
-			case 'precall':
-				widget.attr('label', nlsStrings.GORELEASED);
-				widget.attr('style', 'display:inline');
-				break;
-			case 'released':
-				widget.attr('style', 'display:none');
-				break;
-			default:
-				widget.attr('label', nlsStrings.QUEUERELEASE);
-				widget.attr('style', 'display:inline');
+		if(data.releaseData){
+			widget.attr('style', 'display:none');
+		} else {
+			widget.attr('label', nlsStrings.GORELEASED);
+			widget.attr('style', 'display:inline');
 		}
 	});
 
@@ -720,29 +735,24 @@ dojo.addOnLoad(function(){
 		widget.destroyDescendants();
 	});
 	
-	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	// TODO this no longer pulls double duty of going out of wrapup.
+	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoavail");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch(data.state){
-			case "released":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.GOAVAILABLE);
-				break;
-			case "wrapup":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.ENDWRAPUP);
-				break;
-			default:
-				widget.attr('style', 'display:none');
+		if(data.releaseData){
+			widget.attr('style', 'display:inline');
+			widget.attr('label', nlsStrings.GOAVAILABLE);
+		} else {
+			widget.attr('style', 'display:none');
 		}
 	});
 
-	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
+	/*dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
 		var menu = dijit.byId("transferToQueueMenuDyn");
 		menu.destroyDescendants();
-	});
+	});*/
 
-	dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var div = dojo.byId("foo");
 		switch(data.state){
 			//case "warmtransfer":
@@ -752,9 +762,9 @@ dojo.addOnLoad(function(){
 			default:
 				div.style.display="none";
 		}
-	});
+	});*/
 
-	dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bcancel");
 		switch(data.state){
 			//case "warmtransfer":
@@ -764,9 +774,9 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("bdial");
 		switch(data.state){
 			case "precall":
@@ -776,17 +786,17 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	/*dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("wtdial");
 		switch(data.state){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
+	/*dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
 		if(data.event == 'warm_transfer_failed'){
 			this.attr('style', 'display:inline');
 			dojo.byId('foo').style.display = 'inline';
@@ -794,9 +804,9 @@ dojo.addOnLoad(function(){
 			dojo.byId('foo').style.display = 'none';
 			this.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
+	/*dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
 		if(this.suppressHide){
 			delete this.suppressHide;
 			return true;
@@ -806,9 +816,9 @@ dojo.addOnLoad(function(){
 			default:
 				this.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
-	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
+	/*dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
 		this.attr('style', 'display:none');
 	});
 	
@@ -885,7 +895,7 @@ dojo.addOnLoad(function(){
 		else{
 			widget.attr('style', 'display:none');
 		}
-	});
+	});*/
 	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miHangup");
@@ -955,12 +965,12 @@ dojo.addOnLoad(function(){
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
 			window.agentConnection.loginOptions = {
-				voipendpoint: attrs.voipendpoint,
-				voipendpointdata: attrs.voipendpointdata
+				/*voipendpoint: attrs.voipendpoint,
+				voipendpointdata: attrs.voipendpointdata*/
 			}
-			if(attrs.useoutbandring){
+			/*if(attrs.useoutbandring){
 				window.agentConnection.useoutbandring = true;
-			}
+			}*/
 			window.agentConnection.login();
 		} else {
 			console.warn('Form has invalid value');
@@ -985,7 +995,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes errored", response]);
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			},
@@ -994,12 +1004,12 @@ dojo.addOnLoad(function(){
 				dojo.forEach(response.options, function(obj){
 					items.push(new dijit.MenuItem({
 						label: obj.label,
-						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
+						onClick:function(){window.agentConnection.setRelease(obj.id + ":" + obj.label + ":" + obj.bias); }
 					}));
 				});
 				items.push(new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				}));
 				addItems(items);
 			},
@@ -1007,7 +1017,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			}
@@ -1150,7 +1160,7 @@ dojo.addOnLoad(function(){
 		
 		popOptions.id = popOptions.title + '_urlpop';
 		
-		load_media_tab(popOptions);
+		//load_media_tab(popOptions);
 	});
 
 	dijit.byId("main").blab = dojo.subscribe("OpenACD/Agent/blab", function(data){
@@ -1168,12 +1178,24 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	};
 	
+	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
+		console.log('agent channel sub', chanId, stateName, stateData);
+		if(stateName != 'ringing'){
+			return true;
+		}
+		loadMediaTab({
+			'channel':chanId,
+			'state':stateName,
+			'stateData':stateData
+		});
+	});
+
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
-		load_media_tab(eventdata);
+		//load_media_tab(eventdata);
 	});
 });
-
+/*
 function endpointselect() {
 	switch(dijit.byId("voipendpoint").attr('value')) {
 		case "SIP Registration":
@@ -1195,4 +1217,4 @@ function endpointselect() {
 			dijit.byId("voipendpointdatahint").label = "???";
 			break;
 	}
-}
+}*/

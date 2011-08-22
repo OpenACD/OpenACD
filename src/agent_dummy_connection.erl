@@ -73,7 +73,7 @@
 
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
--type(endpoint_type() :: {'endpoint_type', endpoints()}).
+-type(endpoint_type() :: {'endpoint_type', endpointtype()}).
 -type(endpoint_data() :: {'endpoint_data', string()}).
 -type(id_option() :: {'id', string()}).
 -type(profile() :: {'profile', string()}).
@@ -144,11 +144,8 @@ init([Args]) ->
 	AgentRec = #agent{
 			id = proplists:get_value(id, Args, Login),
 			login = Login,
-			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
-			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
-			endpointtype = proplists:get_value(endpoint_type, Args, sip_registration),
-			endpointdata = proplists:get_value(endpoint_data, Args, Login)
+			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 	},
 	{ok, Pid} = case proplists:get_value(remote_node, Args) of
 		undefined ->

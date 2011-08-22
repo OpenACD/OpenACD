@@ -59,7 +59,8 @@
 
 -record(state, {
 	dispatchers = [] :: [pid()],
-	agents = dict:new() :: dict()
+	agents = dict:new() :: dict(),
+	channel_count = 0 :: non_neg_integer()
 	}).
 	
 -type(state() :: #state{}).
@@ -105,19 +106,15 @@ init([]) ->
 			{ok, #state{}};
 		_Else ->
 			Agents = agent_manager:list(),
-			F = fun({Login, {Pid, _, Time, _}}) ->
-				?DEBUG("Checking status of ~s (~p)", [Login, Pid]),
-				case Time of
-					0 ->
-						gen_server:cast(dispatch_manager, {end_avail, Pid});
-					_ ->
-						gen_server:cast(dispatch_manager, {now_avail, Pid})
-				end
-			end,
 			spawn(fun() -> 
 				timer:sleep(10),
 				?DEBUG("Spawn waking up with agents ~p", [Agents]),
-				lists:foreach(F, Agents),
+				[case A#agent_cache.channels of
+					[] ->
+						gen_server:cast(dispatch_manager, {end_avail, A#agent_cache.pid});
+					_ ->
+						gen_server:cast(dispatch_manager, {now_avail, A#agent_cache.pid, A#agent_cache.channels})
+				end || {_Id, A} <- Agents],
 				?DEBUG("Spawn done.", [])
 			end),
 			{ok, #state{}}
@@ -140,27 +137,36 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({now_avail, AgentPid}, State) -> 
+handle_cast({now_avail, AgentPid, Channels}, #state{channel_count = Chans} = State) -> 
 	?DEBUG("Someone's (~p) available now.", [AgentPid]),
-	case dict:is_key(AgentPid, State#state.agents) of
-		true -> 
+	case dict:find(AgentPid, State#state.agents) of
+		{ok, {Ref, Channels}} ->
 			{noreply, balance(State)};
-		false -> 
+		{ok, {Ref, DiffChannels}} ->
+			Diff = length(Channels) - length(DiffChannels),
+			NewCount = Chans + Diff,
+			NewDict = dict:store(AgentPid, {Ref, Channels}, State#state.agents),
+			{noreply, balance(State#state{agents = NewDict, channel_count = NewCount})};
+		error -> 
 			Ref = erlang:monitor(process, AgentPid),
-			State2 = State#state{agents = dict:store(AgentPid, Ref, State#state.agents)},
+			NewDict = dict:store(AgentPid, {Ref, Channels}, State#state.agents),
+			NewCount = State#state.channel_count + length(Channels),
+			State2 = State#state{agents = NewDict, channel_count = NewCount},
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
 	?DEBUG("An agent (~p) is no longer available.", [AgentPid]),
-	NewDict = case dict:is_key(AgentPid, State#state.agents) of
-		true ->
+	{NewDict, NewCount} = case dict:find(AgentPid, State#state.agents) of
+		error ->
+			{State#state.agents, State#state.channel_count};
+		{ok, {Ref, Chans}} ->
 			{ok, Ref} = dict:find(AgentPid, State#state.agents),
 			erlang:demonitor(Ref),
-			dict:erase(AgentPid, State#state.agents);
-		false ->
-			State#state.agents
+			OutD = dict:erase(AgentPid, State#state.agents),
+			OutC = State#state.channel_count - length(Chans),
+			{OutD, OutC}
 	end,
-	State2 = State#state{agents = NewDict},
+	State2 = State#state{agents = NewDict, channel_count = NewCount},
 	{noreply, balance(State2)};
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
 	Fun = fun(Pid) ->
@@ -182,14 +188,15 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
 	?DEBUG("Announcement that an agent (~p) is down, balancing in response.", [Object]),
-	NewDict = dict:filter(fun(InObject, MonRef) ->
-		case InObject of
-			Object -> false;
-			_ -> true
-		end
-	end, State#state.agents),
-	State2 = State#state{agents = NewDict},
-	{noreply, balance(State2)};
+	case dict:find(Object, State#state.agents) of
+		error ->
+			{noreply, balance(State)};
+		{ok, {_MonRef, Chans}} ->
+			NewCount = State#state.channel_count - length(Chans),
+			NewDict = dict:erase(Object, State#state.agents),
+			NewState = State#state{agents = NewDict, channel_count = NewCount},
+			{noreply, balance(NewState)}
+	end;
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	case (Reason =:= normal orelse Reason =:= shutdown) of
 		true ->
@@ -225,8 +232,7 @@ code_change(_OldVsn, State, _Extra) ->
 	
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
-balance(#state{dispatchers = Dispatchers} = State) ->
-	NumAgents = dict:size(State#state.agents),
+balance(#state{dispatchers = Dispatchers, channel_count = NumAgents} = State) ->
 	NumDisp = length(Dispatchers),
 	case NumAgents of
 		X when X > NumDisp ->

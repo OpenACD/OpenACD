@@ -65,6 +65,8 @@
 	get_agent/2,
 	get_agents/0,
 	get_agents/1,
+	set_endpoint/3,
+	drop_endpoint/2,
 	set_extended_prop/3,
 	drop_extended_prop/2,
 	get_extended_prop/2
@@ -375,6 +377,35 @@ get_agents(Profile) ->
 		 L1 < L2
 	end,
 	lists:sort(Sort, Agents).
+
+-spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
+set_endpoint({Type, Aval}, Endpoint, Data) ->
+	case get_agent(Type, Aval) of
+		{atomic, [Rec]} ->
+			Midends = proplists:delete(Endpoint, Rec#agent_auth.endpoints),
+			Newends = [{Endpoint, Data} | Midends],
+			F = fun() ->
+				mnesia:write(Rec#agent_auth{endpoints = Newends})
+			end,
+			mnesia:transaction(F);
+		_ ->
+			{error, noagent}
+	end.
+
+-spec(drop_endpoint/2 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom()) -> {'atomic', 'ok'}).
+drop_endpoint({Type, Aval}, Endpoint) ->
+	case get_agent(Type, Aval) of
+		{atomic, [#agent_auth{endpoints = OldEnds} = Rec]} ->
+			case proplists:delete(Endpoint, Rec#agent_auth.endpoints) of
+				OldEnds ->
+					{atomic, ok};
+				Newends ->
+					F = fun() ->
+						mnesia:write(Rec#agent_auth{endpoints = Newends})
+					end,
+					mnesia:transaction(F)
+			end
+	end.
 
 -spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'atomic', 'ok'}).
 set_extended_prop({Type, Aval}, Prop, Val) ->
@@ -807,7 +838,9 @@ build_agent_record([{profile, Profile} | Tail], Rec) ->
 build_agent_record([{firstname, Name} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{firstname = Name});
 build_agent_record([{lastname, Name} | Tail], Rec) ->
-	build_agent_record(Tail, Rec#agent_auth{lastname = Name}).
+	build_agent_record(Tail, Rec#agent_auth{lastname = Name});
+build_agent_record([{endpoints, Ends} | Tail], Rec) when is_list(Ends) ->
+	build_agent_record(Tail, Rec#agent_auth{endpoints = Ends}).
 
 diff_recs(Left, Right) ->
 	Sort = fun(A, B) when is_record(A, agent_auth) ->

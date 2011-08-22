@@ -140,7 +140,6 @@ start(Opts) ->
 				]}
 			])
 	end.
-			
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->

@@ -613,6 +613,7 @@ agent_states() ->
 
 -spec(agent_states/1 :: (Profiles :: 'any' | string() | [string()]) -> [{string(), string(), atom()}]).
 agent_states(RawProfiles) ->
+	% TODO misnomered until it accounts for channels.
 	Agentlist = agent_manager:list(),
 	Profiles = case RawProfiles of
 		any ->
@@ -626,7 +627,7 @@ agent_states(RawProfiles) ->
 		Astate = agent:dump_state(Pid),
 		case in_list(Astate#agent.profile, Profiles) of
 			true ->
-				[{Login, Id, Astate#agent.state} | Acc];
+				[{Login, Id} | Acc];
 			false ->
 				Acc
 		end
@@ -650,10 +651,7 @@ agent_state(Agent) ->
 				{"Id", State#agent.id}, 
 				{"Pid", Pid},
 				{"Profile", State#agent.profile},
-				{"State", State#agent.state},
-				{"Previous", State#agent.oldstate},
-				{"Changed", State#agent.lastchange},
-				{"Queued Release", case State#agent.queuedrelease of
+				{"Release", case State#agent.release_data of
 					default ->
 						"default";
 					{Name, _, _} ->

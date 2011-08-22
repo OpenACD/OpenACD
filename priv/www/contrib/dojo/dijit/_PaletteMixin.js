@@ -1,27 +1,8 @@
-//>>built
-define("dijit/_PaletteMixin", [
-	"dojo/_base/declare", // declare
-	"dojo/dom-attr", // domAttr.set
-	"dojo/dom-class", // domClass.add domClass.remove
-	"dojo/dom-construct", // domConstruct.create domConstruct.place
-	"dojo/_base/event", // event.stop
-	"dojo/keys", // keys
-	"dojo/_base/lang", // lang.getObject
-	"./_CssStateMixin",
-	"./focus",
-	"./typematic"
-], function(declare, domAttr, domClass, domConstruct, event, keys, lang, _CssStateMixin, focus, typematic){
+define("dijit/_PaletteMixin", ["dojo", "dijit", "dijit/_CssStateMixin"], function(dojo, dijit) {
 
-/*=====
-	var _CssStateMixin = dijit._CssStateMixin;
-=====*/
-
-// module:
-//		dijit/_PaletteMixin
-// summary:
-//		A keyboard accessible palette, for picking a color/emoticon/etc.
-
-return declare("dijit._PaletteMixin", [_CssStateMixin], {
+dojo.declare("dijit._PaletteMixin",
+	[dijit._CssStateMixin],
+	{
 	// summary:
 	//		A keyboard accessible palette, for picking a color/emoticon/etc.
 	// description:
@@ -39,8 +20,8 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 
 	// value: String
 	//		Currently selected color/emoticon/etc.
-	value: "",
-
+	value: null,
+	
 	// _selectedCell: [private] Integer
 	//		Index of the currently selected cell. Initially, none selected
 	_selectedCell: -1,
@@ -78,15 +59,6 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 	//	 dyeClass should implements dijit.Dye interface
 	dyeClass: '',
 
-	_dyeFactory: function(value, row, col){
-		// summary:
-		//		Return instance of dijit.Dye for specified cell of palette
-		// tags:
-		//		extension
-		var dyeClassObj = lang.getObject(this.dyeClass);
-		return new dyeClassObj(value);
-	},
-
 	_preparePalette: function(choices, titles) {
 		// summary:
 		//		Subclass must call _preparePalette() from postCreate(), passing in the tooltip
@@ -98,16 +70,17 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 
 		this._cells = [];
 		var url = this._blankGif;
-
+		
+		var dyeClassObj = dojo.getObject(this.dyeClass);
 
 		for(var row=0; row < choices.length; row++){
-			var rowNode = domConstruct.create("tr", {tabIndex: "-1"}, this.gridNode);
+			var rowNode = dojo.create("tr", {tabIndex: "-1"}, this.gridNode);
 			for(var col=0; col < choices[row].length; col++){
 				var value = choices[row][col];
 				if(value){
-					var cellObject = this._dyeFactory(value);
-
-					var cellNode = domConstruct.create("td", {
+					var cellObject = new dyeClassObj(value);
+					
+					var cellNode = dojo.create("td", {
 						"class": this.cellClass,
 						tabIndex: "-1",
 						title: titles[value]
@@ -119,7 +92,7 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 					this.connect(cellNode, "ondijitclick", "_onCellClick");
 					this._trackMouseState(cellNode, this.cellClass);
 
-					domConstruct.place(cellNode, rowNode);
+					dojo.place(cellNode, rowNode);
 
 					cellNode.index = this._cells.length;
 
@@ -147,9 +120,9 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		};
 		for(var key in keyIncrementMap){
 			this._connects.push(
-				typematic.addKeyListener(
+				dijit.typematic.addKeyListener(
 					this.domNode,
-					{charOrCode:keys[key], ctrlKey:false, altKey:false, shiftKey:false},
+					{charOrCode:dojo.keys[key], ctrlKey:false, altKey:false, shiftKey:false},
 					this,
 					function(){
 						var increment = keyIncrementMap[key];
@@ -174,7 +147,7 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		//		Focus this widget.  Puts focus on the most recently focused cell.
 
 		// The cell already has tabIndex set, just need to set CSS and focus it
-	focus.focus(this._currentFocus);
+		dijit.focus(this._currentFocus);
 	},
 
 	_onCellClick: function(/*Event*/ evt){
@@ -185,7 +158,7 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		// tags:
 		//		private
 
-		var target = evt.currentTarget,
+		var target = evt.currentTarget,	
 			value = this._getDye(target).getValue();
 
 		// First focus the clicked cell, and then send onChange() notification.
@@ -194,16 +167,16 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		// second focus should win.
 		// Use setTimeout because IE doesn't like changing focus inside of an event handler.
 		this._setCurrent(target);
-		setTimeout(lang.hitch(this, function(){
-		focus.focus(target);
-			this._setValueAttr(value, true);
+		setTimeout(dojo.hitch(this, function(){
+			dijit.focus(target);		
+			this._setValueAttr(value, true);		
 		}));
 
 		// workaround bug where hover class is not removed on popup because the popup is
 		// closed and then there's no onblur event on the cell
-		domClass.remove(target, "dijitPaletteCellHover");
+		dojo.removeClass(target, "dijitPaletteCellHover");
 
-		event.stop(evt);
+		dojo.stopEvent(evt);
 	},
 
 	_setCurrent: function(/*DomNode*/ node){
@@ -220,13 +193,13 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		//		protected
 		if("_currentFocus" in this){
 			// Remove tabIndex on old cell
-			domAttr.set(this._currentFocus, "tabIndex", "-1");
+			dojo.attr(this._currentFocus, "tabIndex", "-1");
 		}
 
 		// Set tabIndex of new cell
 		this._currentFocus = node;
 		if(node){
-			domAttr.set(node, "tabIndex", this.tabIndex);
+			dojo.attr(node, "tabIndex", this.tabIndex);
 		}
 	},
 
@@ -239,10 +212,10 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 		// priorityChange:
 		//		Optional parameter used to tell the select whether or not to fire
 		//		onChange event.
-
+		
 		// clear old selected cell
 		if(this._selectedCell >= 0){
-			domClass.remove(this._cells[this._selectedCell].node, "dijitPaletteCellSelected");
+			dojo.removeClass(this._cells[this._selectedCell].node, "dijitPaletteCellSelected");
 		}
 		this._selectedCell = -1;
 
@@ -251,18 +224,20 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 			for(var i = 0; i < this._cells.length; i++){
 				if(value == this._cells[i].dye.getValue()){
 					this._selectedCell = i;
-					domClass.add(this._cells[i].node, "dijitPaletteCellSelected");
+
+					dojo.addClass(this._cells[i].node, "dijitPaletteCellSelected");
+
+					if(priorityChange || priorityChange === undefined){
+						this.onChange(value);
+					}
+
 					break;
 				}
 			}
 		}
-
+		
 		// record new value, or null if no matching cell
 		this._set("value", this._selectedCell >= 0 ? value : null);
-
-		if(priorityChange || priorityChange === undefined){
-			this.onChange(value);
-		}
 	},
 
 	onChange: function(value){
@@ -293,7 +268,7 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 
 			// Actually focus the node, for the benefit of screen readers.
 			// Use setTimeout because IE doesn't like changing focus inside of an event handler
-			setTimeout(lang.hitch(dijit, "focus", focusNode), 0);
+			setTimeout(dojo.hitch(dijit, "focus", focusNode), 0);
 		}
 	},
 
@@ -306,13 +281,13 @@ return declare("dijit._PaletteMixin", [_CssStateMixin], {
 });
 
 /*=====
-declare("dijit.Dye",
+dojo.declare("dijit.Dye",
 	null,
 	{
 		// summary:
 		//		Interface for the JS Object associated with a palette cell (i.e. DOMNode)
 
-		constructor: function(alias, row, col){
+		constructor: function(alias){
 			// summary:
 			//		Initialize according to value or alias like "white"
 			// alias: String
@@ -337,4 +312,6 @@ declare("dijit.Dye",
 );
 =====*/
 
+
+return dijit._PaletteMixin;
 });

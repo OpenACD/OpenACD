@@ -1,16 +1,5 @@
-//>>built
-define("dijit/_editor/html", [
-	"dojo/_base/lang", // lang.isString
-	"dojo/_base/sniff", // has("ie")
-	".."		// for exporting symbols to dijit._editor (TODO: remove)
-], function(lang, has, dijit){
-
-// module:
-//		dijit/_editor/html
-// summary:
-//		Utility functions used by editor
-
-lang.getObject("_editor", true, dijit);
+define("dijit/_editor/html", ["dojo", "dijit"], function(dojo, dijit) {
+dojo.getObject("_editor", true, dijit);
 
 dijit._editor.escapeXml=function(/*String*/str, /*Boolean?*/noSingleQuotes){
 	// summary:
@@ -42,7 +31,7 @@ dijit._editor.getNodeHtml=function(/* DomNode */node){
 			//attributes appear in the dictionary order
 			var attrarray = [];
 			var attr;
-			if(has("ie") && node.outerHTML){
+			if(dojo.isIE && node.outerHTML){
 				var s = node.outerHTML;
 				s = s.substr(0, s.indexOf('>'))
 					.replace(/(['"])[^"']*\1/g, ''); //to make the following regexp safe
@@ -117,7 +106,7 @@ dijit._editor.getNodeHtml=function(/* DomNode */node){
 			var j = 0;
 			while((attr = attrarray[j++])){
 				output += ' ' + attr[0] + '="' +
-					(lang.isString(attr[1]) ? dijit._editor.escapeXml(attr[1], true) : attr[1]) + '"';
+					(dojo.isString(attr[1]) ? dijit._editor.escapeXml(attr[1], true) : attr[1]) + '"';
 			}
 			if(lName === "script"){
 				// Browsers handle script tags differently in how you get content,
@@ -175,7 +164,7 @@ dijit._editor.getChildrenHtml = function(/* DomNode */dom){
 	//If we have an actual node we can check parent relationships on for IE,
 	//We should check, as IE sometimes builds invalid DOMS.  If no parent, we can't check
 	//And should just process it and hope for the best.
-	var checkParent = !has("ie") || nodes !== dom;
+	var checkParent = !dojo.isIE || nodes !== dom;
 
 	var node, i = 0;
 	while((node = nodes[i++])){

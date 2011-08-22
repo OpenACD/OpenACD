@@ -1,29 +1,9 @@
-//>>built
-define("dijit/Declaration", [
-	"dojo/_base/array", // array.forEach array.map
-	"dojo/_base/connect", // connect.connect
-	"dojo/_base/declare", // declare
-	"dojo/_base/lang", // lang.getObject
-	"dojo/parser", // parser._functionFromScript
-	"dojo/query", // query
-	"./_Widget",
-	"./_TemplatedMixin",
-	"./_WidgetsInTemplateMixin"
-], function(array, connect, declare, lang, parser, query, _Widget, _TemplatedMixin, _WidgetsInTemplateMixin){
+define("dijit/Declaration", ["dojo", "dijit", "dijit/_Widget", "dijit/_Templated"], function(dojo, dijit) {
 
-/*=====
-	var _Widget = dijit._Widget;
-	var _TemplatedMixin = dijit._TemplatedMixin;
-	var _WidgetsInTemplateMixin = dijit._WidgetsInTemplateMixin;
-=====*/
-
-	// module:
-	//		dijit/Declaration
-	// summary:
-	//		The Declaration widget allows a developer to declare new widget
-	//		classes directly from a snippet of markup.
-
-	return declare("dijit.Declaration", _Widget, {
+dojo.declare(
+	"dijit.Declaration",
+	dijit._Widget,
+	{
 		// summary:
 		//		The Declaration widget allows a developer to declare new widget
 		//		classes directly from a snippet of markup.
@@ -52,8 +32,8 @@ define("dijit/Declaration", [
 
 		buildRendering: function(){
 			var src = this.srcNodeRef.parentNode.removeChild(this.srcNodeRef),
-				methods = query("> script[type^='dojo/method']", src).orphan(),
-				connects = query("> script[type^='dojo/connect']", src).orphan(),
+				methods = dojo.query("> script[type^='dojo/method']", src).orphan(),
+				connects = dojo.query("> script[type^='dojo/connect']", src).orphan(),
 				srcType = src.nodeName;
 
 			var propList = this.defaults || {};
@@ -62,9 +42,9 @@ define("dijit/Declaration", [
 			// add that method to prototype.
 			// If there's no "event" specified then it's code to run on instantiation,
 			// so it becomes a connection to "postscript" (handled below).
-			array.forEach(methods, function(s){
+			dojo.forEach(methods, function(s){
 				var evt = s.getAttribute("event") || s.getAttribute("data-dojo-event"),
-					func = parser._functionFromScript(s);
+					func = dojo.parser._functionFromScript(s);
 				if(evt){
 					propList[evt] = func;
 				}else{
@@ -73,22 +53,23 @@ define("dijit/Declaration", [
 			});
 
 			// map array of strings like [ "dijit.form.Button" ] to array of mixin objects
-			// (note that array.map(this.mixins, lang.getObject) doesn't work because it passes
+			// (note that dojo.map(this.mixins, dojo.getObject) doesn't work because it passes
 			// a bogus third argument to getObject(), confusing it)
 			this.mixins = this.mixins.length ?
-				array.map(this.mixins, function(name){ return lang.getObject(name); } ) :
-				[ _Widget, _TemplatedMixin, _WidgetsInTemplateMixin ];
+				dojo.map(this.mixins, function(name){ return dojo.getObject(name); } ) :
+				[ dijit._Widget, dijit._Templated ];
 
+			propList.widgetsInTemplate = true;
 			propList._skipNodeCache = true;
 			propList.templateString = "<"+srcType+" class='"+src.className+"' dojoAttachPoint='"+(src.getAttribute("dojoAttachPoint") || '')+"' dojoAttachEvent='"+(src.getAttribute("dojoAttachEvent") || '')+"' >"+src.innerHTML.replace(/\%7B/g,"{").replace(/\%7D/g,"}")+"</"+srcType+">";
 
 			// strip things so we don't create stuff under us in the initial setup phase
-			query("[dojoType]", src).forEach(function(node){
+			dojo.query("[dojoType]", src).forEach(function(node){
 				node.removeAttribute("dojoType");
 			});
 
 			// create the new widget class
-			var wc = declare(
+			var wc = dojo.declare(
 				this.widgetClass,
 				this.mixins,
 				propList
@@ -101,11 +82,15 @@ define("dijit/Declaration", [
 			// (Note that the second one is just shorthand for a dojo/connect to postscript)
 			// Since this is a connect in the declaration, we are actually connection to the method
 			// in the _prototype_.
-			array.forEach(connects, function(s){
+			dojo.forEach(connects, function(s){
 				var evt = s.getAttribute("event") || s.getAttribute("data-dojo-event") || "postscript",
-					func = parser._functionFromScript(s);
-				connect.connect(wc.prototype, evt, func);
+					func = dojo.parser._functionFromScript(s);
+				dojo.connect(wc.prototype, evt, func);
 			});
 		}
-	});
+	}
+);
+
+
+return dijit.Declaration;
 });

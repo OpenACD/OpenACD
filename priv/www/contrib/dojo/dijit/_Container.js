@@ -1,17 +1,8 @@
-//>>built
-define("dijit/_Container", [
-	".",	// byNode()
-	"dojo/_base/array", // array.forEach array.indexOf
-	"dojo/_base/declare", // declare
-	"dojo/dom-construct" // domConstruct.place
-], function(dijit, array, declare, domConstruct){
+define("dijit/_Container", ["dojo", "dijit"], function(dojo, dijit) {
 
-	// module:
-	//		dijit/_Container
-	// summary:
-	//		Mixin for widgets that contain a set of widget children.
-
-	return declare("dijit._Container", null, {
+dojo.declare("dijit._Container",
+	null,
+	{
 		// summary:
 		//		Mixin for widgets that contain a set of widget children.
 		// description:
@@ -54,7 +45,7 @@ define("dijit/_Container", [
 					insertIndex = "after";
 				}
 			}
-			domConstruct.place(widget.domNode, refNode, insertIndex);
+			dojo.place(widget.domNode, refNode, insertIndex);
 
 			// If I've been started but the child widget hasn't been started,
 			// start it now.  Make sure to do this after widget has been
@@ -65,13 +56,13 @@ define("dijit/_Container", [
 			}
 		},
 
-		removeChild: function(/*Widget|int*/ widget){
+		removeChild: function(/*Widget or int*/ widget){
 			// summary:
 			//		Removes the passed widget instance from this widget but does
 			//		not destroy it.  You can also pass in an integer indicating
 			//		the index within the container to remove
 
-			if(typeof widget == "number"){
+			if(typeof widget == "number" && widget > 0){
 				widget = this.getChildren()[widget];
 			}
 
@@ -93,7 +84,7 @@ define("dijit/_Container", [
 			// summary:
 			//      Destroys all the widgets inside this.containerNode,
 			//      but not this widget itself
-			array.forEach(this.getChildren(), function(child){ child.destroyRecursive(preserveDom); });
+			dojo.forEach(this.getChildren(), function(child){ child.destroyRecursive(preserveDom); });
 		},
 
 		_getSiblingOfChild: function(/*dijit._Widget*/ child, /*int*/ dir){
@@ -115,13 +106,13 @@ define("dijit/_Container", [
 		getIndexOfChild: function(/*dijit._Widget*/ child){
 			// summary:
 			//		Gets the index of the child in this container or -1 if not found
-			return array.indexOf(this.getChildren(), child);	// int
+			return dojo.indexOf(this.getChildren(), child);	// int
 		},
 
 		startup: function(){
 			// summary:
 			//		Called after all the widgets have been instantiated and their
-			//		dom nodes have been inserted somewhere under win.doc.body.
+			//		dom nodes have been inserted somewhere under dojo.doc.body.
 			//
 			//		Widgets should override this method to do any initialization
 			//		dependent on other widgets existing, and then call
@@ -133,9 +124,13 @@ define("dijit/_Container", [
 			if(this._started){ return; }
 
 			// Startup all children of this widget
-			array.forEach(this.getChildren(), function(child){ child.startup(); });
+			dojo.forEach(this.getChildren(), function(child){ child.startup(); });
 
 			this.inherited(arguments);
 		}
-	});
+	}
+);
+
+
+return dijit._Container;
 });

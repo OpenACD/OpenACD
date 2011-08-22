@@ -1,33 +1,11 @@
-//>>built
-require({cache:{
-'url:dijit/layout/templates/_TabButton.html':"<div role=\"presentation\" dojoAttachPoint=\"titleNode\" dojoAttachEvent='onclick:onClick'>\n    <div role=\"presentation\" class='dijitTabInnerDiv' dojoAttachPoint='innerDiv'>\n        <div role=\"presentation\" class='dijitTabContent' dojoAttachPoint='tabContent'>\n        \t<div role=\"presentation\" dojoAttachPoint='focusNode'>\n\t\t        <img src=\"${_blankGif}\" alt=\"\" class=\"dijitIcon dijitTabButtonIcon\" dojoAttachPoint='iconNode' />\n\t\t        <span dojoAttachPoint='containerNode' class='tabLabel'></span>\n\t\t        <span class=\"dijitInline dijitTabCloseButton dijitTabCloseIcon\" dojoAttachPoint='closeNode'\n\t\t        \t\tdojoAttachEvent='onclick: onClickCloseButton' role=\"presentation\">\n\t\t            <span dojoAttachPoint='closeText' class='dijitTabCloseText'>[x]</span\n\t\t        ></span>\n\t\t\t</div>\n        </div>\n    </div>\n</div>\n"}});
-define("dijit/layout/TabController", [
-	"dojo/text!./templates/_TabButton.html",
-	"./StackController",
-	"../Menu",
-	"../MenuItem",
-	"dojo/i18n!../nls/common",
-	"dojo/_base/declare", // declare
-	"dojo/dom", // dom.setSelectable
-	"dojo/dom-attr", // domAttr.attr
-	"dojo/dom-class", // domClass.toggle
-	"dojo/_base/lang", // lang.hitch lang.trim
-	"dojo/i18n" // i18n.getLocalization
-], function(template, StackController, Menu, MenuItem, nlsCommon, declare, dom, domAttr, domClass, lang, i18n){
+define("dijit/layout/TabController", ["dojo", "dijit", "text!dijit/layout/templates/_TabButton.html", "dijit/layout/StackController", "dijit/Menu", "dijit/MenuItem", "i18n!dijit/nls/common"], function(dojo, dijit) {
 
-/*=====
-	var StackController = dijit.layout.StackController;
-	var Menu = dijit.Menu;
-	var MenuItem = dijit.MenuItem;
-=====*/
+// Menu is used for an accessible close button, would be nice to have a lighter-weight solution
 
-// module:
-//		dijit/layout/TabController
-// summary:
-// 		Set of tabs (the things with titles and a close button, that you click to show a tab panel).
-//		Used internally by `dijit.layout.TabContainer`.
 
-var TabController = declare("dijit.layout.TabController", StackController, {
+dojo.declare("dijit.layout.TabController",
+	dijit.layout.StackController,
+{
 	// summary:
 	// 		Set of tabs (the things with titles and a close button, that you click to show a tab panel).
 	//		Used internally by `dijit.layout.TabContainer`.
@@ -37,8 +15,6 @@ var TabController = declare("dijit.layout.TabController", StackController, {
 	//		added or deleted updates itself accordingly.
 	// tags:
 	//		private
-
-	baseClass: "dijitTabController",
 
 	templateString: "<div role='tablist' dojoAttachEvent='onkeypress:onkeypress'></div>",
 
@@ -70,7 +46,9 @@ var TabController = declare("dijit.layout.TabController", StackController, {
 	}
 });
 
-TabController.TabButton = declare("dijit.layout._TabButton", StackController.StackButton, {
+dojo.declare("dijit.layout._TabButton",
+	dijit.layout._StackButton,
+	{
 	// summary:
 	//		A tab (the thing you click to select a pane).
 	// description:
@@ -88,16 +66,33 @@ TabController.TabButton = declare("dijit.layout._TabButton", StackController.Sta
 		closeNode: "dijitTabCloseButton"
 	},
 
-	templateString: template,
+	templateString: dojo.cache("dijit.layout","templates/_TabButton.html"),
 
 	// Override _FormWidget.scrollOnFocus.
 	// Don't scroll the whole tab container into view when the button is focused.
 	scrollOnFocus: false,
 
+	postMixInProperties: function(){
+		// Override blank iconClass from Button to do tab height adjustment on IE6,
+		// to make sure that tabs with and w/out close icons are same height
+		if(!this.iconClass){
+			this.iconClass = "dijitTabButtonIcon";
+		}
+	},
+
 	buildRendering: function(){
 		this.inherited(arguments);
 
-		dom.setSelectable(this.containerNode, false);
+		// If a custom icon class has not been set for the
+		// tab icon, set its width to one pixel. This ensures
+		// that the height styling of the tab is maintained,
+		// as it is based on the height of the icon.
+		// TODO: I still think we can just set dijitTabButtonIcon to 1px in CSS <Bill>
+		if(this.iconNode.className == "dijitTabButtonIcon"){
+			dojo.style(this.iconNode, "width", "1px");
+		}
+
+		dojo.setSelectable(this.containerNode, false);
 	},
 
 	startup: function(){
@@ -115,28 +110,27 @@ TabController.TabButton = declare("dijit.layout._TabButton", StackController.Sta
 		// summary:
 		//		Hide/show close button
 		this._set("closeButton", disp);
-		domClass.toggle(this.innerDiv, "dijitClosable", disp);
+		dojo.toggleClass(this.innerDiv, "dijitClosable", disp);
 		this.closeNode.style.display = disp ? "" : "none";
 		if(disp){
-			var _nlsResources = i18n.getLocalization("dijit", "common");
+			var _nlsResources = dojo.i18n.getLocalization("dijit", "common");
 			if(this.closeNode){
-				domAttr.set(this.closeNode,"title", _nlsResources.itemClose);
+				dojo.attr(this.closeNode,"title", _nlsResources.itemClose);
 			}
 			// add context menu onto title button
-			this._closeMenu = new Menu({
+			var _nlsResources = dojo.i18n.getLocalization("dijit", "common");
+			this._closeMenu = new dijit.Menu({
 				id: this.id+"_Menu",
 				dir: this.dir,
 				lang: this.lang,
-				textDir: this.textDir,
 				targetNodeIds: [this.domNode]
 			});
 
-			this._closeMenu.addChild(new MenuItem({
+			this._closeMenu.addChild(new dijit.MenuItem({
 				label: _nlsResources.itemClose,
 				dir: this.dir,
 				lang: this.lang,
-				textDir: this.textDir,
-				onClick: lang.hitch(this, "onClickCloseButton")
+				onClick: dojo.hitch(this, "onClickCloseButton")
 			}));
 		}else{
 			if(this._closeMenu){
@@ -150,11 +144,11 @@ TabController.TabButton = declare("dijit.layout._TabButton", StackController.Sta
 		//		Hook for set('label', ...) to work.
 		// description:
 		//		takes an HTML string.
-		//		Inherited ToggleButton implementation will Set the label (text) of the button;
+		//		Inherited ToggleButton implementation will Set the label (text) of the button; 
 		//		Need to set the alt attribute of icon on tab buttons if no label displayed
 		this.inherited(arguments);
-		if(!this.showLabel && !this.params.title){
-			this.iconNode.alt = lang.trim(this.containerNode.innerText || this.containerNode.textContent || '');
+		if(this.showLabel == false && !this.params.title){
+			this.iconNode.alt = dojo.trim(this.containerNode.innerText || this.containerNode.textContent || '');
 		}
 	},
 
@@ -168,5 +162,5 @@ TabController.TabButton = declare("dijit.layout._TabButton", StackController.Sta
 });
 
 
-return TabController;
+return dijit.layout.TabController;
 });

@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -12,7 +11,6 @@ define(
 	cursive: "草书",
 	fantasy: "虚线",
 
-	noFormat: "无",
 	p: "段落",
 	h1: "标题",
 	h2: "子标题",

@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -46,7 +45,9 @@ define(
 	"print": "Udskriv",
 	"newPage": "Ny side",
 	/* Error messages */
-	'systemShortcut': 'Funktionen "${0}" kan kun bruges i din browser med en tastaturgenvej. Brug ${1}.'
+	'systemShortcut': 'Funktionen "${0}" kan kun bruges i din browser med en tastaturgenvej. Brug ${1}.',
+	'ctrlKey':'Ctrl+${0}'
 })
+
 //end v1.x content
 );

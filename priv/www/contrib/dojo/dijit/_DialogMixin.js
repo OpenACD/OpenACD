@@ -1,17 +1,11 @@
-//>>built
-define("dijit/_DialogMixin", [
-	".",	// dijit._getTabNavigable
-	"dojo/_base/declare" // declare
-], function(dijit, declare){
+define("dijit/_DialogMixin", ["dojo", "dijit", "dijit/_Widget"], function(dojo, dijit) {
 
-	// module:
-	//		dijit/_DialogMixin
-	// summary:
-	//		_DialogMixin provides functions useful to Dialog and TooltipDialog
-
-	return declare("dijit._DialogMixin", null, {
+dojo.declare("dijit._DialogMixin", null,
+	{
 		// summary:
 		//		This provides functions useful to Dialog and TooltipDialog
+
+		attributeMap: dijit._Widget.prototype.attributeMap,
 
 		execute: function(/*Object*/ formContents){
 			// summary:
@@ -58,16 +52,26 @@ define("dijit/_DialogMixin", [
 			this.execute(this.get('value'));
 		},
 
-		_getFocusItems: function(){
+		_getFocusItems: function(/*Node*/ dialogNode){
 			// summary:
-			//		Finds focusable items in dialog,
-			//		and sets this._firstFocusItem and this._lastFocusItem
+			//		Find focusable Items each time a dialog is opened,
+			//		setting _firstFocusItem and _lastFocusItem
 			// tags:
 			//		protected
 
-			var elems = dijit._getTabNavigable(this.containerNode);
-			this._firstFocusItem = elems.lowest || elems.first || this.closeButtonNode || this.domNode;
+			var elems = dijit._getTabNavigable(dojo.byId(dialogNode));
+			this._firstFocusItem = elems.lowest || elems.first || dialogNode;
 			this._lastFocusItem = elems.last || elems.highest || this._firstFocusItem;
+			if(dojo.isMoz && this._firstFocusItem.tagName.toLowerCase() == "input" &&
+					dojo.getNodeProp(this._firstFocusItem, "type").toLowerCase() == "file"){
+				// FF doesn't behave well when first element is input type=file, set first focusable to dialog container
+				dojo.attr(dialogNode, "tabIndex", "0");
+				this._firstFocusItem = dialogNode;
+			}
 		}
-	});
+	}
+);
+
+
+return dijit._DialogMixin;
 });

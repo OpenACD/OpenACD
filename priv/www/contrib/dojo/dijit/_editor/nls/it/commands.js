@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -6,7 +5,7 @@ define(
 	'copy': 'Copia',
 	'cut': 'Taglia',
 	'delete': 'Elimina',
-	'indent': 'Rientra',
+	'indent': 'Rientro',
 	'insertHorizontalRule': 'Righello orizzontale',
 	'insertOrderedList': 'Elenco numerato',
 	'insertUnorderedList': 'Elenco puntato',
@@ -15,7 +14,7 @@ define(
 	'justifyFull': 'Giustifica',
 	'justifyLeft': 'Allinea a sinistra',
 	'justifyRight': 'Allinea a destra',
-	'outdent': 'Rimuovi rientro',
+	'outdent': 'Annulla rientro',
 	'paste': 'Incolla',
 	'redo': 'Ripristina',
 	'removeFormat': 'Rimuovi formato',
@@ -23,14 +22,14 @@ define(
 	'strikethrough': 'Barrato',
 	'subscript': 'Pedice',
 	'superscript': 'Apice',
-	'underline': 'Sottolineato',
+	'underline': 'Sottolinea',
 	'undo': 'Annulla',
 	'unlink': 'Rimuovi collegamento',
 	'createLink': 'Crea collegamento',
-	'toggleDir': 'Inverti direzione',
+	'toggleDir': 'Attiva/Disattiva direzione',
 	'insertImage': 'Inserisci immagine',
 	'insertTable': 'Inserisci/Modifica tabella',
-	'toggleTableBorder': 'Mostra/Nascondi margine tabella',
+	'toggleTableBorder': 'Attiva/Disattiva bordo tabella',
 	'deleteTable': 'Elimina tabella',
 	'tableProp': 'Proprietà tabella',
 	'htmlToggle': 'Origine HTML',
@@ -40,13 +39,13 @@ define(
 	'formatBlock': 'Stile paragrafo',
 	'fontSize': 'Dimensione carattere',
 	'fontName': 'Nome carattere',
-	'tabIndent': 'Rientranza tabulazione',
+	'tabIndent': 'Rientro tabulazione',
 	"fullScreen": "Attiva/Disattiva schermo intero",
 	"viewSource": "Visualizza origine HTML",
 	"print": "Stampa",
 	"newPage": "Nuova pagina",
 	/* Error messages */
-	'systemShortcut': 'Azione "${0}" disponibile sul proprio browser solo mediante i tasti di scelta rapida della tastiera. Utilizzare ${1}.'
+	'systemShortcut': 'La azione "${0}" è disponibile solo nel browser tramite un tasto di scelta rapida. Utilizzare ${1}.'
 })
 
 //end v1.x content

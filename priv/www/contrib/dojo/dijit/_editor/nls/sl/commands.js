@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -12,13 +11,13 @@ define(
 	'insertUnorderedList': 'Naštevni seznam',
 	'italic': 'Ležeče',
 	'justifyCenter': 'Poravnaj na sredino',
-	'justifyFull': 'Poravnaj obojestransko',
+	'justifyFull': 'Obojestranska poravnava',
 	'justifyLeft': 'Poravnaj levo',
 	'justifyRight': 'Poravnaj desno',
-	'outdent': 'Primakni',
+	'outdent': 'Viseč odstavek',
 	'paste': 'Prilepi',
 	'redo': 'Znova uveljavi',
-	'removeFormat': 'Odstrani oblikovanje',
+	'removeFormat': 'Odstrani obliko zapisa',
 	'selectAll': 'Izberi vse',
 	'strikethrough': 'Prečrtano',
 	'subscript': 'Podpisano',
@@ -27,7 +26,7 @@ define(
 	'undo': 'Razveljavi',
 	'unlink': 'Odstrani povezavo',
 	'createLink': 'Ustvari povezavo',
-	'toggleDir': 'Preklopi smer',
+	'toggleDir': 'Preklopi na usmeritev',
 	'insertImage': 'Vstavi sliko',
 	'insertTable': 'Vstavi/uredi tabelo',
 	'toggleTableBorder': 'Preklopi na rob tabele',
@@ -48,5 +47,6 @@ define(
 	/* Error messages */
 	'systemShortcut': 'Dejanje "${0}" lahko v vašem brskalniku uporabite samo z bližnjico na tipkovnici. Uporabite ${1}.'
 })
+
 //end v1.x content
 );

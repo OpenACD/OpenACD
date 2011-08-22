@@ -1,26 +1,8 @@
-//>>built
-define("dijit/PopupMenuItem", [
-	"dojo/_base/declare", // declare
-	"dojo/dom-style", // domStyle.set
-	"dojo/query", // query
-	"dojo/_base/window", // win.body
-	"./MenuItem",
-	"./hccss"
-], function(declare, domStyle, query, win, MenuItem){
+define("dijit/PopupMenuItem", ["dojo", "dijit", "dijit/MenuItem"], function(dojo, dijit) {
 
-/*=====
-	var MenuItem = dijit.MenuItem;
-=====*/
-
-	// module:
-	//		dijit/PopupMenuItem
-	// summary:
-	//		An item in a Menu that spawn a drop down (usually a drop down menu)
-
-	return declare("dijit.PopupMenuItem", MenuItem, {
-		// summary:
-		//		An item in a Menu that spawn a drop down (usually a drop down menu)
-
+dojo.declare("dijit.PopupMenuItem",
+		dijit.MenuItem,
+		{
 		_fillContent: function(){
 			// summary:
 			//		When Menu is declared in markup, this code gets the menu label and
@@ -37,8 +19,8 @@ define("dijit/PopupMenuItem", [
 			//		protected
 
 			if(this.srcNodeRef){
-				var nodes = query("*", this.srcNodeRef);
-				this.inherited(arguments, [nodes[0]]);
+				var nodes = dojo.query("*", this.srcNodeRef);
+				dijit.PopupMenuItem.superclass._fillContent.call(this, nodes[0]);
 
 				// save pointer to srcNode so we can grab the drop down widget after it's instantiated
 				this.dropDownContainer = this.srcNodeRef;
@@ -50,19 +32,19 @@ define("dijit/PopupMenuItem", [
 			this.inherited(arguments);
 
 			// we didn't copy the dropdown widget from the this.srcNodeRef, so it's in no-man's
-			// land now.  move it to win.doc.body.
+			// land now.  move it to dojo.doc.body.
 			if(!this.popup){
-				var node = query("[widgetId]", this.dropDownContainer)[0];
+				var node = dojo.query("[widgetId]", this.dropDownContainer)[0];
 				this.popup = dijit.byNode(node);
 			}
-			win.body().appendChild(this.popup.domNode);
+			dojo.body().appendChild(this.popup.domNode);
 			this.popup.startup();
 
 			this.popup.domNode.style.display="none";
 			if(this.arrowWrapper){
-				domStyle.set(this.arrowWrapper, "visibility", "");
+				dojo.style(this.arrowWrapper, "visibility", "");
 			}
-			this.focusNode.setAttribute("aria-haspopup", "true");
+			dijit.setWaiState(this.focusNode, "haspopup", "true");
 		},
 
 		destroyDescendants: function(){
@@ -77,4 +59,7 @@ define("dijit/PopupMenuItem", [
 			this.inherited(arguments);
 		}
 	});
+
+
+return dijit.PopupMenuItem;
 });

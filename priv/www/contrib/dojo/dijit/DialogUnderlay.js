@@ -1,25 +1,9 @@
-//>>built
-define("dijit/DialogUnderlay", [
-	"dojo/_base/declare", // declare
-	"dojo/dom-attr", // domAttr.set
-	"dojo/_base/window", // win.body
-	"dojo/window", // winUtils.getBox
-	"./_Widget",
-	"./_TemplatedMixin",
-	"./BackgroundIframe"
-], function(declare, domAttr, win, winUtils, _Widget, _TemplatedMixin, BackgroundIframe){
+define("dijit/DialogUnderlay", ["dojo", "dijit", "dojo/window", "dijit/_Widget", "dijit/_Templated"], function(dojo, dijit) {
 
-/*=====
-	var _Widget = dijit._Widget;
-	var _TemplatedMixin = dijit._TemplatedMixin;
-=====*/
-
-	// module:
-	//		dijit/DialogUnderlay
-	// summary:
-	//		The component that blocks the screen behind a `dijit.Dialog`
-
-	return declare("dijit.DialogUnderlay", [_Widget, _TemplatedMixin], {
+dojo.declare(
+	"dijit.DialogUnderlay",
+	[dijit._Widget, dijit._Templated],
+	{
 		// summary:
 		//		The component that blocks the screen behind a `dijit.Dialog`
 		//
@@ -48,8 +32,10 @@ define("dijit/DialogUnderlay", [
 		//		This class name is used on the DialogUnderlay node, in addition to dijitDialogUnderlay
 		"class": "",
 
+		attributeMap: { id: "domNode" },
+
 		_setDialogIdAttr: function(id){
-			domAttr.set(this.node, "id", id + "_underlay");
+			dojo.attr(this.node, "id", id + "_underlay");
 			this._set("dialogId", id);
 		},
 
@@ -61,7 +47,7 @@ define("dijit/DialogUnderlay", [
 		postCreate: function(){
 			// summary:
 			//		Append the underlay to the body
-			win.body().appendChild(this.domNode);
+			dojo.body().appendChild(this.domNode);
 		},
 
 		layout: function(){
@@ -84,7 +70,7 @@ define("dijit/DialogUnderlay", [
 			os.display = "none";
 
 			// then resize and show
-			var viewport = winUtils.getBox();
+			var viewport = dojo.window.getBox();
 			os.top = viewport.t + "px";
 			os.left = viewport.l + "px";
 			is.width = viewport.w + "px";
@@ -97,7 +83,7 @@ define("dijit/DialogUnderlay", [
 			//		Show the dialog underlay
 			this.domNode.style.display = "block";
 			this.layout();
-			this.bgIframe = new BackgroundIframe(this.domNode);
+			this.bgIframe = new dijit.BackgroundIframe(this.domNode);
 		},
 
 		hide: function(){
@@ -107,5 +93,9 @@ define("dijit/DialogUnderlay", [
 			delete this.bgIframe;
 			this.domNode.style.display = "none";
 		}
-	});
+	}
+);
+
+
+return dijit.DialogUnderlay;
 });

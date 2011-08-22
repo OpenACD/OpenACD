@@ -1,23 +1,6 @@
-//>>built
-define("dijit/form/MultiSelect", [
-	"dojo/_base/array", // array.indexOf, array.map
-	"dojo/_base/declare", // declare
-	"dojo/dom-geometry", // domGeometry.setMarginBox
-	"dojo/query", // query
-	"./_FormValueWidget"
-], function(array, declare, domGeometry, query, _FormValueWidget){
+define("dijit/form/MultiSelect", ["dojo", "dijit", "dijit/form/_FormWidget"], function(dojo, dijit) {
 
-/*=====
-	var _FormValueWidget = dijit.form._FormValueWidget;
-=====*/
-
-// module:
-//		dijit/form/MultiSelect
-// summary:
-//		Widget version of a <select multiple=true> element,
-//		for selecting multiple options.
-
-return declare("dijit.form.MultiSelect", _FormValueWidget, {
+dojo.declare("dijit.form.MultiSelect", dijit.form._FormValueWidget, {
 	// summary:
 	//		Widget version of a <select multiple=true> element,
 	//		for selecting multiple options.
@@ -29,6 +12,19 @@ return declare("dijit.form.MultiSelect", _FormValueWidget, {
 	size: 7,
 
 	templateString: "<select multiple='true' ${!nameAttrSetting} dojoAttachPoint='containerNode,focusNode' dojoAttachEvent='onchange: _onChange'></select>",
+
+	attributeMap: dojo.delegate(dijit.form._FormWidget.prototype.attributeMap, {
+		size: "focusNode"
+	}),
+
+	reset: function(){
+		// summary:
+		//		Reset the widget's value to what it was at initialization time
+
+		// TODO: once we inherit from FormValueWidget this won't be needed
+		this._hasBeenBlurred = false;
+		this._setValueAttr(this._resetValue, true);
+	},
 
 	addSelected: function(/*dijit.form.MultiSelect*/ select){
 		// summary:
@@ -50,13 +46,12 @@ return declare("dijit.form.MultiSelect", _FormValueWidget, {
 			select.domNode.scrollTop = 0;
 			select.domNode.scrollTop = oldscroll;
 		},this);
-		this._set('value', this.get('value'));
 	},
 
 	getSelected: function(){
 		// summary:
 		//		Access the NodeList of the selected options directly
-		return query("option",this.containerNode).filter(function(n){
+		return dojo.query("option",this.containerNode).filter(function(n){
 			return n.selected; // Boolean
 		}); // dojo.NodeList
 	},
@@ -66,54 +61,50 @@ return declare("dijit.form.MultiSelect", _FormValueWidget, {
 		//		Hook so get('value') works.
 		// description:
 		//		Returns an array of the selected options' values.
-
-		// Don't call getSelect.map() because it doesn't return a real array,
-		// and that messes up dojo.toJson() calls like in the Form.html test
-		return array.map(this.getSelected(), function(n){
+		return this.getSelected().map(function(n){
 			return n.value;
 		});
 	},
 
 	multiple: true, // for Form
 
-	_setValueAttr: function(/*Array*/ values, /*Boolean?*/ priorityChange){
+	_setValueAttr: function(/*Array*/ values){
 		// summary:
 		//		Hook so set('value', values) works.
 		// description:
 		//		Set the value(s) of this Select based on passed values
-		query("option",this.containerNode).forEach(function(n){
-			n.selected = (array.indexOf(values,n.value) != -1);
+		dojo.query("option",this.containerNode).forEach(function(n){
+			n.selected = (dojo.indexOf(values,n.value) != -1);
 		});
-		this.inherited(arguments);
 	},
 
-	invertSelection: function(/*Boolean?*/ onChange){
+	invertSelection: function(onChange){
 		// summary:
 		//		Invert the selection
 		// onChange: Boolean
-		//		If false, onChange is not fired.
-		var val = [];
-		query("option",this.containerNode).forEach(function(n){
-			if(!n.selected){ val.push(n.value); }
+		//		If null, onChange is not fired.
+		dojo.query("option",this.containerNode).forEach(function(n){
+			n.selected = !n.selected;
 		});
-		this._setValueAttr(val, !(onChange === false || onChange == null));
+		this._handleOnChange(this.get('value'), onChange == true);
 	},
 
-	_onChange: function(/*Event*/){
+	_onChange: function(/*Event*/ e){
 		this._handleOnChange(this.get('value'), true);
 	},
 
 	// for layout widgets:
 	resize: function(/*Object*/ size){
 		if(size){
-			domGeometry.setMarginBox(this.domNode, size.l, size.t, size.w, size.h);
+			dojo.marginBox(this.domNode, size);
 		}
 	},
 
 	postCreate: function(){
-		this._set('value', this.get('value'));
-		this.inherited(arguments);
+		this._onChange();
 	}
 });
 
+
+return dijit.form.MultiSelect;
 });

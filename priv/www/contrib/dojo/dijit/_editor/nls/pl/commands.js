@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -33,7 +32,7 @@ define(
 	'toggleTableBorder': 'Przełącz ramkę tabeli',
 	'deleteTable': 'Usuń tabelę',
 	'tableProp': 'Właściwość tabeli',
-	'htmlToggle': 'Kod źródłowy HTML',
+	'htmlToggle': 'Źródło HTML',
 	'foreColor': 'Kolor pierwszego planu',
 	'hiliteColor': 'Kolor tła',
 	'plainFormatBlock': 'Styl akapitu',

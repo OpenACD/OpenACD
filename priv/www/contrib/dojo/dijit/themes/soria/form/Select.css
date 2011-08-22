@@ -1,5 +1,5 @@
 .soria .dijitSelect .dijitButtonNode {
-	padding: 0;
+	padding: 0px;
 }
 
 /* Make unselected "look" more like a text box and less like a button */
@@ -16,11 +16,11 @@
 	background: transparent none;
 }
 .dj_ie .soria .dijitSelect .dijitButtonContents {
-	padding-top: 0;
+	padding-top: 0px;
 }
 
 .soria .dijitSelect .dijitArrowButton {
-	padding: 0 2px;
+	padding: 0px 2px;
 }
 
 /* Mirror DropDownButton */
@@ -45,7 +45,7 @@
 
 /* Make the menu look more combobox-like */
 .soria .dijitSelectMenu td {
-	padding: 0;
+	padding: 0em;
 }
 .soria .dijitSelectMenu .dijitMenuItemLabel,
 .soria .dijitSelectMenu .dijitMenuArrowCell {

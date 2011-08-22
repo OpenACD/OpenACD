@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -12,7 +11,6 @@ define(
 	cursive: "kurzív",
 	fantasy: "fantázia",
 
-	noFormat: "Nincs",
 	p: "Bekezdés",
 	h1: "Címsor",
 	h2: "Alcím",

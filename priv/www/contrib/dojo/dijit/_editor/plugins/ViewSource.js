@@ -1,38 +1,6 @@
-//>>built
-define("dijit/_editor/plugins/ViewSource", [
-	"dojo/_base/array", // array.forEach
-	"dojo/_base/connect", // connect.connect connect.disconnect
-	"dojo/_base/declare", // declare
-	"dojo/dom-attr", // domAttr.set
-	"dojo/dom-construct", // domConstruct.create domConstruct.place
-	"dojo/dom-geometry", // domGeometry.setMarginBox domGeometry.position
-	"dojo/dom-style", // domStyle.set
-	"dojo/_base/event", // event.stop
-	"dojo/i18n", // i18n.getLocalization
-	"dojo/keys",	//  keys.F12
-	"dojo/_base/lang", // lang.hitch
-	"dojo/_base/sniff", // has("ie") has("webkit")
-	"dojo/_base/window", // win.body win.global
-	"dojo/window", // winUtils.getBox
-	"../../focus",	// focus.focus()
-	"../_Plugin",
-	"../../form/ToggleButton",
-	"../..",	// dijit._scopeName, dijit.getEnclosingWidget()
-	"dojo/i18n!../nls/commands"
-], function(array, connect, declare, domAttr, domConstruct, domGeometry, domStyle, event, i18n, keys, lang, has, win,
-	winUtils, focus, _Plugin, ToggleButton, dijit){
+define("dijit/_editor/plugins/ViewSource", ["dojo", "dijit", "dojo/window", "dojo/i18n", "dijit/_editor/_Plugin", "dijit/form/Button", "i18n!dijit/_editor/nls/commands"], function(dojo, dijit) {
 
-/*=====
-	var _Plugin = dijit._editor._Plugin;
-=====*/
-
-// module:
-//		dijit/_editor/plugins/ViewSource
-// summary:
-//		This plugin provides a simple view source capability.
-
-
-var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
+dojo.declare("dijit._editor.plugins.ViewSource",dijit._editor._Plugin,{
 	// summary:
 	//		This plugin provides a simple view source capability.  When view
 	//		source mode is enabled, it disables all other buttons/plugins on the RTE.
@@ -73,7 +41,7 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		// but can't focus this way all the time, only for VS changes.
 		// If we did it all the time, buttons like bold, italic, etc
 		// break.
-		if(has("webkit")){this._vsFocused = true;}
+		if(dojo.isWebKit){this._vsFocused = true;}
 		this.button.set("checked", !this.button.get("checked"));
 
 	},
@@ -81,29 +49,29 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 	_initButton: function(){
 		// summary:
 		//		Over-ride for creation of the resize button.
-		var strings = i18n.getLocalization("dijit._editor", "commands"),
+		var strings = dojo.i18n.getLocalization("dijit._editor", "commands"),
 			editor = this.editor;
-		this.button = new ToggleButton({
+		this.button = new dijit.form.ToggleButton({
 			label: strings["viewSource"],
 			dir: editor.dir,
 			lang: editor.lang,
 			showLabel: false,
 			iconClass: this.iconClassPrefix + " " + this.iconClassPrefix + "ViewSource",
 			tabIndex: "-1",
-			onChange: lang.hitch(this, "_showSource")
+			onChange: dojo.hitch(this, "_showSource")
 		});
 
 		// IE 7 has a horrible bug with zoom, so we have to create this node
 		// to cross-check later.  Sigh.
-		if(has("ie") == 7){
-			this._ieFixNode = domConstruct.create("div", {
+		if(dojo.isIE == 7){
+			this._ieFixNode = dojo.create("div", {
 				style: {
 					opacity: "0",
 					zIndex: "-1000",
 					position: "absolute",
 					top: "-1000px"
 				}
-			}, win.body());
+			}, dojo.body());
 		}
 		// Make sure readonly mode doesn't make the wrong cursor appear over the button.
 		this.button.set("readOnly", false);
@@ -118,16 +86,16 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		this.editor = editor;
 		this._initButton();
 
-		this.editor.addKeyHandler(keys.F12, true, true, lang.hitch(this, function(e){
+		this.editor.addKeyHandler(dojo.keys.F12, true, true, dojo.hitch(this, function(e){
 			// Move the focus before switching
 			// It'll focus back.  Hiding a focused
 			// node causes issues.
 			this.button.focus();
 			this.toggle();
-			event.stop(e);
+			dojo.stopEvent(e);
 
 			// Call the focus shift outside of the handler.
-			setTimeout(lang.hitch(this, function(){
+			setTimeout(dojo.hitch(this, function(){
 				// We over-ride focus, so we just need to call.
 				this.editor.focus();
 			}), 100);
@@ -156,15 +124,21 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 				// plugins to check their state.
 				ed._sourceQueryCommandEnabled = ed.queryCommandEnabled;
 				ed.queryCommandEnabled = function(cmd){
-					return cmd.toLowerCase() === "viewsource";
+					var lcmd = cmd.toLowerCase();
+					if(lcmd === "viewsource"){
+						return true;
+					}else{
+						return false;
+					}
 				};
 				this.editor.onDisplayChanged();
 				html = ed.get("value");
 				html = this._filter(html);
 				ed.set("value", html);
-				array.forEach(edPlugins, function(p){
+				this._pluginList = [];
+				dojo.forEach(edPlugins, function(p){
 					// Turn off any plugins not controlled by queryCommandenabled.
-					if(!(p instanceof ViewSource)){
+					if(!(p instanceof dijit._editor.plugins.ViewSource)){
 						p.set("disabled", true)
 					}
 				});
@@ -178,13 +152,15 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 				}
 
 				this.sourceArea.value = html;
+				var is = dojo._getMarginSize(ed.iframe.parentNode);
 
-				// Since neither iframe nor textarea have margin, border, or padding,
-				// just set sizes equal
-				this.sourceArea.style.height = ed.iframe.style.height;
-				this.sourceArea.style.width = ed.iframe.style.width;
-				domStyle.set(ed.iframe, "display", "none");
-				domStyle.set(this.sourceArea, {
+				dojo.marginBox(this.sourceArea, {
+					w: is.w,
+					h: is.h
+				});
+
+				dojo.style(ed.iframe, "display", "none");
+				dojo.style(this.sourceArea, {
 					display: "block"
 				});
 
@@ -192,7 +168,7 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 					// function to handle resize events.
 					// Will check current VP and only resize if
 					// different.
-					var vp = winUtils.getBox();
+					var vp = dojo.window.getBox();
 
 					if("_prevW" in this && "_prevH" in this){
 						// No actual size change, ignore.
@@ -212,21 +188,21 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 					}
 					// Timeout it to help avoid spamming resize on IE.
 					// Works for all browsers.
-					this._resizer = setTimeout(lang.hitch(this, function(){
+					this._resizer = setTimeout(dojo.hitch(this, function(){
 						delete this._resizer;
 						this._resize();
 					}), 10);
 				};
-				this._resizeHandle = connect.connect(window, "onresize", this, resizer);
+				this._resizeHandle = dojo.connect(window, "onresize", this, resizer);
 
 				//Call this on a delay once to deal with IE glitchiness on initial size.
-				setTimeout(lang.hitch(this, this._resize), 100);
+				setTimeout(dojo.hitch(this, this._resize), 100);
 
 				//Trigger a check for command enablement/disablement.
 				this.editor.onNormalizedDisplayChanged();
 
 				this.editor.__oldGetValue = this.editor.getValue;
-				this.editor.getValue = lang.hitch(this, function(){
+				this.editor.getValue = dojo.hitch(this, function() {
 					var txt = this.sourceArea.value;
 					txt = this._filter(txt);
 					return txt;
@@ -238,7 +214,7 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 				if(!ed._sourceQueryCommandEnabled){
 					return;
 				}
-				connect.disconnect(this._resizeHandle);
+				dojo.disconnect(this._resizeHandle);
 				delete this._resizeHandle;
 
 				if(this.editor.__oldGetValue){
@@ -256,20 +232,20 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 					ed.endEditing();
 				}
 
-				array.forEach(edPlugins, function(p){
+				dojo.forEach(edPlugins, function(p){
 					// Turn back on any plugins we turned off.
 					p.set("disabled", false);
 				});
 
-				domStyle.set(this.sourceArea, "display", "none");
-				domStyle.set(ed.iframe, "display", "block");
+				dojo.style(this.sourceArea, "display", "none");
+				dojo.style(ed.iframe, "display", "block");
 				delete ed._sourceQueryCommandEnabled;
-
+                
 				//Trigger a check for command enablement/disablement.
 				this.editor.onDisplayChanged();
 			}
 			// Call a delayed resize to wait for some things to display in header/footer.
-			setTimeout(lang.hitch(this, function(){
+			setTimeout(dojo.hitch(this, function(){
 				// Make resize calls.
 				var parent = ed.domNode.parentNode;
 				if(parent){
@@ -299,29 +275,30 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		var ed = this.editor;
 		var tbH = ed.getHeaderHeight();
 		var fH = ed.getFooterHeight();
-		var eb = domGeometry.position(ed.domNode);
+		var eb = dojo.position(ed.domNode);
 
 		// Styles are now applied to the internal source container, so we have
 		// to subtract them off.
-		var containerPadding = domGeometry.getPadBorderExtents(ed.iframe.parentNode);
-		var containerMargin = domGeometry.getMarginExtents(ed.iframe.parentNode);
+		var containerPadding = dojo._getPadBorderExtents(ed.iframe.parentNode);
+		var containerMargin = dojo._getMarginExtents(ed.iframe.parentNode);
 
-		var extents = domGeometry.getPadBorderExtents(ed.domNode);
+		var extents = dojo._getPadBorderExtents(ed.domNode);
+		var mExtents = dojo._getMarginExtents(ed.domNode);
 		var edb = {
-			w: eb.w - extents.w,
-			h: eb.h - (tbH + extents.h + + fH)
+			w: eb.w - (extents.w + mExtents.w),
+			h: eb.h - (tbH + extents.h + mExtents.h + fH)
 		};
 
 		// Fullscreen gets odd, so we need to check for the FS plugin and
 		// adapt.
 		if(this._fsPlugin && this._fsPlugin.isFullscreen){
 			//Okay, probably in FS, adjust.
-			var vp = winUtils.getBox();
+			var vp = dojo.window.getBox();
 			edb.w = (vp.w - extents.w);
 			edb.h = (vp.h - (tbH + extents.h + fH));
 		}
 
-		if(has("ie")){
+		if(dojo.isIE){
 			// IE is always off by 2px, so we have to adjust here
 			// Note that IE ZOOM is broken here.  I can't get
 			//it to scale right.
@@ -336,13 +313,15 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 			edb.h = Math.floor((edb.h + 0.9) / _ie7zoom);
 		}
 
-		domGeometry.setMarginBox(this.sourceArea, NaN, NaN,
-			edb.w - (containerPadding.w + containerMargin.w),
-			edb.h - (containerPadding.h + containerMargin.h)
-		);
+		dojo.marginBox(this.sourceArea, {
+			w: edb.w - (containerPadding.w + containerMargin.w),
+			h: edb.h - (containerPadding.h + containerMargin.h)
+		});
 
 		// Scale the parent container too in this case.
-		domGeometry.setMarginBox(ed.iframe.parentNode, NaN, NaN, NaN, edb.h);	// height
+		dojo.marginBox(ed.iframe.parentNode, {
+			h: edb.h
+		});
 	},
 
 	_createSourceView: function(){
@@ -352,24 +331,24 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		//		private
 		var ed = this.editor;
 		var edPlugins = ed._plugins;
-		this.sourceArea = domConstruct.create("textarea");
+		this.sourceArea = dojo.create("textarea");
 		if(this.readOnly){
-			domAttr.set(this.sourceArea, "readOnly", true);
+			dojo.attr(this.sourceArea, "readOnly", true);
 			this._readOnly = true;
 		}
-		domStyle.set(this.sourceArea, {
+		dojo.style(this.sourceArea, {
 			padding: "0px",
 			margin: "0px",
 			borderWidth: "0px",
 			borderStyle: "none"
 		});
-		domConstruct.place(this.sourceArea, ed.iframe, "before");
+		dojo.place(this.sourceArea, ed.iframe, "before");
 
-		if(has("ie") && ed.iframe.parentNode.lastChild !== ed.iframe){
+		if(dojo.isIE && ed.iframe.parentNode.lastChild !== ed.iframe){
 			// There's some weirdo div in IE used for focus control
 			// But is messed up scaling the textarea if we don't config
 			// it some so it doesn't have a varying height.
-			domStyle.set(ed.iframe.parentNode.lastChild,{
+			dojo.style(ed.iframe.parentNode.lastChild,{
 				width: "0px",
 				height: "0px",
 				padding: "0px",
@@ -393,7 +372,7 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 						// Must focus edit node in this case (webkit only) or
 						// focus doesn't shift right, but in normal
 						// cases we focus with the regular function.
-						focus.focus(ed.editNode);
+						dijit.focus(ed.editNode);
 					}else{
 						ed._viewsource_oldFocus();
 					}
@@ -426,12 +405,12 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 
 		// Listen to the source area for key events as well, as we need to be able to hotkey toggle
 		// it from there too.
-		this.connect(this.sourceArea, "onkeydown", lang.hitch(this, function(e){
-			if(this._sourceShown && e.keyCode == keys.F12 && e.ctrlKey && e.shiftKey){
+		this.connect(this.sourceArea, "onkeydown", dojo.hitch(this, function(e){
+			if(this._sourceShown && e.keyCode == dojo.keys.F12 && e.ctrlKey && e.shiftKey){
 				this.button.focus();
 				this.button.set("checked", false);
-				setTimeout(lang.hitch(this, function(){ed.focus();}), 100);
-				event.stop(e);
+				setTimeout(dojo.hitch(this, function(){ed.focus();}), 100);
+				dojo.stopEvent(e);
 			}
 		}));
 	},
@@ -504,11 +483,11 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		// summary:
 		//		Internal function to set the caret in the sourceArea
 		//		to 0x0
-		var global = win.global;
+		var win = dojo.global;
 		var elem = this.sourceArea;
-		focus.focus(elem);
+		dijit.focus(elem);
 		if(this._sourceShown && !this.readOnly){
-			if(has("ie")){
+			if(dojo.isIE){
 				if(this.sourceArea.createTextRange){
 					var range = elem.createTextRange();
 					range.collapse(true);
@@ -517,7 +496,7 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 					range.moveEnd("character", 0);
 					range.select();
 				}
-			}else if(global.getSelection){
+			}else if(win.getSelection){
 				if(elem.setSelectionRange){
 					elem.setSelectionRange(0,0);
 				}
@@ -530,14 +509,14 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 		//		Over-ride to remove the node used to correct for IE's
 		//		zoom bug.
 		if(this._ieFixNode){
-			win.body().removeChild(this._ieFixNode);
+			dojo.body().removeChild(this._ieFixNode);
 		}
 		if(this._resizer){
 			clearTimeout(this._resizer);
 			delete this._resizer;
 		}
 		if(this._resizeHandle){
-			connect.disconnect(this._resizeHandle);
+			dojo.disconnect(this._resizeHandle);
 			delete this._resizeHandle;
 		}
 		this.inherited(arguments);
@@ -545,11 +524,11 @@ var ViewSource = declare("dijit._editor.plugins.ViewSource",_Plugin, {
 });
 
 // Register this plugin.
-connect.subscribe(dijit._scopeName + ".Editor.getPlugin",null,function(o){
+dojo.subscribe(dijit._scopeName + ".Editor.getPlugin",null,function(o){
 	if(o.plugin){ return; }
 	var name = o.args.name.toLowerCase();
 	if(name ===  "viewsource"){
-		o.plugin = new ViewSource({
+		o.plugin = new dijit._editor.plugins.ViewSource({
 			readOnly: ("readOnly" in o.args)?o.args.readOnly:false,
 			stripComments: ("stripComments" in o.args)?o.args.stripComments:true,
 			stripScripts: ("stripScripts" in o.args)?o.args.stripScripts:true,
@@ -559,5 +538,5 @@ connect.subscribe(dijit._scopeName + ".Editor.getPlugin",null,function(o){
 });
 
 
-return ViewSource;
+return dijit._editor.plugins.ViewSource;
 });

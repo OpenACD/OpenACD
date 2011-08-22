@@ -1,17 +1,17 @@
-//>>built
 define(
 //begin v1.x content
 ({
-	createLinkTitle: "Propriétés du lien",
-	insertImageTitle: "Propriétés de l'image",
+	createLinkTitle: "Propriétés des liens",
+	insertImageTitle: "Propriétés des images",
 	url: "URL :",
 	text: "Description :",
 	target: "Cible :",
 	set: "Définir",
-	currentWindow: "Fenêtre actuelle",
+	currentWindow: "Fenêtre en cours",
 	parentWindow: "Fenêtre parent",
-	topWindow: "Fenêtre supérieure",
+	topWindow: "Première fenêtre",
 	newWindow: "Nouvelle fenêtre"
 })
+
 //end v1.x content
 );

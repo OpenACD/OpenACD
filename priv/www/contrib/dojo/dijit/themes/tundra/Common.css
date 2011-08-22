@@ -22,13 +22,12 @@
 .tundra.dojoDndMove .dojoDndAvatarCanDrop .dojoDndAvatarHeader	{background-color: #97e68d; background-image: url(images/dndMove.png); background-repeat: no-repeat; background-position: 2px center;}
 .tundra.dojoDndCopy .dojoDndAvatarCanDrop .dojoDndAvatarHeader	{background-color: #97e68d; background-image: url(images/dndCopy.png); background-repeat: no-repeat; background-position: 2px center;}
 
-.tundra .dijitIconLoading {
+.tundra .dijitContentPaneLoading {
 	background:url('images/loading.gif') no-repeat left center;
-	width: 24px;
-	height: 24px;
+	padding-left:25px;
 }
-.tundra .dijitIconError {
+
+.tundra .dijitContentPaneError {
 	background:url('images/warning.png') no-repeat left center;
-	width: 16px;
-	height: 16px;
+	padding-left:25px;
 }

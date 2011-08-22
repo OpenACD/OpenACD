@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -10,9 +9,9 @@ define(
 	set: "Nastavi",
 	currentWindow: "Trenutno okno",
 	parentWindow: "Nadrejeno okno",
-	topWindow: "Okno na vrhu",
+	topWindow: "Najvišje okno",
 	newWindow: "Novo okno"
 })
+
 //end v1.x content
 );
-

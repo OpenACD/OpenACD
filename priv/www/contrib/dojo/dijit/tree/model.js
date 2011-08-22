@@ -1,4 +1,3 @@
-//>>built
 
 dojo.declare(
 	"dijit.tree.model",

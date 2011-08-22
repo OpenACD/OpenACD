@@ -1,71 +1,68 @@
-//>>built
-define("dijit/_Contained", [
-	".",	// getEnclosingWidget(), byNode()
-	"dojo/_base/declare" // declare
-], function(dijit, declare){
+define("dijit/_Contained", ["dojo", "dijit"], function(dojo, dijit) {
 
-	// module:
-	//		dijit/_Contained
-	// summary:
-	//		Mixin for widgets that are children of a container widget
-
-	return declare("dijit._Contained", null, {
-		// summary:
-		//		Mixin for widgets that are children of a container widget
-		//
-		// example:
-		// | 	// make a basic custom widget that knows about it's parents
-		// |	declare("my.customClass",[dijit._Widget,dijit._Contained],{});
-
-		getParent: function(){
+dojo.declare("dijit._Contained",
+		null,
+		{
 			// summary:
-			//		Returns the parent widget of this widget, assuming the parent
-			//		specifies isContainer
-			var parent = dijit.getEnclosingWidget(this.domNode.parentNode);
-			return parent && parent.isContainer ? parent : null;
-		},
+			//		Mixin for widgets that are children of a container widget
+			//
+			// example:
+			// | 	// make a basic custom widget that knows about it's parents
+			// |	dojo.declare("my.customClass",[dijit._Widget,dijit._Contained],{});
 
-		_getSibling: function(/*String*/ which){
-			// summary:
-			//      Returns next or previous sibling
-			// which:
-			//      Either "next" or "previous"
-			// tags:
-			//      private
-			var node = this.domNode;
-			do{
-				node = node[which+"Sibling"];
-			}while(node && node.nodeType != 1);
-			return node && dijit.byNode(node);	// dijit._Widget
-		},
+			getParent: function(){
+				// summary:
+				//		Returns the parent widget of this widget, assuming the parent
+				//		specifies isContainer
+				var parent = dijit.getEnclosingWidget(this.domNode.parentNode);
+				return parent && parent.isContainer ? parent : null;
+			},
 
-		getPreviousSibling: function(){
-			// summary:
-			//		Returns null if this is the first child of the parent,
-			//		otherwise returns the next element sibling to the "left".
+			_getSibling: function(/*String*/ which){
+				// summary:
+				//      Returns next or previous sibling
+				// which:
+				//      Either "next" or "previous"
+				// tags:
+				//      private
+				var node = this.domNode;
+				do{
+					node = node[which+"Sibling"];
+				}while(node && node.nodeType != 1);
+				return node && dijit.byNode(node);	// dijit._Widget
+			},
 
-			return this._getSibling("previous"); // dijit._Widget
-		},
+			getPreviousSibling: function(){
+				// summary:
+				//		Returns null if this is the first child of the parent,
+				//		otherwise returns the next element sibling to the "left".
 
-		getNextSibling: function(){
-			// summary:
-			//		Returns null if this is the last child of the parent,
-			//		otherwise returns the next element sibling to the "right".
+				return this._getSibling("previous"); // dijit._Widget
+			},
 
-			return this._getSibling("next"); // dijit._Widget
-		},
+			getNextSibling: function(){
+				// summary:
+				//		Returns null if this is the last child of the parent,
+				//		otherwise returns the next element sibling to the "right".
 
-		getIndexInParent: function(){
-			// summary:
-			//		Returns the index of this widget within its container parent.
-			//		It returns -1 if the parent does not exist, or if the parent
-			//		is not a dijit._Container
+				return this._getSibling("next"); // dijit._Widget
+			},
 
-			var p = this.getParent();
-			if(!p || !p.getIndexOfChild){
-				return -1; // int
+			getIndexInParent: function(){
+				// summary:
+				//		Returns the index of this widget within its container parent.
+				//		It returns -1 if the parent does not exist, or if the parent
+				//		is not a dijit._Container
+
+				var p = this.getParent();
+				if(!p || !p.getIndexOfChild){
+					return -1; // int
+				}
+				return p.getIndexOfChild(this); // int
 			}
-			return p.getIndexOfChild(this); // int
 		}
-	});
+	);
+
+
+return dijit._Contained;
 });

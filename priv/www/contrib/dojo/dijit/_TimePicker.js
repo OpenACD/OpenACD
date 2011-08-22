@@ -1,67 +1,34 @@
-//>>built
-require({cache:{
-'url:dijit/templates/TimePicker.html':"<div id=\"widget_${id}\" class=\"dijitMenu\"\n    ><div dojoAttachPoint=\"upArrow\" class=\"dijitButtonNode dijitUpArrowButton\" dojoAttachEvent=\"onmouseenter:_buttonMouse,onmouseleave:_buttonMouse\"\n\t\t><div class=\"dijitReset dijitInline dijitArrowButtonInner\" role=\"presentation\">&nbsp;</div\n\t\t><div class=\"dijitArrowButtonChar\">&#9650;</div></div\n    ><div dojoAttachPoint=\"timeMenu,focusNode\" dojoAttachEvent=\"onclick:_onOptionSelected,onmouseover,onmouseout\"></div\n    ><div dojoAttachPoint=\"downArrow\" class=\"dijitButtonNode dijitDownArrowButton\" dojoAttachEvent=\"onmouseenter:_buttonMouse,onmouseleave:_buttonMouse\"\n\t\t><div class=\"dijitReset dijitInline dijitArrowButtonInner\" role=\"presentation\">&nbsp;</div\n\t\t><div class=\"dijitArrowButtonChar\">&#9660;</div></div\n></div>\n"}});
-define("dijit/_TimePicker", [
-	"dojo/_base/array", // array.forEach
-	"dojo/date", // date.compare
-	"dojo/date/locale", // locale.format
-	"dojo/date/stamp", // stamp.fromISOString stamp.toISOString
-	"dojo/_base/declare", // declare
-	"dojo/dom-class", // domClass.add domClass.contains domClass.toggle
-	"dojo/dom-construct", // domConstruct.create
-	"dojo/_base/event", // event.stop
-	"dojo/_base/kernel", // deprecated
-	"dojo/keys", // keys
-	"dojo/_base/lang", // lang.mixin
-	"dojo/_base/sniff", // has("ie")
-	"dojo/query", // query
-	"dijit/typematic",
-	"./_Widget",
-	"./_TemplatedMixin",
-	"./form/_FormValueWidget",
-	"dojo/text!./templates/TimePicker.html"
-], function(array, ddate, locale, stamp, declare, domClass, domConstruct, event, kernel, keys, lang, has, query,
-			typematic, _Widget, _TemplatedMixin, _FormValueWidget, template){
+define("dijit/_TimePicker", ["dojo", "dijit", "text!dijit/templates/TimePicker.html", "dijit/form/_FormWidget", "dojo/date/locale"], function(dojo, dijit) {
 
 /*=====
-	var _Widget = dijit._Widget;
-	var _TemplatedMixin = dijit._TemplatedMixin;
-	var _FormValueWidget = dijit.form._FormValueWidget;
+dojo.declare(
+	"dijit._TimePicker.__Constraints",
+	dojo.date.locale.__FormatOptions,
+	{
+		// clickableIncrement: String
+		//		See `dijit._TimePicker.clickableIncrement`
+		clickableIncrement: "T00:15:00",
+
+		// visibleIncrement: String
+		//		See `dijit._TimePicker.visibleIncrement`
+		visibleIncrement: "T01:00:00",
+
+		// visibleRange: String
+		//		See `dijit._TimePicker.visibleRange`
+		visibleRange: "T05:00:00"
+	}
+);
 =====*/
 
-	// module:
-	//		dijit/_TimePicker
-	// summary:
-	//		A graphical time picker.
-
-
-	/*=====
-	declare(
-		"dijit._TimePicker.__Constraints",
-		locale.__FormatOptions,
-		{
-			// clickableIncrement: String
-			//		See `dijit._TimePicker.clickableIncrement`
-			clickableIncrement: "T00:15:00",
-
-			// visibleIncrement: String
-			//		See `dijit._TimePicker.visibleIncrement`
-			visibleIncrement: "T01:00:00",
-
-			// visibleRange: String
-			//		See `dijit._TimePicker.visibleRange`
-			visibleRange: "T05:00:00"
-		}
-	);
-	=====*/
-
-	return declare("dijit._TimePicker", [_Widget, _TemplatedMixin], {
+dojo.declare("dijit._TimePicker",
+	[dijit._Widget, dijit._Templated],
+	{
 		// summary:
 		//		A graphical time picker.
 		//		This widget is used internally by other widgets and is not available
 		//		as a standalone widget due to lack of accessibility support.
 
-		templateString: template,
+		templateString: dojo.cache("dijit", "templates/TimePicker.html"),
 
 		// baseClass: [protected] String
 		//		The root className to use for the various states of this widget
@@ -123,7 +90,7 @@ define("dijit/_TimePicker", [
 			//		protected
 		},
 =====*/
-		serialize: stamp.toISOString,
+		serialize: dojo.date.stamp.toISOString,
 
 /*=====
 		// filterString: string
@@ -136,7 +103,7 @@ define("dijit/_TimePicker", [
 			//		Deprecated.  Used set('value') instead.
 			// tags:
 			//		deprecated
-			kernel.deprecated("dijit._TimePicker:setValue() is deprecated.  Use set('value', ...) instead.", "", "2.0");
+			dojo.deprecated("dijit._TimePicker:setValue() is deprecated.  Use set('value', ...) instead.", "", "2.0");
 			this.set('value', value);
 		},
 
@@ -161,7 +128,7 @@ define("dijit/_TimePicker", [
 
 		isDisabledDate: function(/*Date*/ dateObject, /*String?*/ locale){
 			// summary:
-			//		May be overridden to disable certain dates in the TimePicker e.g. `isDisabledDate=locale.isWeekend`
+			//		May be overridden to disable certain dates in the TimePicker e.g. `isDisabledDate=dojo.date.locale.isWeekend`
 			// type:
 			//		extension
 			return false; // Boolean
@@ -204,7 +171,7 @@ define("dijit/_TimePicker", [
 			//		Displays the relevant choices in the drop down list
 			// tags:
 			//		private
-			var fromIso = stamp.fromISOString;
+			var fromIso = dojo.date.stamp.fromISOString;
 			this.timeMenu.innerHTML = "";
 			this._clickableIncrementDate=fromIso(this.clickableIncrement);
 			this._visibleIncrementDate=fromIso(this.visibleIncrement);
@@ -241,7 +208,7 @@ define("dijit/_TimePicker", [
 				// Limit to 10 nodes displayed as a half-hearted attempt to stop drop down from overlapping <input>.
 				after = this._getFilteredNodes(0, Math.min(this._totalIncrements >> 1, 10) - 1),
 				before = this._getFilteredNodes(0, Math.min(this._totalIncrements, 10) - after.length, true, after[0]);
-			array.forEach(before.concat(after), function(n){this.timeMenu.appendChild(n);}, this);
+			dojo.forEach(before.concat(after), function(n){this.timeMenu.appendChild(n);}, this);
 		},
 
 		constructor: function(){
@@ -255,9 +222,9 @@ define("dijit/_TimePicker", [
 
 		_setConstraintsAttr: function(/* Object */ constraints){
 			// brings in visibleRange, increments, etc.
-			lang.mixin(this, constraints);
+			dojo.mixin(this, constraints);
 
-			// locale needs the lang in the constraints as locale
+			// dojo.date.locale needs the lang in the constraints as locale
 			if(!constraints.locale){
 				constraints.locale = this.lang;
 			}
@@ -265,9 +232,9 @@ define("dijit/_TimePicker", [
 
 		postCreate: function(){
 			// assign typematic mouse listeners to the arrow buttons
-			this.connect(this.timeMenu, has("ie") ? "onmousewheel" : 'DOMMouseScroll', "_mouseWheeled");
-			this._connects.push(typematic.addMouseListener(this.upArrow, this, "_onArrowUp", 33, 250));
-			this._connects.push(typematic.addMouseListener(this.downArrow, this, "_onArrowDown", 33, 250));
+			this.connect(this.timeMenu, dojo.isIE ? "onmousewheel" : 'DOMMouseScroll', "_mouseWheeled");
+			this._connects.push(dijit.typematic.addMouseListener(this.upArrow, this, "_onArrowUp", 33, 250));
+			this._connects.push(dijit.typematic.addMouseListener(this.downArrow, this, "_onArrowDown", 33, 250));
 
 			this.inherited(arguments);
 		},
@@ -278,9 +245,9 @@ define("dijit/_TimePicker", [
 			// tags:
 			//		private
 
-			// in non-IE browser the "mouseenter" event will become "mouseover",
+			// in non-IE browser the "mouseenter" event will become "mouseover", 
 			// but in IE it's still "mouseenter"
-			domClass.toggle(e.currentTarget, e.currentTarget == this.upArrow ? "dijitUpArrowHover" : "dijitDownArrowHover",
+			dojo.toggleClass(e.currentTarget, e.currentTarget == this.upArrow ? "dijitUpArrowHover" : "dijitDownArrowHover", 
 				e.type == "mouseenter" || e.type == "mouseover");
 		},
 
@@ -297,37 +264,37 @@ define("dijit/_TimePicker", [
 			if(this.constraints.selector == "time"){
 				date.setFullYear(1970,0,1); // make sure each time is for the same date
 			}
-			var dateString = locale.format(date, this.constraints);
+			var dateString = dojo.date.locale.format(date, this.constraints);
 			if(this.filterString && dateString.toLowerCase().indexOf(this.filterString) !== 0){
 				// Doesn't match the filter - return null
 				return null;
 			}
 
-			var div = domConstruct.create("div", {"class": this.baseClass+"Item"});
+			var div = dojo.create("div", {"class": this.baseClass+"Item"});
 			div.date = date;
 			div.index = index;
-			domConstruct.create('div',{
+			dojo.create('div',{
 				"class": this.baseClass + "ItemInner",
 				innerHTML: dateString
 			}, div);
 
 			if(index%this._visibleIncrement<1 && index%this._visibleIncrement>-1){
-				domClass.add(div, this.baseClass+"Marker");
+				dojo.addClass(div, this.baseClass+"Marker");
 			}else if(!(index%this._clickableIncrement)){
-				domClass.add(div, this.baseClass+"Tick");
+				dojo.addClass(div, this.baseClass+"Tick");
 			}
 
 			if(this.isDisabledDate(date)){
 				// set disabled
-				domClass.add(div, this.baseClass+"ItemDisabled");
+				dojo.addClass(div, this.baseClass+"ItemDisabled");
 			}
-			if(this.value && !ddate.compare(this.value, date, this.constraints.selector)){
+			if(this.value && !dojo.date.compare(this.value, date, this.constraints.selector)){
 				div.selected = true;
-				domClass.add(div, this.baseClass+"ItemSelected");
-				if(domClass.contains(div, this.baseClass+"Marker")){
-					domClass.add(div, this.baseClass+"MarkerSelected");
+				dojo.addClass(div, this.baseClass+"ItemSelected");
+				if(dojo.hasClass(div, this.baseClass+"Marker")){
+					dojo.addClass(div, this.baseClass+"MarkerSelected");
 				}else{
-					domClass.add(div, this.baseClass+"TickSelected");
+					dojo.addClass(div, this.baseClass+"TickSelected");
 				}
 
 				// Initially highlight the current value.   User can change highlight by up/down arrow keys
@@ -372,11 +339,11 @@ define("dijit/_TimePicker", [
 			}else{
 				this._highlighted_option = null;
 			}
-			domClass.toggle(node, this.baseClass+"ItemHover", highlight);
-			if(domClass.contains(node, this.baseClass+"Marker")){
-				domClass.toggle(node, this.baseClass+"MarkerHover", highlight);
+			dojo.toggleClass(node, this.baseClass+"ItemHover", highlight);
+			if(dojo.hasClass(node, this.baseClass+"Marker")){
+				dojo.toggleClass(node, this.baseClass+"MarkerHover", highlight);
 			}else{
-				domClass.toggle(node, this.baseClass+"TickHover", highlight);
+				dojo.toggleClass(node, this.baseClass+"TickHover", highlight);
 			}
 		},
 
@@ -388,7 +355,7 @@ define("dijit/_TimePicker", [
 			this._keyboardSelected = null;
 			var tgr = (e.target.parentNode === this.timeMenu) ? e.target : e.target.parentNode;
 			// if we aren't targeting an item, then we return
-			if(!domClass.contains(tgr, this.baseClass+"Item")){return;}
+			if(!dojo.hasClass(tgr, this.baseClass+"Item")){return;}
 			this._highlightOption(tgr, true);
 		},
 
@@ -408,9 +375,9 @@ define("dijit/_TimePicker", [
 			// tags:
 			//		private
 			this._keyboardSelected = null;
-			event.stop(e);
+			dojo.stopEvent(e);
 			// we're not _measuring_ the scroll amount, just direction
-			var scrollAmount = (has("ie") ? e.wheelDelta : -e.detail);
+			var scrollAmount = (dojo.isIE ? e.wheelDelta : -e.detail);
 			this[(scrollAmount>0 ? "_onArrowUp" : "_onArrowDown")](); // yes, we're making a new dom node every time you mousewheel, or click
 		},
 
@@ -454,23 +421,24 @@ define("dijit/_TimePicker", [
 			//		from the `dijit.form.TimeTextBox` to be handled in this widget
 			// tags:
 			//		protected
-			if(e.charOrCode == keys.DOWN_ARROW || e.charOrCode == keys.UP_ARROW){
-				event.stop(e);
+			var dk = dojo.keys;
+			if(e.charOrCode == dk.DOWN_ARROW || e.charOrCode == dk.UP_ARROW){
+				dojo.stopEvent(e);
 				// Figure out which option to highlight now and then highlight it
 				if(this._highlighted_option && !this._highlighted_option.parentNode){
 					this._highlighted_option = null;
 				}
 				var timeMenu = this.timeMenu,
-					tgt = this._highlighted_option || query("." + this.baseClass + "ItemSelected", timeMenu)[0];
+					tgt = this._highlighted_option || dojo.query("." + this.baseClass + "ItemSelected", timeMenu)[0];
 				if(!tgt){
 					tgt = timeMenu.childNodes[0];
 				}else if(timeMenu.childNodes.length){
-					if(e.charOrCode == keys.DOWN_ARROW && !tgt.nextSibling){
+					if(e.charOrCode == dk.DOWN_ARROW && !tgt.nextSibling){
 						this._onArrowDown();
-					}else if(e.charOrCode == keys.UP_ARROW && !tgt.previousSibling){
+					}else if(e.charOrCode == dk.UP_ARROW && !tgt.previousSibling){
 						this._onArrowUp();
 					}
-					if(e.charOrCode == keys.DOWN_ARROW){
+					if(e.charOrCode == dk.DOWN_ARROW){
 						tgt = tgt.nextSibling;
 					}else{
 						tgt = tgt.previousSibling;
@@ -479,9 +447,9 @@ define("dijit/_TimePicker", [
 				this._highlightOption(tgt, true);
 				this._keyboardSelected = tgt;
 				return false;
-			}else if(e.charOrCode == keys.ENTER || e.charOrCode === keys.TAB){
+			}else if(e.charOrCode == dk.ENTER || e.charOrCode === dk.TAB){
 				// mouse hover followed by TAB is NO selection
-				if(!this._keyboardSelected && e.charOrCode === keys.TAB){
+				if(!this._keyboardSelected && e.charOrCode === dk.TAB){
 					return true;	// true means don't call stopEvent()
 				}
 
@@ -492,8 +460,12 @@ define("dijit/_TimePicker", [
 
 				// Call stopEvent() for ENTER key so that form doesn't submit,
 				// but not for TAB, so that TAB does switch focus
-				return e.charOrCode === keys.TAB;
+				return e.charOrCode === dk.TAB;
 			}
 		}
-	});
+	}
+);
+
+
+return dijit._TimePicker;
 });

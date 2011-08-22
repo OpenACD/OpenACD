@@ -1,50 +1,40 @@
-//>>built
-define("dijit/Toolbar", [
-	"require",
-	"dojo/_base/declare", // declare
-	"dojo/keys", // keys.LEFT_ARROW keys.RIGHT_ARROW
-	"./_Widget",
-	"./_KeyNavContainer",
-	"./_TemplatedMixin"
-], function(require, declare, keys, _Widget, _KeyNavContainer, _TemplatedMixin){
+define("dijit/Toolbar", ["dojo", "dijit", "dijit/_Widget", "dijit/_KeyNavContainer", "dijit/_Templated", "dijit/ToolbarSeparator"], function(dojo, dijit) {
 
-/*=====
-	var _Widget = dijit._Widget;
-	var _KeyNavContainer = dijit._KeyNavContainer;
-	var _TemplatedMixin = dijit._TemplatedMixin;
-=====*/
+// Note: require of ToolbarSeparator is for back-compat, remove for 2.0
 
-	// module:
-	//		dijit/Toolbar
+dojo.declare("dijit.Toolbar",
+	[dijit._Widget, dijit._Templated, dijit._KeyNavContainer],
+	{
 	// summary:
 	//		A Toolbar widget, used to hold things like `dijit.Editor` buttons
 
+	templateString:
+		'<div class="dijit" role="toolbar" tabIndex="${tabIndex}" dojoAttachPoint="containerNode">' +
+		//	'<table style="table-layout: fixed" class="dijitReset dijitToolbarTable">' + // factor out style
+		//		'<tr class="dijitReset" dojoAttachPoint="containerNode"></tr>'+
+		//	'</table>' +
+		'</div>',
 
-	// Back compat w/1.6, remove for 2.0
-	if(dojo && dojo.ready && !dojo.isAsync){
-		dojo.ready(0, function(){
-			var requires = ["dijit/ToolbarSeparator"];
-			require(requires);	// use indirection so modules not rolled into a build
-		});
+	baseClass: "dijitToolbar",
+
+	postCreate: function(){
+		this.inherited(arguments);
+
+		this.connectKeyNavHandlers(
+			this.isLeftToRight() ? [dojo.keys.LEFT_ARROW] : [dojo.keys.RIGHT_ARROW],
+			this.isLeftToRight() ? [dojo.keys.RIGHT_ARROW] : [dojo.keys.LEFT_ARROW]
+		);
+	},
+
+	startup: function(){
+		if(this._started){ return; }
+
+		this.startupKeyNavChildren();
+
+		this.inherited(arguments);
 	}
+}
+);
 
-	return declare("dijit.Toolbar", [_Widget, _TemplatedMixin, _KeyNavContainer], {
-		// summary:
-		//		A Toolbar widget, used to hold things like `dijit.Editor` buttons
-
-		templateString:
-			'<div class="dijit" role="toolbar" tabIndex="${tabIndex}" dojoAttachPoint="containerNode">' +
-			'</div>',
-
-		baseClass: "dijitToolbar",
-
-		postCreate: function(){
-			this.inherited(arguments);
-
-			this.connectKeyNavHandlers(
-				this.isLeftToRight() ? [keys.LEFT_ARROW] : [keys.RIGHT_ARROW],
-				this.isLeftToRight() ? [keys.RIGHT_ARROW] : [keys.LEFT_ARROW]
-			);
-		}
-	});
+return dijit.Toolbar;
 });

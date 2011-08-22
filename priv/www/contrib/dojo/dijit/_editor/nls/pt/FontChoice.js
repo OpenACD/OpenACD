@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -12,7 +11,6 @@ define(
 	cursive: "cursiva",
 	fantasy: "fantasy",
 
-	noFormat: "Nenhuma",
 	p: "Parágrafo",
 	h1: "Título",
 	h2: "Subtítulo",

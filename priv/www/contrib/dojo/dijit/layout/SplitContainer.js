@@ -1,61 +1,14 @@
-//>>built
-define("dijit/layout/SplitContainer", [
-	"dojo/_base/kernel", // kernel.deprecated
-	"..",	// dijit.getUniqueId()
-	"dojo/cookie", // cookie
-	"../_WidgetBase",
-	"./_LayoutWidget",
-	"dojo/_base/array", // array.forEach array.indexOf array.some
-	"dojo/_base/connect", // connect.connect connect.disconnect
-	"dojo/_base/declare", // declare
-	"dojo/_base/event", // event.stop
-	"dojo/_base/lang", // lang.extend
-	"dojo/dom", // dom.setSelectable
-	"dojo/dom-class", // domClass.add
-	"dojo/dom-construct", // domConstruct.create domConstruct.destroy
-	"dojo/dom-geometry", // domGeometry.marginBox domGeometry.position
-	"dojo/dom-style", // domStyle.style
-	"dojo/_base/sniff", // has("mozilla")
-	"dojo/_base/window" // win.doc.createElement win.doc.documentElement
-], function(kernel, dijit, cookie, _WidgetBase, _LayoutWidget, array, connect, declare, event, lang,
-			dom, domClass, domConstruct, domGeometry, domStyle, has, win){
-
-/*=====
-var _WidgetBase = dijit._WidgetBase;
-var _LayoutWidget = dijit.layout._LayoutWidget;
-=====*/
-
-// module:
-//		dijit/layout/SplitContainer
-// summary:
-//		Deprecated.  Use `dijit.layout.BorderContainer` instead.
+define("dijit/layout/SplitContainer", ["dojo", "dijit", "dojo/cookie", "dijit/layout/_LayoutWidget"], function(dojo, dijit) {
 
 //
 // FIXME: make it prettier
 // FIXME: active dragging upwards doesn't always shift other bars (direction calculation is wrong in this case)
-// FIXME: sizeWidth should be a CSS attribute (at 7 because css wants it to be 7 until we fix to css)
 //
 
-// These arguments can be specified for the children of a SplitContainer.
-// Since any widget can be specified as a SplitContainer child, mix them
-// into the base widget class.  (This is a hack, but it's effective.)
-lang.extend(_WidgetBase, {
-	// sizeMin: [deprecated] Integer
-	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
-	//		Minimum size (width or height) of a child of a SplitContainer.
-	//		The value is relative to other children's sizeShare properties.
-	sizeMin: 10,
 
-	// sizeShare: [deprecated] Integer
-	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
-	//		Size (width or height) of a child of a SplitContainer.
-	//		The value is relative to other children's sizeShare properties.
-	//		For example, if there are two children and each has sizeShare=10, then
-	//		each takes up 50% of the available space.
-	sizeShare: 10
-});
-
-return declare("dijit.layout.SplitContainer", _LayoutWidget, {
+dojo.declare("dijit.layout.SplitContainer",
+	dijit.layout._LayoutWidget,
+	{
 	// summary:
 	//		Deprecated.  Use `dijit.layout.BorderContainer` instead.
 	// description:
@@ -69,7 +22,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 	//		deprecated
 
 	constructor: function(){
-		kernel.deprecated("dijit.layout.SplitContainer is deprecated", "use BorderContainer with splitter instead", 2.0);
+		dojo.deprecated("dijit.layout.SplitContainer is deprecated", "use BorderContainer with splitter instead", 2.0);
 	},
 
 	// activeSizing: Boolean
@@ -79,7 +32,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 	// sizerWidth: Integer
 	//		Size in pixels of the bar between each child
-	sizerWidth: 7,
+	sizerWidth: 7, // FIXME: this should be a CSS attribute (at 7 because css wants it to be 7 until we fix to css)
 
 	// orientation: String
 	//		either 'horizontal' or vertical; indicates whether the children are
@@ -103,7 +56,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 		// overflow has to be explicitly hidden for splitContainers using gekko (trac #1435)
 		// to keep other combined css classes from inadvertantly making the overflow visible
-		if(has("mozilla")){
+		if(dojo.isMozilla){
 			this.domNode.style.overflow = '-moz-scrollbars-none'; // hidden doesn't work
 		}
 
@@ -113,7 +66,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 				this.sizerWidth = parseInt(this.sizerWidth.toString());
 			}catch(e){ this.sizerWidth = 7; }
 		}
-		var sizer = win.doc.createElement('div');
+		var sizer = dojo.doc.createElement('div');
 		this.virtualSizer = sizer;
 		sizer.style.position = 'relative';
 
@@ -128,18 +81,18 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		sizer.style.zIndex = 10;
 		sizer.className = this.isHorizontal ? 'dijitSplitContainerVirtualSizerH' : 'dijitSplitContainerVirtualSizerV';
 		this.domNode.appendChild(sizer);
-		dom.setSelectable(sizer, false);
+		dojo.setSelectable(sizer, false);
 	},
 
 	destroy: function(){
 		delete this.virtualSizer;
-		array.forEach(this._ownconnects, connect.disconnect);
+		dojo.forEach(this._ownconnects, dojo.disconnect);
 		this.inherited(arguments);
 	},
 	startup: function(){
 		if(this._started){ return; }
 
-		array.forEach(this.getChildren(), function(child, i, children){
+		dojo.forEach(this.getChildren(), function(child, i, children){
 			// attach the children and create the draggers
 			this._setupChild(child);
 
@@ -158,7 +111,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 	_setupChild: function(/*dijit._Widget*/ child){
 		this.inherited(arguments);
 		child.domNode.style.position = "absolute";
-		domClass.add(child.domNode, "dijitSplitPane");
+		dojo.addClass(child.domNode, "dijitSplitPane");
 	},
 
 	_onSizerMouseDown: function(e){
@@ -177,7 +130,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		index = index === undefined ? this.sizers.length : index;
 
 		// TODO: use a template for this!!!
-		var sizer = win.doc.createElement('div');
+		var sizer = dojo.doc.createElement('div');
 		sizer.id=dijit.getUniqueId('dijit_layout_SplitterContainer_Splitter');
 		this.sizers.splice(index,0,sizer);
 		this.domNode.appendChild(sizer);
@@ -185,14 +138,14 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		sizer.className = this.isHorizontal ? 'dijitSplitContainerSizerH' : 'dijitSplitContainerSizerV';
 
 		// add the thumb div
-		var thumb = win.doc.createElement('div');
+		var thumb = dojo.doc.createElement('div');
 		thumb.className = 'thumb';
 		sizer.appendChild(thumb);
 
 		// FIXME: are you serious? why aren't we using mover start/stop combo?
 		this.connect(sizer, "onmousedown", '_onSizerMouseDown');
 
-		dom.setSelectable(sizer, false);
+		dojo.setSelectable(sizer, false);
 	},
 
 	removeChild: function(widget){
@@ -200,12 +153,12 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		//		Remove sizer, but only if widget is really our child and
 		// we have at least one sizer to throw away
 		if(this.sizers.length){
-			var i = array.indexOf(this.getChildren(), widget);
+			var i=dojo.indexOf(this.getChildren(), widget)
 			if(i != -1){
 				if(i == this.sizers.length){
 					i--;
 				}
-				domConstruct.destroy(this.sizers[i]);
+				dojo.destroy(this.sizers[i]);
 				this.sizers.splice(i,1);
 			}
 		}
@@ -264,7 +217,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		// calculate total of SizeShare values
 		//
 		var outOf = 0;
-		array.forEach(children, function(child){
+		dojo.forEach(children, function(child){
 			outOf += child.sizeShare;
 		});
 
@@ -277,7 +230,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		// set the SizeActual member of each pane
 		//
 		var totalSize = 0;
-		array.forEach(children.slice(0, children.length - 1), function(child){
+		dojo.forEach(children.slice(0, children.length - 1), function(child){
 			var size = Math.round(pixPerUnit * child.sizeShare);
 			child.sizeActual = size;
 			totalSize += size;
@@ -307,7 +260,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 			return;
 		}
 
-		array.some(children.slice(1), function(child, i){
+		dojo.some(children.slice(1), function(child, i){
 			// error-checking
 			if(!this.sizers[i]){
 				return true;
@@ -328,18 +281,20 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		if(this.isHorizontal){
 			panel.domNode.style.left = pos + 'px';	// TODO: resize() takes l and t parameters too, don't need to set manually
 			panel.domNode.style.top = 0;
+			var box = {w: size, h: this.paneHeight};
 			if(panel.resize){
-				panel.resize({w: size, h: this.paneHeight});
+				panel.resize(box);
 			}else{
-				domGeometry.setMarginBox(panel.domNode, NaN, NaN, size, this.paneHeight);
+				dojo.marginBox(panel.domNode, box);
 			}
 		}else{
 			panel.domNode.style.left = 0;	// TODO: resize() takes l and t parameters too, don't need to set manually
 			panel.domNode.style.top = pos + 'px';
+			var box = {w: this.paneWidth, h: size};
 			if(panel.resize){
-				panel.resize({w: this.paneWidth, h: size});
+				panel.resize(box);
 			}else{
-				domGeometry.setMarginBox(panel.domNode, NaN, NaN, this.paneWidth, size);
+				dojo.marginBox(panel.domNode, box);
 			}
 		}
 	},
@@ -348,11 +303,11 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		if(this.isHorizontal){
 			slider.style.left = pos + 'px';
 			slider.style.top = 0;
-			domGeometry.setMarginBox(slider, NaN, NaN, size, this.paneHeight);
+			dojo.marginBox(slider, { w: size, h: this.paneHeight });
 		}else{
 			slider.style.left = 0;
 			slider.style.top = pos + 'px';
-			domGeometry.setMarginBox(slider, NaN, NaN, this.paneWidth, size);
+			dojo.marginBox(slider, { w: this.paneWidth, h: size });
 		}
 	},
 
@@ -380,7 +335,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		var totalSize = 0;
 		var children = this.getChildren();
 
-		array.forEach(children, function(child){
+		dojo.forEach(children, function(child){
 			totalSize += child.sizeActual;
 			totalMinSize += child.sizeMin;
 		});
@@ -391,7 +346,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 			var growth = 0;
 
-			array.forEach(children, function(child){
+			dojo.forEach(children, function(child){
 				if(child.sizeActual < child.sizeMin){
 					growth += child.sizeMin - child.sizeActual;
 					child.sizeActual = child.sizeMin;
@@ -400,12 +355,12 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 			if(growth > 0){
 				var list = this.isDraggingLeft ? children.reverse() : children;
-				array.forEach(list, function(child){
+				dojo.forEach(list, function(child){
 					growth = this._growPane(growth, child);
 				}, this);
 			}
 		}else{
-			array.forEach(children, function(child){
+			dojo.forEach(children, function(child){
 				child.sizeActual = Math.round(totalSize * (child.sizeMin / totalMinSize));
 			});
 		}
@@ -420,7 +375,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		this.sizingSplitter = this.sizers[i];
 
 		if(!this.cover){
-			this.cover = domConstruct.create('div', {
+			this.cover = dojo.create('div', {
 					style: {
 						position:'absolute',
 						zIndex:5,
@@ -436,15 +391,14 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		this.sizingSplitter.style.zIndex = 6;
 
 		// TODO: REVISIT - we want MARGIN_BOX and core hasn't exposed that yet (but can't we use it anyway if we pay attention? we do elsewhere.)
-		this.originPos = domGeometry.position(children[0].domNode, true);
-		var client, screen;
+		this.originPos = dojo.position(children[0].domNode, true);
 		if(this.isHorizontal){
-			client = e.layerX || e.offsetX || 0;
-			screen = e.pageX;
+			var client = e.layerX || e.offsetX || 0;
+			var screen = e.pageX;
 			this.originPos = this.originPos.x;
 		}else{
-			client = e.layerY || e.offsetY || 0;
-			screen = e.pageY;
+			var client = e.layerY || e.offsetY || 0;
+			var screen = e.pageY;
 			this.originPos = this.originPos.y;
 		}
 		this.startPoint = this.lastPoint = screen;
@@ -459,10 +413,10 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		// attach mouse events
 		//
 		this._ownconnects = [];
-		this._ownconnects.push(connect.connect(win.doc.documentElement, "onmousemove", this, "changeSizing"));
-		this._ownconnects.push(connect.connect(win.doc.documentElement, "onmouseup", this, "endSizing"));
+		this._ownconnects.push(dojo.connect(dojo.doc.documentElement, "onmousemove", this, "changeSizing"));
+		this._ownconnects.push(dojo.connect(dojo.doc.documentElement, "onmouseup", this, "endSizing"));
 
-		event.stop(e);
+		dojo.stopEvent(e);
 	},
 
 	changeSizing: function(e){
@@ -474,7 +428,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		}else{
 			this._moveSizingLine();
 		}
-		event.stop(e);
+		dojo.stopEvent(e);
 	},
 
 	endSizing: function(e){
@@ -494,7 +448,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 			this._saveState(this);
 		}
 
-		array.forEach(this._ownconnects, connect.disconnect);
+		dojo.forEach(this._ownconnects, dojo.disconnect);
 	},
 
 	movePoint: function(){
@@ -545,7 +499,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		this.paneAfter.position	= pos + this.sizerWidth;
 		this.paneAfter.sizeActual = end_region - this.paneAfter.position;
 
-		array.forEach(this.getChildren(), function(child){
+		dojo.forEach(this.getChildren(), function(child){
 			child.sizeShare = child.sizeActual;
 		});
 
@@ -558,9 +512,8 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 		this._moveSizingLine();
 
-		domGeometry.setMarginBox(this.virtualSizer, NaN, NaN,
-			this.isHorizontal ? this.sizerWidth : this.paneWidth,
-			this.isHorizontal ? this.paneHeight : this.sizerWidth );
+		dojo.marginBox(this.virtualSizer,
+			this.isHorizontal ? { w: this.sizerWidth, h: this.paneHeight } : { w: this.paneWidth, h: this.sizerWidth });
 
 		this.virtualSizer.style.display = 'block';
 	},
@@ -571,7 +524,7 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 
 	_moveSizingLine: function(){
 		var pos = (this.lastPoint - this.startPoint) + this.sizingSplitter.position;
-		domStyle.set(this.virtualSizer,(this.isHorizontal ? "left" : "top"),pos+"px");
+		dojo.style(this.virtualSizer,(this.isHorizontal ? "left" : "top"),pos+"px");
 		// this.virtualSizer.style[ this.isHorizontal ? "left" : "top" ] = pos + 'px'; // FIXME: remove this line if the previous is better
 	},
 
@@ -580,9 +533,9 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 	},
 
 	_restoreState: function(){
-		array.forEach(this.getChildren(), function(child, i){
+		dojo.forEach(this.getChildren(), function(child, i){
 			var cookieName = this._getCookieName(i);
-			var cookieValue = cookie(cookieName);
+			var cookieValue = dojo.cookie(cookieName);
 			if(cookieValue){
 				var pos = parseInt(cookieValue);
 				if(typeof pos == "number"){
@@ -596,10 +549,31 @@ return declare("dijit.layout.SplitContainer", _LayoutWidget, {
 		if(!this.persist){
 			return;
 		}
-		array.forEach(this.getChildren(), function(child, i){
-			cookie(this._getCookieName(i), child.sizeShare, {expires:365});
+		dojo.forEach(this.getChildren(), function(child, i){
+			dojo.cookie(this._getCookieName(i), child.sizeShare, {expires:365});
 		}, this);
 	}
 });
 
+// These arguments can be specified for the children of a SplitContainer.
+// Since any widget can be specified as a SplitContainer child, mix them
+// into the base widget class.  (This is a hack, but it's effective.)
+dojo.extend(dijit._Widget, {
+	// sizeMin: [deprecated] Integer
+	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
+	//		Minimum size (width or height) of a child of a SplitContainer.
+	//		The value is relative to other children's sizeShare properties.
+	sizeMin: 10,
+
+	// sizeShare: [deprecated] Integer
+	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
+	//		Size (width or height) of a child of a SplitContainer.
+	//		The value is relative to other children's sizeShare properties.
+	//		For example, if there are two children and each has sizeShare=10, then
+	//		each takes up 50% of the available space.
+	sizeShare: 10
+});
+
+
+return dijit.layout.SplitContainer;
 });

@@ -42,7 +42,7 @@
 .nihilo .dijitRadioChecked,
 .nihilo .dijitToggleButtonChecked .dijitRadioIcon {
 	/* selected */
-	background-position: 0;
+	background-position: 0px;
 }
 
 .nihilo .dijitRadioDisabled {

@@ -1,23 +1,6 @@
-//>>built
-define("dijit/tree/ForestStoreModel", [
-	"dojo/_base/array", // array.indexOf array.some
-	"dojo/_base/declare", // declare
-	"dojo/_base/lang", // lang.hitch
-	"dojo/_base/window", // win.global
-	"./TreeStoreModel"
-], function(array, declare, lang, win, TreeStoreModel){
+define("dijit/tree/ForestStoreModel", ["dojo", "dijit", "dijit/tree/TreeStoreModel"], function(dojo, dijit) {
 
-/*=====
-var TreeStoreModel = dijit.tree.TreeStoreModel;
-=====*/
-
-// module:
-//		dijit/tree/ForestStoreModel
-// summary:
-//		Interface between a dijit.Tree and a dojo.data store that doesn't have a root item,
-//		a.k.a. a store that has multiple "top level" items.
-
-return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
+dojo.declare("dijit.tree.ForestStoreModel", dijit.tree.TreeStoreModel, {
 	// summary:
 	//		Interface between a dijit.Tree and a dojo.data store that doesn't have a root item,
 	//		a.k.a. a store that has multiple "top level" items.
@@ -94,7 +77,7 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 			}else{
 				this.store.fetch({
 					query: this.query,
-					onComplete: lang.hitch(this, function(items){
+					onComplete: dojo.hitch(this, function(items){
 						this.root.children = items;
 						callback(items);
 					}),
@@ -115,7 +98,7 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 
 	fetchItemByIdentity: function(/* object */ keywordArgs){
 		if(keywordArgs.identity == this.root.id){
-			var scope = keywordArgs.scope?keywordArgs.scope:win.global;
+			var scope = keywordArgs.scope?keywordArgs.scope:dojo.global;
 			if(keywordArgs.onItem){
 				keywordArgs.onItem.call(scope, this.root);
 			}
@@ -165,12 +148,12 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 				this.onLeaveRoot(childItem);
 			}
 		}
-		this.inherited(arguments, [childItem,
+		dijit.tree.TreeStoreModel.prototype.pasteItem.call(this, childItem,
 			oldParentItem === this.root ? null : oldParentItem,
 			newParentItem === this.root ? null : newParentItem,
 			bCopy,
 			insertIndex
-		]);
+		);
 		if(newParentItem === this.root){
 			// It's onAddToRoot()'s responsibility to modify the item so it matches
 			// this.query... thus triggering an onChildrenChange() event to notify the Tree
@@ -213,12 +196,12 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 		var oldChildren = this.root.children || [];
 		this.store.fetch({
 			query: this.query,
-			onComplete: lang.hitch(this, function(newChildren){
+			onComplete: dojo.hitch(this, function(newChildren){
 				this.root.children = newChildren;
 
 				// If the list of children or the order of children has changed...
 				if(oldChildren.length != newChildren.length ||
-					array.some(oldChildren, function(item, idx){ return newChildren[idx] != item;})){
+					dojo.some(oldChildren, function(item, idx){ return newChildren[idx] != item;})){
 					this.onChildrenChange(this.root, newChildren);
 				}
 			})
@@ -251,7 +234,7 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 
 		// check if this was a child of root, and if so send notification that root's children
 		// have changed
-		if(array.indexOf(this.root.children, item) != -1){
+		if(dojo.indexOf(this.root.children, item) != -1){
 			this._requeryTop();
 		}
 
@@ -283,4 +266,6 @@ return declare("dijit.tree.ForestStoreModel", TreeStoreModel, {
 
 });
 
+
+return dijit.tree.ForestStoreModel;
 });

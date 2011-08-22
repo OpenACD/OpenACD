@@ -1,38 +1,25 @@
-//>>built
-define("dijit/_editor/selection", [
-	"dojo/dom", // dom.byId
-	"dojo/_base/lang",
-	"dojo/_base/sniff", // has("ie") has("opera")
-	"dojo/_base/window", // win.body win.doc win.doc.createElement win.doc.selection win.doc.selection.createRange win.doc.selection.type.toLowerCase win.global win.global.getSelection
-	".."		// for exporting symbols to dijit._editor.selection (TODO: remove)
-], function(dom, lang, has, win, dijit){
+define("dijit/_editor/selection", ["dojo", "dijit"], function(dojo, dijit) {
 
-// module:
-//		dijit/_editor/selection
-// summary:
-//		Text selection API
-
-
-lang.getObject("_editor.selection", true, dijit);
+dojo.getObject("_editor.selection", true, dijit);
 
 // FIXME:
 //		all of these methods branch internally for IE. This is probably
 //		sub-optimal in terms of runtime performance. We should investigate the
 //		size difference for differentiating at definition time.
 
-lang.mixin(dijit._editor.selection, {
+dojo.mixin(dijit._editor.selection, {
 	getType: function(){
 		// summary:
-		//		Get the selection type (like win.doc.select.type in IE).
-		if(has("ie") < 9){
-			return win.doc.selection.type.toLowerCase();
+		//		Get the selection type (like dojo.doc.select.type in IE).
+		if(dojo.isIE){
+			return dojo.doc.selection.type.toLowerCase();
 		}else{
 			var stype = "text";
 
 			// Check if the actual selection is a CONTROL (IMG, TABLE, HR, etc...).
 			var oSel;
 			try{
-				oSel = win.global.getSelection();
+				oSel = dojo.global.getSelection();
 			}catch(e){ /*squelch*/ }
 
 			if(oSel && oSel.rangeCount == 1){
@@ -51,13 +38,13 @@ lang.mixin(dijit._editor.selection, {
 	getSelectedText: function(){
 		// summary:
 		//		Return the text (no html tags) included in the current selection or null if no text is selected
-		if(has("ie") < 9){
+		if(dojo.isIE){
 			if(dijit._editor.selection.getType() == 'control'){
 				return null;
 			}
-			return win.doc.selection.createRange().text;
+			return dojo.doc.selection.createRange().text;
 		}else{
-			var selection = win.global.getSelection();
+			var selection = dojo.global.getSelection();
 			if(selection){
 				return selection.toString(); //String
 			}
@@ -68,20 +55,20 @@ lang.mixin(dijit._editor.selection, {
 	getSelectedHtml: function(){
 		// summary:
 		//		Return the html text of the current selection or null if unavailable
-		if(has("ie") < 9){
+		if(dojo.isIE){
 			if(dijit._editor.selection.getType() == 'control'){
 				return null;
 			}
-			return win.doc.selection.createRange().htmlText;
+			return dojo.doc.selection.createRange().htmlText;
 		}else{
-			var selection = win.global.getSelection();
+			var selection = dojo.global.getSelection();
 			if(selection && selection.rangeCount){
 				var i;
 				var html = "";
 				for(i = 0; i < selection.rangeCount; i++){
 					//Handle selections spanning ranges, such as Opera
 					var frag = selection.getRangeAt(i).cloneContents();
-					var div = win.doc.createElement("div");
+					var div = dojo.doc.createElement("div");
 					div.appendChild(frag);
 					html += div.innerHTML;
 				}
@@ -97,13 +84,13 @@ lang.mixin(dijit._editor.selection, {
 		//		a single element (object like and image or a table) is
 		//		selected.
 		if(dijit._editor.selection.getType() == "control"){
-			if(has("ie") < 9){
-				var range = win.doc.selection.createRange();
+			if(dojo.isIE){
+				var range = dojo.doc.selection.createRange();
 				if(range && range.item){
-					return win.doc.selection.createRange().item(0);
+					return dojo.doc.selection.createRange().item(0);
 				}
 			}else{
-				var selection = win.global.getSelection();
+				var selection = dojo.global.getSelection();
 				return selection.anchorNode.childNodes[ selection.anchorOffset ];
 			}
 		}
@@ -117,12 +104,12 @@ lang.mixin(dijit._editor.selection, {
 			var p = this.getSelectedElement();
 			if(p){ return p.parentNode; }
 		}else{
-			if(has("ie") < 9){
-				var r = win.doc.selection.createRange();
+			if(dojo.isIE){
+				var r = dojo.doc.selection.createRange();
 				r.collapse(true);
 				return r.parentElement();
 			}else{
-				var selection = win.global.getSelection();
+				var selection = dojo.global.getSelection();
 				if(selection){
 					var node = selection.anchorNode;
 					while(node && (node.nodeType != 1)){ // not an element
@@ -195,7 +182,7 @@ lang.mixin(dijit._editor.selection, {
 		// beginning: Boolean
 		//		Boolean to indicate whether to collapse the cursor to the beginning of the selection or end.
 		if(window.getSelection){
-			var selection = win.global.getSelection();
+			var selection = dojo.global.getSelection();
 			if(selection.removeAllRanges){ // Mozilla
 				if(beginning){
 					selection.collapseToStart();
@@ -206,8 +193,8 @@ lang.mixin(dijit._editor.selection, {
 				// pulled from WebCore/ecma/kjs_window.cpp, line 2536
 				selection.collapse(beginning);
 			}
-		}else if(has("ie")){ // IE
-			var range = win.doc.selection.createRange();
+		}else if(dojo.isIE){ // IE
+			var range = dojo.doc.selection.createRange();
 			range.collapse(beginning);
 			range.select();
 		}
@@ -216,14 +203,14 @@ lang.mixin(dijit._editor.selection, {
 	remove: function(){
 		// summary:
 		//		Function to delete the currently selected content from the document.
-		var sel = win.doc.selection;
-		if(has("ie") < 9){
+		var sel = dojo.doc.selection;
+		if(dojo.isIE){
 			if(sel.type.toLowerCase() != "none"){
 				sel.clear();
 			}
 			return sel; //Selection
 		}else{
-			sel = win.global.getSelection();
+			sel = dojo.global.getSelection();
 			sel.deleteFromDocument();
 			return sel; //Selection
 		}
@@ -237,11 +224,11 @@ lang.mixin(dijit._editor.selection, {
 		//		The element you wish to select the children content of.
 		// nochangefocus: Boolean
 		//		Boolean to indicate if the foxus should change or not.
-		var global = win.global;
-		var doc = win.doc;
+		var win = dojo.global;
+		var doc = dojo.doc;
 		var range;
-		element = dom.byId(element);
-		if(doc.selection && has("ie") < 9 && win.body().createTextRange){ // IE
+		element = dojo.byId(element);
+		if(doc.selection && dojo.isIE && dojo.body().createTextRange){ // IE
 			range = element.ownerDocument.body.createTextRange();
 			range.moveToElementText(element);
 			if(!nochangefocus){
@@ -249,9 +236,9 @@ lang.mixin(dijit._editor.selection, {
 					range.select(); // IE throws an exception here if the widget is hidden.  See #5439
 				}catch(e){ /* squelch */}
 			}
-		}else if(global.getSelection){
-			var selection = win.global.getSelection();
-			if(has("opera")){
+		}else if(win.getSelection){
+			var selection = dojo.global.getSelection();
+			if(dojo.isOpera){
 				//Opera's selectAllChildren doesn't seem to work right
 				//against <body> nodes and possibly others ... so
 				//we use the W3C range API
@@ -277,17 +264,12 @@ lang.mixin(dijit._editor.selection, {
 		// nochangefocus: Boolean
 		//		Boolean indicating if the focus should be changed.  IE only.
 		var range;
-		var doc = win.doc;
-		var global = win.global;
-		element = dom.byId(element);
-		if(has("ie") < 9 && win.body().createTextRange){
+		var doc = dojo.doc;
+		var win = dojo.global;
+		element = dojo.byId(element);
+		if(dojo.isIE && dojo.body().createTextRange){
 			try{
-				var tg = element.tagName ? element.tagName.toLowerCase() : "";
-				if(tg === "img" || tg === "table"){
-					range = win.body().createControlRange();
-				}else{
-					range = win.body().createRange();
-				}
+				range = dojo.body().createControlRange();
 				range.addElement(element);
 				if(!nochangefocus){
 					range.select();
@@ -295,12 +277,12 @@ lang.mixin(dijit._editor.selection, {
 			}catch(e){
 				this.selectElementChildren(element,nochangefocus);
 			}
-		}else if(global.getSelection){
-			var selection = global.getSelection();
+		}else if(dojo.global.getSelection){
+			var selection = win.getSelection();
 			range = doc.createRange();
 			if(selection.removeAllRanges){ // Mozilla
 				// FIXME: does this work on Safari?
-				if(has("opera")){
+				if(dojo.isOpera){
 					//Opera works if you use the current range on
 					//the selection if present.
 					if(selection.getRangeAt(0)){
@@ -322,12 +304,12 @@ lang.mixin(dijit._editor.selection, {
 		//		public
 		if(node){
 			var newRange;
-			var doc = win.doc;
+			var doc = dojo.doc;
 			var range;
 
-			if(win.global.getSelection){
+			if(dojo.global.getSelection){
 				//WC3
-				var sel = win.global.getSelection();
+				var sel = dojo.global.getSelection();
 				if(sel && sel.rangeCount > 0){
 					range = sel.getRangeAt(0);
 				}
@@ -342,7 +324,7 @@ lang.mixin(dijit._editor.selection, {
 				}
 			}else if(doc.selection){
 				// Probably IE, so we can't use the range object as the pseudo
-				// range doesn't implement the boundry checking, we have to
+				// range doesn't implement the boundry checking, we have to 
 				// use IE specific crud.
 				range = doc.selection.createRange();
 				try{

@@ -1,5 +1,4 @@
-//>>built
-define({ root:
+define({ root: 
 //begin v1.x content
 ({
 	loadingState: "Loading...",
@@ -22,7 +21,6 @@ define({ root:
 "nl": true,
 "nb": true,
 "ko": true,
-"kk": true,
 "ja": true,
 "it": true,
 "hu": true,

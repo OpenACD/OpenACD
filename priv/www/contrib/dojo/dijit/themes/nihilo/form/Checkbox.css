@@ -43,7 +43,7 @@
 .nihilo .dijitCheckBoxChecked,
 .nihilo .dijitToggleButtonChecked .dijitCheckBoxIcon {
 	/* checked */
-	background-position: 0;
+	background-position: 0px;
 }
 
 .nihilo .dijitCheckBoxDisabled {

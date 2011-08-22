@@ -1,46 +1,23 @@
-//>>built
-define("dijit/_editor/plugins/Print", [
-	"dojo/_base/connect",	// connect.subscribe
-	"dojo/_base/declare", // declare
-	"dojo/i18n", // i18n.getLocalization
-	"dojo/_base/lang", // lang.hitch
-	"dojo/_base/sniff", // has("chrome") has("opera")
-	"../../focus",		// focus.focus()
-	"../_Plugin",
-	"../../form/Button",
-	"../..",	// dijit._scopeName
-	"dojo/i18n!../nls/commands"
-], function(connect, declare, i18n, lang, has, focus, _Plugin, Button, dijit){
+define("dijit/_editor/plugins/Print", ["dojo", "dijit", "dijit/_editor/_Plugin", "dijit/form/Button", "dojo/i18n", "i18n!dijit/_editor/nls/commands"], function(dojo, dijit) {
 
-/*=====
-	var _Plugin = dijit._editor._Plugin;
-=====*/
-
-// module:
-//		dijit/_editor/plugins/Print
-// summary:
-//		This plugin provides Print capability to the editor.  When
-//		clicked, the document in the editor frame will be printed.
-
-
-var Print = declare("dijit._editor.plugins.Print",_Plugin,{
+dojo.declare("dijit._editor.plugins.Print",dijit._editor._Plugin,{
 	// summary:
-	//		This plugin provides Print capability to the editor.  When
+	//		This plugin provides Print cabability to the editor.  When
 	//		clicked, the document in the editor frame will be printed.
 
 	_initButton: function(){
 		// summary:
 		//		Over-ride for creation of the Print button.
-		var strings = i18n.getLocalization("dijit._editor", "commands"),
+		var strings = dojo.i18n.getLocalization("dijit._editor", "commands"),
 			editor = this.editor;
-		this.button = new Button({
+		this.button = new dijit.form.Button({
 			label: strings["print"],
 			dir: editor.dir,
 			lang: editor.lang,
 			showLabel: false,
 			iconClass: this.iconClassPrefix + " " + this.iconClassPrefix + "Print",
 			tabIndex: "-1",
-			onClick: lang.hitch(this, "_print")
+			onClick: dojo.hitch(this, "_print")
 		});
 	},
 
@@ -55,7 +32,7 @@ var Print = declare("dijit._editor.plugins.Print",_Plugin,{
 		// Set up a check that we have a print function
 		// and disable button if we do not.
 		this.editor.onLoadDeferred.addCallback(
-			lang.hitch(this, function(){
+			dojo.hitch(this, function(){
 				if(!this.editor.iframe.contentWindow["print"]){
 					this.button.set("disabled", true);
 				}
@@ -83,8 +60,8 @@ var Print = declare("dijit._editor.plugins.Print",_Plugin,{
 			// IE requires the frame to be focused for
 			// print to work, but since this is okay for all
 			// no special casing.
-			if(!has("opera") && !has("chrome")){
-				focus.focus(edFrame);
+			if(!dojo.isOpera && !dojo.isChrome){
+				dijit.focus(edFrame);
 				edFrame.contentWindow.print();
 			}else{
 				// Neither Opera nor Chrome 3 et you print single frames.
@@ -102,7 +79,7 @@ var Print = declare("dijit._editor.plugins.Print",_Plugin,{
 				win.document.open();
 				win.document.write(content);
 				win.document.close();
-
+				var styles = [];
 				var styleNodes = edDoc.getElementsByTagName("style");
 				if(styleNodes){
 					// Clone over any editor view styles, since we can't print the iframe
@@ -123,14 +100,14 @@ var Print = declare("dijit._editor.plugins.Print",_Plugin,{
 });
 
 // Register this plugin.
-connect.subscribe(dijit._scopeName + ".Editor.getPlugin",null,function(o){
+dojo.subscribe(dijit._scopeName + ".Editor.getPlugin",null,function(o){
 	if(o.plugin){ return; }
 	var name = o.args.name.toLowerCase();
 	if(name === "print"){
-		o.plugin = new Print({command: "print"});
+		o.plugin = new dijit._editor.plugins.Print({command: "print"});
 	}
 });
 
 
-return Print;
+return dijit._editor.plugins.Print;
 });

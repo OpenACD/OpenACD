@@ -30,7 +30,7 @@
 .tundra .dijitCheckBoxChecked,
 .tundra .dijitToggleButtonChecked .dijitCheckBoxIcon {
 	/* checked */
-	background-position: 0;
+	background-position: 0px;
 }
 
 .tundra .dijitCheckBoxDisabled {

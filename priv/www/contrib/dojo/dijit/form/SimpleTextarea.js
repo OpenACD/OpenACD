@@ -1,24 +1,8 @@
-//>>built
-define("dijit/form/SimpleTextarea", [
-	"dojo/_base/declare", // declare
-	"dojo/dom-class", // domClass.add
-	"dojo/_base/sniff", // has("ie") has("opera")
-	"dojo/_base/window", // win.doc.selection win.doc.selection.createRange
-	"./TextBox"
-], function(declare, domClass, has, win, TextBox){
+define("dijit/form/SimpleTextarea", ["dojo", "dijit", "dijit/form/TextBox"], function(dojo, dijit) {
 
-/*=====
-	var TextBox = dijit.form.TextBox;
-=====*/
-
-// module:
-//		dijit/form/SimpleTextarea
-// summary:
-//		A simple textarea that degrades, and responds to
-// 		minimal LayoutContainer usage, and works with dijit.form.Form.
-//		Doesn't automatically size according to input, like Textarea.
-
-return declare("dijit.form.SimpleTextarea", TextBox, {
+dojo.declare("dijit.form.SimpleTextarea",
+	dijit.form.TextBox,
+	{
 	// summary:
 	//		A simple textarea that degrades, and responds to
 	// 		minimal LayoutContainer usage, and works with dijit.form.Form.
@@ -31,6 +15,10 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 	//	|	new dijit.form.SimpleTextarea({ rows:20, cols:30 }, "foo");
 
 	baseClass: "dijitTextBox dijitTextArea",
+
+	attributeMap: dojo.delegate(dijit.form._FormValueWidget.prototype.attributeMap, {
+		rows:"textbox", cols: "textbox"
+	}),
 
 	// rows: Number
 	//		The number of rows of text.
@@ -53,8 +41,8 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 
 	buildRendering: function(){
 		this.inherited(arguments);
-		if(has("ie") && this.cols){ // attribute selectors is not supported in IE6
-			domClass.add(this.textbox, "dijitTextAreaCols");
+		if(dojo.isIE && this.cols){ // attribute selectors is not supported in IE6
+			dojo.addClass(this.textbox, "dijitTextAreaCols");
 		}
 	},
 
@@ -67,6 +55,7 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 		return this.inherited(arguments);
 	},
 
+	_previousValue: "",
 	_onInput: function(/*Event?*/ e){
 		// Override TextBox._onInput() to enforce maxLength restriction
 		if(this.maxLength){
@@ -74,18 +63,19 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 			var value = this.textbox.value.replace(/\r/g,'');
 			var overflow = value.length - maxLength;
 			if(overflow > 0){
+				if(e){ dojo.stopEvent(e); }
 				var textarea = this.textbox;
 				if(textarea.selectionStart){
 					var pos = textarea.selectionStart;
 					var cr = 0;
-					if(has("opera")){
+					if(dojo.isOpera){
 						cr = (this.textbox.value.substring(0,pos).match(/\r/g) || []).length;
 					}
 					this.textbox.value = value.substring(0,pos-overflow-cr)+value.substring(pos-cr);
 					textarea.setSelectionRange(pos-overflow, pos-overflow);
-				}else if(win.doc.selection){ //IE
+				}else if(dojo.doc.selection){ //IE
 					textarea.focus();
-					var range = win.doc.selection.createRange();
+					var range = dojo.doc.selection.createRange();
 					// delete overflow characters
 					range.moveStart("character", -overflow);
 					range.text = '';
@@ -93,9 +83,12 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 					range.select();
 				}
 			}
+			this._previousValue = this.textbox.value;
 		}
 		this.inherited(arguments);
 	}
 });
 
+
+return dijit.form.SimpleTextarea;
 });

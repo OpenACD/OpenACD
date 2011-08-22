@@ -1,4 +1,3 @@
-//>>built
 define(
 //begin v1.x content
 ({
@@ -12,7 +11,6 @@ define(
 	cursive: "cursive",
 	fantasy: "fantasy",
 
-	noFormat: "ללא ",
 	p: "פיסקה",
 	h1: "כותרת",
 	h2: "תת-כותרת",

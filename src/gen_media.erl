@@ -412,7 +412,7 @@ behaviour_info(_Other) ->
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {'$gen_media', ring, A, Qcall, Timeout}, infinity);
+	gen_server:call(Genmedia, {{'$gen_media', ring}, {A, Qcall, Timeout}}, infinity);
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
 		notfound ->
@@ -431,41 +431,41 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 %% @doc Get the call record associated with `pid() Genmedia'.
 -spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', get_call, infinity).
+	gen_server:call(Genmedia, {{'$gen_media', get_call}, undefined}, infinity).
 
 %% @doc Send the passed `pid() Genmedia' to voicemail.
 -spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 voicemail(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', voicemail).
+	gen_server:call(Genmedia, {{'$gen_media', voicemail}, undefined}).
 
 %% @doc Pass `any() Annouce' message to `pid() Genmedia'.
 -spec(announce/2 :: (Genmedia :: pid(), Annouce :: any()) -> 'ok').
 announce(Genmedia, Annouce) ->
-	gen_server:call(Genmedia, {'$gen_media', announce, Annouce}).
+	gen_server:call(Genmedia, {{'$gen_media', announce}, Annouce}).
 
 %% @doc Sends the oncall agent associated with the call to wrapup; or, if it's
 %% the oncall agent making the request, gives the callback module a chance to
 %% handle it.
 -spec(wrapup/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 wrapup(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', wrapup).
+	gen_server:call(Genmedia, {{'$gen_media', wrapup}, undefined}).
 
 %% @doc Send a stop ringing message to `pid() Genmedia'.
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
 	Self = self(),
-	Genmedia ! {'$gen_media', stop_ring, Self},
+	gen_fsm:send_event(Genmedia, {{'$gen_media', stop_ringin}, Self}),
 	ok.
 
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.
 -spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 oncall(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', agent_oncall, infinity).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', agent_oncall}, undefined}, infinity).
 
 %% @doc Transfer the call from the agent it is associated with to a new agent.
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid() | string() | {string(), pid()}, Timeout :: pos_integer()) -> 'ok' | 'invalid').
 agent_transfer(Genmedia, {_Login, Apid} = Agent, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {'$gen_media', agent_transfer, Agent, Timeout});
+	gen_fms:sync_send_event(Genmedia, {{'$gen_media', agent_transfer}, {Agent, Timeout}});
 agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
 		notfound ->
@@ -483,19 +483,19 @@ agent_transfer(Genmedia, Agent, Timeout) ->
 
 -spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
-	gen_server:call(Genmedia, {'$gen_media', warm_transfer_begin, Number}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', warm_transfer_begin}, Number}).
 
 -spec(warm_transfer_cancel/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_cancel(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', warm_transfer_cancel).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', warm_transfer_cancel}, undefined}).
 
 -spec(warm_transfer_complete/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_complete(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', warm_transfer_complete).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', warm_transfer_complete}, undefined}).
 
 -spec(warm_transfer_merge/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_merge(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', warm_transfer_merge).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', warm_transfer_merge}, undefined}).
 
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
@@ -507,27 +507,27 @@ queue(Genmedia, Queue) ->
 %% `#agent{}' used to hold the end point data.
 -spec(spy/3 :: (Genmedia :: pid(), Spy :: pid(), AgentRec :: #agent{}) -> 'ok' | 'invalid' | {'error', any()}).
 spy(Genmedia, Spy, AgentRec) ->
-	gen_server:call(Genmedia, {'$gen_media', spy, Spy, AgentRec}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', spy}, {Spy, AgentRec}}).
 
 -spec(set_cook/2 :: (Genmedia :: pid(), CookPid :: pid()) -> 'ok').
 set_cook(Genmedia, CookPid) ->
-	gen_server:cast(Genmedia, {'$gen_media', set_cook, CookPid}).
+	gen_fsm:send_event(Genmedia, {{'$gen_media', set_cook}, CookPid}).
 
 -spec(set_queue/2 :: (Genmedia :: pid(), Qpid :: pid()) -> 'ok').
 set_queue(Genmedia, Qpid) ->
-	gen_server:call(Genmedia, {'$gen_media', set_queue, Qpid}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', set_queue}, Qpid}).
 
 -spec(set_url_getvars/2 :: (Genmedia :: pid(), Vars :: [{string(), string()}]) -> 'ok').
 set_url_getvars(Genmedia, Vars) ->
-	gen_server:cast(Genmedia, {'$gen_media', set_url_getvars, Vars}).
+	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', set_url_getvars}, Vars}).
 
 -spec(get_url_getvars/1 :: (Genmedia :: pid()) -> {'ok', [{string(), string()}]}).
 get_url_getvars(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media', get_url_vars).
+	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', get_url_vars}, undefined}).
 
 -spec(add_skills/2 :: (Genmedia :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 add_skills(Genmedia, Skills) ->
-	gen_server:cast(Genmedia, {'$gen_media', add_skills, Skills}).
+	gen_fsm:send_all_event(Genmedia, {{'$gen_media', add_skills}, Skills}).
 	
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -585,15 +585,15 @@ init([Callback, Args]) ->
 					% this clause, if hit, will cause a (justifiable) crash
 					% TODO wtf?
 					priv_queue("default_queue", Callrec, true),
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
+					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{}}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue");
 				{default, Pid} ->
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
+					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_pid = {"default_queue", Pid}}}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue"),
 					{"default_queue", Pid};
 				Else ->
 					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
+					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_pid = {Queue, Else}}}, [{queue, Queue}]),
 					{Queue, Else}
 			end,
 			InqState = #inqueue_state{
@@ -604,7 +604,7 @@ init([Callback, Args]) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
-			set_cpx_mon(#state{callrec = Callrec}, [], self()),
+			set_cpx_mon({#base_state{callrec = Callrec} #inivr_state{}}, [], self()),
 			BaseState = #base_state{
 				callback = Callback,
 				substate = Substate,
@@ -614,7 +614,7 @@ init([Callback, Args]) ->
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
-			set_cpx_mon(#state{callrec = Callrec}, [], self()),
+			set_cpx_mon({#base_state{callrec = Callrec}, #inivr_state{}}, [], self()),
 			BaseState = #base_state{
 				callback = Callback,
 				substate = Substate,
@@ -641,10 +641,6 @@ inivr(Msg, From, {#base_state{callback = Callback} = BaseState, _} = State) ->
 	Return = Callback:handle_call(Msg, From, inivr, BaseState#base_state.callrec, #inivr_state{}, BaseState#base_state.substate),
 	handle_custom_return(Return, inivr, reply, State).
 
-inivr({{'$gen_media', Command}, _Args}, State) ->
-	?DEBUG("Invalid event ~s while inivr", [Command]),
-	{next_state, inivr, State};
-
 inivr(Msg, {#base_state{ callback = Callback, callrec = Call} = BaseState,
 		_} = State) ->
 	Return = Callback:handle_cast(Msg, inivr, Call, #inivr_state{}, BaseState#base_state.substate),
@@ -656,11 +652,12 @@ inivr(Msg, {#base_state{ callback = Callback, callrec = Call} = BaseState,
 
 inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 		QCall, Timeout}}, {Requester, _Tag}, {#base_state{callrec = Call,
-		callback = Callback}, Internal}) ->
+		callback = Callback} = BaseState, Internal}) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
 	case set_agent_state(Apid, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
 		ok ->
 			% TODO update callbacks to accept {string(), pid()} structure.
+			GenPopopts = BaseState#base_state.url_pop_get_vars,
 			case Callback:handle_ring({Agent, Apid}, inqueue, Call, Internal, BaseState#base_state.substate) of
 				Success when element(1, Success) == ok ->
 					Popopts = case Success of
@@ -676,8 +673,7 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 						outband ->
 							{ok, undefined};
 						inband ->
-							gen_fsm:send_event_after(Timeout, {{'$gen_media', stop_ring}, QCall#queue_call.cook})
-							%timer:send_after(Timeout, {'$gen_media', stop_ring, QCall#queued_call.cook})
+							gen_fsm:send_event_after(Timeout, {{'$gen_media', stop_ring}, QCall#queued_call.cook})
 					end,
 					Self = self(),
 					spawn(fun() -> % do this in a subprocess so we don't block
@@ -686,7 +682,7 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 							{outband, inband, Pid} when is_pid(Pid) ->
 								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
 									{ok, RingChanPid} ->
-										gen_media:cast(Self, {'$gen_media', set_outband_ring_pid, RingChanPid}),
+										gen_fsm:send_event(Self, {{'$gen_media', set_outband_ring_pid}, RingChanPid}),
 										agent:has_successful_ring(Apid);
 									Else ->
 										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
@@ -705,7 +701,7 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 						cook = Internal#inqueue_state.cook,
 						ring_mon = Mon,
 						ring_pid = {Agent, Apid},
-						ringout = Tref
+						ringout = Tref,
 						outband_ring_pid = undefined
 					},
 					NewBase = BaseState#base_state{
@@ -715,11 +711,11 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 				{invalid, Substate} ->
 					agent:has_failed_ring(Apid),
 					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
-					{reply, invalid, inqueue, {BaseState#base_state{substate = Substate}}
+					{reply, invalid, inqueue, {BaseState#base_state{substate = Substate}}}
 			end;
 		Else ->
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
-			{reply, invalid, inqueue, State}
+			{reply, invalid, inqueue, {BaseState, Internal}}
 	end;
 
 inqueue({{'$gen_media', ring}, {{_Agent, Apid}, QCall, _Timeout}}, _From, State) ->
@@ -732,7 +728,7 @@ inqueue({{'$gen_media', announce}, Announce}, _From, {#base_state{
 	?INFO("Doing announce for ~p", [Call#call.id]),
 	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
 		true ->
-			{ok, N} = Callback:handle_announce(Annouce, inqueue, Call, Internal, InSubstate),
+			{ok, N} = Callback:handle_announce(Announce, inqueue, Call, Internal, InSubstate),
 			N;
 		false ->
 			InSubstate
@@ -773,7 +769,7 @@ inqueue({{'$gen_media', set_queue}, Qpid}, _From, {BaseState,
 	{reply, ok, inqueue, {BaseState, NewInternal}};
 
 inqueue({{'$gen_media', get_url_vars}, undefined}, _From, {BaseState, Internal}) ->
-	#base_state{url_pop_getvars = GenPopopts, substate = Substate,
+	#base_state{url_pop_get_vars = GenPopopts, substate = Substate,
 		callback = Callback} = BaseState,
 	Cbopts = case erlang:function_exported(Callback, urlpop_getvars, 1) of
 		true ->
@@ -825,17 +821,17 @@ inqueue(Msg, {#base_state{callback = Callback, callrec = Call} = BaseState,
 %%--------------------------------------------------------------------
 
 inqueue_ringing({{'$gen_media', announce}, Announce}, _From, {BaseState, Internal}) ->
-	#base_state{callback = Callback, stubstate = InSubstate,
+	#base_state{callback = Callback, substate = InSubstate,
 		callrec = Call} = BaseState,
 	?INFO("Doing announce for ~p", [Call#call.id]),
 	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
 		true ->
-			{ok, N} = Callback:handle_announce(Annouce, inqueue_ringing, Call, Internal, InSubstate),
+			{ok, N} = Callback:handle_announce(Announce, inqueue_ringing, Call, Internal, InSubstate),
 			N;
 		false ->
 			InSubstate
 	end,
-	{reply, ok, inqueue_ringing, {BaseState#state{substate = Substate}, Internal}};
+	{reply, ok, inqueue_ringing, {BaseState#base_state{substate = Substate}, Internal}};
 
 inqueue_ringing({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
@@ -860,15 +856,15 @@ inqueue_ringing({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Inter
 			end
 	end;
 
-inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid _Tag},
+inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid, _Tag},
 		{#base_state{callrec = #call{ring_path = outband} = Call} = BaseState,
 		#inqueue_ringing_state{ring_pid = {_, Apid}} = Internal}) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband for ~p", [Apid, Call#call.id]),
 	{reply, invalid, inqueue_ringing, {BaseState, Internal}};
 
 inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid, _Tag},
-		{#base_state{callrec = #call{ring_pid = inband} = Call} = BaseState,
-		#inqueue_ringing_state{ring_pid = {_, Apid}} = Internal}) ->
+		{#base_state{callrec = #call{ring_path = inband} = Call} = BaseState,
+		#inqueue_ringing_state{ring_pid = {Agent, Apid}} = Internal}) ->
 	#base_state{callback = Callback} = BaseState,
 	?INFO("oncall request from agent ~p for ~p", [Apid, Call#call.id]),
 	case Callback:handle_answer(Apid, inqueue_ringing, Call, Internal, BaseState#base_state.substate) of
@@ -913,15 +909,15 @@ inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, From, {BaseState, Int
 						oncall_pid = {Agent, Apid},
 						oncall_mon = Mon
 					},
-					set_cpx_mon({NewBase, NewInternal}),
-					{reply, ok, oncall, {NewBase, NewInternal}},
+					set_cpx_mon({NewBase, NewInternal}, []),
+					{reply, ok, oncall, {NewBase, NewInternal}};
 				{error, Reason, NewState} ->
 					?ERROR("Could not set ~p on call with ~p due to ~p", [Apid, Call#call.id, Reason]),
 					NewBase = BaseState#base_state{substate = NewState},
-					{reply, invalid, oncall, {NewBase, NewInternal}}
+					{reply, invalid, oncall, {NewBase, Internal}}
 			end;
 		badagent ->
-			{ok, NewSubstate} = Callback:handle_ring_stop(inqueue_ringing, Call, Intrnal, BaseState#base_state.substate),
+			{ok, NewSubstate} = Callback:handle_ring_stop(inqueue_ringing, Call, Internal, BaseState#base_state.substate),
 			kill_outband_ring({BaseState, Internal}),
 			cdr:ringout(Call, {badagent, Agent}),
 			gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
@@ -950,7 +946,7 @@ inqueue_ringing({{'$gen_media', set_queue}, Qpid}, _From, State) ->
 			erlang:demonitor(M)
 	end,
 	NewMon = erlang:monitor(process, Qpid),
-	NewInternal = Interal#inqueue_ringing_state{
+	NewInternal = Internal#inqueue_ringing_state{
 		queue_mon = NewMon,
 		queue_pid = {Queue, Qpid}
 	},
@@ -961,7 +957,7 @@ inqueue_ringing({{'$gen_media', announce}, Announce}, _From, {BaseState, Interna
 	?INFO("Doing announce for ~p", [Call#call.id]),
 	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
 		true ->
-			{ok, N} = Callback:handle_announce(Annouce, inqueue_ringing, Call, Internal, InSubstate),
+			{ok, N} = Callback:handle_announce(Announce, inqueue_ringing, Call, Internal, InSubstate),
 			N;
 		false ->
 			InSubstate
@@ -1028,17 +1024,17 @@ oncall({{'$gen_media', queue}, Queue}, From, {BaseState, Internal}) ->
 			{reply, invalid, {BaseState, Internal}};
 		{default, Qpid} ->
 			set_agent_state(Apid, [wrapup, Call]),
-			{ok, NewState} = Callback:handle_queue_transfer(oncall, State#state.callrec, Internal, State#state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer(oncall, BaseState#base_state.callrec, Internal, BaseState#base_state.substate),
 			cdr:queue_transfer(Call, "default_queue"),
 			cdr:inqueue(Call, "default_queue"),
 			cdr:wrapup(Call, Ocagent),
 			erlang:demonitor(Mon),
 			NewMon = erlang:monitor(process, Qpid),
 			NewInternal = #inqueue_state{
-				queue_mon = NewMon, queeu_pid = {Queue, Qpid}
+				queue_mon = NewMon, queue_pid = {Queue, Qpid}
 			},
 			NewBase = BaseState#base_state{substate = NewState},
-			set_cpx_mon({NewBase, NewInternal}),
+			set_cpx_mon({NewBase, NewInternal}, []),
 			{reply, ok, inqueue, {NewBase, NewInternal}};
 		Qpid when is_pid(Qpid) ->
 			set_agent_state(Apid, [wrapup, Call]),
@@ -1056,17 +1052,17 @@ oncall({{'$gen_media', queue}, Queue}, From, {BaseState, Internal}) ->
 			{reply, ok, inqueue, {NewBase, NewInternal}}
 	end;
 
-oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseState, #oncall{oncall_pid = {_, Apid}} = Internal} = State) ->
+oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseState, #oncall_state{oncall_pid = {_, Apid}} = Internal} = State) ->
 	Call = BaseState#base_state.callrec,
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, oncall, State};
 
 oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseState, Internal}) ->
-	#base_state{callrec = Call, callback = Callback, url_pop+getvars = GenPopopts} = BaseState,
+	#base_state{callrec = Call, callback = Callback, url_pop_get_vars = GenPopopts} = BaseState,
 	#oncall_state{oncall_pid = {OcAgent, Ocpid}, oncall_mon = Mon} = Internal,
 	case set_agent_state(Apid, [ringing, Call]) of
 		ok ->
-			case Callback:handle_agent_transfer(Apid, Timeout, oncall, State#state.callrec, Internal, BaseState#base_state.substate) of
+			case Callback:handle_agent_transfer(Apid, Timeout, oncall, BaseState#base_state.callrec, Internal, BaseState#base_state.substate) of
 				Success when element(1, Success) == ok ->
 					Popopts = case Success of
 						{ok, Substate} ->
@@ -1085,7 +1081,7 @@ oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseS
 						ring_pid = {Agent, Apid},
 						ringout = Tref,
 						ring_mon = RingMon,
-						oncall_pid = {OcAgent, Ocpid}
+						oncall_pid = {OcAgent, Ocpid},
 						oncall_mon = Mon
 					},
 					{reply, ok, oncall_ringing, {NewBase, NewInternal}};
@@ -1097,11 +1093,12 @@ oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseS
 			end;
 		invalid ->
 			?NOTICE("Could not ring ~p to target agent ~p", [Call#call.id, Apid]),
-			{reply, invalid, State}
+			{reply, invalid, oncall, {BaseState, Internal}}
 	end;
 
 oncall({{'$gen_media', warm_transfer_hold}, undefined}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call, substate = Substate} = BaseState,
+	#oncall_state{oncall_pid = {_, Apid}} = Internal,
 	case erlang:function_exported(Callback, handle_warm_transfer_hold, 4) of
 		true ->
 			case Callback:handle_warm_transfer_hold(oncall, Call, Internal, Substate) of
@@ -1124,19 +1121,11 @@ oncall({{'$gen_media', warm_transfer_hold}, undefined}, _From, {BaseState, Inter
 			{reply, invalid, oncall, {BaseState, Internal}}
 	end;
 
-
-
-
-
-
-
-oncall({'$gen_media', spy, Spy, _}, _From, {_, #oncall_state{oncall_pid = {_Nom, Spy}}} = State) ->
+oncall({{'$gen_media', spy}, {Spy, _}}, _From, {_, #oncall_state{oncall_pid = {_Nom, Spy}}} = State) ->
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, oncall, State};
 
-
-
-oncall({'$gen_media', spy, Spy, AgentRec}, _From, {BaseState, Oncall} = State) ->
+oncall({{'$gen_media', spy}, {Spy, AgentRec}}, _From, {BaseState, Oncall} = State) ->
 	Callback = BaseState#base_state.callback,
 	Call = BaseState#base_state.callrec,
 	case erlang:function_exported(Callback, handle_spy, 3) of
@@ -1155,7 +1144,7 @@ oncall({'$gen_media', spy, Spy, AgentRec}, _From, {BaseState, Oncall} = State) -
 			end
 	end;
 
-oncall('$gen_media', wrapup, {Ocpid, _Tag},
+oncall({{'$gen_media', wrapup}, undefined}, {Ocpid, _Tag},
 		{#base_state{callrec = Call} = BaseState,
 		#oncall_state{oncall_pid = {Ocagent, Ocpid}} = Oncall})
 		when Call#call.media_path =:= inband ->
@@ -1172,36 +1161,39 @@ oncall('$gen_media', wrapup, {Ocpid, _Tag},
 			{stop, normal, ok, {BaseState#base_state{substate = NewState}, Oncall#oncall_state{oncall_mon = undefined}}}
 	end;
 
-oncall('$gen_media', wrapup, {Ocpid, _Tag}, {#base_state{callrec = Call} = BaseState, #oncall_state{oncall_pid = {_Agent, Ocpid}}} = State) ->
+oncall({{'$gen_media', wrapup}, undefined}, {Ocpid, _Tag}, {#base_state{callrec = Call} = BaseState, #oncall_state{oncall_pid = {_Agent, Ocpid}} = Internal} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
 	{reply, invalid, oncall, State};
 
-oncall({'$gen_media', queue, Queue}, {Ocpid, _},
+oncall({{'$gen_media', queue}, Queue}, {Ocpid, _},
 		{#base_state{callback = Callback, callrec = Call} = BaseState,
 		#oncall_state{oncall_mon = Mons, oncall_pid = {Ocagent, Ocpid}} = Oncall} = State) ->
+	Internal = Oncall,
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% Decrement the call's priority by 5 when requeueing
-	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
+	case priv_queue(Queue, reprioritize_for_requeue(Call), BaseState#base_state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
-			cdr:queue_transfer(State#state.callrec, "default_queue"),
-			cdr:inqueue(State#state.callrec, "default_queue"),
-			cdr:wrapup(State#state.callrec, Ocagent),
-			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
-			erlang:demonitor(Mons#monitors.oncall_pid),
-			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+			{ok, NewState} = Callback:handle_queue_transfer(Call, BaseState#base_state.substate),
+			cdr:queue_transfer(Call, "default_queue"),
+			cdr:inqueue(Call, "default_queue"),
+			cdr:wrapup(Call, Ocagent),
+			set_cpx_mon({BaseState#base_state{substate = NewState},#wrapup_state{}}, [{queue, "default_queue"}]),
+			erlang:demonitor(Internal#oncall_state.oncall_mon),
+			{reply, ok, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};
 		Qpid when is_pid(Qpid) ->
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
-			cdr:queue_transfer(State#state.callrec, Queue),
-			cdr:inqueue(State#state.callrec, Queue),
-			cdr:wrapup(State#state.callrec, Ocagent),
-			erlang:demonitor(Mons#monitors.oncall_pid),
-			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
-			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+			{ok, NewState} = Callback:handle_queue_transfer(Call, BaseState#base_state.substate),
+			cdr:queue_transfer(Call, Queue),
+			cdr:inqueue(Call, Queue),
+			cdr:wrapup(Call, Ocagent),
+			erlang:demonitor(Internal#oncall_state.oncall_mon),
+			NewInternal = #inqueue_state{
+				queue_pid = {Queue, Qpid},
+				queue_mon = erlang:monitor(process, Qpid)
+			},
+			set_cpx_mon({BaseState#base_state{substate = NewState}, NewInternal}, [{queue, Queue}]),
+			{reply, ok, inqueue, {BaseState#base_state{substate = NewState}, NewInternal}}
 	end;
 
 oncall({{'$gen_media', Command}, _}, _, State) ->
@@ -1242,7 +1234,7 @@ oncall_ringing({{'$gen_media', agent_oncall}, undefined}, {Rpid, _},
 	#oncall_ringing_state{oncall_pid = {OcAgent, Ocpid}, ring_mon = Rmon, 
 		oncall_mon = Ocmon} = Internal,
 	?INFO("oncall request during what looks like an agent transfer (inband) for ~p", [Call#call.id]),
-	case Callback:handle_answer(Rpid, oncall_ringing, Call, Internal, State#state.substate) of
+	case Callback:handle_answer(Rpid, oncall_ringing, Call, Internal, BaseState#base_state.substate) of
 		{ok, NewState} ->
 			kill_outband_ring({BaseState, Internal}),
 			cdr:oncall(Call, Ragent),
@@ -1250,8 +1242,8 @@ oncall_ringing({{'$gen_media', agent_oncall}, undefined}, {Rpid, _},
 			set_agent_state(Ocpid, [wrapup, Call]),
 			cdr:wrapup(Call, OcAgent),
 			erlang:demonitor(Ocmon),
-			NewBase = BaseState#base_base{substate = NewState},
-			NewInteranl = #oncall{
+			NewBase = BaseState#base_state{substate = NewState},
+			NewInternal = #oncall_state{
 				oncall_pid = Internal#oncall_ringing_state.ring_pid,
 				oncall_mon = Internal#oncall_ringing_state.ring_mon
 			},
@@ -1284,13 +1276,13 @@ oncall_ringing({{'$gen_media', agent_oncall}, undefined}, _, State) ->
 					NewInternal = #oncall_state{
 						oncall_pid = {Ragent, Rpid},
 						oncall_mon = Internal#oncall_ringing_state.ring_mon
-					}
+					},
 					set_cpx_mon({NewBase, NewInternal}, [{agent, Ragent}]),
-					erlang:demonitor(OcMon),
+					erlang:demonitor(Ocmon),
 					{reply, ok, oncall, {NewBase, NewInternal}};
 				{error, Reason, NewState} ->
 					?ERROR("Cannot set ~p to oncall due to ~p for ~p", [Rpid, Reason, Call#call.id]),
-					NewBase = BaseState#base_state{ subate = NewState},
+					NewBase = BaseState#base_state{ substate = NewState},
 					{reply, invalid, oncall_ringing, {NewBase, Internal}}
 			end
 	end;
@@ -1304,8 +1296,6 @@ oncall_ringing(Msg, From, {#base_state{callback = Callback, callrec = Call}
 	Return = Callback:handle_call(Msg, From, oncall_ringing, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, oncall_ringing, reply, State).
 
-%oncall_ringing({'$gen_media', set_outband_ring_pid, Pid}, State) ->
-%	{noreply, State#state{outband_ring_pid = Pid}};
 oncall_ringing({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("invalid event command ~s while oncall_ringing", [Command]),
 	{next_state, oncall_ringing, State};
@@ -1319,12 +1309,12 @@ oncall_ringing(Msg, {#base_state{callback = Callback, callrec = Call} =
 %% warm_transfer_hold -> warm_transfer_3rd_party, warm_transfer_merged
 %%--------------------------------------------------------------------
 
-warm_transfer_hold({{'$gen_media', contact_3rd_party}, {new, Contact}}, _From, State) ->
+warm_transfer_hold({{'$gen_media', contact_3rd_party}, {new, Contact}}, _From, {BaseState, Internal} = State) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
 	#warm_transfer_hold_state{oncall_pid = {Agent, Apid}} = Internal,
 	case Callback:handle_contact_new_3rd_party(Contact, warm_transfer_hold, Call, Internal, BaseState#base_state.substate) of
 		{ok, {Id, Value}, NewState} ->
-			Res = set_agnet_state(Apid, [warm_transfer_3rd_party, Id, Value]),
+			Res = set_agent_state(Apid, [warm_transfer_3rd_party, Id, Value]),
 			cdr:warm_transfer_3rd_party(Call, {Contact, Id, Value}),
 			NewBase = BaseState#base_state{substate = NewState},
 			#warm_transfer_hold_state{
@@ -1345,15 +1335,15 @@ warm_transfer_hold({{'$gen_media', contact_3rd_party}, {new, Contact}}, _From, S
 
 warm_transfer_hold({{'$gen_media', contact_3rd_party}, {exisiting, Id}}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
-	#warm_transfer_hold{held_refs = HeldRefs} = Internal,
+	#warm_transfer_hold_state{held_refs = HeldRefs} = Internal,
 	case proplists:get_value(Id, HeldRefs) of
 		undefined ->
-			?INFO("No 3rd of id ~p on hold", [Id]);
-			{reply, invalid, warm_transfer_hold, {BaseState, Intenral}};
+			?INFO("No 3rd of id ~p on hold", [Id]),
+			{reply, invalid, warm_transfer_hold, {BaseState, Internal}};
 		Contact ->
 			case Callback:handle_contact_existing_3rd_party({Id, Contact}, warm_transfer_hold, Call, Internal, BaseState#base_state.substate) of
 				{ok, NewState} ->
-					NewBase = BaseState#base_state{substate = NewState};
+					NewBase = BaseState#base_state{substate = NewState},
 					#warm_transfer_hold_state{
 						oncall_pid = OcPid, oncall_mon = OcMon, 
 						merged_refs = MergedRefs, caller_ref = CallerRef
@@ -1362,7 +1352,7 @@ warm_transfer_hold({{'$gen_media', contact_3rd_party}, {exisiting, Id}}, _From, 
 					NewInternal = #warm_transfer_3rd_party_state{
 						oncall_pid = OcPid, oncall_mon = OcMon, held_refs = NewHeld,
 						merged_refs = MergedRefs, caller_ref = CallerRef,
-						active_ref = {Id, Value}
+						active_ref = {Id, Contact}
 					},
 					{reply, ok, warm_transfer_3rd_party, {NewBase, NewInternal}};
 				{drop, NewState} ->
@@ -1393,7 +1383,7 @@ warm_transfer_hold({{'$gen_media', merge}, undefined}, From, {BaseState, Interna
 			{reply, ok, warm_transfer_merged, {NewBase, NewInternal}};
 		{oncall, NewState} ->
 			NewBase = BaseState#base_state{substate = NewState},
-			#warm_transfer_hold{oncall_mon = OcMon, oncall_pid = OcPid} = Internal,
+			#warm_transfer_hold_state{oncall_mon = OcMon, oncall_pid = OcPid} = Internal,
 			NewInternal = #oncall_state{ oncall_mon = OcMon, oncall_pid = OcPid},
 			{reply, ok, oncall, {NewBase, NewInternal}};
 		{error, Error, NewState} ->
@@ -1405,25 +1395,6 @@ warm_transfer_hold({{'$gen_media', merge}, undefined}, From, {BaseState, Interna
 warm_transfer_hold({{'$gen_media', Command}, _}, _From, State) ->
 	?DEBUG("Invalid sync event command ~p while warm_transfer_hold", [Command]),
 	{reply, invalid, warm_transfer_hold, State};
-
-
-
-handle_call('$gen_media', warm_transfer_cancel, _From, #state{callback = Callback, oncall_pid = {Agent, Apid}, callrec = Call} = State) when is_pid(Apid) ->
-	case erlang:function_exported(Callback, handle_warm_transfer_cancel, 2) of
-		true ->
-			case Callback:handle_warm_transfer_cancel(Call, State#state.substate) of
-				{ok, NewState} ->
-					Res = set_agent_state(Apid, [oncall, Call]),
-					cdr:warmxfer_cancel(Call, Agent),
-					cdr:oncall(Call, Agent),
-					{reply, Res, State#state{substate = NewState, warm_transfer = false}};
-				{error, Error, NewState} ->
-					?DEBUG("Callback module ~w errored for warm transfer cancel:  ~p for ~p", [Callback, Error, Call#call.id]),
-					{reply, invalid, State#state{substate = NewState}}
-			end;
-		false ->
-			{reply, invalid, State}
-	end;
 
 warm_transfer_hold(Msg, From, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->
@@ -1440,21 +1411,21 @@ handle_custom_wt_return({drop, Reply, Id, NewState}, warm_transfer_hold, reply, 
 	{reply, Reply, StateName, StateData};
 
 handle_custom_wt_return({drop, Id, NewState}, warm_transfer_hold, _Reply, {BaseState, Internal}) ->
-	NewHeld = proplists:delete(Id, Internal#warm_transfer_hold.held_refs),
-	NewMerged = proplists:delete(Id, Internal#warm_transfer_hold.merged_refs),
-	NewInternal = Internal#warm_transfer_hold{held_refs = NewHeld, merged_refs = NewMerged},
+	NewHeld = proplists:delete(Id, Internal#warm_transfer_hold_state.held_refs),
+	NewMerged = proplists:delete(Id, Internal#warm_transfer_hold_state.merged_refs),
+	NewInternal = Internal#warm_transfer_hold_state{held_refs = NewHeld, merged_refs = NewMerged},
 	NewBase = BaseState#base_state{substate = NewState},
 	{next_state, warm_transfer_hold, {NewBase, NewInternal}};
 
 handle_custom_wt_return({merge, Reply, Info, NewState}, warm_transfer_hold, reply, State) ->
-	{next_state, StateName, StateData} = handle_cusomt_wt_return({merge, Info, NewState}, warm_transfer_hold, reply, State),
+	{next_state, StateName, StateData} = handle_custom_wt_return({merge, Info, NewState}, warm_transfer_hold, reply, State),
 	{reply, Reply, StateName, StateData};
 
 handle_custom_wt_return({merge, {Id, Data}, NewState}, warm_transfer_hold, _, {BaseState, Internal}) ->
-	NewHeld = proplists:delete(Id, Internal#warm_transfer_hold.held_refs),
-	MidMerged = proplists:delete(Id, Internal#warm_transfer_hold.merged_refs),
+	NewHeld = proplists:delete(Id, Internal#warm_transfer_hold_state.held_refs),
+	MidMerged = proplists:delete(Id, Internal#warm_transfer_hold_state.merged_refs),
 	NewMerged = [{Id, Data} | MidMerged],
-	NewInternal = Internal#warm_transfer_hold{held_refs = NewHeld,
+	NewInternal = Internal#warm_transfer_hold_state{held_refs = NewHeld,
 		merged_refs = NewMerged},
 	NewBase = BaseState#base_state{substate = NewState},
 	{next_state, warm_transfer_hold, {NewBase, NewInternal}};
@@ -1464,10 +1435,10 @@ handle_custom_wt_return({held, Reply, Info, NewState}, warm_transfer_hold, reply
 	{reply, Reply, StateName, StateData};
 
 handle_custom_wt_return({held, {Id, Data}, NewState}, warm_transfer_hold, _, {BaseState, Internal}) ->
-	MidHeld = proplists:delete(Id, Internal#warm_transfer_hold.held_refs),
-	NewMerged = proplists:delete(Id, Internal#warm_transfer_hold.merged_refs),
+	MidHeld = proplists:delete(Id, Internal#warm_transfer_hold_state.held_refs),
+	NewMerged = proplists:delete(Id, Internal#warm_transfer_hold_state.merged_refs),
 	NewHeld = [{Id, Data} | MidHeld],
-	NewInternal = Internal#warm_transfer_hold{held_refs = NewHeld,
+	NewInternal = Internal#warm_transfer_hold_state{held_refs = NewHeld,
 		merged_refs = NewMerged},
 	NewBase = BaseState#base_state{substate = NewState},
 	{next_state, warm_transfer_hold, {NewBase, NewInternal}};
@@ -1488,26 +1459,6 @@ warm_transfer_3rd_party(Msg, From, {BaseState, Internal} = State) ->
 	#base_state{callback = Callback, callrec = Call, substate = Sub} = BaseState,
 	Reply = Callback:handle_call(Msg, From, warm_transfer_3rd_pary, Call, Internal, Sub),
 	handle_custom_wt_return(Reply, warm_transfer_3rd_party, reply, State).
-
-
-%handle_call('$gen_media', warm_transfer_complete, _From, #state{callback = Callback, oncall_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
-%	case erlang:function_exported(Callback, handle_warm_transfer_complete, 2) of
-%		true ->
-%			case Callback:handle_warm_transfer_complete(Call, State#state.substate) of
-%				{ok, NewState} ->
-%					Res = set_agent_state(Apid, [wrapup, Call]),
-%					cdr:warmxfer_complete(Call, Agent),
-%					cdr:wrapup(Call, Agent),
-%					erlang:demonitor(Mons#monitors.oncall_pid),
-%					Newmons = Mons#monitors{oncall_pid = undefined},
-%					{reply, Res, State#state{substate = NewState, oncall_pid = undefined, monitors = Newmons}};
-%				{error, Error, NewState} ->
-%					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p for ~p", [Callback, Error, Call#call.id]),
-%					{reply, invalid, State#state{substate = NewState}}
-%			end;
-%		false ->
-%			{reply, invalid, State}
-%	end;
 
 warm_transfer_3rd_party({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("Invalid event command ~p while in warm_transfer_3rd_party", [Command]),
@@ -1537,7 +1488,7 @@ warm_transfer_merged({{'$gen_media', oncall}, undefined}, From, State) ->
 		{error, Error, NewState} ->
 			NewBase = BaseState#base_state{substate = NewState},
 			{reply, invalid, warm_transfer_merged, {NewBase, Internal}}
-	end.
+	end;
 
 warm_transfer_merged({{'$gen_media', remove_agent}, undefined}, From, State) ->
 	{BaseState, Internal} = State,
@@ -1560,13 +1511,13 @@ warm_transfer_merged({{'$gen_media', end_media}, undefined}, From, State) ->
 			NewBase = BaseState#base_state{substate = NewState},
 			{reply, invalid, warm_transfer_merged, {NewBase, Internal}};
 		{ok, NewState} ->
-			erlang:demonitor(Internal#warm_transfer_merged.oncall_mon),
-			NewBase = BaseState#base_state{substate = NewStaet},
+			erlang:demonitor(Internal#warm_transfer_merged_state.oncall_mon),
+			NewBase = BaseState#base_state{substate = NewState},
 			{reply, ok, wrapup, {NewBase, #wrapup_state{}}};
 		{hangup, NewState} ->
 			cdr:hangup(BaseState#base_state.callrec, "agent"),
-			erlang:demonitor(Internal#warm_transfer_merged.oncall_mon),
-			{stop, normal, ok, {BaseState#base_state{substate = NewState}, #wrapu_state{}}}
+			erlang:demonitor(Internal#warm_transfer_merged_state.oncall_mon),
+			{stop, normal, ok, {BaseState#base_state{substate = NewState}, #wrapup_state{}}}
 	end;
 
 warm_transfer_merged({{'$gen_media', warm_transfer_hold}, undefined}, From, State) ->
@@ -1575,8 +1526,7 @@ warm_transfer_merged({{'$gen_media', warm_transfer_hold}, undefined}, From, Stat
 	#warm_transfer_merged_state{
 		oncall_mon = OcMon,
 		oncall_pid = {_, Apid} = OcPid,
-		held_refs = HoldRefs,
-		merged_refs = MergeRefs
+		merged_refs = MergeRefs,
 		caller_ref = CallRef
 	} = Internal,
 	case Callback:handle_warm_transfer_hold(warm_transfer_merged, From, Call, Internal, Sub) of
@@ -1588,7 +1538,7 @@ warm_transfer_merged({{'$gen_media', warm_transfer_hold}, undefined}, From, Stat
 				oncall_pid = OcPid,
 				oncall_mon = OcMon,
 				caller_ref = CallRef,
-				held_refs = HoldRefs,
+				held_refs = [],
 				merged_refs = MergeRefs
 			},
 			{reply, ok, warm_transfer_hold, {NewBase, NewInternal}};
@@ -1645,7 +1595,7 @@ handle_sync_event({{'$gen_media', get_url_vars}, _}, _From, StateName, State) ->
 	{BaseState, _Internal} = State,
 	#base_state{
 		substate = Substate,
-		url_pop_get_vars = GenPopopts
+		url_pop_get_vars = GenPopopts,
 		callback = Callback
 	} = BaseState,
 	Cbopts = case erlang:function_exported(Callback, urlpop_getvars, 1) of
@@ -1683,10 +1633,10 @@ handle_sync_event(Msg, From, StateName, {#base_state{callback = Callback,
 
 handle_event({{'$gen_media', set_url_getvars}, Vars}, StateName, State) ->
 	{BaseState, Internal} = State,
-	#base_state{url_pop_getvars = Oldvars} = BaseState,
+	#base_state{url_pop_get_vars = Oldvars} = BaseState,
 	Newvars = lists:ukeymerge(1, lists:ukeysort(1, Vars), lists:ukeysort(1, Oldvars)),
 	?DEBUG("Input:  ~p;  Old:  ~p;  new:  ~p", [Vars, Oldvars, Newvars]),
-	NewBase = BaseState#base_state{url_pop_getvars = Newvars},
+	NewBase = BaseState#base_state{url_pop_get_vars = Newvars},
 	{next_state, StateName, {NewBase, Internal}};
 
 handle_event({{'$gen_media', add_skills}, Skills}, StateName, State) ->
@@ -1700,144 +1650,149 @@ handle_event({{'$gen_media', Command}, _}, StateName, State) ->
 	?DEBUG("Invalid generic event command ~p while in state ~p", [Command, StateName]),
 	{next_state, StateName, State};
 
-handle_cast(Msg, StateName, {BaseState, Internal} = State) ->
-	#base_state{callback = Callback, callrec = Call, subastate = Sub} = BaseState,
+handle_event(Msg, StateName, {BaseState, Internal} = State) ->
+	#base_state{callback = Callback, callrec = Call, substate = Sub} = BaseState,
 	Reply = Callback:handle_cast(Msg, StateName, Call, Internal, Sub),
-	case lists:memeber(StateName, Wts) of
+	Wts = [warm_transfer_hold, warm_transfer_3rd_party, warm_transfer_merged],
+	case lists:member(StateName, Wts) of
 		true ->
-			handle_custom_wt_return(Return, StateName, reply, State);
+			handle_custom_wt_return(Reply, StateName, reply, State);
 		false ->
-			handle_custom_return(Return, StateName, reply, State)
-	end.
-	handle_custom_return(Reply, State, noreply).
+			handle_custom_return(Reply, StateName, reply, State)
+	end,
+	handle_custom_return(Reply, StateName, State, noreply).
 
 %%--------------------------------------------------------------------
 %% handle_info
 %%--------------------------------------------------------------------
+
+handle_info({'DOWN', Ref, process, Pid, Info}, inqueue, {BaseState,
+		#inqueue_state{ queue_pid = {Q, Pid}, queue_mon = Ref} = Internal}) ->
+	#base_state{callrec = Call} = BaseState,
+	?WARNING("Queue ~p died due to ~p (I'm ~p)", [Q, Info, Call#call.id]),
+	%% in theory, the cook will tell us when the queue is back up.
+	NewInternal = Internal#inqueue_state{
+		queue_pid = {Q, undefined},
+		queue_mon = undefined
+	},
+	{next_state, inqueue, {BaseState, NewInternal}};
+
+handle_info({'DOWN', Ref, process, Pid, Info}, inqueue_ringing, {BaseState,
+		#inqueue_ringing_state{ queue_pid = {Q, Pid}, queue_mon = Ref} =
+		Internal}) ->
+	#base_state{callrec = Call} = BaseState,
+	?WARNING("Queue ~p died due to ~p (I'm ~p)", [Q, Info, Call#call.id]),
+	%% in theory, the cook will tell us when the queue is back up.
+	NewInternal = Internal#inqueue_ringing_state{
+		queue_pid = {Q, undefined},
+		queue_mon = undefined
+	},
+	{next_state, inqueue_ringing, {BaseState, NewInternal}};
+
+handle_info({'DOWN', Ref, process, Pid, Info}, inqueue_ringing, {BaseState,
+		#inqueue_ringing_state{cook_mon = Ref, cook = Ref} = Internal}) ->
+	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
+	#inqueue_ringing_state{ring_pid = {Aname, Apid}} = Internal,
+	?WARNING("Cook died due to ~p (I'm ~p)", [Info, Call#call.id]),
+	case agent:query_state(Apid) of
+		{ok, ringing} ->
+			set_agent_state(Apid, [idle]);
+		_ ->
+			ok
+	end,
+	{ok, NewSub} = Callback:handle_ring_stop(inqueue_ringing, Call, Internal, Sub),
+	kill_outband_ring({BaseState, Internal}),
+	cdr:ringout(Call, {cook_death, Aname}),
+	erlang:demonitor(Internal#inqueue_ringing_state.ring_mon),
+	NewCall = Call#call{cook = undefined},
+	NewBase = BaseState#base_state{substate = NewSub, callrec = NewCall},
+	NewInternal = #inqueue_state{
+		queue_mon = Internal#inqueue_ringing_state.queue_mon,
+		queue_pid = Internal#inqueue_ringing_state.queue_pid
+	},
+	{next_state, inqueue, {NewBase, NewInternal}};
+
+handle_info({'DOWN', Ref, process, Pid, Info}, inqueue, {BaseState,
+		#inqueue_state{cook = Pid, cook_mon = Ref} = Internal}) ->
+	% not much to do, a ressurected cook will tell us about itself.
+	#base_state{callrec = Call} = BaseState,
+	NewCall = Call#call{cook = undefined},
+	NewBase = BaseState#base_state{callrec = Call},
+	NewInternal = #inqueue_state{
+		cook = undefined,
+		cook_mon = undefined
+	},
+	{next_state, inqueue, {NewBase, NewInternal}};
+	
+handle_info({'DOWN', Ref, process, Pid, Info}, inqueue_ringing, {BaseState,
+		#inqueue_ringing_state{ring_pid = {Aname, Pid}, ring_mon = Ref} = Internal}) ->
+	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
+	?WARNING("ringing Agent fsm ~p died due to ~p (I'm ~p)", [Aname, Info, Call#call.id]),
+	% no need to modify agent state since it's already dead.
+	gen_server:cast(Call#call.cook, stop_ringing),
+	{ok, Newsub} = Callback:handle_ring_stop(inqueue_ringing, Call, Internal, Sub),
+	kill_outband_ring({BaseState, Internal}),
+	cdr:ringout(Call, {agent_fsm_death, Aname}),
+	NewBase = BaseState#base_state{substate = Sub},
+	#inqueue_ringing_state{queue_mon = Qmon, queue_pid = Qpid, cook_mon = Cmon,
+		cook = Cook} = Internal,
+	NewInternal = #inqueue_state{
+		queue_mon = Qmon,
+		queue_pid = Qpid,
+		cook = Cook,
+		cook_mon = Cmon
+	},
+	{next_state, inqueue, {NewBase, NewInternal}};
+
+handle_info({'DOWN', Ref, process, Pid, Info}, oncall_ringing, {BaseState,
+		#oncall_ringing_state{oncall_pid = {Agent, Pid}, oncall_mon = Ref} =
+		Internal}) ->
+	?WARNING("Oncall agent ~p died while in agent transfer", [Pid]),
+	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
+	% it is up to the media to do the messages to ultimately end ringing
+	% if that actually matters.
+	{ok, NewSub} = Callback:handle_queue_transfer(oncall_ringing, Call, Internal, Sub),
+	{default, Qpid} = priv_queue("default_queue", reprioritize_for_requeue(Call), true),
+	Qmon = erlang:monitor(process, Qpid),
+	NewBase = BaseState#base_state{substate = NewSub},
+	#oncall_ringing_state{ring_pid = Rpid, ring_mon = Rmon} = Internal,
+	NewInternal = #inqueue_ringing_state{
+		ring_pid = Rpid, ring_mon = Rmon, queue_pid = {"default_queue", Qpid},
+		queue_mon = Qmon
+	},
+	{next_state, inqueue_ringing, {NewBase, NewInternal}};
+	
+handle_info({'DOWN', Ref, process, Pid, Info}, oncall_ringing, {BaseState,
+		#oncall_ringing_state{ring_pid = {Agent, Pid}, ring_mon = Ref} = 
+		Internal}) ->
+	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
+	?WARNING("Ringing agent ~p died while oncall", [Pid]),
+	{ok, NewSub} = Callback:handle_ring_stop({Agent, Pid}, oncall_ringing, Call, Internal, Sub),
+	NewBase = BaseState#base_state{substate = NewSub},
+	#oncall_ringing_state{oncall_pid = Ocpid, oncall_mon = OcMon} = Internal,
+	NewInternal = #oncall_state{oncall_pid = Ocpid, oncall_mon = OcMon},
+	{next_state, oncall, {NewBase, NewInternal}};
+
+handle_info({'DOWN', Ref, process, Pid, Info}, oncall, {BaseState, 
+		#oncall_state{oncall_pid = {Agent, Pid}, oncall_mon = Ref} = 
+		Internal}) ->
+	?WARNING("Oncall agent ~p died due to ~p", [Pid, Info]),
+	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
+	{default, Qpid} = priv_queue("default_queue", reprioritize_for_requeue(Call), false),
+	{ok, NewState} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, Call, Internal, Sub),
+	NewBase = BaseState#base_state{substate = Sub},
+	Qmon = erlang:monitor(process, Qpid),
+	NewInternal = #inqueue_state{
+		queue_pid = {"default_queue", Qpid},
+		queue_mon = Qmon
+	},
+	{next_state, inqueue, {NewBase, NewInternal}};
 
 handle_info(Msg, StateName, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->
 	Return = Callback:handle_info(Msg, StateName, Call, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, StateName, noreply, State).
 
-%%--------------------------------------------------------------------
-%% old handle info
-%%--------------------------------------------------------------------
-
-%% @private
-handle_info({'$gen_media', stop_ring, Apid}, #state{ring_pid = {Agent, Apid}, callback = Callback, callrec = Callrec, monitors = Mons} = State) ->
-	?INFO("ring agent ~w requested a stop to ringing for ~p", [Apid, Callrec#call.id]),
-	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-	gen_server:cast(Callrec#call.cook, stop_ringing),
-	kill_outband_ring(State),
-	cdr:ringout(Callrec, {agent_request, Agent}),
-	erlang:demonitor(Mons#monitors.ring_pid),
-	Newmons = Mons#monitors{ring_pid = undefined},
-	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
-handle_info({'$gen_media', stop_ring, _Cook}, #state{ring_pid = undefined, callrec = Call} = State) ->
-	?NOTICE("No agent is ringing for this call ~p", [Call#call.id]),
-	{noreply, State};
-handle_info({'$gen_media', stop_ring, _Cook}, #state{ringout = false, callrec = Call} = State) ->
-	?NOTICE("Ringout is set not to be handled for ~p", [Call#call.id]),
-	{noreply, State};
-handle_info({'$gen_media', stop_ring, Cook}, #state{ring_pid = {Agent, Apid}, callback = Callback, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
-	?INFO("Handling ringout... for ~p", [Call#call.id]),
-	Reason = try agent:query_state(Apid) of
-		{ok, ringing} ->
-			set_agent_state(Apid, [idle]),
-			ringout;
-		{ok, released} ->
-			released;
-		_Else ->
-			ringout
-	catch
-		What:Why ->
-			?INFO("getting agent info failed due to ~p:~p for ~p", [What, Why, Call#call.id]),
-			ringout
-	end,
-	gen_server:cast(Cook, stop_ringing),
-	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-	kill_outband_ring(State),
-	cdr:ringout(State#state.callrec, {Reason, Agent}),
-	erlang:demonitor(Mons#monitors.ring_pid),
-	Newmons = Mons#monitors{ring_pid = undefined},
-	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
-
-handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback, queue_pid = {Q, _Qp}} = State) when Ref =:= Mons#monitors.queue_pid ->
-	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),
-	%% in theory, the cook will tell us when the queue is back up.
-	Newmons = Mons#monitors{queue_pid = undefined},
-	Newstate = State#state{monitors = Newmons, queue_pid = {Q, undefined}},
-	{noreply, Newstate};
-
-handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.cook ->
-	?WARNING("Cook died due to ~p (I'm ~p)", [Info, Call#call.id]),
-	%% if we're queued (which we should be) and ringing, stop ringing
-	%% so the new cook doesn't stomp / route on us
-	Midmons = Mons#monitors{cook = undefined},
-	case {State#state.ring_pid, State#state.queue_pid} of
-		{undefined, _} ->
-			%% must be a late down message.
-			Newstate = State#state{monitors = Midmons},
-			{noreply, Newstate};
-		{{_Aname, _Apid}, undefined} ->
-			% no queue means there should be no cook.
-			% must be a late message.
-			Newstate = State#state{monitors = Midmons},
-			{noreply, Newstate};
-		{{Aname, Apid}, {_Qnom, _Qpid}} ->
-			case agent:query_state(Apid) of
-				{ok, ringing} ->
-					set_agent_state(Apid, [idle]);
-				_ ->
-					ok
-			end,
-			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-			kill_outband_ring(State),
-			cdr:ringout(State#state.callrec, {cook_death, Aname}),
-			erlang:demonitor(Mons#monitors.ring_pid),
-			Newmons = Midmons#monitors{ring_pid = undefined},
-			{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}}
-	end;
-
-handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.ring_pid ->
-	?WARNING("ringing Agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.ring_pid), Info, Call#call.id]),
-	% no need to modify agent state since it's already dead.
-	gen_server:cast(Call#call.cook, stop_ringing),
-	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-	kill_outband_ring(State),
-	cdr:ringout(State#state.callrec, {agent_fsm_death, element(1, State#state.ring_pid)}),
-	Newmons = Mons#monitors{ring_pid = undefined},
-	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
-
-handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
-	?WARNING("Oncall agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.oncall_pid), Info, Call#call.id]),
-	Midstate = case State#state.ring_pid of
-		{_Ragent, _Rpid} ->
-			 % if this agent doesn't answer, the call is orphaned.  Just going to queue.
-			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-			agent_interact({stop_ring, oncall_fsm_death}, State#state{substate = Newsub});
-		_ ->
-			% noop
-			State
-	end,
-	Bumpedcall = reprioritize_for_requeue(Call),
-	% yes I want this to die horribly if we can't requeue
-	Queunom = case State#state.queue_pid of
-		undefined ->
-			"default_queue";
-		_ ->
-			State#state.queue_pid
-	end,
-	{reply, ok, Newstate} = handle_call({'$gen_media', queue, Queunom}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
-	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),
-	{noreply, Newstate};
-
-handle_info(Info, #state{callback = Callback} = State) ->
-	%?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
-	Return = Callback:handle_info(Info, State#state.callrec, State#state.substate),
-	handle_custom_return(Return, State, noreply).
-	
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
@@ -1852,12 +1807,15 @@ terminate(Reason, StateName, {#base_state{callback = Callback, callrec =
 %%--------------------------------------------------------------------
 
 %% @private
-code_change(OldVsn, StateName, #state{callback = Callback} = State, Extra) ->
-	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
-    {ok, StateName, State#state{substate = Newsub}}.
+code_change(OldVsn, StateName, State, Extra) ->
+	{BaseState, Internal} = State,
+	#base_state{callback = Callback, callrec = Call, substate = Sub} = BaseState,
+	{ok, Newsub} = Callback:code_change(OldVsn, Call, StateName, Sub, Internal, Extra),
+    {ok, StateName, {BaseState#base_state{substate = Newsub}, Internal}}.
 
--spec(format_status/2 :: (Cause :: any(), [any()]) -> #state{}).
-format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
+-spec(format_status/2 :: (Cause :: any(), [any()]) -> {#base_state{}, any()}).
+format_status(Normalcy, [PDict, {#base_state{callback = Mod, substate =
+		SubState, callrec = Call} = BaseState, Internal} = State]) ->
 	% prevent client data from being dumped
 	NewCall = case Call#call.client of
 		Client when is_record(Client, client) ->
@@ -1865,40 +1823,21 @@ format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callre
 		_ ->
 			Call
 	end,
-	NewState = State#state{callrec = NewCall},
-
 	% allow media callback to scrub its state
 	SubStat = case erlang:function_exported(Mod, format_status, 2) of
 		true ->
-			case catch Mod:format_status(normal, [PDict, SubState]) of
+			case catch Mod:format_status(Normalcy, [PDict, SubState]) of
 				{'EXIT', _} -> SubState;
 				Else -> Else
 			end;
 		_ ->
 			SubState
 	end,
-	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubStat}]}];
-format_status(terminate, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
-	% prevent client data from being dumped
-	NewCall = case Call#call.client of
-		Client when is_record(Client, client) ->
-			Call#call{client = Client#client{options = []}};
-		_ ->
-			Call
-	end,
-	NewState = State#state{callrec = NewCall},
+	NewBase = BaseState#base_state{callrec = NewCall, substate = SubStat},
+	[{data, [{"State", {NewBase, Internal}}, {"SubState", SubStat}]}];
 
-	% allow media callback to scrub its state
-	SubStat = case erlang:function_exported(Mod, format_status, 2) of
-		true ->
-			case catch Mod:format_status(terminate, [PDict, SubState]) of
-				{'EXIT', _} -> SubState;
-				Else -> Else
-			end;
-		_ ->
-			SubState
-	end,
-	NewState#state{substate = SubStat}.
+format_status(terminate, Args) ->
+	format_status(normal, Args).
 
 %%====================================================================
 %% Internal functions
@@ -1954,7 +1893,7 @@ handle_custom_return({queue, Queue, PCallrec, NewState}, inivr, Reply, {BaseStat
 handle_custom_return({voicemail, NewState}, StateName, Reply, 
 		{BaseState, InternalState}) when StateName =:= inqueue; 
 		StateName =:= inqueue_ringing ->
-	priv_voicemail(BaseState, InternalState),
+	priv_voicemail({BaseState, InternalState}),
 	NewBase = BaseState#base_state{
 		substate = NewState
 	},
@@ -2038,7 +1977,7 @@ handle_custom_return({hangup, Who}, inqueue, Reply,
 	#inqueue_state{queue_mon = Qmon, queue_pid = {_, Qpid}} = Internal,
 	?INFO("hang for ~p up when only queue is a pid", [Callrec#call.id]),
 	unqueue(Qpid, self()),
-	cdr:hangup(#state.callrec, Who),
+	cdr:hangup(Callrec, Who),
 	erlang:demonitor(Qmon),
 	case Reply of
 		reply ->
@@ -2327,13 +2266,13 @@ correct_client_sub(Id) ->
 	end,
 	Client.
 
--spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
-set_cpx_mon(#state{callrec = Call} = _State, delete) ->
+-spec(set_cpx_mon/2 :: (State :: {#base_state{}, any()}, Action :: proplist() | 'delete') -> 'ok').
+set_cpx_mon({#base_state{callrec = Call}, _}, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
-set_cpx_mon(#state{callrec = _Call} = State, Details) ->
+set_cpx_mon({#base_state{callrec = _Call}, _} = State, Details) ->
 	set_cpx_mon(State, Details, ignore).
 
-set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
+set_cpx_mon({#base_state{callrec = Call}, _}, Details, Watch) ->
 	Client = Call#call.client,
 	MidBasedet = [
 		{type, Call#call.type},
@@ -2376,7 +2315,7 @@ priv_queue(Queue, Callrec, Failover) ->
 			Qpid
 	end.
 
-priv_voicemail(BaseState, #inqueue_ringing_state{ring_mon = Rmon, ring_pid = {_, Rpid}} = Internal) ->
+priv_voicemail({BaseState, #inqueue_ringing_state{ring_mon = Rmon, ring_pid = {_, Rpid}} = Internal}) ->
 	erlang:demonitor(Rmon),
 	set_agent_state(Rpid, [idle]),
 	NewInternal = #inqueue_state{
@@ -2384,33 +2323,33 @@ priv_voicemail(BaseState, #inqueue_ringing_state{ring_mon = Rmon, ring_pid = {_,
 		queue_pid = Internal#inqueue_ringing_state.queue_pid,
 		cook = Internal#inqueue_ringing_state.cook
 	},
-	priv_voicemail(BaseState, NewInternal);
+	priv_voicemail({BaseState, NewInternal});
 
-priv_voicemail(BaseState, #inqueue_state{queue_mon = Mon, queue_pid = {QNom, QPid}}) ->
+priv_voicemail({BaseState, #inqueue_state{queue_mon = Mon, queue_pid = {QNom, QPid}}}) ->
 	erlaang:demonitor(Mon),
 	call_queue:remove(QPid, self()),
 	cdr:voicemail(BaseState#base_state.callrec, QNom),
 	ok.
 
-priv_voicemail(#state{monitors = Mons} = State) ->
-	Qref = case State#state.queue_pid of
-		undefined ->
-			% meh
-			undefined;
-		{Qnom, Qpid} ->
-			erlang:demonitor(Mons#monitors.queue_pid),
-			call_queue:remove(Qpid, self()),
-			Qnom
-	end,
-	cdr:voicemail(State#state.callrec, Qref),
-	case State#state.ring_pid of
-		undefined ->
-			ok;
-		{_Agent, Apid} when is_pid(Apid) ->
-			erlang:demonitor(Mons#monitors.ring_pid),
-			set_agent_state(Apid, [idle])
-	end,
-	ok.
+%priv_voicemail(#state{monitors = Mons} = State) ->
+%	Qref = case State#state.queue_pid of
+%		undefined ->
+%			% meh
+%			undefined;
+%		{Qnom, Qpid} ->
+%			erlang:demonitor(Mons#monitors.queue_pid),
+%			call_queue:remove(Qpid, self()),
+%			Qnom
+%	end,
+%	cdr:voicemail(State#state.callrec, Qref),
+%	case State#state.ring_pid of
+%		undefined ->
+%			ok;
+%		{_Agent, Apid} when is_pid(Apid) ->
+%			erlang:demonitor(Mons#monitors.ring_pid),
+%			set_agent_state(Apid, [idle])
+%	end,
+%	ok.
 
 % make the call higher priority in preparation for requeueing
 reprioritize_for_requeue(Call) ->
@@ -2430,13 +2369,10 @@ unqueue(Qpid, Callpid) when is_pid(Qpid) ->
 	call_queue:remove(Qpid, Callpid),
 	ok.
 
-kill_outband_ring(State) ->
-	case State#state.outband_ring_pid of
-		undefined ->
-			ok;
-		Pid when is_pid(Pid) ->
-			freeswitch_ring:hangup(Pid)
-	end.
+kill_outband_ring({_, #inqueue_ringing_state{outband_ring_pid = P}}) when is_pid(P) ->
+	freeswitch_ring:hangup(P);
+kill_outband_ring(_) ->
+	ok.
 
 extract_agent(#inqueue_ringing_state{ring_pid = O, ring_mon = M}) ->
 	{O, M};
@@ -2444,11 +2380,11 @@ extract_agent(#oncall_state{oncall_pid = O, oncall_mon = M}) ->
 	{O, M};
 extract_agent(#oncall_ringing_state{oncall_pid = O, oncall_mon = M}) ->
 	{O, M};
-extract_agent(#warm_transfer_hold{oncall_pid = O, oncall_mon = M}) ->
+extract_agent(#warm_transfer_hold_state{oncall_pid = O, oncall_mon = M}) ->
 	{O, M};
-extract_agent(#warm_transfer_3rd_party{oncall_pid = O, oncall_mon = M}) ->
+extract_agent(#warm_transfer_3rd_party_state{oncall_pid = O, oncall_mon = M}) ->
 	{O, M};
-extract_agent(#warm_transfer_merged{oncall_pid = O, oncall_mon = M}) ->
+extract_agent(#warm_transfer_merged_state{oncall_pid = O, oncall_mon = M}) ->
 	{O, M}.
 
 agent_interact(Action, StateName, {BaseState, Internal}) ->
@@ -2574,46 +2510,31 @@ agent_interact({hangup, Who}, State, #base_state{callrec = Callrec} =
 	?INFO("hangup for ~p while in state ~p; not taking action at this time.", [Callrec#call.id, State]),
 	{State, {BaseState, Internal}}.
 
-%agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
-%	?INFO("hangup for ~p when only ringing is a pid", [Call#call.id]),
-%	set_agent_state(Apid, [idle]),
-%	cdr:hangup(Call, Who),
-%	kill_outband_ring(State),
-%	erlang:demonitor(Mons#monitors.ring_pid),
-%	State#state{ring_pid = undefined, outband_ring_pid = undefined, monitors = #monitors{}};
-agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = _Nottuple, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
-	?INFO("orphaned call ~p, no queue or agents at all", [Call#call.id]),
-	cdr:hangup(State#state.callrec, Who),
-	State;
-agent_interact({hangup, _Who}, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
-	?INFO("Truely orphaned call, no queue, agents, or even a call record", []),
-	State.
-
 %% These should crash the media if the agent doesn't exist.
-outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = State) when is_record(State#state.callrec, call) ->
-	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
-	case agent_manager:query_agent(Agent) of
-		{true, Apid} ->
-			agent:set_state(Apid, outgoing, State#state.callrec),
-			cdr:oncall(State#state.callrec, Agent),
-			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
-			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState, monitors = NewMons}};
-		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
-			{{error, {noagent, Agent}}, State#state{substate = NewState}}
-	end;
-outgoing({outbound, Agent, Call, NewState}, #state{monitors = Mons} = State) when is_record(Call, call) ->
-	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call#call.id]),
-	case agent_manager:query_agent(Agent) of
-		{true, Apid} ->
-			agent:set_state(Apid, outgoing, Call),
-			cdr:oncall(Call, Agent),
-			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
-			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}, monitors = NewMons}};
-		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
-			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
-	end.
+%outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = State) when is_record(State#state.callrec, call) ->
+%	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
+%	case agent_manager:query_agent(Agent) of
+%		{true, Apid} ->
+%			agent:set_state(Apid, outgoing, State#state.callrec),
+%			cdr:oncall(State#state.callrec, Agent),
+%			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+%			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState, monitors = NewMons}};
+%		false ->
+%			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
+%			{{error, {noagent, Agent}}, State#state{substate = NewState}}
+%	end;
+%outgoing({outbound, Agent, Call, NewState}, #state{monitors = Mons} = State) when is_record(Call, call) ->
+%	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call#call.id]),
+%	case agent_manager:query_agent(Agent) of
+%		{true, Apid} ->
+%			agent:set_state(Apid, outgoing, Call),
+%			cdr:oncall(Call, Agent),
+%			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+%			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}, monitors = NewMons}};
+%		false ->
+%			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
+%			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
+%	end.
 
 -ifdef(TEST).
 

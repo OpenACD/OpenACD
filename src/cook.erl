@@ -509,6 +509,44 @@ check_conditions([{type, Comparision, CType} | Conditions], Ticked, Qpid, Call) 
 			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
+	end;
+check_conditions([{caller_name, Comparison, RegEx} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	{Name, _} = Callrec#call.callerid,
+	case re:compile(RegEx) of
+		{error, Err} ->
+			?WARNING("Err compiling regex:  ~p", [Err]),
+			false;
+		{ok, CompiledReg} ->
+			Match = case re:run(Name, CompiledReg) of
+				{match, _} -> match;
+				ElseMatch -> ElseMatch
+			end,
+			case {Match, Comparison} of
+				{match, '!='} -> false;
+				{nomatch, '='} -> false;
+				_ ->
+					check_conditions(Conditions, Ticked, Qpid, Call)
+			end
+	end;
+check_conditions([{caller_id, Comparison, RegEx} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	{_, Id} = Callrec#call.callerid,
+	case re:compile(RegEx) of
+		{error, Err} ->
+			?WARNING("Err compiling regex:  ~p", [Err]),
+			false;
+		{ok, Compiled} ->
+			Match = case re:run(Id, Compiled) of
+				{match, _} -> match;
+				ElseMatch -> ElseMatch
+			end,
+			case {Match, Comparison} of
+				{match, '!='} -> false;
+				{nomatch, '='} -> false;
+				_ ->
+					check_conditions(Conditions, Ticked, Qpid, Call)
+			end
 	end.
 
 %% @private
@@ -1503,6 +1541,67 @@ check_conditions_test_() ->
 				{ok, 2, State}
 			end),
 			?assert(check_conditions([{client_calls_queued, '<', 3}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end]}},
+	{"Caller id tests",
+	{foreach,
+	fun() ->
+		{ok, QMPid} = gen_leader_mock:start(queue_manager),
+		{ok, Qpid} = gen_server_mock:new(),
+		{ok, Mpid} = gen_server_mock:new(),
+		{ok, AMpid} = gen_leader_mock:start(agent_manager),
+		Assertmocks = fun() ->
+			gen_leader_mock:assert_expectations(QMPid),
+			gen_server_mock:assert_expectations(Qpid),
+			gen_server_mock:assert_expectations(Mpid),
+			gen_leader_mock:assert_expectations(AMpid)
+		end,
+		Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
+		?CONSOLE("start args:  ~p", [Primer]),
+		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+			Out = #call{
+				id = "foo",
+				type=voice,
+				callerid  = {"Caller Name", "Caller Number"},
+				source = Mpid,
+				client = #client{
+					id = "clientid",
+					label = "clientlabel"
+				}
+			},
+			{ok, Out, State}
+		end),
+		Primer
+	end,
+	fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
+		gen_server_mock:stop(Qpid),
+		gen_leader_mock:stop(QMPid),
+		gen_leader_mock:stop(AMpid),
+		gen_server_mock:stop(Mpid),
+		timer:sleep(10)
+	end,
+	[fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+		{"exact name match", fun() ->
+			?assert(check_conditions([{caller_name, '=', "^Caller Name$"}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+		{"exact name mismatch", fun() ->
+			?assert(check_conditions([{caller_name, '!=', "^Not The Name$"}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+		{"id match", fun() ->
+			?assert(check_conditions([{caller_id, '=', "Number$"}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+		{"id not match", fun() ->
+			?assert(check_conditions([{caller_id, '!=', "^Number"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end]}}

@@ -846,7 +846,7 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 	Json = case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid), AgentRec#agent.state == released ->
 			Callrec = #call{id="unused", source=self(), callerid={"Echo Test", "0000000"}},
-			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 600) of
+			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 10000) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->

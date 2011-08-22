@@ -488,7 +488,7 @@ dojo.addOnLoad(function(){
 
 	// make the labels on the bug form nicer.
 	var nodes = dojo.query('.translatecol', dojo.byId('reportIssueDialog'));
-	console.log(nodes);
+	//console.log(nodes);
 	for(var i = 0; i < nodes.length; i++){
 		var label = dojo.i18n.getLocalization("agentUI", "labels")[nodes[i].innerHTML];
 		if(label){
@@ -853,15 +853,25 @@ dojo.addOnLoad(function(){
 	});
 	
 	dijit.byId('transferToAgentMenu').startup();
+	dojo.connect(dijit.byId('btransfer'), 'onClick', dijit.byId('btransfer'), function(){
+		console.log('time to build agent transfer list');
+		window.agentConnection.getAvailAgents({
+			success:function(agentList){
+				dojo.publish("OpenACD/Agent/available", [agentList]);
+			}
+		});
+	});
+
 	dijit.byId('transferToQueueMenu').startup();
 	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("OpenACD/Agent/available", function(data){
+		console.log("Got agents available list", data);
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants();
 		dojo.forEach(data, function(i){
 			var m = new dijit.MenuItem({
 				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
 				onClick: function(){
-					window.agentConnection.transfer(escape(i.name));
+					window.agentConnection.agentTransfer(escape(i.name), {});
 				}
 			});
 			widget.addChild(m);
@@ -1188,7 +1198,7 @@ function endpointselect() {
 			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").PSTNHINT;
 			break;
 		default:
-			dijit.byId("voipendpointdatahint").label = "???";
+			//dijit.byId("voipendpointdatahint").label = "???";
 			break;
 	}
 }

@@ -1019,14 +1019,18 @@ dojo.addOnLoad(function(){
 		//var menu = dijit.byId("outboundmenu");
 		var widget;
 		var store = new dojo.data.ItemFileReadStore({
-				data: {
-					'label': 'label',
-					'identifier': 'id',
-					'items': [
-						{'label':'Failed to load brands', 'id':'0'}
-						]
-					}
-				});
+			data: {
+				'label': 'label',
+				'identifier': 'id',
+				'items': [
+					{'label':'Failed to load brands', 'id':'0'}
+				]
+			}
+		});
+		store.query = function(query, options){
+			options = dojo.mixin({'query':query}, options);
+			return this.fetch(options);
+		}
 
 		if(!(widget = dijit.byId('boutboundcall'))){
 			widget = new dijit.form.FilteringSelect({

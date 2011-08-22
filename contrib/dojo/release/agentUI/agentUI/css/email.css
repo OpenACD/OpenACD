@@ -1,0 +1,25 @@
+.mimemailheader {
+	padding-left:5em
+}
+
+.mimemail {
+	padding:2em;
+	border: black solid 1px
+}
+
+.mimehtmlbody {
+	padding:1em;
+	border:black solid 1px
+}
+
+.mimehtmltitle {
+	padding-left:5em
+}
+
+.download {
+	font-style:italic;
+	padding-left:20px;
+	background: transparent url("/application/css/dl.png") no-repeat scroll top left;
+	height: 16px;
+}
+

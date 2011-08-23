@@ -478,7 +478,7 @@ behaviour_info(callbacks) ->
 		{prepare_endpoint, 2},
 		{init, 1},
 		{handle_ring, 4},
-		{handle_ring_stop, 2},
+		{handle_ring_stop, 4},
 		{handle_answer, 3}, 
 		%{handle_voicemail, 3}, 
 		%{handle_announce, 3}, 
@@ -544,7 +544,7 @@ wrapup(Genmedia) ->
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
 	Self = self(),
-	gen_fsm:send_event(Genmedia, {{'$gen_media', stop_ringin}, Self}),
+	gen_fsm:send_event(Genmedia, {{'$gen_media', stop_ringing}, Self}),
 	ok.
 
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.

@@ -81,7 +81,7 @@
 	handle_answer/3, 
 	handle_voicemail/3, 
 	handle_announce/3, 
-	handle_ring_stop/2,
+	handle_ring_stop/4,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
@@ -538,7 +538,7 @@ handle_agent_transfer(_Agent, _Timeout, _Callrec, #state{fail = Fail} = State) -
 handle_queue_transfer(_Callrec, State) ->
 	{ok, State}.
 
-handle_ring_stop(_Callrec, State) ->
+handle_ring_stop(_StateName, _Callrec, _Internal, State) ->
 	{ok, State}.
 
 handle_wrapup(_Callrec, State) ->

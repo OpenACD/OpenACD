@@ -521,7 +521,7 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 %% @doc Get the call record associated with `pid() Genmedia'.
 -spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
-	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', get_call}, undefined}, infinity).
+	gen_fsm:sync_send_all_state_event(Genmedia, {{'$gen_media', get_call}, undefined}, infinity).
 
 %% @doc Send the passed `pid() Genmedia' to voicemail.
 -spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
@@ -609,30 +609,30 @@ set_queue(Genmedia, Qpid) ->
 
 -spec(set_url_getvars/2 :: (Genmedia :: pid(), Vars :: [{string(), string()}]) -> 'ok').
 set_url_getvars(Genmedia, Vars) ->
-	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', set_url_getvars}, Vars}).
+	gen_fsm:sync_send_all_state_event(Genmedia, {{'$gen_media', set_url_getvars}, Vars}).
 
 -spec(get_url_getvars/1 :: (Genmedia :: pid()) -> {'ok', [{string(), string()}]}).
 get_url_getvars(Genmedia) ->
-	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', get_url_vars}, undefined}).
+	gen_fsm:sync_send_all_state_event(Genmedia, {{'$gen_media', get_url_vars}, undefined}).
 
 -spec(add_skills/2 :: (Genmedia :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 add_skills(Genmedia, Skills) ->
-	gen_fsm:send_all_event(Genmedia, {{'$gen_media', add_skills}, Skills}).
+	gen_fsm:send_all_state_event(Genmedia, {{'$gen_media', add_skills}, Skills}).
 	
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
-	gen_fsm:sync_send_all_event(Genmedia, Request).
+	gen_fsm:sync_send_all_state_event(Genmedia, Request).
 
 %% @doc Do the equivalent of `gen_server:call/3'.
 -spec(call/3 :: (Genmedia :: pid(), Request :: any(), Timeout :: pos_integer()) -> any()).
 call(Genmedia, Request, Timeout) ->
-	gen_fsm:sync_send_all_event(Genmedia, Request, Timeout).
+	gen_fsm:sync_send_all_state_event(Genmedia, Request, Timeout).
 
 %% @doc Do the equivalent of `gen_server:cast/2'.
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
-	gen_fsm:send_all_event(Genmedia, Request).
+	gen_fsm:send_all_state_event(Genmedia, Request).
 
 %%====================================================================
 %% API

@@ -1070,6 +1070,12 @@ inqueue_ringing({{'$gen_media', set_queue}, Qpid}, _From, State) ->
 	},
 	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
 
+inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, ChanType, takeover}}, From, State) ->
+	{BaseState, Internal} = State,
+	gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
+	NewInternal = Internal#inqueue_ringing_state{ringout = undefined},
+	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
+
 inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, QCall, Timeout}} = Req, From, State) ->
 	Cook = QCall#queued_call.cook,
 	{next_state, inqueue, MidState} = inqueue_ringing({{'$gen_media', stop_ring}, Cook}, State),

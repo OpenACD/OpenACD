@@ -43,6 +43,7 @@
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("gen_media.hrl").
 
 -define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete]).
 
@@ -72,7 +73,7 @@
 	init/1, 
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
+	handle_info/5,
 	terminate/3, 
 	code_change/4,
 	prepare_endpoint/2,
@@ -100,8 +101,8 @@
 	}).
 
 -type(state() :: #state{}).
--define(GEN_MEDIA, true).
--include("gen_spec.hrl").
+%-define(GEN_MEDIA, true).
+%-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -438,9 +439,9 @@ handle_cast(_Msg, _Callrec, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(<<"hagurk">>, _Callrec, State) ->
+handle_info(<<"hagurk">>, _StateName, _Callrec, _Internal, State) ->
 	{stop, normal, State};
-handle_info(Info, _Callrec, State) ->
+handle_info(Info, _StateNaem, _Callrec, _Internal, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.
 

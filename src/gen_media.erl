@@ -1266,7 +1266,7 @@ oncall({{'$gen_media', wrapup}, undefined}, {Ocpid, _Tag} = From,
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
 	Callback = BaseState#base_state.callback,
 	cdr:wrapup(Call, Ocagent),
-	case Callback:handle_wrapup(From, oncall, Call, Internal, BaseState#base_state.substate) of
+	case Callback:handle_wrapup(From, oncall, Call, Oncall, BaseState#base_state.substate) of
 		{ok, NewState} ->
 			erlang:demonitor(Oncall#oncall_state.oncall_mon),
 			{reply, ok, wrapup, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};

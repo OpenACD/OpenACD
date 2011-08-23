@@ -747,7 +747,7 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 	try agent:prering(Apid, Call) of
 		{ok, RPid} ->
 			Rmon = erlang:monitor(process, RPid),
-			{ok, Tref} = gen_fsm:send_event_after(Timeout, {{'$gen_media', ringout}, undefined}),
+			Tref = gen_fsm:send_event_after(Timeout, {{'$gen_media', ringout}, undefined}),
 			#inqueue_state{ queue_pid = Qpid, queue_mon = Qmon, cook = Requester,
 				cook_mon = CookMon} = Internal,
 			NewInternal = #inqueue_ringing_state{

@@ -671,19 +671,20 @@ init([Callback, Args]) ->
 				callrec = Callrec
 			},
 			{Qnom, Qpid} = case priv_queue(Queue, Callrec, true) of
-				invalid when Queue =/= "default_queue" ->
-					% this clause, if hit, will cause a (justifiable) crash
-					% TODO wtf?
-					priv_queue("default_queue", Callrec, true),
-					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{}}, [{queue, "default_queue"}]),
-					cdr:inqueue(Callrec, "default_queue");
+%				invalid when Queue =/= "default_queue" ->
+%					% this clause, if hit, will cause a (justifiable) crash
+%					% TODO wtf?
+%					priv_queue("default_queue", Callrec, true),
+%					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{}}, [{queue, "default_queue"}]),
+%					cdr:inqueue(Callrec, "default_queue");
 				{default, Pid} ->
 					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_pid = {"default_queue", Pid}}}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue"),
 					{"default_queue", Pid};
-				Else ->
+				Else when is_pid(Else) ->
 					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_pid = {Queue, Else}}}, [{queue, Queue}]),
+					Qmon = erlang:monitor(process, Else),
+					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_mon = Qmon, queue_pid = {Queue, Else}}}, [{queue, Queue}]),
 					{Queue, Else}
 			end,
 			InqState = #inqueue_state{
@@ -748,7 +749,7 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 		{ok, RPid} ->
 			Rmon = erlang:monitor(process, RPid),
 			Tref = gen_fsm:send_event_after(Timeout, {{'$gen_media', ringout}, undefined}),
-			#inqueue_state{ queue_pid = Qpid, queue_mon = Qmon, cook = Requester,
+			#inqueue_state{ queue_pid = Qpid, queue_mon = Qmon,
 				cook_mon = CookMon} = Internal,
 			NewInternal = #inqueue_ringing_state{
 				queue_pid = Qpid, queue_mon = Qmon, ring_pid = {Agent, RPid},

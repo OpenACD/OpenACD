@@ -74,7 +74,7 @@
 	handle_call/4, 
 	handle_cast/3, 
 	handle_info/5,
-	terminate/3, 
+	terminate/5, 
 	code_change/4,
 	prepare_endpoint/2,
 	handle_ring/4, 
@@ -452,7 +452,7 @@ handle_info(Info, _StateNaem, _Callrec, _Internal, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _Callrec, _State) ->
+terminate(_Reason, Statename, _Callrec, _Internal, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------

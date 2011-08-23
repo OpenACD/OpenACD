@@ -491,7 +491,7 @@ behaviour_info(callbacks) ->
 		{handle_call, 4},
 		{handle_cast, 3},
 		{handle_info, 3},
-		{terminate, 3},
+		{terminate, 5},
 		{code_change, 4}
 	];
 behaviour_info(_Other) ->

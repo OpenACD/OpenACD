@@ -680,72 +680,96 @@ inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
 		QCall, Timeout}}, {Requester, _Tag}, {#base_state{callrec = Call,
 		callback = Callback} = BaseState, Internal}) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
-	case set_agent_state(Apid, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
-		ok ->
-			% TODO update callbacks to accept {string(), pid()} structure.
-			GenPopopts = BaseState#base_state.url_pop_get_vars,
-			case Callback:handle_ring({Agent, Apid}, inqueue, Call, Internal, BaseState#base_state.substate) of
-				Success when element(1, Success) == ok ->
-					Popopts = case Success of
-						{ok, Substate} ->
-							GenPopopts;
-						{ok, Opts, Substate} ->
-							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
-					end,
-					cdr:ringing(Call, Agent),
-					url_pop(Call, Apid, Popopts),
-					Newcall = Call#call{cook = QCall#queued_call.cook},
-					{ok, Tref} = case Newcall#call.ring_path of
-						outband ->
-							{ok, undefined};
-						inband ->
-							gen_fsm:send_event_after(Timeout, {{'$gen_media', stop_ring}, QCall#queued_call.cook})
-					end,
-					Self = self(),
-					spawn(fun() -> % do this in a subprocess so we don't block
-						Arec = agent:dump_state(Apid),
-						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
-							{outband, inband, Pid} when is_pid(Pid) ->
-								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
-									{ok, RingChanPid} ->
-										gen_fsm:send_event(Self, {{'$gen_media', set_outband_ring_pid}, RingChanPid}),
-										agent:has_successful_ring(Apid);
-									Else ->
-										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
-										agent:has_failed_ring(Apid),
-										undefined
-								end;
-							_ ->
-								agent:has_failed_ring(Apid),
-								undefined
-						end
-					end),
-					Mon = erlang:monitor(process, Apid),
-					NewInteral = #inqueue_ringing_state{
-						queue_mon = Internal#inqueue_state.queue_mon,
-						queue_pid = Internal#inqueue_state.queue_pid,
-						cook = Internal#inqueue_state.cook,
-						ring_mon = Mon,
-						ring_pid = {Agent, Apid},
-						ringout = Tref,
-						outband_ring_pid = undefined
-					},
-					NewBase = BaseState#base_state{
-						substate = Substate
-					},
-					{reply, ok, inqueue_ringing, {NewBase, NewInteral}};
-				{invalid, Substate} ->
-					agent:has_failed_ring(Apid),
-					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
-					{reply, invalid, inqueue, {BaseState#base_state{substate = Substate}}}
-			end;
-		{invalid, Substate} ->
-			agent_channel:stop(AgentChan, ring_fail),
-			{reply, invalid, State#state{substate = Substate}};
-		Else ->
-			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
+	try agent:prering(Apid, Call) of
+		{ok, RPid} ->
+			Rmon = erlang:monitor(process, RPid),
+			{ok, Tref} = gen_fsm:send_event_after(Timeout, {{'$gen_media', ringout}, undefined}),
+			#inqueue_state{ queue_pid = Qpid, queue_mon = Qmon, cook = Requester,
+				cook_mon = CookMon} = Internal,
+			NewInternal = #inqueue_ringing_state{
+				queue_pid = Qpid, queue_mon = Qmon, ring_pid = {Agent, RPid},
+				ring_mon = Rmon, cook = Requester, cook_mon = CookMon,
+				ringout = Tref
+			},
+			{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
+		RingErr ->
+			?INFO("Agent ~p prering response:  ~p for ~p", [Agent, RingErr, Call#call.id]),
+			{reply, invalid, inqueue, {BaseState, Internal}}
+	catch
+		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?WARNING("Agent ~p is a dead pid", [Apid]),
+			{reply, invalid, inqueue, {BaseState, Internal}};
+		exit:{max_ringouts, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?DEBUG("Max ringouts reached for agent ~p", [Apid]),
 			{reply, invalid, inqueue, {BaseState, Internal}}
 	end;
+
+%	case set_agent_state(Apid, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
+%		ok ->
+%			% TODO update callbacks to accept {string(), pid()} structure.
+%			GenPopopts = BaseState#base_state.url_pop_get_vars,
+%			case Callback:handle_ring({Agent, Apid}, inqueue, Call, Internal, BaseState#base_state.substate) of
+%				Success when element(1, Success) == ok ->
+%					Popopts = case Success of
+%						{ok, Substate} ->
+%							GenPopopts;
+%						{ok, Opts, Substate} ->
+%							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
+%					end,
+%					cdr:ringing(Call, Agent),
+%					url_pop(Call, Apid, Popopts),
+%					Newcall = Call#call{cook = QCall#queued_call.cook},
+%					{ok, Tref} = case Newcall#call.ring_path of
+%						outband ->
+%							{ok, undefined};
+%						inband ->
+%							gen_fsm:send_event_after(Timeout, {{'$gen_media', stop_ring}, QCall#queued_call.cook})
+%					end,
+%					Self = self(),
+%					spawn(fun() -> % do this in a subprocess so we don't block
+%						Arec = agent:dump_state(Apid),
+%						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
+%							{outband, inband, Pid} when is_pid(Pid) ->
+%								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
+%									{ok, RingChanPid} ->
+%										gen_fsm:send_event(Self, {{'$gen_media', set_outband_ring_pid}, RingChanPid}),
+%										agent:has_successful_ring(Apid);
+%									Else ->
+%										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
+%										agent:has_failed_ring(Apid),
+%										undefined
+%								end;
+%							_ ->
+%								agent:has_failed_ring(Apid),
+%								undefined
+%						end
+%					end),
+%					Mon = erlang:monitor(process, Apid),
+%					NewInteral = #inqueue_ringing_state{
+%						queue_mon = Internal#inqueue_state.queue_mon,
+%						queue_pid = Internal#inqueue_state.queue_pid,
+%						cook = Internal#inqueue_state.cook,
+%						ring_mon = Mon,
+%						ring_pid = {Agent, Apid},
+%						ringout = Tref,
+%						outband_ring_pid = undefined
+%					},
+%					NewBase = BaseState#base_state{
+%						substate = Substate
+%					},
+%					{reply, ok, inqueue_ringing, {NewBase, NewInteral}};
+%				{invalid, Substate} ->
+%					agent:has_failed_ring(Apid),
+%					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
+%					{reply, invalid, inqueue, {BaseState#base_state{substate = Substate}}}
+%			end;
+%		{invalid, Substate} ->
+%			agent_channel:stop(AgentChan, ring_fail),
+%			{reply, invalid, State#state{substate = Substate}};
+%		Else ->
+%			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
+%			{reply, invalid, inqueue, {BaseState, Internal}}
+%	end;
 
 inqueue({{'$gen_media', ring}, {{_Agent, Apid}, QCall, _Timeout}}, _From, State) ->
 	gen_server:cast(QCall#queued_call.cook, {ring_to, Apid, QCall}),

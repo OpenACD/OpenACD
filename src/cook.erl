@@ -506,6 +506,44 @@ check_conditions([{type, Comparision, CType} | Conditions], Ticked, Qpid, Call) 
 			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
+	end;
+check_conditions([{caller_name, Comparison, RegEx} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	{Name, _} = Callrec#call.callerid,
+	case re:compile(RegEx) of
+		{error, Err} ->
+			?WARNING("Err compiling regex:  ~p", [Err]),
+			false;
+		{ok, CompiledReg} ->
+			Match = case re:run(Name, CompiledReg) of
+				{match, _} -> match;
+				ElseMatch -> ElseMatch
+			end,
+			case {Match, Comparison} of
+				{match, '!='} -> false;
+				{nomatch, '='} -> false;
+				_ ->
+					check_conditions(Conditions, Ticked, Qpid, Call)
+			end
+	end;
+check_conditions([{caller_id, Comparison, RegEx} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	{_, Id} = Callrec#call.callerid,
+	case re:compile(RegEx) of
+		{error, Err} ->
+			?WARNING("Err compiling regex:  ~p", [Err]),
+			false;
+		{ok, Compiled} ->
+			Match = case re:run(Id, Compiled) of
+				{match, _} -> match;
+				ElseMatch -> ElseMatch
+			end,
+			case {Match, Comparison} of
+				{match, '!='} -> false;
+				{nomatch, '='} -> false;
+				_ ->
+					check_conditions(Conditions, Ticked, Qpid, Call)
+			end
 	end.
 
 %% @private
@@ -1542,25 +1580,25 @@ check_conditions_test_() ->
 	end,
 	[fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
 		{"exact name match", fun() ->
-			?assert(check_conditions([{caller_name, '=', "/^Caller Name$/"}], "doesn't matter", Qpid, Mpid)),
+			?assert(check_conditions([{caller_name, '=', "^Caller Name$"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end,
 	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
 		{"exact name mismatch", fun() ->
-			?assert(check_conditions([{caller_name, '!=', "/^Not The Name$/"}], "doesn't matter", Qpid, Mpid)),
+			?assert(check_conditions([{caller_name, '!=', "^Not The Name$"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end,
 	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
 		{"id match", fun() ->
-			?assert(check_conditions([{caller_id, '=', "/Number$/"}], "doesn't matter", Qpid, Mpid)),
+			?assert(check_conditions([{caller_id, '=', "Number$"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end,
 	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
 		{"id not match", fun() ->
-			?assert(check_conditions([{caller_id, '!=', "/^Number/"}], "doesn't matter", Qpid, Mpid)),
+			?assert(check_conditions([{caller_id, '!=', "^Number"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end]}}

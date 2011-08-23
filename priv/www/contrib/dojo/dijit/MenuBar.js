@@ -1,10 +1,28 @@
-define("dijit/MenuBar", ["dojo", "dijit", "text!dijit/templates/MenuBar.html", "dijit/Menu"], function(dojo, dijit) {
+//>>built
+require({cache:{
+'url:dijit/templates/MenuBar.html':"<div class=\"dijitMenuBar dijitMenuPassive\" dojoAttachPoint=\"containerNode\"  role=\"menubar\" tabIndex=\"${tabIndex}\" dojoAttachEvent=\"onkeypress: _onKeyPress\"></div>\n"}});
+define("dijit/MenuBar", [
+	"dojo/_base/declare", // declare
+	"dojo/_base/event", // event.stop
+	"dojo/keys", // keys.DOWN_ARROW
+	"./_MenuBase",
+	"dojo/text!./templates/MenuBar.html"
+], function(declare, event, keys, _MenuBase, template){
 
-dojo.declare("dijit.MenuBar", dijit._MenuBase, {
+/*=====
+	var _MenuBase = dijit._MenuBase;
+=====*/
+
+// module:
+//		dijit/MenuBar
+// summary:
+//		A menu bar, listing menu choices horizontally, like the "File" menu in most desktop applications
+
+return declare("dijit.MenuBar", _MenuBase, {
 	// summary:
 	//		A menu bar, listing menu choices horizontally, like the "File" menu in most desktop applications
 
-	templateString: dojo.cache("dijit", "templates/MenuBar.html"),
+	templateString: template,
 
 	baseClass: "dijitMenuBar",
 
@@ -13,14 +31,14 @@ dojo.declare("dijit.MenuBar", dijit._MenuBase, {
 	_isMenuBar: true,
 
 	postCreate: function(){
-		var k = dojo.keys, l = this.isLeftToRight();
+		var l = this.isLeftToRight();
 		this.connectKeyNavHandlers(
-			l ? [k.LEFT_ARROW] : [k.RIGHT_ARROW],
-			l ? [k.RIGHT_ARROW] : [k.LEFT_ARROW]
+			l ? [keys.LEFT_ARROW] : [keys.RIGHT_ARROW],
+			l ? [keys.RIGHT_ARROW] : [keys.LEFT_ARROW]
 		);
 
 		// parameter to dijit.popup.open() about where to put popup (relative to this.domNode)
-		this._orient = this.isLeftToRight() ? {BL: 'TL'} : {BR: 'TR'};
+		this._orient = ["below"];
 	},
 
 	focusChild: function(item){
@@ -44,9 +62,9 @@ dojo.declare("dijit.MenuBar", dijit._MenuBase, {
 		if(evt.ctrlKey || evt.altKey){ return; }
 
 		switch(evt.charOrCode){
-			case dojo.keys.DOWN_ARROW:
+			case keys.DOWN_ARROW:
 				this._moveToPopup(evt);
-				dojo.stopEvent(evt);
+				event.stop(evt);
 		}
 	},
 
@@ -63,6 +81,4 @@ dojo.declare("dijit.MenuBar", dijit._MenuBase, {
 	}
 });
 
-
-return dijit.MenuBar;
 });

@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "cursive",
 	fantasy: "fantasy",
 
+	noFormat: "ไม่มี",
 	p: "ย่อหน้า",
 	h1: "ส่วนหัว",
 	h2: "ส่วนหัวย่อย",

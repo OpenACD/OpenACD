@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -9,7 +10,7 @@ define(
 	set: "Задать",
 	currentWindow: "Текущее окно",
 	parentWindow: "Родительское окно",
-	topWindow: "Окно верхнего уровня",
+	topWindow: "Верхнее окно",
 	newWindow: "Новое окно"
 })
 

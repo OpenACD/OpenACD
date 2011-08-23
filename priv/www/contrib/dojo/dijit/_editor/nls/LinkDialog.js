@@ -1,4 +1,5 @@
-define({ root: 
+//>>built
+define({ root:
 //begin v1.x content
 ({
 	createLinkTitle: "Link Properties",
@@ -29,6 +30,7 @@ define({ root:
 "nl": true,
 "nb": true,
 "ko": true,
+"kk": true,
 "ja": true,
 "it": true,
 "hu": true,

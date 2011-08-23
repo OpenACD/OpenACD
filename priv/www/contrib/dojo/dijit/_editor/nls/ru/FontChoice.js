@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "курсив",
 	fantasy: "артистический",
 
+	noFormat: "Нет",
 	p: "Абзац",
 	h1: "Заголовок",
 	h2: "Подзаголовок",

@@ -1,9 +1,25 @@
-define("dijit/form/FilteringSelect", ["dojo", "dijit", "dijit/form/ComboBox"], function(dojo, dijit) {
+//>>built
+define("dijit/form/FilteringSelect", [
+	"dojo/data/util/filter", // filter.patternToRegExp
+	"dojo/_base/declare", // declare
+	"dojo/_base/Deferred", // Deferred.when
+	"dojo/_base/lang", // lang.mixin
+	"./MappedTextBox",
+	"./ComboBoxMixin"
+], function(filter, declare, Deferred, lang, MappedTextBox, ComboBoxMixin){
 
-dojo.declare(
-	"dijit.form.FilteringSelect",
-	[dijit.form.MappedTextBox, dijit.form.ComboBoxMixin],
-	{
+/*=====
+	var MappedTextBox = dijit.form.MappedTextBox;
+	var ComboBoxMixin = dijit.form.ComboBoxMixin;
+=====*/
+
+	// module:
+	//		dijit/form/FilteringSelect
+	// summary:
+	//		An enhanced version of the HTML SELECT tag, populated dynamically
+
+
+	return declare("dijit.form.FilteringSelect", [MappedTextBox, ComboBoxMixin], {
 		// summary:
 		//		An enhanced version of the HTML SELECT tag, populated dynamically
 		//
@@ -53,39 +69,37 @@ dojo.declare(
 
 		_callbackSetLabel: function(
 						/*Array*/ result,
-						/*Object*/ dataObject,
+						/*Object*/ query,
+						/*Object*/ options,
 						/*Boolean?*/ priorityChange){
 			// summary:
-			//		Callback from dojo.data after lookup of user entered value finishes
+			//		Callback from dojo.store after lookup of user entered value finishes
 
 			// setValue does a synchronous lookup,
 			// so it calls _callbackSetLabel directly,
 			// and so does not pass dataObject
 			// still need to test against _lastQuery in case it came too late
-			if((dataObject && dataObject.query[this.searchAttr] != this._lastQuery) || (!dataObject && result.length && this.store.getIdentity(result[0]) != this._lastQuery)){
+			if((query && query[this.searchAttr] !== this._lastQuery) || (!query && result.length && this.store.getIdentity(result[0]) != this._lastQuery)){
 				return;
 			}
 			if(!result.length){
 				//#3268: don't modify display value on bad input
 				//#3285: change CSS to indicate error
-				this.valueNode.value = "";
-				dijit.form.TextBox.superclass._setValueAttr.call(this, "", priorityChange || (priorityChange === undefined && !this._focused));
-				this._set("item", null);
-				this.validate(this._focused);
+				this.set("value", '', priorityChange || (priorityChange === undefined && !this.focused), this.textbox.value, null);
 			}else{
 				this.set('item', result[0], priorityChange);
 			}
 		},
 
-		_openResultList: function(/*Object*/ results, /*Object*/ dataObject){
+		_openResultList: function(/*Object*/ results, /*Object*/ query, /*Object*/ options){
 			// Callback when a data store query completes.
 			// Overrides ComboBox._openResultList()
 
 			// #3285: tap into search callback to see if user's query resembles a match
-			if(dataObject.query[this.searchAttr] != this._lastQuery){
+			if(query[this.searchAttr] !== this._lastQuery){
 				return;
 			}
-			dijit.form.ComboBoxMixin.prototype._openResultList.apply(this, arguments);
+			this.inherited(arguments);
 
 			if(this.item === undefined){ // item == undefined for keyboard search
 				// If the search returned no items that means that the user typed
@@ -109,28 +123,32 @@ dojo.declare(
 			return "value";
 		},
 
-		_setValueAttr: function(/*String*/ value, /*Boolean?*/ priorityChange){
+		_setValueAttr: function(/*String*/ value, /*Boolean?*/ priorityChange, /*String?*/ displayedValue, /*item?*/ item){
 			// summary:
 			//		Hook so set('value', value) works.
 			// description:
 			//		Sets the value of the select.
 			//		Also sets the label to the corresponding value by reverse lookup.
 			if(!this._onChangeActive){ priorityChange = null; }
-			this._lastQuery = value;
 
-			if(value === null || value === ''){
-				this._setDisplayedValueAttr('', priorityChange);
-				return;
-			}
-
-			//#3347: fetchItemByIdentity if no keyAttr specified
-			var self = this;
-			this.store.fetchItemByIdentity({
-				identity: value,
-				onItem: function(item){
-					self._callbackSetLabel(item? [item] : [], undefined, priorityChange);
+			if(item === undefined){
+				if(value === null || value === ''){
+					value = '';
+					if(!lang.isString(displayedValue)){
+						this._setDisplayedValueAttr(displayedValue||'', priorityChange);
+						return;
+					}
 				}
-			});
+
+				var self = this;
+				this._lastQuery = value;
+				Deferred.when(this.store.get(value), function(item){
+					self._callbackSetLabel(item? [item] : [], undefined, undefined, priorityChange);
+				});
+			}else{
+				this.valueNode.value = value;
+				this.inherited(arguments);
+			}
 		},
 
 		_setItemAttr: function(/*item*/ item, /*Boolean?*/ priorityChange, /*String?*/ displayedValue){
@@ -143,7 +161,6 @@ dojo.declare(
 			// tags:
 			//		private
 			this.inherited(arguments);
-			this.valueNode.value = this.value;
 			this._lastDisplayedValue = this.textbox.value;
 		},
 
@@ -156,12 +173,7 @@ dojo.declare(
 			//		Hook so set('displayedValue', label) works.
 			// description:
 			//		Sets textbox to display label. Also performs reverse lookup
-			//		to set the hidden value.
-			//
-			//		Doesn't work as expected when the FilteringSelect has a custom labelFunc(), since in that case
-			//		it's impossible to do a reverse lookup (from label --> item) without a full data store scan.
-			//		App must call set("displayedValue", ...) with the intended item.searchAttr, rather than
-			//		labelFunc(item).
+			//		to set the hidden value.  label should corresponding to item.searchAttr.
 
 			if(label == null){ label = ''; }
 
@@ -177,46 +189,47 @@ dojo.declare(
 			}
 
 			// Do a reverse lookup to map the specified displayedValue to the hidden value.
-			// Note that if there's a custom labelFunc() this code 
+			// Note that if there's a custom labelFunc() this code
 			if(this.store){
 				this.closeDropDown();
-				var query = dojo.clone(this.query); // #6196: populate query with user-specifics
-				// escape meta characters of dojo.data.util.filter.patternToRegExp().
-				this._lastQuery = query[this.labelAttr || this.searchAttr] = this._getDisplayQueryString(label);
-				// if the label is not valid, the callback will never set it,
-				// so the last valid value will get the warning textbox set the
+				var query = lang.clone(this.query); // #6196: populate query with user-specifics
+
+				// Query on searchAttr is a regex (for benefit of dojo.store.Memory),
+				// but with a toString() method to help JsonStore
+				// Escape meta characters of dojo.data.util.filter.patternToRegExp().
+				var qs = this._getDisplayQueryString(label),
+					q = filter.patternToRegExp(qs, this.ignoreCase);	// "Co*" --> /^Co.*$/i
+				q.toString = function(){ return qs; };
+				this._lastQuery = query[this.searchAttr] = q;
+
+				// If the label is not valid, the callback will never set it,
+				// so the last valid value will get the warning textbox.   Set the
 				// textbox value now so that the impending warning will make
 				// sense to the user
 				this.textbox.value = label;
 				this._lastDisplayedValue = label;
+				this._set("displayedValue", label);	// for watch("displayedValue") notification
 				var _this = this;
-				var fetch = {
-					query: query,
-					queryOptions: {
-						ignoreCase: this.ignoreCase,
-						deep: true
-					},
-					onComplete: function(result, dataObject){
-						_this._fetchHandle = null;
-						dojo.hitch(_this, "_callbackSetLabel")(result, dataObject, priorityChange);
-					},
-					onError: function(errText){
-						_this._fetchHandle = null;
-						console.error('dijit.form.FilteringSelect: ' + errText);
-						dojo.hitch(_this, "_callbackSetLabel")([], undefined, false);
-					}
+				var options = {
+					ignoreCase: this.ignoreCase,
+					deep: true
 				};
-				dojo.mixin(fetch, this.fetchProperties);
-				this._fetchHandle = this.store.fetch(fetch);
+				lang.mixin(options, this.fetchProperties);
+				this._fetchHandle = this.store.query(query, options);
+				Deferred.when(this._fetchHandle, function(result){
+					_this._fetchHandle = null;
+					_this._callbackSetLabel(result || [], query, options, priorityChange);
+				}, function(err){
+					_this._fetchHandle = null;
+					if(!_this._cancelingQuery){	// don't treat canceled query as an error
+						console.error('dijit.form.FilteringSelect: ' + err.toString());
+					}
+				});
 			}
 		},
 
 		undo: function(){
 			this.set('displayedValue', this._lastDisplayedValue);
 		}
-	}
-);
-
-
-return dijit.form.FilteringSelect;
+	});
 });

@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "corsivo",
 	fantasy: "fantasy",
 
+	noFormat: "Nessuna",
 	p: "Paragrafo",
 	h1: "Intestazione",
 	h2: "Sottointestazione",
@@ -25,5 +27,6 @@ define(
 	6: "x-large",
 	7: "xx-large"
 })
+
 //end v1.x content
 );

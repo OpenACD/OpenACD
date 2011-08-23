@@ -1,34 +1,54 @@
-define("dijit/form/_DateTimeTextBox", ["dojo", "dijit", "text!dijit/templates/DropDownBox.html", "dojo/date", "dojo/date/locale", "dojo/date/stamp", "dijit/form/ValidationTextBox", "dijit/_HasDropDown"], function(dojo, dijit) {
-
-new Date("X"); // workaround for #11279, new Date("") == NaN
+//>>built
+require({cache:{
+'url:dijit/form/templates/DropDownBox.html':"<div class=\"dijit dijitReset dijitInline dijitLeft\"\n\tid=\"widget_${id}\"\n\trole=\"combobox\"\n\t><div class='dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton dijitArrowButtonContainer'\n\t\tdojoAttachPoint=\"_buttonNode, _popupStateNode\" role=\"presentation\"\n\t\t><input class=\"dijitReset dijitInputField dijitArrowButtonInner\" value=\"&#9660; \" type=\"text\" tabIndex=\"-1\" readonly=\"readonly\" role=\"presentation\"\n\t\t\t${_buttonInputDisabled}\n\t/></div\n\t><div class='dijitReset dijitValidationContainer'\n\t\t><input class=\"dijitReset dijitInputField dijitValidationIcon dijitValidationInner\" value=\"&#935; \" type=\"text\" tabIndex=\"-1\" readonly=\"readonly\" role=\"presentation\"\n\t/></div\n\t><div class=\"dijitReset dijitInputField dijitInputContainer\"\n\t\t><input class='dijitReset dijitInputInner' ${!nameAttrSetting} type=\"text\" autocomplete=\"off\"\n\t\t\tdojoAttachPoint=\"textbox,focusNode\" role=\"textbox\" aria-haspopup=\"true\"\n\t/></div\n></div>\n"}});
+define("dijit/form/_DateTimeTextBox", [
+	"dojo/date", // date date.compare
+	"dojo/date/locale", // locale.regexp
+	"dojo/date/stamp", // stamp.fromISOString stamp.toISOString
+	"dojo/_base/declare", // declare
+	"dojo/_base/lang", // lang.getObject
+	"./RangeBoundTextBox",
+	"../_HasDropDown",
+	"dojo/text!./templates/DropDownBox.html"
+], function(date, locale, stamp, declare, lang, RangeBoundTextBox, _HasDropDown, template){
 
 /*=====
-dojo.declare(
-	"dijit.form._DateTimeTextBox.__Constraints",
-	[dijit.form.RangeBoundTextBox.__Constraints, dojo.date.locale.__FormatOptions], {
-	// summary:
-	//		Specifies both the rules on valid/invalid values (first/last date/time allowed),
-	//		and also formatting options for how the date/time is displayed.
-	// example:
-	//		To restrict to dates within 2004, displayed in a long format like "December 25, 2005":
-	//	|		{min:'2004-01-01',max:'2004-12-31', formatLength:'long'}
-});
+	var _HasDropDown = dijit._HasDropDown;
+	var RangeBoundTextBox = dijit.form.RangeBoundTextBox;
 =====*/
 
-dojo.declare(
-	"dijit.form._DateTimeTextBox",
-	[ dijit.form.RangeBoundTextBox, dijit._HasDropDown ],
-	{
+	// module:
+	//		dijit/form/_DateTimeTextBox
+	// summary:
+	//		Base class for validating, serializable, range-bound date or time text box.
+
+
+	new Date("X"); // workaround for #11279, new Date("") == NaN
+
+	/*=====
+	declare(
+		"dijit.form._DateTimeTextBox.__Constraints",
+		[RangeBoundTextBox.__Constraints, locale.__FormatOptions], {
+		// summary:
+		//		Specifies both the rules on valid/invalid values (first/last date/time allowed),
+		//		and also formatting options for how the date/time is displayed.
+		// example:
+		//		To restrict to dates within 2004, displayed in a long format like "December 25, 2005":
+		//	|		{min:'2004-01-01',max:'2004-12-31', formatLength:'long'}
+	});
+	=====*/
+
+	var _DateTimeTextBox = declare("dijit.form._DateTimeTextBox", [RangeBoundTextBox, _HasDropDown], {
 		// summary:
 		//		Base class for validating, serializable, range-bound date or time text box.
 
-		templateString: dojo.cache("dijit.form", "templates/DropDownBox.html"),
+		templateString: template,
 
 		// hasDownArrow: [const] Boolean
 		//		Set this textbox to display a down arrow button, to open the drop down list.
 		hasDownArrow: true,
 
-		// openOnClick: Boolean
+		// openOnClick: [const] Boolean
 		//		Set to true to open drop down upon clicking anywhere on the textbox.
 		openOnClick: true,
 
@@ -43,15 +63,24 @@ dojo.declare(
 
 		// Override ValidationTextBox.regExpGen().... we use a reg-ex generating function rather
 		// than a straight regexp to deal with locale  (plus formatting options too?)
-		regExpGen: dojo.date.locale.regexp,
+		regExpGen: locale.regexp,
 
 		// datePackage: String
 		//		JavaScript namespace to find calendar routines.	 Uses Gregorian calendar routines
 		//		at dojo.date, by default.
-		datePackage: "dojo.date",
+		datePackage: date,
+
+		postMixInProperties: function(){
+			this.inherited(arguments);
+			this._set("type", "text"); // in case type="date"|"time" was specified which messes up parse/format
+		},
 
 		// Override _FormWidget.compare() to work for dates/times
-		compare: dojo.date.compare,
+		compare: function(/*Date*/ val1, /*Date*/ val2){
+			var isInvalid1 = this._isInvalidDate(val1);
+			var isInvalid2 = this._isInvalidDate(val2);
+			return isInvalid1 ? (isInvalid2 ? 0 : -1) : (isInvalid2 ? 1 : date.compare(val1, val2, this._selector));
+		},
 
 		// flag to _HasDropDown to make drop down Calendar width == <input> width
 		forceWidth: true,
@@ -79,7 +108,7 @@ dojo.declare(
 			if(val.toGregorian){
 				val = val.toGregorian();
 			}
-			return dojo.date.stamp.toISOString(val, options);
+			return stamp.toISOString(val, options);
 		},
 
 		// dropDownDefaultValue: Date
@@ -106,38 +135,39 @@ dojo.declare(
 		_selector: "",
 
 		constructor: function(/*Object*/ args){
-			var dateClass = args.datePackage ? args.datePackage + ".Date" : "Date";
-			this.dateClassObj = dojo.getObject(dateClass, false);
-			this.value = new this.dateClassObj("");
-
 			this.datePackage = args.datePackage || this.datePackage;
-			this.dateLocaleModule = dojo.getObject(this.datePackage + ".locale", false);
+			this.dateFuncObj = typeof this.datePackage == "string" ?
+				lang.getObject(this.datePackage, false) :// "string" part for back-compat, remove for 2.0
+				this.datePackage;
+			this.dateClassObj = this.dateFuncObj.Date || Date;
+			this.dateLocaleModule = lang.getObject("locale", false, this.dateFuncObj);
 			this.regExpGen = this.dateLocaleModule.regexp;
-			this._invalidDate = dijit.form._DateTimeTextBox.prototype.value.toString();
+			this._invalidDate = this.constructor.prototype.value.toString();
 		},
 
 		buildRendering: function(){
 			this.inherited(arguments);
-			
+
+			if(!this.hasDownArrow){
+				this._buttonNode.style.display = "none";
+			}
+
 			// If openOnClick is true, we basically just want to treat the whole widget as the
 			// button.  We need to do that also if the actual drop down button will be hidden,
 			// so that there's a mouse method for opening the drop down.
 			if(this.openOnClick || !this.hasDownArrow){
 				this._buttonNode = this.domNode;
-			}
-
-			if(!this.hasDownArrow){
-				this._buttonNode.style.display = "none";
+				this.baseClass += " dijitComboBoxOpenOnClick";
 			}
 		},
 
 		_setConstraintsAttr: function(/*Object*/ constraints){
 			constraints.selector = this._selector;
 			constraints.fullYear = true; // see #5465 - always format with 4-digit years
-			var fromISO = dojo.date.stamp.fromISOString;
+			var fromISO = stamp.fromISOString;
 			if(typeof constraints.min == "string"){ constraints.min = fromISO(constraints.min); }
  			if(typeof constraints.max == "string"){ constraints.max = fromISO(constraints.max); }
-			this.inherited(arguments, [constraints]);
+			this.inherited(arguments);
 		},
 
 		_isInvalidDate: function(/*Date*/ value){
@@ -153,7 +183,7 @@ dojo.declare(
 			//		Sets the date on this textbox. Note: value can be a JavaScript Date literal or a string to be parsed.
 			if(value !== undefined){
 				if(typeof value == "string"){
-					value = dojo.date.stamp.fromISOString(value);
+					value = stamp.fromISOString(value);
 				}
 				if(this._isInvalidDate(value)){
 					value = null;
@@ -162,15 +192,23 @@ dojo.declare(
 					value = new this.dateClassObj(value);
 				}
 			}
-			this.inherited(arguments, [value, priorityChange, formattedValue]);
+			this.inherited(arguments);
 			if(this.dropDown){
 				this.dropDown.set('value', value, false);
 			}
 		},
 
+		_set: function(attr, value){
+			// Avoid spurious watch() notifications when value is changed to new Date object w/the same value
+			if(attr == "value" && this.value instanceof Date && this.compare(value, this.value) == 0){
+				return;
+			}
+			this.inherited(arguments);
+		},
+
 		_setDropDownDefaultValueAttr: function(/*Date*/ val){
 			if(this._isInvalidDate(val)){
-				// convert null setting into today's date, since there needs to be *some* default at all times.		
+				// convert null setting into today's date, since there needs to be *some* default at all times.
 				 val = new this.dateClassObj()
 						}
 			this.dropDownDefaultValue = val;
@@ -181,17 +219,17 @@ dojo.declare(
 			if(this.dropDown){
 				this.dropDown.destroy();
 			}
-			var PopupProto = dojo.getObject(this.popupClass, false),
+			var PopupProto = lang.isString(this.popupClass) ? lang.getObject(this.popupClass, false) : this.popupClass,
 				textBox = this,
 				value = this.get("value");
 			this.dropDown = new PopupProto({
 				onChange: function(value){
-						// this will cause InlineEditBox and other handlers to do stuff so make sure it's last
-						dijit.form._DateTimeTextBox.superclass._setValueAttr.call(textBox, value, true);
-					},
-					id: this.id + "_popup",
-					dir: textBox.dir,
-					lang: textBox.lang,
+					// this will cause InlineEditBox and other handlers to do stuff so make sure it's last
+					_DateTimeTextBox.superclass._setValueAttr.call(textBox, value, true);
+				},
+				id: this.id + "_popup",
+				dir: textBox.dir,
+				lang: textBox.lang,
 				value: value,
 				currentFocus: !this._isInvalidDate(value) ? value : this.dropDownDefaultValue,
 					constraints: textBox.constraints,
@@ -202,12 +240,7 @@ dojo.declare(
 					isDisabledDate: function(/*Date*/ date){
 						// summary:
 						// 	disables dates outside of the min/max of the _DateTimeTextBox
-						var compare = dojo.date.compare;
-						var constraints = textBox.constraints;
-						return constraints && (
-							(constraints.min && compare(constraints.min, date, textBox._selector) > 0) ||
-							(constraints.max && compare(constraints.max, date, textBox._selector) < 0)
-						);
+						return !textBox.rangeCheck(date, textBox.constraints);
 					}
 				});
 
@@ -221,9 +254,7 @@ dojo.declare(
 		_setDisplayedValueAttr: function(/*String*/ value, /*Boolean?*/ priorityChange){
 			this._setValueAttr(this.parse(value, this.constraints), priorityChange, value);
 		}
-	}
-);
+	});
 
-
-return dijit.form._DateTimeTextBox;
+	return _DateTimeTextBox;
 });

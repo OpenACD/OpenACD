@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "كتابة بحروف متصلة",
 	fantasy: "خيالي",
 
+	noFormat: "‏لا شيء‏",
 	p: "فقرة",
 	h1: "عنوان",
 	h2: "عنوان فرعي",

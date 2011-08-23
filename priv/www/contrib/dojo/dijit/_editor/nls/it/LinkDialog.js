@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -8,8 +9,8 @@ define(
 	target: "Destinazione:",
 	set: "Imposta",
 	currentWindow: "Finestra corrente",
-	parentWindow: "Finestra padre",
-	topWindow: "Finestra superiore",
+	parentWindow: "Finestra parent",
+	topWindow: "Finestra in primo piano",
 	newWindow: "Nuova finestra"
 })
 

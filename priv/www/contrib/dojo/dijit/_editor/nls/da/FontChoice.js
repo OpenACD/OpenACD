@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "kursiv",
 	fantasy: "fantasy",
 
+	noFormat: "Ingen",
 	p: "Afsnit",
 	h1: "Overskrift",
 	h2: "Underoverskrift",

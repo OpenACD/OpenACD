@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "cursive",
 	fantasy: "fantasy",
 
+	noFormat: "なし",
 	p: "段落",
 	h1: "見出し",
 	h2: "副見出し",

@@ -1,10 +1,11 @@
+//>>built
 define(
 //begin v1.x content
 ({
 	createLinkTitle: "Propietats de l\'enllaç",
 	insertImageTitle: "Propietats de la imatge",
 	url: "URL:",
-	text: "Descipció:",
+	text: "Descripció:",
 	target: "Destinació:",
 	set: "Defineix",
 	currentWindow: "Finestra actual",
@@ -12,6 +13,5 @@ define(
 	topWindow: "Finestra superior",
 	newWindow: "Finestra nova"
 })
-
 //end v1.x content
 );

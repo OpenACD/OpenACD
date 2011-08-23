@@ -1,33 +1,19 @@
-define("dijit/tree/_dndContainer", ["dojo", "dijit", "dojo/dnd/common", "dojo/dnd/Container"], function(dojo, dijit) {
+//>>built
+define("dijit/tree/_dndContainer", [
+	"dojo/_base/array", // array.forEach
+	"dojo/_base/connect", // connect.connect connect.disconnect
+	"dojo/_base/declare", // declare
+	"dojo/dom-class", // domClass.add domClass.remove domClass.replace
+	"dojo/_base/lang" // lang.getObject lang.mixin
+], function(array, connect, declare, domClass, lang){
 
-dojo.getObject("tree", true, dojo);
+	// module:
+	//		dijit/tree/_dndContainer
+	// summary:
+	//		This is a base class for `dijit.tree._dndSelector`, and isn't meant to be used directly.
+	//		It's modeled after `dojo.dnd.Container`.
 
-dijit.tree._compareNodes = function(n1, n2){
-	if(n1 === n2){
-		return 0;
-	}
-	
-	if('sourceIndex' in document.documentElement){ //IE
-		//TODO: does not yet work if n1 and/or n2 is a text node
-		return n1.sourceIndex - n2.sourceIndex;
-	}else if('compareDocumentPosition' in document.documentElement){ //FF, Opera
-		return n1.compareDocumentPosition(n2) & 2 ? 1: -1;
-	}else if(document.createRange){ //Webkit
-		var r1 = doc.createRange();
-		r1.setStartBefore(n1);
-
-		var r2 = doc.createRange();
-		r2.setStartBefore(n2);
-
-		return r1.compareBoundaryPoints(r1.END_TO_END, r2);
-	}else{
-		throw Error("dijit.tree._compareNodes don't know how to compare two different nodes in this browser");
-	}
-};
-
-dojo.declare("dijit.tree._dndContainer",
-	null,
-	{
+	return declare("dijit.tree._dndContainer", null, {
 
 		// summary:
 		//		This is a base class for `dijit.tree._dndSelector`, and isn't meant to be used directly.
@@ -53,7 +39,7 @@ dojo.declare("dijit.tree._dndContainer",
 			//		private
 			this.tree = tree;
 			this.node = tree.domNode;	// TODO: rename; it's not a TreeNode but the whole Tree
-			dojo.mixin(this, params);
+			lang.mixin(this, params);
 
 			// class-specific variables
 			this.map = {};
@@ -61,21 +47,21 @@ dojo.declare("dijit.tree._dndContainer",
 
 			// states
 			this.containerState = "";
-			dojo.addClass(this.node, "dojoDndContainer");
+			domClass.add(this.node, "dojoDndContainer");
 
 			// set up events
 			this.events = [
 				// container level events
-				dojo.connect(this.node, "onmouseenter", this, "onOverEvent"),
-				dojo.connect(this.node, "onmouseleave",	this, "onOutEvent"),
+				connect.connect(this.node, "onmouseenter", this, "onOverEvent"),
+				connect.connect(this.node, "onmouseleave",	this, "onOutEvent"),
 
 				// switching between TreeNodes
-				dojo.connect(this.tree, "_onNodeMouseEnter", this, "onMouseOver"),
-				dojo.connect(this.tree, "_onNodeMouseLeave", this, "onMouseOut"),
+				connect.connect(this.tree, "_onNodeMouseEnter", this, "onMouseOver"),
+				connect.connect(this.tree, "_onNodeMouseLeave", this, "onMouseOut"),
 
 				// cancel text selection and text dragging
-				dojo.connect(this.node, "ondragstart", dojo, "stopEvent"),
-				dojo.connect(this.node, "onselectstart", dojo, "stopEvent")
+				connect.connect(this.node, "ondragstart", dojo, "stopEvent"),
+				connect.connect(this.node, "onselectstart", dojo, "stopEvent")
 			];
 		},
 
@@ -86,20 +72,18 @@ dojo.declare("dijit.tree._dndContainer",
 			// tags:
 			//		protected
 
-			var widget = this.selection[key],
-				ret = {
-					data: widget,
-					type: ["treeNode"]
-				};
-
-			return ret;	// dojo.dnd.Item
+			var widget = this.selection[key];
+			return {
+				data: widget,
+				type: ["treeNode"]
+			}; // dojo.dnd.Item
 		},
 
 		destroy: function(){
 			// summary:
 			//		Prepares this object to be garbage-collected
 
-			dojo.forEach(this.events, dojo.disconnect);
+			array.forEach(this.events, connect.disconnect);
 			// this.clearItems();
 			this.node = this.parent = null;
 		},
@@ -130,8 +114,8 @@ dojo.declare("dijit.tree._dndContainer",
 			//		new state
 			var prefix = "dojoDnd" + type;
 			var state = type.toLowerCase() + "State";
-			//dojo.replaceClass(this.node, prefix + newState, prefix + this[state]);
-			dojo.replaceClass(this.node, prefix + newState, prefix + this[state]);
+			//domClass.replace(this.node, prefix + newState, prefix + this[state]);
+			domClass.replace(this.node, prefix + newState, prefix + this[state]);
 			this[state] = newState;
 		},
 
@@ -142,7 +126,7 @@ dojo.declare("dijit.tree._dndContainer",
 			//		A node
 			// type: String
 			//		A variable suffix for a class name
-			dojo.addClass(node, "dojoDndItem" + type);
+			domClass.add(node, "dojoDndItem" + type);
 		},
 
 		_removeItemClass: function(node, type){
@@ -152,7 +136,7 @@ dojo.declare("dijit.tree._dndContainer",
 			//		A node
 			// type: String
 			//		A variable suffix for a class name
-			dojo.removeClass(node, "dojoDndItem" + type);
+			domClass.remove(node, "dojoDndItem" + type);
 		},
 
 		onOverEvent: function(){
@@ -170,8 +154,5 @@ dojo.declare("dijit.tree._dndContainer",
 			//		protected
 			this._changeState("Container", "");
 		}
-});
-
-
-return dijit.tree._dndContainer;
+	});
 });

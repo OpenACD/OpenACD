@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "cursive",
 	fantasy: "fantasy",
 
+	noFormat: "없음",
 	p: "단락",
 	h1: "제목",
 	h2: "부제목",

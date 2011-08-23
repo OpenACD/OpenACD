@@ -1,6 +1,20 @@
-define("dijit/_CssStateMixin", ["dojo", "dijit"], function(dojo, dijit) {
+//>>built
+define("dijit/_CssStateMixin", [
+	"dojo/touch",
+	"dojo/_base/array", // array.forEach array.map
+	"dojo/_base/declare",	// declare
+	"dojo/dom-class", // domClass.toggle
+	"dojo/_base/lang", // lang.hitch
+	"dojo/_base/window" // win.body
+], function(touch, array, declare, domClass, lang, win){
 
-dojo.declare("dijit._CssStateMixin", [], {
+// module:
+//		dijit/_CssStateMixin
+// summary:
+//		Mixin for widgets to set CSS classes on the widget DOM nodes depending on hover/mouse press/focus
+//		state changes, and also higher-level state changes such becoming disabled or selected.
+
+return declare("dijit._CssStateMixin", [], {
 	// summary:
 	//		Mixin for widgets to set CSS classes on the widget DOM nodes depending on hover/mouse press/focus
 	//		state changes, and also higher-level state changes such becoming disabled or selected.
@@ -29,24 +43,29 @@ dojo.declare("dijit._CssStateMixin", [], {
 	//		is hovered, etc.
 	cssStateNodes: {},
 
-	postCreate: function(){
+	// hovering: [readonly] Boolean
+	//		True if cursor is over this widget
+	hovering: false,
+
+	// active: [readonly] Boolean
+	//		True if mouse was pressed while over this widget, and hasn't been released yet
+	active: false,
+
+	_applyAttributes: function(){
+		// This code would typically be in postCreate(), but putting in _applyAttributes() for
+		// performance: so the class changes happen before DOM is inserted into the document.
+		// Change back to postCreate() in 2.0.  See #11635.
+
 		this.inherited(arguments);
 
 		// Automatically monitor mouse events (essentially :hover and :active) on this.domNode
-		dojo.forEach(["onmouseenter", "onmouseleave", "onmousedown"], function(e){
+		array.forEach(["onmouseenter", "onmouseleave", touch.press], function(e){
 			this.connect(this.domNode, e, "_cssMouseEvent");
 		}, this);
-		
-		// Monitoring changes to disabled, readonly, etc. state, and update CSS class of root node
-		this.connect(this, "set", function(name, value){
-			if(arguments.length >= 2 && {disabled: true, readOnly: true, checked:true, selected:true}[name]){
-				this._setStateClass();
-			}
-		});
 
-		// The widget coming in/out of the focus change affects it's state
-		dojo.forEach(["_onFocus", "_onBlur"], function(ap){
-			this.connect(this, ap, "_setStateClass");
+		// Monitoring changes to disabled, readonly, etc. state, and update CSS class of root node
+		array.forEach(["disabled", "readOnly", "checked", "selected", "focused", "state", "hovering", "active"], function(attr){
+			this.watch(attr, lang.hitch(this, "_setStateClass"));
 		}, this);
 
 		// Events on sub nodes within the widget
@@ -54,44 +73,43 @@ dojo.declare("dijit._CssStateMixin", [], {
 			this._trackMouseState(this[ap], this.cssStateNodes[ap]);
 		}
 		// Set state initially; there's probably no hover/active/focus state but widget might be
-		// disabled/readonly so we want to set CSS classes for those conditions.
+		// disabled/readonly/checked/selected so we want to set CSS classes for those conditions.
 		this._setStateClass();
 	},
 
 	_cssMouseEvent: function(/*Event*/ event){
 		// summary:
-		//	Sets _hovering and _active properties depending on mouse state,
-		//	then calls _setStateClass() to set appropriate CSS classes for this.domNode.
+		//	Sets hovering and active properties depending on mouse state,
+		//	which triggers _setStateClass() to set appropriate CSS classes for this.domNode.
 
 		if(!this.disabled){
 			switch(event.type){
 				case "mouseenter":
 				case "mouseover":	// generated on non-IE browsers even though we connected to mouseenter
-					this._hovering = true;
-					this._active = this._mouseDown;
+					this._set("hovering", true);
+					this._set("active", this._mouseDown);
 					break;
 
 				case "mouseleave":
 				case "mouseout":	// generated on non-IE browsers even though we connected to mouseleave
-					this._hovering = false;
-					this._active = false;
+					this._set("hovering", false);
+					this._set("active", false);
 					break;
 
-				case "mousedown" :
-					this._active = true;
+				case "mousedown":
+				case "touchpress":
+					this._set("active", true);
 					this._mouseDown = true;
 					// Set a global event to handle mouseup, so it fires properly
 					// even if the cursor leaves this.domNode before the mouse up event.
 					// Alternately could set active=false on mouseout.
-					var mouseUpConnector = this.connect(dojo.body(), "onmouseup", function(){
-						this._active = false;
+					var mouseUpConnector = this.connect(win.body(), touch.release, function(){
 						this._mouseDown = false;
-						this._setStateClass();
+						this._set("active", false);
 						this.disconnect(mouseUpConnector);
 					});
 					break;
 			}
-			this._setStateClass();
 		}
 	},
 
@@ -110,11 +128,12 @@ dojo.declare("dijit._CssStateMixin", [], {
 		//		The widget may have one or more of the following states, determined
 		//		by this.state, this.checked, this.valid, and this.selected:
 		//			- Error - ValidationTextBox sets this.state to "Error" if the current input value is invalid
+		//			- Incomplete - ValidationTextBox sets this.state to "Incomplete" if the current input value is not finished yet
 		//			- Checked - ex: a checkmark or a ToggleButton in a checked state, will have this.checked==true
 		//			- Selected - ex: currently selected tab will have this.selected==true
 		//
 		//		In addition, it may have one or more of the following states,
-		//		based on this.disabled and flags set in _onMouse (this._active, this._hovering, this._focused):
+		//		based on this.disabled and flags set in _onMouse (this.active, this.hovering) and from focus manager (this.focused):
 		//			- Disabled	- if the widget is disabled
 		//			- Active		- if the mouse (or space/enter key?) is being pressed down
 		//			- Focused		- if the widget has focus
@@ -124,7 +143,7 @@ dojo.declare("dijit._CssStateMixin", [], {
 		var newStateClasses = this.baseClass.split(" ");
 
 		function multiply(modifier){
-			newStateClasses = newStateClasses.concat(dojo.map(newStateClasses, function(c){ return c+modifier; }), "dijit"+modifier);
+			newStateClasses = newStateClasses.concat(array.map(newStateClasses, function(c){ return c+modifier; }), "dijit"+modifier);
 		}
 
 		if(!this.isLeftToRight()){
@@ -132,8 +151,9 @@ dojo.declare("dijit._CssStateMixin", [], {
 			multiply("Rtl");
 		}
 
+		var checkedState = this.checked == "mixed" ? "Mixed" : (this.checked ? "Checked" : "");
 		if(this.checked){
-			multiply("Checked");
+			multiply(checkedState);
 		}
 		if(this.state){
 			multiply(this.state);
@@ -147,14 +167,14 @@ dojo.declare("dijit._CssStateMixin", [], {
 		}else if(this.readOnly){
 			multiply("ReadOnly");
 		}else{
-			if(this._active){
+			if(this.active){
 				multiply("Active");
-			}else if(this._hovering){
+			}else if(this.hovering){
 				multiply("Hover");
 			}
 		}
 
-		if(this._focused){
+		if(this.focused){
 			multiply("Focused");
 		}
 
@@ -163,13 +183,13 @@ dojo.declare("dijit._CssStateMixin", [], {
 		var tn = this.stateNode || this.domNode,
 			classHash = {};	// set of all classes (state and otherwise) for node
 
-		dojo.forEach(tn.className.split(" "), function(c){ classHash[c] = true; });
+		array.forEach(tn.className.split(" "), function(c){ classHash[c] = true; });
 
 		if("_stateClasses" in this){
-			dojo.forEach(this._stateClasses, function(c){ delete classHash[c]; });
+			array.forEach(this._stateClasses, function(c){ delete classHash[c]; });
 		}
 
-		dojo.forEach(newStateClasses, function(c){ classHash[c] = true; });
+		array.forEach(newStateClasses, function(c){ classHash[c] = true; });
 
 		var newClasses = [];
 		for(var c in classHash){
@@ -198,17 +218,17 @@ dojo.declare("dijit._CssStateMixin", [], {
 		//		CSS class name (ex: dijitSliderUpArrow).
 
 		// Current state of node (initially false)
-		// NB: setting specifically to false because dojo.toggleClass() needs true boolean as third arg
+		// NB: setting specifically to false because domClass.toggle() needs true boolean as third arg
 		var hovering=false, active=false, focused=false;
 
 		var self = this,
-			cn = dojo.hitch(this, "connect", node);
+			cn = lang.hitch(this, "connect", node);
 
 		function setClass(){
 			var disabled = ("disabled" in self && self.disabled) || ("readonly" in self && self.readonly);
-			dojo.toggleClass(node, clazz+"Hover", hovering && !active && !disabled);
-			dojo.toggleClass(node, clazz+"Active", active && !disabled);
-			dojo.toggleClass(node, clazz+"Focused", focused && !disabled);
+			domClass.toggle(node, clazz+"Hover", hovering && !active && !disabled);
+			domClass.toggle(node, clazz+"Active", active && !disabled);
+			domClass.toggle(node, clazz+"Focused", focused && !disabled);
 		}
 
 		// Mouse
@@ -221,11 +241,11 @@ dojo.declare("dijit._CssStateMixin", [], {
 			active = false;
 			setClass();
 		});
-		cn("onmousedown", function(){
+		cn(touch.press, function(){
 			active = true;
 			setClass();
 		});
-		cn("onmouseup", function(){
+		cn(touch.release, function(){
 			active = false;
 			setClass();
 		});
@@ -242,14 +262,8 @@ dojo.declare("dijit._CssStateMixin", [], {
 
 		// Just in case widget is enabled/disabled while it has focus/hover/active state.
 		// Maybe this is overkill.
-		this.connect(this, "set", function(name, value){
-			if(name == "disabled" || name == "readOnly"){
-				setClass();
-			}
-		});
+		this.watch("disabled", setClass);
+		this.watch("readOnly", setClass);
 	}
 });
-
-
-return dijit._CssStateMixin;
 });

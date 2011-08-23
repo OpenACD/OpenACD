@@ -1,3 +1,4 @@
+//>>built
 define(
 //begin v1.x content
 ({
@@ -11,6 +12,7 @@ define(
 	cursive: "cursief",
 	fantasy: "fantasy",
 
+	noFormat: "Geen",
 	p: "Alinea",
 	h1: "Kop",
 	h2: "Subkop",

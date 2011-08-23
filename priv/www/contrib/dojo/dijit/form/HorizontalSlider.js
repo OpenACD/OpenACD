@@ -1,13 +1,68 @@
-define("dijit/form/HorizontalSlider", ["dojo", "dijit", "text!dijit/templates/HorizontalSlider.html", "dijit/form/_FormWidget", "dijit/_Container", "dojo/dnd/move", "dijit/form/Button", "dojo/number", "dojo/_base/fx"], function(dojo, dijit) {
+//>>built
+require({cache:{
+'url:dijit/form/templates/HorizontalSlider.html':"<table class=\"dijit dijitReset dijitSlider dijitSliderH\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" rules=\"none\" dojoAttachEvent=\"onkeypress:_onKeyPress,onkeyup:_onKeyUp\"\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"topDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationT dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderDecrementIconH\" style=\"display:none\" dojoAttachPoint=\"decrementButton\"><span class=\"dijitSliderButtonInner\">-</span></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderLeftBumper\" dojoAttachEvent=\"press:_onClkDecBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><input dojoAttachPoint=\"valueNode\" type=\"hidden\" ${!nameAttrSetting}\n\t\t\t/><div class=\"dijitReset dijitSliderBarContainerH\" role=\"presentation\" dojoAttachPoint=\"sliderBarContainer\"\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"progressBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderProgressBar dijitSliderProgressBarH\" dojoAttachEvent=\"press:_onBarClick\"\n\t\t\t\t\t><div class=\"dijitSliderMoveable dijitSliderMoveableH\"\n\t\t\t\t\t\t><div dojoAttachPoint=\"sliderHandle,focusNode\" class=\"dijitSliderImageHandle dijitSliderImageHandleH\" dojoAttachEvent=\"press:_onHandleClick\" role=\"slider\" valuemin=\"${minimum}\" valuemax=\"${maximum}\"></div\n\t\t\t\t\t></div\n\t\t\t\t></div\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"remainingBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderRemainingBar dijitSliderRemainingBarH\" dojoAttachEvent=\"press:_onBarClick\"></div\n\t\t\t></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderRightBumper\" dojoAttachEvent=\"press:_onClkIncBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderIncrementIconH\" style=\"display:none\" dojoAttachPoint=\"incrementButton\"><span class=\"dijitSliderButtonInner\">+</span></div\n\t\t></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,bottomDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationB dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n></table>\n"}});
+define("dijit/form/HorizontalSlider", [
+	"dojo/_base/array", // array.forEach
+	"dojo/_base/declare", // declare
+	"dojo/dnd/move",
+	"dojo/_base/event", // event.stop
+	"dojo/_base/fx", // fx.animateProperty
+	"dojo/dom-geometry", // domGeometry.position
+	"dojo/dom-style", // domStyle.getComputedStyle
+	"dojo/keys", // keys.DOWN_ARROW keys.END keys.HOME keys.LEFT_ARROW keys.PAGE_DOWN keys.PAGE_UP keys.RIGHT_ARROW keys.UP_ARROW
+	"dojo/_base/lang", // lang.hitch
+	"dojo/_base/sniff", // has("ie") has("mozilla")
+	"dojo/dnd/Moveable", // Moveable
+	"dojo/dnd/Mover", // Mover Mover.prototype.destroy.apply
+	"dojo/query", // query
+	"../_base/manager", // findWidgets
+	"../focus",		// focus.focus()
+	"../typematic",
+	"./Button",
+	"./_FormValueWidget",
+	"../_Container",
+	"dojo/text!./templates/HorizontalSlider.html"
+], function(array, declare, move, event, fx, domGeometry, domStyle, keys, lang, has, Moveable, Mover, query,
+			manager, focus, typematic, Button, _FormValueWidget, _Container, template){
 
-dojo.declare(
-	"dijit.form.HorizontalSlider",
-	[dijit.form._FormValueWidget, dijit._Container],
-{
+/*=====
+	var Button = dijit.form.Button;
+	var _FormValueWidget = dijit.form._FormValueWidget;
+	var _Container = dijit._Container;
+=====*/
+
+// module:
+//		dijit/form/HorizontalSlider
+// summary:
+//		A form widget that allows one to select a value with a horizontally draggable handle
+
+
+var _SliderMover = declare("dijit.form._SliderMover", Mover, {
+	onMouseMove: function(e){
+		var widget = this.widget;
+		var abspos = widget._abspos;
+		if(!abspos){
+			abspos = widget._abspos = domGeometry.position(widget.sliderBarContainer, true);
+			widget._setPixelValue_ = lang.hitch(widget, "_setPixelValue");
+			widget._isReversed_ = widget._isReversed();
+		}
+		var pixelValue = e[widget._mousePixelCoord] - abspos[widget._startingPixelCoord];
+		widget._setPixelValue_(widget._isReversed_ ? (abspos[widget._pixelCount]-pixelValue) : pixelValue, abspos[widget._pixelCount], false);
+	},
+
+	destroy: function(e){
+		Mover.prototype.destroy.apply(this, arguments);
+		var widget = this.widget;
+		widget._abspos = null;
+		widget._setValueAttr(widget.value, true);
+	}
+});
+
+var HorizontalSlider = declare("dijit.form.HorizontalSlider", [_FormValueWidget, _Container], {
 	// summary:
 	//		A form widget that allows one to select a value with a horizontally draggable handle
 
-	templateString: dojo.cache('dijit.form','templates/HorizontalSlider.html'),
+	templateString: template,
 
 	// Overrides FormValueWidget.value to indicate numeric value
 	value: 0,
@@ -53,12 +108,8 @@ dojo.declare(
 	//		when clicking the slider bar to make the handle move.
 	slideDuration: dijit.defaultDuration,
 
-	// Flag to _Templated  (TODO: why is this here?  I see no widgets in the template.)
-	widgetsInTemplate: true,
-
-	attributeMap: dojo.delegate(dijit.form._FormWidget.prototype.attributeMap, {
-		id: ""
-	}),
+	// Map widget attributes to DOMNode attributes.
+	_setIdAttr: "",		// Override _FormWidget which sends id to focusNode
 
 	baseClass: "dijitSlider",
 
@@ -84,38 +135,38 @@ dojo.declare(
 	_onKeyPress: function(/*Event*/ e){
 		if(this.disabled || this.readOnly || e.altKey || e.ctrlKey || e.metaKey){ return; }
 		switch(e.charOrCode){
-			case dojo.keys.HOME:
+			case keys.HOME:
 				this._setValueAttr(this.minimum, false);
 				break;
-			case dojo.keys.END:
+			case keys.END:
 				this._setValueAttr(this.maximum, false);
 				break;
 			// this._descending === false: if ascending vertical (min on top)
 			// (this._descending || this.isLeftToRight()): if left-to-right horizontal or descending vertical
-			case ((this._descending || this.isLeftToRight()) ? dojo.keys.RIGHT_ARROW : dojo.keys.LEFT_ARROW):
-			case (this._descending === false ? dojo.keys.DOWN_ARROW : dojo.keys.UP_ARROW):
-			case (this._descending === false ? dojo.keys.PAGE_DOWN : dojo.keys.PAGE_UP):
+			case ((this._descending || this.isLeftToRight()) ? keys.RIGHT_ARROW : keys.LEFT_ARROW):
+			case (this._descending === false ? keys.DOWN_ARROW : keys.UP_ARROW):
+			case (this._descending === false ? keys.PAGE_DOWN : keys.PAGE_UP):
 				this.increment(e);
 				break;
-			case ((this._descending || this.isLeftToRight()) ? dojo.keys.LEFT_ARROW : dojo.keys.RIGHT_ARROW):
-			case (this._descending === false ? dojo.keys.UP_ARROW : dojo.keys.DOWN_ARROW):
-			case (this._descending === false ? dojo.keys.PAGE_UP : dojo.keys.PAGE_DOWN):
+			case ((this._descending || this.isLeftToRight()) ? keys.LEFT_ARROW : keys.RIGHT_ARROW):
+			case (this._descending === false ? keys.UP_ARROW : keys.DOWN_ARROW):
+			case (this._descending === false ? keys.PAGE_UP : keys.PAGE_DOWN):
 				this.decrement(e);
 				break;
 			default:
 				return;
 		}
-		dojo.stopEvent(e);
+		event.stop(e);
 	},
 
 	_onHandleClick: function(e){
 		if(this.disabled || this.readOnly){ return; }
-		if(!dojo.isIE){
+		if(!has("ie")){
 			// make sure you get focus when dragging the handle
 			// (but don't do on IE because it causes a flicker on mouse up (due to blur then focus)
-			dijit.focus(this.sliderHandle);
+			focus.focus(this.sliderHandle);
 		}
-		dojo.stopEvent(e);
+		event.stop(e);
 	},
 
 	_isReversed: function(){
@@ -128,9 +179,9 @@ dojo.declare(
 
 	_onBarClick: function(e){
 		if(this.disabled || this.readOnly || !this.clickSelect){ return; }
-		dijit.focus(this.sliderHandle);
-		dojo.stopEvent(e);
-		var abspos = dojo.position(this.sliderBarContainer, true);
+		focus.focus(this.sliderHandle);
+		event.stop(e);
+		var abspos = domGeometry.position(this.sliderBarContainer, true);
 		var pixelValue = e[this._mousePixelCoord] - abspos[this._startingPixelCoord];
 		this._setPixelValue(this._isReversed() ? (abspos[this._pixelCount] - pixelValue) : pixelValue, abspos[this._pixelCount], true);
 		this._movable.onMouseDown(e);
@@ -152,7 +203,7 @@ dojo.declare(
 		//		Hook so set('value', value) works.
 		this._set("value", value);
 		this.valueNode.value = value;
-		dijit.setWaiState(this.focusNode, "valuenow", value);
+		this.focusNode.setAttribute("aria-valuenow", value);
 		this.inherited(arguments);
 		var percent = (value - this.minimum) / (this.maximum - this.minimum);
 		var progressBar = (this._descending === false) ? this.remainingBar : this.progressBar;
@@ -169,11 +220,15 @@ dojo.declare(
 			if(duration == 0){ return; }
 			if(duration < 0){ duration = 0 - duration; }
 			props[this._progressPixelSize] = { start: start, end: percent*100, units:"%" };
-			this._inProgressAnim = dojo.animateProperty({ node: progressBar, duration: duration,
-				onAnimate: function(v){ remainingBar.style[_this._progressPixelSize] = (100-parseFloat(v[_this._progressPixelSize])) + "%"; },
-				onEnd: function(){ delete _this._inProgressAnim; },
+			this._inProgressAnim = fx.animateProperty({ node: progressBar, duration: duration,
+				onAnimate: function(v){
+					remainingBar.style[_this._progressPixelSize] = (100 - parseFloat(v[_this._progressPixelSize])) + "%";
+				},
+				onEnd: function(){
+					delete _this._inProgressAnim;
+				},
 				properties: props
-			})
+			});
 			this._inProgressAnim.play();
 		}else{
 			progressBar.style[this._progressPixelSize] = (percent*100) + "%";
@@ -183,8 +238,8 @@ dojo.declare(
 
 	_bumpValue: function(signedChange, /*Boolean?*/ priorityChange){
 		if(this.disabled || this.readOnly){ return; }
-		var s = dojo.getComputedStyle(this.sliderBarContainer);
-		var c = dojo._getContentBox(this.sliderBarContainer, s);
+		var s = domStyle.getComputedStyle(this.sliderBarContainer);
+		var c = domGeometry.getContentBox(this.sliderBarContainer, s);
 		var count = this.discreteValues;
 		if(count <= 1 || count == Infinity){ count = c[this._pixelCount]; }
 		count--;
@@ -213,7 +268,7 @@ dojo.declare(
 		//		Decrement slider
 		// tags:
 		//		private
-		this._bumpValue(e.charOrCode == dojo.keys.PAGE_DOWN ? -this.pageIncrement : -1);
+		this._bumpValue(e.charOrCode == keys.PAGE_DOWN ? -this.pageIncrement : -1);
 	},
 
 	increment: function(/*Event*/ e){
@@ -221,14 +276,14 @@ dojo.declare(
 		//		Increment slider
 		// tags:
 		//		private
-		this._bumpValue(e.charOrCode == dojo.keys.PAGE_UP ? this.pageIncrement : 1);
+		this._bumpValue(e.charOrCode == keys.PAGE_UP ? this.pageIncrement : 1);
 	},
 
 	_mouseWheeled: function(/*Event*/ evt){
 		// summary:
 		//		Event handler for mousewheel where supported
-		dojo.stopEvent(evt);
-		var janky = !dojo.isMozilla;
+		event.stop(evt);
+		var janky = !has("mozilla");
 		var scroll = evt[(janky ? "wheelDelta" : "detail")] * (janky ? 1 : -1);
 		this._bumpValue(scroll < 0 ? -1 : 1, true); // negative scroll acts like a decrement
 	},
@@ -236,7 +291,7 @@ dojo.declare(
 	startup: function(){
 		if(this._started){ return; }
 
-		dojo.forEach(this.getChildren(), function(child){
+		array.forEach(this.getChildren(), function(child){
 			if(this[child.container] != this.containerNode){
 				this[child.container].appendChild(child.domNode);
 			}
@@ -261,32 +316,32 @@ dojo.declare(
 		}
 
 		// find any associated label element and add to slider focusnode.
-		var label = dojo.query('label[for="'+this.id+'"]');
+		var label = query('label[for="'+this.id+'"]');
 		if(label.length){
 			label[0].id = (this.id+"_label");
-			dijit.setWaiState(this.focusNode, "labelledby", label[0].id);
+			this.focusNode.setAttribute("aria-labelledby", label[0].id);
 		}
 
-		dijit.setWaiState(this.focusNode, "valuemin", this.minimum);
-		dijit.setWaiState(this.focusNode, "valuemax", this.maximum);
+		this.focusNode.setAttribute("aria-valuemin", this.minimum);
+		this.focusNode.setAttribute("aria-valuemax", this.maximum);
 	},
 
 	postCreate: function(){
 		this.inherited(arguments);
 
 		if(this.showButtons){
-			this._connects.push(dijit.typematic.addMouseListener(
+			this._connects.push(typematic.addMouseListener(
 				this.decrementButton, this, "_typematicCallback", 25, 500));
-			this._connects.push(dijit.typematic.addMouseListener(
+			this._connects.push(typematic.addMouseListener(
 				this.incrementButton, this, "_typematicCallback", 25, 500));
 		}
-		this.connect(this.domNode, !dojo.isMozilla ? "onmousewheel" : "DOMMouseScroll", "_mouseWheeled");
+		this.connect(this.domNode, !has("mozilla") ? "onmousewheel" : "DOMMouseScroll", "_mouseWheeled");
 
 		// define a custom constructor for a SliderMover that points back to me
-		var mover = dojo.declare(dijit.form._SliderMover, {
+		var mover = declare(_SliderMover, {
 			widget: this
 		});
-		this._movable = new dojo.dnd.Moveable(this.sliderHandle, {mover: mover});
+		this._movable = new Moveable(this.sliderHandle, {mover: mover});
 
 		this._layoutHackIE7();
 	},
@@ -296,34 +351,12 @@ dojo.declare(
 		if(this._inProgressAnim && this._inProgressAnim.status != "stopped"){
 			this._inProgressAnim.stop(true);
 		}
-		this._supportingWidgets = dijit.findWidgets(this.domNode); // tells destroy about pseudo-child widgets (ruler/labels)
+		this._supportingWidgets = manager.findWidgets(this.domNode); // tells destroy about pseudo-child widgets (ruler/labels)
 		this.inherited(arguments);
 	}
 });
 
-dojo.declare("dijit.form._SliderMover",
-	dojo.dnd.Mover,
-{
-	onMouseMove: function(e){
-		var widget = this.widget;
-		var abspos = widget._abspos;
-		if(!abspos){
-			abspos = widget._abspos = dojo.position(widget.sliderBarContainer, true);
-			widget._setPixelValue_ = dojo.hitch(widget, "_setPixelValue");
-			widget._isReversed_ = widget._isReversed();
-		}
-		var pixelValue = e[widget._mousePixelCoord] - abspos[widget._startingPixelCoord];
-		widget._setPixelValue_(widget._isReversed_ ? (abspos[widget._pixelCount]-pixelValue) : pixelValue, abspos[widget._pixelCount], false);
-	},
+HorizontalSlider._Mover = _SliderMover;	// for monkey patching
 
-	destroy: function(e){
-		dojo.dnd.Mover.prototype.destroy.apply(this, arguments);
-		var widget = this.widget;
-		widget._abspos = null;
-		widget._setValueAttr(widget.value, true);
-	}
-});
-
-
-return dijit.form.HorizontalSlider;
+return HorizontalSlider;
 });

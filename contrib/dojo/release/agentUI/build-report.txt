@@ -1,4 +1,4 @@
-Build started: Fri Aug 05 2011 11:08:00 GMT-0500 (CDT)
+Build started: Tue Aug 23 2011 15:09:02 GMT-0500 (CDT)
 Build application version: 1.7.0dev (23930)
 Messages:
 message-id(100) Assumed module uses legacy loader API.
@@ -235,6 +235,7 @@ message-id(100) Assumed module uses legacy loader API.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/MediaTab
 	module: agentUI/util
 info(101) Using dojo/loadInit plugin for module.
 	module: dojox/cometd/RestChannels
@@ -516,6 +517,7 @@ info(108) Interning strings.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/MediaTab
 	module: agentUI/util
 warn(205) Module not tagged as pure AMD yet it contains AMD API applications.
 	module: dojox/form/MultiComboBox
@@ -576,6 +578,7 @@ agentUI/base:
 	dijit/form/nls/validate
 	dijit/form/TextBox
 	dijit/_TemplatedMixin
+	dijit/_Templated
 	dijit/_CssStateMixin
 	dijit/layout/ScrollingTabController
 	dijit/DialogUnderlay
@@ -638,6 +641,7 @@ agentUI/base:
 	dojo/dnd/Mover
 	dijit/layout/TabContainer
 	dijit/BackgroundIframe
+	agentUI/MediaTab
 	dijit/templates/Menu.html
 	dijit/form/Button
 	dijit/layout/templates/TabContainer.html
@@ -751,4 +755,4 @@ dojo/dojo:
 Process finished normally
 	errors: 12
 	warnings: 37
-	build time: 52.326 seconds
+	build time: 56.209 seconds

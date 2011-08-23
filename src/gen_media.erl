@@ -405,6 +405,7 @@
 	handle_event/3, handle_sync_event/4, handle_info/3,
 	inivr/2, inivr/3,
 	inqueue/2, inqueue/3,
+	inqueue_ringing/2, inqueue_ringing/3,
 	oncall/2, oncall/3,
 	oncall_ringing/2, oncall_ringing/3,
 	wrapup/2, wrapup/3,
@@ -500,7 +501,8 @@ behaviour_info(_Other) ->
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {{'$gen_media', ring}, {A, Qcall, Timeout}}, infinity);
+	gen_fsm:sync_senc_event(Genmedia, {{'$gen_media', ring}, {A, Qcall, Timeout}}, infinity);
+
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
 		notfound ->
@@ -519,24 +521,24 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 %% @doc Get the call record associated with `pid() Genmedia'.
 -spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
-	gen_server:call(Genmedia, {{'$gen_media', get_call}, undefined}, infinity).
+	gen_fsm:sync_send_all_event(Genmedia, {{'$gen_media', get_call}, undefined}, infinity).
 
 %% @doc Send the passed `pid() Genmedia' to voicemail.
 -spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 voicemail(Genmedia) ->
-	gen_server:call(Genmedia, {{'$gen_media', voicemail}, undefined}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', voicemail}, undefined}).
 
 %% @doc Pass `any() Annouce' message to `pid() Genmedia'.
 -spec(announce/2 :: (Genmedia :: pid(), Annouce :: any()) -> 'ok').
 announce(Genmedia, Annouce) ->
-	gen_server:call(Genmedia, {{'$gen_media', announce}, Annouce}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', announce}, Annouce}).
 
 %% @doc Sends the oncall agent associated with the call to wrapup; or, if it's
 %% the oncall agent making the request, gives the callback module a chance to
 %% handle it.
 -spec(wrapup/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 wrapup(Genmedia) ->
-	gen_server:call(Genmedia, {{'$gen_media', wrapup}, undefined}).
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', wrapup}, undefined}).
 
 %% @doc Send a stop ringing message to `pid() Genmedia'.
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
@@ -588,7 +590,7 @@ warm_transfer_merge(Genmedia) ->
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
 queue(Genmedia, Queue) ->
-	gen_server:call(Genmedia, {'$gen_media', queue, Queue}).
+	gen_fsm:syn_send_event(Genmedia, {'$gen_media', queue, Queue}).
 	
 %% @doc Attempt to spy on the agent oncall with the given media.  `Spy' is
 %% the pid to send media events/load data to, and `AgentRec' is an 
@@ -620,17 +622,17 @@ add_skills(Genmedia, Skills) ->
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
-	gen_server:call(Genmedia, Request).
+	gen_fsm:sync_send_all_event(Genmedia, Request).
 
 %% @doc Do the equivalent of `gen_server:call/3'.
 -spec(call/3 :: (Genmedia :: pid(), Request :: any(), Timeout :: pos_integer()) -> any()).
 call(Genmedia, Request, Timeout) ->
-	gen_server:call(Genmedia, Request, Timeout).
+	gen_fsm:sync_send_all_event(Genmedia, Request, Timeout).
 
 %% @doc Do the equivalent of `gen_server:cast/2'.
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
-	gen_server:cast(Genmedia, Request).
+	gen_fsm:send_all_event(Genmedia, Request).
 
 %%====================================================================
 %% API
@@ -639,14 +641,14 @@ cast(Genmedia, Request) ->
 %% @doc Start a gen_media linked to the calling process.
 -spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Callback, Args) ->
-	gen_server:start_link(?MODULE, [Callback, Args], []).
+	gen_fsm:start_link(?MODULE, [Callback, Args], []).
 
 -spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Callback, Args) ->
-	gen_server:start(?MODULE, [Callback, Args], []).
+	gen_fsm:start(?MODULE, [Callback, Args], []).
 
 %%====================================================================
-%% gen_server callbacks
+%% init callbacks
 %%====================================================================
 
 %% @private
@@ -1066,19 +1068,6 @@ inqueue_ringing({{'$gen_media', set_queue}, Qpid}, _From, State) ->
 		queue_pid = {Queue, Qpid}
 	},
 	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
-
-inqueue_ringing({{'$gen_media', announce}, Announce}, _From, {BaseState, Internal}) ->
-	#base_state{callback = Callback, substate = InSubstate, callrec = Call} = BaseState,
-	?INFO("Doing announce for ~p", [Call#call.id]),
-	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
-		true ->
-			{ok, N} = Callback:handle_announce(Announce, inqueue_ringing, Call, Internal, InSubstate),
-			N;
-		false ->
-			InSubstate
-	end,
-	NewBase = BaseState#base_state{substate = Substate},
-	{reply, ok, inqueue_ringing, {NewBase, Internal}};
 
 inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, QCall, Timeout}} = Req, From, State) ->
 	Cook = QCall#queued_call.cook,

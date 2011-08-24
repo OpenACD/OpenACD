@@ -627,10 +627,15 @@ handle_info({freeswitch_sendmsg, "inivr "++UUID}, #state{call_dict = Dict} = Sta
 		{ok, Pid} ->
 			Pid;
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
-			link(Pid)
-	end,
-	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+			case freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID) of
+				{ok, Pid} ->
+					link(Pid),
+					{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+				Else ->
+					?WARNING("Error setting up new call ~s:  ~p", [UUID, Else]),
+					{noreply, State}
+			end
+	end;
 handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of
 		{ok, Pid} ->
@@ -638,10 +643,16 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 			?NOTICE("pid for ~s already allocated", [UUID]),
 			{noreply, State};
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
-			From ! {Ref, Pid},
-			link(Pid),
-			{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}}
+			case freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID) of
+				{ok, Pid} -> 
+					From ! {Ref, Pid},
+					link(Pid),
+					{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+				Else ->
+					From ! {Ref, Else},
+					?WARNING("Could not create pid for ~s:  ~p", [UUID, Else]),
+					{noreply, State}
+			end
 	end;
 handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->
 	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),

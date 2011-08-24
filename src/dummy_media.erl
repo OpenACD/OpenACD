@@ -667,7 +667,7 @@ dummy_test_() ->
 			"Set agent ringing when set to success",
 			fun() -> 
 				{ok, {State, _Call}} = init([[{queues, none}], success]),
-				?assertEqual({ok, [{"caseid", undefined}], State}, handle_ring("apid", "callrec", State))
+				?assertEqual({ok, [{"caseid", undefined}], State}, handle_ring("apid", "ringdata", "callrec", State))
 			end
 		},
 		{

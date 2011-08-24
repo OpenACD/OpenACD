@@ -1969,7 +1969,7 @@ handle_custom_return({queue, Queue, PCallrec, NewState}, inivr, Reply, {BaseStat
 		{default, Qpid} ->
 			cdr:cdrinit(Callrec),
 			cdr:inqueue(Callrec, "default_queue"),
-			set_cpx_mon(BaseState#base_state{callrec = Callrec, substate = NewState}, [{queue, "default_queue"}]),
+			set_cpx_mon({BaseState#base_state{callrec = Callrec, substate = NewState}, undefined}, [{queue, "default_queue"}]),
 			{ok, {"default_queue", Qpid}};
 			%{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
 		invalid ->
@@ -1979,7 +1979,7 @@ handle_custom_return({queue, Queue, PCallrec, NewState}, inivr, Reply, {BaseStat
 		Qpid ->
 			cdr:cdrinit(Callrec),
 			cdr:inqueue(Callrec, Queue),
-			set_cpx_mon(BaseState#base_state{callrec = Callrec, substate = NewState}, [{queue, Queue}]),
+			set_cpx_mon({BaseState#base_state{callrec = Callrec, substate = NewState}, undefined}, [{queue, Queue}]),
 			{ok, {Queue, Qpid}}
 			%{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end,

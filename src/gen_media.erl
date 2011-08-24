@@ -2669,7 +2669,7 @@ url_pop_test_() ->
 		{Call, Agent, undefined}
 	end,
 	fun({_, Agent, Conn}) ->
-		agent:stop(Agent)
+		gen_server_mock:stop(Agent)
 	end,
 	fun({BaseCall, Agent, Conn}) ->
 		[{"no url pop defined in client",
@@ -2695,16 +2695,16 @@ url_pop_test_() ->
 		{"url is set with some additional options",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
-			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
+			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}]),
-			gen_server_mock:assert_expectations(Conn)
+			gen_server_mock:assert_expectations(Agent)
 		end},
 		{"url is set with some additional options, some of which are blank",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
-			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
+			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}, {"foo", undefined}]),
-			gen_server_mock:assert_expectations(Conn)
+			gen_server_mock:assert_expectations(Agent)
 		end}
 	]
 	end}.

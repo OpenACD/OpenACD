@@ -579,7 +579,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 				{ok, DeadEnds} ->
 					Self = self(),
 					Oends = State#state.original_endpoints,
-					NewEnds = [{End, Data} || End <- DeadEnds, {ok, Data} = dict:fetch(End, Oends)],
+					NewEnds = [{End, Data} || End <- DeadEnds, Data = dict:fetch(End, Oends)],
 					?MODULE:set_endpoints(Self, NewEnds),
 					{next_state, StateName, State}
 			end;

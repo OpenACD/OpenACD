@@ -99,9 +99,9 @@
 %% API
 -export([
 	start/3,
-	start/5,
+	start/6,
 	start_link/3,
-	start_link/5,
+	start_link/6,
 	hangup/1,
 	get_uuid/1,
 	ring/3
@@ -190,7 +190,7 @@
 start(Fsnode, Callbacks, Options) ->
 	gen_server:start(?MODULE, [Fsnode, Callbacks, Options], []).
 
-start(Agent, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+start(Agent, _Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
 	NewOptions = [{call, Call} | Options],
 	gen_server:start(?MODULE, [Fsnode, Callbacks, NewOptions], []).
 
@@ -198,7 +198,7 @@ start(Agent, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
 start_link(Fsnode, Callbacks, Options) ->
 	gen_server:start_link(?MODULE, [Fsnode, Callbacks, Options], []).
 
-start_link(Agent, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+start_link(Agent, _Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
 	NewOptions = [{call, Call} | Options],
 	gen_server:start_link(?MODULE, [Fsnode, Callbacks, NewOptions], []).
 

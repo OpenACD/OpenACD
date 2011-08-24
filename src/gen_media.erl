@@ -988,7 +988,10 @@ inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid, _Tag},
 	case Callback:handle_answer(Apid, inqueue_ringing, Call, Internal, BaseState#base_state.substate) of
 		{ok, NewState} ->
 			kill_outband_ring({BaseState, Internal}),
-			gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
+			case Internal#inqueue_ringing_state.ringout of
+				undefined -> ok;
+				TimerRef -> gen_fsm:cancel_timer(TimerRef)
+			end,
 			unqueue(Internal#inqueue_ringing_state.queue_pid, self()),
 			cdr:oncall(Call, Agent),
 			NewBase = BaseState#base_state{substate = NewState},

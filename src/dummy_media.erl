@@ -78,7 +78,7 @@
 	code_change/4,
 	prepare_endpoint/2,
 	handle_ring/4, 
-	handle_answer/3, 
+	handle_answer/5, 
 	handle_voicemail/3, 
 	handle_announce/3, 
 	handle_ring_stop/4,
@@ -478,7 +478,7 @@ prepare_endpoint(Agent, persistant) ->
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
-handle_answer(Agent, Call, #state{fail = Fail} = State) ->
+handle_answer(Agent, _Statename, Call, _Internal, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),

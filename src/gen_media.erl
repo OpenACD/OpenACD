@@ -2796,7 +2796,7 @@ handle_state_changes_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end,
 		Makestate = fun() ->
-			{ok, {#base_state{callrec = Callrec}, _} = Out} = init([dummy_media, [[{queues, none}], success]]),
+			{ok, {#base_state{callrec = Callrec} = Out, _}} = init([dummy_media, [[{queues, none}], success]]),
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}), 
 			Out
 		end,
@@ -2809,9 +2809,8 @@ handle_state_changes_test_() ->
 		gen_leader_mock:stop(Mocks#state_changes_mocks.queue),
 		gen_leader_mock:stop(Mocks#state_changes_mocks.agent_manager),
 		gen_event:stop(cdr)
-	end,
-	[{"test one", ?_assert(true)}]
-	}}.
+	end, [
+	]}}.
 
 
 

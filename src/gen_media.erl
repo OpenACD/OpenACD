@@ -695,12 +695,12 @@ init([Callback, Args]) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
-			set_cpx_mon({#base_state{callrec = Callrec} #inivr_state{}}, [], self()),
 			BaseState = #base_state{
 				callback = Callback,
 				substate = Substate,
 				callrec = Callrec
 			},
+			set_cpx_mon({BaseState, #inivr_state{}}, [], self()),
 			{ok, inivr, {BaseState, #inivr_state{}}};
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),

@@ -76,11 +76,11 @@
 	handle_wrapup/2,
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
+	handle_info/5,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
 	handle_warm_transfer_complete/2,
-	terminate/3,
+	terminate/5,
 	code_change/4]).
 
 -record(state, {
@@ -108,8 +108,8 @@
 	}).
 
 -type(state() :: #state{}).
--define(GEN_MEDIA, true).
--include("gen_spec.hrl").
+%-define(GEN_MEDIA, true).
+%-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -578,7 +578,7 @@ handle_cast(_Msg, _Call, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info(check_recovery, Call, State) ->
+handle_info(check_recovery, _StateName, Call, _Internal, State) ->
 	case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
@@ -588,56 +588,76 @@ handle_info(check_recovery, Call, State) ->
 			{ok, Tref} = timer:send_after(1000, check_recovery),
 			{noreply, State#state{manager_pid = Tref}}
 	end;
-handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
+
+%% TODO refinment for actuall warm transfer.
+handle_info({'EXIT', Pid, Reason}, warm_transfer_hold, Call, _Internal, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{xferchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+
+handle_info({'EXIT', Pid, Reason}, warm_transfer_hold, Call, _Internal, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	cdr:warmxfer_fail(Call, State#state.agent_pid),
 	{noreply, State#state{ringchannel = undefined}};
-handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
+
+handle_info(warm_transfer_succeeded, warm_transfer_3rd_party, Call, _Internal, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
 	?DEBUG("Got warm transfer success notification from ring channel for ~p", [Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
+%% and end of warm transfer gook.
+
+handle_info({'EXIT', Pid, Reason}, StateName, Call, _Internal, 
+		#state{ringchannel = Pid} = State) when StateName =:= oncall_ringing;
+		StateName =:= inqueue_ringing ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{ringchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Reason}, _StateName, Call, _Internal, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
-handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
+
+%% TODO make awesome by taking advantage of the state machine-ness.
+handle_info({call, {event, [UUID | Rest]}}, _StateName, Call, _Internal, State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
 	freeswitch:session_setevent(State#state.cnode, ['CHANNEL_BRIDGE', 'CHANNEL_PARK', 'CHANNEL_HANGUP', 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF']),
 	freeswitch_media_manager:notify(UUID, self()),
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
-handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
+
+handle_info({call_event, {event, [UUID | Rest]}}, _StateName, Call, _Internal, State) when is_list(UUID) ->
 	%?DEBUG("reporting existing call progess ~p.", [UUID]),
 	case_event_name([ UUID | Rest], Call, State);
-handle_info({set_agent, Login, Apid}, _Call, State) ->
+
+handle_info({set_agent, Login, Apid}, _StateName, _Call, _Intenral, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
-handle_info({bgok, Reply}, Call, State) ->
+
+handle_info({bgok, Reply}, _StateName, Call, _Internal, State) ->
 	?DEBUG("bgok:  ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
-handle_info({bgerror, "-ERR NO_ANSWER\n"}, Call, State) ->
+
+handle_info({bgerror, "-ERR NO_ANSWER\n"}, _StateName, Call, _Internal, State) ->
 	?INFO("Potential ringout.  Statecook:  ~p for ~p", [State#state.cook, Call#call.id]),
 	%% the apid is known by gen_media, let it handle if it is not not.
 	{stop_ring, State};
-handle_info({bgerror, "-ERR USER_BUSY\n"}, Call, State) ->
+
+handle_info({bgerror, "-ERR USER_BUSY\n"}, _StateName, Call, _Internal, State) ->
 	?NOTICE("Agent rejected the call ~p", [Call#call.id]),
 	{stop_ring, State};
-handle_info({bgerror, Reply}, Call, State) ->
+
+handle_info({bgerror, Reply}, _StateName, Call, _Internal, State) ->
 	?WARNING("unhandled bgerror: ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
-handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when not InControl ->
+
+handle_info(channel_destroy, _StateName, Call, _Internal, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR for ~p", [Call#call.id]),
 	{stop, hangup, State};
-handle_info(call_hangup, Call, State) ->
+
+handle_info(call_hangup, _StateName, Call, _Internal, State) ->
 	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
 	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
-handle_info(Info, Call, State) ->
+
+handle_info(Info, _StateName, Call, _Internal, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
 	{noreply, State}.
 
@@ -645,7 +665,7 @@ handle_info(Info, Call, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, Call, _State) ->
+terminate(Reason, _StateName, Call, _Internal, _State) ->
 	?NOTICE("terminating: ~p ~p", [Reason, Call#call.id]),
 	ok.
 

@@ -84,7 +84,7 @@
 	handle_ring_stop/4,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_wrapup/5,
 	handle_spy/3,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
@@ -541,7 +541,7 @@ handle_queue_transfer(_Callrec, State) ->
 handle_ring_stop(_StateName, _Callrec, _Internal, State) ->
 	{ok, State}.
 
-handle_wrapup(_Callrec, State) ->
+handle_wrapup(_From, _StateName, _Callrec, _Internal, State) ->
 	{hangup, State}.
 
 -spec(handle_warm_transfer_begin/3 :: (Number :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'invalid', #state{}}).

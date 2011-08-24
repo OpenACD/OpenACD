@@ -1015,7 +1015,7 @@ inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, From, {BaseState, Int
 	%% TODO this will break w/ merge for multichannel; that uses a pre-ring
 	%% state.
 	case set_agent_state(Apid, [oncall, Call]) of
-		invalid ->
+		{error, invalid} ->
 			{reply, invalid, inqueue_ringing, {BaseState, Internal}};
 		ok ->
 			case Callback:handle_answer(Apid, inqueue_ringing, Call, Internal, BaseState#base_state.substate) of

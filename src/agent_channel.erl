@@ -196,7 +196,7 @@ spy(Spy, Target) ->
 %% @doc Make the agent connection try to pop a given url.
 -spec(url_pop/3 :: (Pid :: pid(), Url :: string(), Name :: string()) -> 'ok').
 url_pop(Pid, Url, Name) ->
-	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Url, Name}).
+	gen_fsm:send_all_state_event(Pid, {url_pop, Url, Name}).
 
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).

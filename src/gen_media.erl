@@ -2345,7 +2345,7 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 				lists:append([Midurl, [$& | Key], [$= | Value]])
 			end,
 			Url = lists:foldl(Appender, BaseUrl, Addedopts),
-			agent:url_pop(Agent, Url, "ring")
+			agent_channel:url_pop(Agent, Url, "ring")
 	end.
 
 %% @doc Set the client record to an actual client record.
@@ -2664,15 +2664,11 @@ dead_spawn() ->
 url_pop_test_() ->
 	{setup,
 	fun() ->
-		{ok, Agent} = agent:start(#agent{login = "testagent"}, []),
-		{ok, Conn} = gen_server_mock:new(),
-		gen_server_mock:expect_cast(Conn, fun(_, _) -> ok end),
-		agent:set_connection(Agent, Conn),
+		{ok, Agent} = gen_server_mock:new(),
 		Call = #call{id = "testcall", source = dead_spawn()},
-		{Call, Agent, Conn}
+		{Call, Agent, undefined}
 	end,
 	fun({_, Agent, Conn}) ->
-		gen_server_mock:stop(Conn),
 		agent:stop(Agent)
 	end,
 	fun({BaseCall, Agent, Conn}) ->
@@ -2692,9 +2688,9 @@ url_pop_test_() ->
 		{"url is set",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
-			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com", "ring"}, _) -> ok end),
+			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com", "ring"}}, _) -> ok end),
 			url_pop(Call, Agent, []),
-			gen_server_mock:assert_expectations(Conn)
+			gen_server_mock:assert_expectations(Agent)
 		end},
 		{"url is set with some additional options",
 		fun() ->

@@ -54,7 +54,7 @@
 	start/0,
 	start/1,
 	start/2,
-	start_ring/3,
+	start_ring/4,
 	ring_agent/2,
 	stop/1,
 	stop/2,
@@ -228,8 +228,8 @@ make_id() ->
 	Fullmdf = erlang:md5(lists:append([Now, Ref])),
 	string:sub_string(util:bin_to_hexstr(Fullmdf), 1, 8).
 
-start_ring(Agent, Call, Mode) ->
-	Pid = spawn(fun() -> start_ring_loop(Agent, Call, Mode) end),
+start_ring(Agent, Chan, Call, Mode) ->
+	Pid = spawn(fun() -> start_ring_loop(Agent, Chan, Call, Mode) end),
 	{ok, Pid}.
 
 %%====================================================================
@@ -587,18 +587,18 @@ handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-start_ring_loop(Agent, undefined, persistant) ->
+start_ring_loop(Agent, Chan, undefined, persistant) ->
 	persistant_ring_loop(Agent, undefined);
-start_ring_loop(Agent, Call, transient) ->
+start_ring_loop(Agent, Chan, Call, transient) ->
 	process_flag(trap_exit, true),
 	?INFO("Starting transient ring, I guess.", []),
-	ok = gen_media:ring(Call#call.source, {Agent#agent.login, Agent#agent.source}, transient, takeover),
+	ok = gen_media:ring(Call#call.source, {Agent#agent.login, Chan}, transient, takeover),
 	Client = Call#call.client,
 	Opts = Client#client.options,
 	Ringout = proplists:get_value(ringout, Opts, ?getRingout),
 	Self = self(),
 	erlang:send_after(Ringout, Self, ringout),
-	transient_ring_loop(Agent, Call).
+	transient_ring_loop(Agent, Chan, Call).
 
 persistant_ring_loop(Agent, undefined) ->
 	receive
@@ -619,14 +619,14 @@ persistant_ring_loop(Agent, #call{source = Src} = Call) ->
 			persistant_ring_loop(Agent, undefined)
 	end.
 
-transient_ring_loop(Agent, Call) ->
+transient_ring_loop(Agent, Chan, Call) ->
 	receive
 		ringout ->
 			gen_media:stop_ringing(Call#call.source),
 			normal;
 		Msg ->
 			?INFO("msg nom:  ~p", [Msg]),
-			transient_ring_loop(Agent, Call)
+			transient_ring_loop(Agent, Chan, Call)
 	end.
 
 check_fail(Key, Dict) ->

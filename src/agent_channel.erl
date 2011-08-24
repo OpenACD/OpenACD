@@ -560,7 +560,7 @@ start_endpoint(Pid, Agent, Call) when is_pid(Pid) ->
 	Pid ! {prering, {Agent, self()}, Call},
 	{ok, Pid};
 start_endpoint({Mod, Func, XtraArgs}, Agent, Call) ->
-	case apply(Mod, Func, [Agent, Call | XtraArgs]) of
+	case apply(Mod, Func, [Agent, self(), Call | XtraArgs]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, Pid};

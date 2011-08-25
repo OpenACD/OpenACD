@@ -190,8 +190,8 @@
 start(Fsnode, Callbacks, Options) ->
 	gen_server:start(?MODULE, [Fsnode, Callbacks, Options], []).
 
-start(Agent, _Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
-	NewOptions = [{call, Call} | Options],
+start(Agent, Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+	NewOptions = [{agent, Agent}, {agent_channel, Chan}, {call, Call} | Options],
 	gen_server:start(?MODULE, [Fsnode, Callbacks, NewOptions], []).
 
 -spec(start_link/3 :: (Fsnode :: atom(), Callbacks :: atom() | callbacks(), Options :: start_opts()) -> {'ok', pid()}).
@@ -310,7 +310,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 							exit(bad_destination);
 						{BaseDialstring, Destination} ->
 							% safe because it doesn't dive into fs manager pid
-							?ERROR("ds:  ~s;  dest:  ~s", [BaseDialstring, Destination]),
+							%?ERROR("ds:  ~s;  dest:  ~s", [BaseDialstring, Destination]),
 							freeswitch_media_manager:do_dial_string(BaseDialstring, Destination, DialStringOpts)
 					end,
 					case proplists:get_value(call, Options) of

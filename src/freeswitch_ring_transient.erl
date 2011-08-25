@@ -33,6 +33,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include("agent.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -67,6 +68,11 @@
 %% init
 %% =====
 init(_Fsref, Options) ->
+	Call = proplists:get_value(call, Options),
+	Agent = proplists:get_value(agent, Options),
+	Chan = proplists:get_value(agent_channel, Options),
+	%ok = gen_media:ring(Call#call.source, {Agent#agent.login, Chan}, transient, takeover),
+	gen_media:takeover_ring(Call#call.source, {Agent#agent.login, Chan}),
 	{ok, [], #state{
 		call = proplists:get_value(call, Options),
 		no_oncall_on_bridge = proplists:get_value(no_oncall_on_bridge, Options)

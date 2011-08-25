@@ -417,6 +417,7 @@
 %% gen_media api
 -export([
 	ring/4,
+	takeover_ring/2,
 	get_call/1,
 	voicemail/1,
 	announce/2,
@@ -490,7 +491,7 @@ behaviour_info(callbacks) ->
 		{handle_wrapup, 5},
 		{handle_call, 4},
 		{handle_cast, 3},
-		{handle_info, 3},
+		{handle_info, 5},
 		{terminate, 5},
 		{code_change, 4}
 	];
@@ -516,6 +517,22 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 			ring(Genmedia, {Agent, Apid}, Qcall, Timeout);
 		false ->
 			invalid
+	end.
+
+-spec(takeover_ring/2 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}) -> 'ok' | 'invalid').
+takeover_ring(Genmedia, {_, Apid} = Agent) when is_pid(Apid) ->
+	gen_fsm:send_event(Genmedia, {{'$gen_media', takeover_ring}, Agent});
+
+takeover_ring(Genmedia, Apid) when is_pid(Apid) ->
+	case agent_manager:find_by_pid(Apid) of
+		notfound -> invalid;
+		Agent -> takeover_ring(Genmedia, {Agent, Apid})
+	end;
+
+takeover_ring(Genmedia, Agent) ->
+	case agent_manager:query_agent(Agent) of
+		{true, Apid} -> takeover_ring(Genmedia, {Agent, Apid});
+		false -> invalid
 	end.
 
 %% @doc Get the call record associated with `pid() Genmedia'.
@@ -1117,6 +1134,13 @@ inqueue_ringing({{'$gen_media', set_cook}, CookPid}, {BaseState, Internal}) ->
 	NewBase = BaseState#base_state{callrec = NewCall},
 	{next_state, inqueue_ringing, {NewBase, NewInternal}};
 
+inqueue_ringing({{'$gen_media', takeover_ring}, {Agent, Apid}}, {BaseState,
+		#inqueue_ringing_state{ring_pid = {Agent, Apid}} = Internal}) ->
+	gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
+	agent_channel:set_state(Apid, ringing, BaseState#base_state.callrec),
+	NewInternal = Internal#inqueue_ringing_state{ringout = undefined},
+	{next_state, inqueue_ringing, {BaseState, NewInternal}};
+	
 inqueue_ringing({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("Invalid command event ~s while inqueue_ringing", [Command]),
 	{next_state, inqueue_ringing, State};
@@ -2117,6 +2141,17 @@ handle_custom_return({hangup, Who}, inivr, Reply,
 		noreply ->
 			{next_state, wrapup, {BaseState, #wrapup_state{}}}
 	end;
+
+handle_custom_return({{hangup, Who}, NewState}, inqueue_ringing, noreply,
+		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
+	?INFO("hangup for ~s whiile inivr", [Callrec#call.id]),
+	cdr:hangup(Callrec, Who),
+	% for now just going to trust the agent connection hears this die.
+	erlang:demonitor(Internal#inqueue_ringing_state.ring_mon),
+	erlang:demonitor(Internal#inqueue_ringing_state.cook_mon),
+	erlang:demonitor(Internal#inqueue_ringing_state.queue_mon),
+	unqueue(Internal#inqueue_ringing_state.queue_pid,self()),
+	{next_state, wrapup, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};
 
 handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
 		StateTuple) when State =:= oncall;

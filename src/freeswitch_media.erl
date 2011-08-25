@@ -66,8 +66,8 @@
 	urlpop_getvars/1,
 	prepare_endpoint/2,
 	handle_ring/4,
-	handle_ring_stop/2,
-	handle_answer/3,
+	handle_ring_stop/4,
+	handle_answer/5,
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
@@ -178,7 +178,7 @@ prepare_endpoint(Agent, Options) ->
 %% handle_answer
 %%--------------------------------------------------------------------
 
-handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
+handle_answer(Apid, warm_transfer_3rd_party, Callrec, _GenMediaState, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
@@ -202,7 +202,9 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 %			?WARNING("Could not do answer:  ~p", [Error]),
 %			{invalid, State}
 %	end;
-handle_answer(Apid, Callrec, State) ->
+
+handle_answer(Apid, StateName, Callrec, _GenMedia, State) when
+		StateName =:= inqueue_ringing; StateName =:= oncall_ringing ->
 	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
 		{ok, _} ->
@@ -267,11 +269,13 @@ handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, _Rin
 %			{invalid, State}
 %	end.
 
-handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
+% TODO This needs to be updated when conferencing is fixed.
+handle_ring_stop(_StateName, Callrec, _GenMedia, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
 	freeswitch_ring:hangup(RingChannel),
 	{ok, State#state{xferchannel = undefined, xferuuid = undefined}};
-handle_ring_stop(Callrec, State) ->
+
+handle_ring_stop(_StateName, Callrec, _GenMedia, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
 	case State#state.ringchannel of
 		undefined ->
@@ -285,7 +289,7 @@ handle_ring_stop(Callrec, State) ->
 
 -spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
-	{ok, Midstate} = handle_ring_stop(Callrec, State),
+	{ok, Midstate} = handle_ring_stop(undefined, Callrec, undefined, State),
 	handle_voicemail(undefined, Callrec, Midstate);
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,

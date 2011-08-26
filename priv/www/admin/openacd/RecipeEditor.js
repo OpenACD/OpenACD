@@ -8,7 +8,7 @@ dojo.provide("openacd.RecipeEditor");
 
 dojo.requireLocalization("admin", "recipeEditor");
 
-dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
+dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	// actions go in rows, which go in the editor
 	widgetsInTemplate: true,
 	templateString: '<div dojoAttachPoint="containerNode"><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
@@ -212,7 +212,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	}
 });
 
-dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
+dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
@@ -323,7 +323,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	}
 });
 
-dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
+dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd","RecipeEditor.html"),
 	widgetsInTemplate: true,
 	templateString: "",

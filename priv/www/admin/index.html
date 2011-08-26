@@ -55,8 +55,8 @@
 	}
 </style> 
 <style>
-	@import "/dojo/dojox/grid/resources/Grid.css";
-	@import "/dojo/dojox/grid/resources/tundra/Grid.css";
+	@import "/dojox/grid/resources/Grid.css";
+	@import "/dojox/grid/resources/tundraGrid.css";
 
 	.dojoxGrid table {
 		margin: 0;
@@ -85,15 +85,18 @@
 		parseOnLoad:false,
 		isDebug:true,
 		locale:locale,
-		modulePaths:{
-			"admin":"/lang"
+		//modulePaths:{
+		paths:{
+			"admin":"/lang",
+			"openacd":"/openacd"
 		}
 	}
 </script>
 <!-- load the dojo toolkit base -->
-<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript" src="/dojo/dojo.js"></script>
 <script type="text/javascript">
 /* dependancies */
+dojo.requireLocalization("admin", "labels");
 dojo.require("dojo.parser");
 dojo.require("dijit.Dialog");
 dojo.require("dijit.TooltipDialog");
@@ -116,9 +119,10 @@ dojo.require("dijit.form.NumberTextBox");
 dojo.require("dijit.form.CheckBox");
 dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.form.MultiSelect");
+dojo.require("dijit.form.ComboBox");
 dojo.require("dijit.Declaration");
 dojo.require("dojox.layout.ContentPane");
-dojo.registerModulePath("openacd", "../../openacd");
+//dojo.registerModulePath("openacd", "../openacd");
 dojo.require("openacd.agents");
 dojo.require("openacd.skills");
 dojo.require("openacd.queues");
@@ -128,7 +132,6 @@ dojo.require("openacd.modules");
 dojo.require("openacd.clients");
 dojo.require("openacd.releaseOpts");
 dojo.require("dojox.grid.DataGrid");
-dojo.requireLocalization("admin", "labels");
 
 function init() {
 	if (dojo.config.locale == "") {
@@ -171,7 +174,7 @@ dojo.addOnLoad(init);
 	ErrDialogBody
 </div>
 
-<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">	
+<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
 	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="AGENTS" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">

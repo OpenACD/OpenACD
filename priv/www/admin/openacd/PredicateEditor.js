@@ -4,7 +4,7 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dijit.form.Button");
 
-dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
+dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd","PredicateEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
@@ -99,7 +99,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	}
 });
 
-dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
+dojo.declare("PredicateEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd", "PredicateEditor.html"),
 	widgetsInTemplate:true,
 	templateString:"",

@@ -93,7 +93,7 @@
 	}
 </script>
 <!-- load the dojo toolkit base -->
-<script type="text/javascript" src="/dojo/dojo.js"></script>
+<script type="text/javascript" src="/dojo/dojo.js.uncompressed.js"></script>
 <script type="text/javascript">
 /* dependancies */
 dojo.requireLocalization("admin", "labels");
@@ -174,7 +174,7 @@ dojo.addOnLoad(init);
 	ErrDialogBody
 </div>
 
-<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
+<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;">
 	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="AGENTS" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">

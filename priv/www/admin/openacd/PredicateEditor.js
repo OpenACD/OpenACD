@@ -5,9 +5,20 @@ dojo.require("dijit._Templated");
 dojo.require("dijit.form.Button");
 
 dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
-	templatePath: dojo.moduleUrl("openacd","PredicateEditorRow.html"),
-	widgetsInTemplate: true,
-	templateString: "",
+	//templatePath: dojo.moduleUrl("openacd","PredicateEditorRow.html"),
+	//widgetsInTemplate: true,
+	//templateString: "",
+	templateString: '<div dojoType="dijit.layout.ContentPane">' + 
+	'<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="propertyField" name="property" ' + 
+	'store="${store}" searchAttr="label" query="{type:\'property\'}" ' +
+	'dojoAttachEvent=\'onChange: setComparisons\' style="width:${propwidth}">' +
+	'</input>' +
+	'<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="comparisonField" name="comparison" store="${store}" searchAttr="label" style="width:${compwidth}" />' +
+	'<input dojoType="dijit.form.ValidationTextBox" regExp="" dojoAttachPoint="valueField" name="value" style="width:${valwidth}">' +
+	'</input>' +
+	'<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="-"></button>' +
+	'<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="+"></button>' +
+	'</div>',
 	constructor: function(args){
 		this.store = [];
 		this.propwidth = "20em";
@@ -100,9 +111,10 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit.
 });
 
 dojo.declare("PredicateEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
-	templatePath: dojo.moduleUrl("openacd", "PredicateEditor.html"),
-	widgetsInTemplate:true,
-	templateString:"",
+	//templatePath: dojo.moduleUrl("openacd", "PredicateEditor.html"),
+	//widgetsInTemplate:true,
+	//templateString:"",
+	templateString: '<div dojoAttachPoint="topNode" style="display:table"></div>',
 	propwidth : "20em",
 	compwidth : "10em",
 	valwidth : "20em",

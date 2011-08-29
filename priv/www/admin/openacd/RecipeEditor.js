@@ -10,7 +10,7 @@ dojo.requireLocalization("admin", "recipeEditor");
 
 dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	// actions go in rows, which go in the editor
-	widgetsInTemplate: true,
+	//widgetsInTemplate: true,
 	templateString: '<div dojoAttachPoint="containerNode"><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
 		'<option value="add_skills">ADDSKILLS</option>' +
 		'<option value="remove_skills">REMOVESKILLS</option>' +
@@ -213,9 +213,18 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 });
 
 dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
-	templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
-	widgetsInTemplate: true,
-	templateString: "",
+	//templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
+	//widgetsInTemplate: true,
+	//templateString: "",
+	templateString: '<div><div dojoType="dijit.layout.ContentPane" dojoAttachPoint="containerNode">' +
+	'<div dojoAttachPoint="actionsDiv" style="display:inline-block;float:left"></div>' +
+	'<select dojoType="dijit.form.Select" dojoAttachPoint="runsField" style="float:right">' +
+	'	<option value="run_once">${labels.RUNONCE}</option>' +
+	'	<option value="run_many">${labels.RUNMANY}</option>' +
+	'</select>' +
+	'<div dojoAttachPoint="translate" style="float:right;clear:left" dojoType="dijit.form.Button" label="?"></div>' +
+	'<div dojoType="PredicateEditor" border="1" store="openacd.RecipeEditor.recipeConditionsStore" propwidth="12em" valwidth="4em"compwidth="4em" style="display:inline-block;padding:0 2em 0 2em;" dojoAttachPoint="conditionsEditor"></div>' +
+	'</div></div>',
 	comment:'',
 	addAction:function(index){
 		var widget = new RecipeEditorAction();
@@ -325,7 +334,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._Wi
 
 dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd","RecipeEditor.html"),
-	widgetsInTemplate: true,
+	//widgetsInTemplate: true,
 	templateString: "",
 	addRow: function(){
 		this.stepsContainer.set('style', 'visibility:visible');

@@ -70,6 +70,8 @@
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	handle_end_call/2,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
@@ -187,6 +189,14 @@ handle_answer(Apid, Callrec, State) ->
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}}.
+
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+-spec(handle_end_call/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
+handle_end_call(Callrec, State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
+	{ok, State}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),

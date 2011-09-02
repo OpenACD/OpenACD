@@ -322,6 +322,8 @@
 	get_call/1,
 	voicemail/1,
 	announce/2,
+	%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	end_call/1,
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
@@ -430,6 +432,12 @@ voicemail(Genmedia) ->
 -spec(announce/2 :: (Genmedia :: pid(), Annouce :: any()) -> 'ok').
 announce(Genmedia, Annouce) ->
 	gen_server:call(Genmedia, {'$gen_media_announce', Annouce}).
+
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+%% @doc Pass `any() Annouce' message to `pid() Genmedia'.
+-spec(end_call/1 :: (Genmedia :: pid()) -> 'ok').
+end_call(Genmedia) ->
+	gen_server:call(Genmedia, {'$gen_media_end_call'}).
 
 %% @doc Sends the oncall agent associated with the call to wrapup; or, if it's
 %% the oncall agent making the request, gives the callback module a chance to
@@ -838,6 +846,18 @@ handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback,
 	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
 		true ->
 			{ok, N} = Callback:handle_announce(Annouce, Call, InSubstate),
+			N;
+		false ->
+			State#state.substate
+	end,
+	{reply, ok, State#state{substate = Substate}};
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+handle_call({'$gen_media_end_call'}, _From, #state{callback = Callback, substate = InSubstate, callrec = Call} = State) ->
+	?INFO("Ending Call for ~p", [Call#call.id]),
+	%% TODO LOGIC FOR END CALL needs to be implimented here
+	Substate = case erlang:function_exported(Callback, handle_end_call, 2) of
+		true ->
+			{ok, N} = Callback:handle_end_call(Call, InSubstate),
 			N;
 		false ->
 			State#state.substate

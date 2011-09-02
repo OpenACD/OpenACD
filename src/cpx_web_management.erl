@@ -2847,6 +2847,9 @@ decode_recipe_actions([{struct, Proplist} | Tail], Acc) ->
 			{voicemail, decode_recipe_args(voicemail, Argbin)};
 		<<"announce">> ->
 			{announce, decode_recipe_args(announce, Argbin)};
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+		<<"end_call">> ->
+			{end_call, []};
 		<<"add_recipe">> ->
 			{add_recipe, decode_recipe_args(add_recipe, Argbin)}
 	end,
@@ -2870,6 +2873,9 @@ decode_recipe_args(set_priority, Args) ->
 decode_recipe_args(prioritize, _Args) ->
 	[];
 decode_recipe_args(deprioritize, _Args) ->
+	[];
+	%% TODO added for testing only (implemented with focus on real Calls - no other media)
+decode_recipe_args(end_call, _Args) ->
 	[];
 decode_recipe_args(voicemail, Args) ->
 	binary_to_list(Args);
@@ -3006,6 +3012,9 @@ encode_recipe_actions([{Operation, Args} | Tail], Acc) ->
 			list_to_binary(Args);
 		add_recipe ->
 			% TODO:  more encoding
+			<<"">>;
+		%% TODO added for testing only (implemented with focus on real Calls - no other media)
+		end_call ->
 			<<"">>
 	end,
 	Head = {struct, [

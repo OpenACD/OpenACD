@@ -434,7 +434,7 @@ announce(Genmedia, Annouce) ->
 	gen_server:call(Genmedia, {'$gen_media_announce', Annouce}).
 
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
-%% @doc Pass `any() Annouce' message to `pid() Genmedia'.
+%% @doc End the Call for `pid() Genmedia'.
 -spec(end_call/1 :: (Genmedia :: pid()) -> 'ok').
 end_call(Genmedia) ->
 	gen_server:call(Genmedia, {'$gen_media_end_call'}).

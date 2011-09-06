@@ -256,7 +256,7 @@ init([Props, Fails]) ->
 					E when is_atom(E) ->
 						{E, fail};
 					_ ->
-						e
+						E
 				end
 			end,
 			lists:map(F, Fails)

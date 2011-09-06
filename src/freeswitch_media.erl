@@ -196,7 +196,7 @@ handle_end_call(Callrec, State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
 		[{"call-command", "hangup"},
 			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
-	{ok, State}.
+	{deferred, State}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),

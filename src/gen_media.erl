@@ -437,7 +437,7 @@ announce(Genmedia, Annouce) ->
 %% @doc End the Call for `pid() Genmedia'.
 -spec(end_call/1 :: (Genmedia :: pid()) -> 'ok').
 end_call(Genmedia) ->
-	gen_server:call(Genmedia, {'$gen_media_end_call'}).
+	gen_server:call(Genmedia, '$gen_media_end_call').
 
 %% @doc Sends the oncall agent associated with the call to wrapup; or, if it's
 %% the oncall agent making the request, gives the callback module a chance to
@@ -852,7 +852,7 @@ handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback,
 	end,
 	{reply, ok, State#state{substate = Substate}};
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
-handle_call({'$gen_media_end_call'}, _From, #state{callback = Callback, substate = InSubstate, callrec = Call} = State) ->
+handle_call('$gen_media_end_call', _From, #state{callback = Callback, substate = InSubstate, callrec = Call} = State) ->
 	?INFO("Ending Call for ~p", [Call#call.id]),
 	%% TODO LOGIC FOR END CALL needs to be implimented here
 	Substate = case erlang:function_exported(Callback, handle_end_call, 2) of
@@ -2512,6 +2512,66 @@ handle_call_test_() ->
 			?assert(false == Newstate#state.ringout),
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			?assertEqual({"default_queue", Qpid}, State#state.queue_pid),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
+		{"endcall request to media that supports it while inqueue",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			#queued_call{cook = Cook} = #queued_call{media = Callrec#call.source, id = "testcall"},
+			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
+			gen_event_mock:expect_event(cdr, fun({hangup, _, _, queue}, _) -> ok end),
+			Out = handle_call('$gen_media_end_call', {Cook, "tag"}, Seedstate),
+			?assertMatch({reply, ok, _State}, Out)
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+		{"endcall request to media that supports it while inqueue and agent ringing",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			#queued_call{cook = Cook} = #queued_call{media = Callrec#call.source, id = "testcall"},
+			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
+			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			gen_event_mock:expect_event(cdr, fun({hangup, _, _, queue}, _) -> ok end),
+			Out = handle_call('$gen_media_end_call', {Cook, "tag"}, Seedstate),
+			?assertMatch({ok, _State}, Out),
+			receive
+				{'$gen_media_stop_ring', Cook} ->
+					erlang:error(timer_lives)
+			after 150 ->
+				ok
+			end,
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
+		{"endcall request to media that supports deffered while inqueue",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			#queued_call{cook = Cook} = #queued_call{media = Callrec#call.source, id = "testcall"},
+			Out = handle_call('$gen_media_end_call', {Cook, "tag"}, Seedstate),
+			?assertMatch({deferred, _State}, Out),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
+		{"endcall request to media that doesn't support it",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			#queued_call{cook = Cook} = #queued_call{media = Callrec#call.source, id = "testcall"},
+			Out = handle_call('$gen_media_end_call', {Cook, "tag"}, Seedstate),
+			?assertMatch({reply, invalid, _State}, Out),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
+		{"endcall request to media that supports it, but not in queue",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			Out = handle_call('$gen_media_end_call', "from", Seedstate),
+			?assertMatch({reply, invalid, _State}, Out),
 			Assertmocks()
 		end}
 	end]}}.

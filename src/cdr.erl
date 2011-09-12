@@ -87,7 +87,8 @@
 	callrec :: #call{},
 	nodes = [] :: [atom()],
 	limbo_wrapup_count = 0 :: non_neg_integer(),
-	hangup = false :: 'false' | 'true'
+	hangup = false :: 'false' | 'true',
+	mon_ref :: reference()
 }).
 	
 
@@ -407,7 +408,8 @@ init([Call]) ->
 		mnesia:write(Cdrrec), 
 		mnesia:write(Initraw)
 	end),
-	{ok, #state{id=Call#call.id, callrec = Call, nodes = Nodes}}.
+	Monref = erlang:monitor(process, Call#call.source),
+	{ok, #state{id=Call#call.id, callrec = Call, nodes = Nodes, mon_ref = Monref}}.
 
 %% @private
 handle_event({mutate, Oldid, Newcallrec}, #state{id = Oldid} = State) when is_record(Newcallrec, call) ->
@@ -475,6 +477,19 @@ handle_call(_Request, State) ->
 	{ok, ok, State}.
 
 %% @private
+handle_info({'DOWN', Monref, process, Pid, Reason}, #state{mon_ref = Monref} = State) ->
+	% handle this like a hangup, only the pid did the hanging up.
+	case State#state.hangup of
+		false ->
+			handle_event({hangup, State#state.callrec, util:now(), "pid"}, State);
+		true ->
+			case State#state.limbo_wrapup_count of
+				0 ->
+					remove_handler;
+				_ ->
+					{ok, State}
+			end
+	end;
 handle_info(_Info, State) ->
 	{ok, State}.
 
@@ -1237,6 +1252,45 @@ handle_event_test_() ->
 			Instate = Basestate#state{limbo_wrapup_count = C + 1},
 			{ok, Newstate} = handle_event({endwrapup, Call, util:now(), "testagent"}, Instate),
 			?assertEqual(Instate#state.limbo_wrapup_count, Newstate#state.limbo_wrapup_count + 1)
+		end}
+	end,
+	fun({Call, Basestate}) ->
+		{"pid sudden death:  no limbo and no hangup yet",
+		fun() ->
+			Mpid = Call#call.source,
+			Monref = Basestate#state.mon_ref,
+			Out = handle_info({'DOWN', Monref, process, Mpid, <<"uberdeath">>}, Basestate),
+			?assertEqual(remove_handler, Out)
+		end}
+	end,
+	fun({Call, Basestate}) ->
+		{"pid sudden death: hangup already happened, no limbos",
+		fun() ->
+			Mpid = Call#call.source,
+			Monref = Basestate#state.mon_ref,
+			InState = Basestate#state{hangup = true},
+			Out = handle_info({'DOWN', Monref, process, Mpid, <<"uberdeath">>}, InState),
+			?assertEqual(remove_handler, Out)
+		end}
+	end,
+	fun({Call, Basestate}) ->
+		{"pid sudden death:  limbos and hangups",
+		fun() ->
+			Mpid = Call#call.source,
+			Monref = Basestate#state.mon_ref,
+			InState = Basestate#state{hangup = true, limbo_wrapup_count = 1},
+			{ok, Out} = handle_info({'DOWN', Monref, process, Mpid, <<"uberdeath">>}, InState),
+			?assertEqual(InState, Out)
+		end}
+	end,
+	fun({Call, Basestate}) ->
+		{"pid sudden death:  no hangup, but limbos",
+		fun() ->
+			Mpid = Call#call.source,
+			Monref = Basestate#state.mon_ref,
+			InState = Basestate#state{limbo_wrapup_count = 1},
+			{ok, Out} = handle_info({'DOWN', Monref, process, Mpid, <<"uberdeath">>}, InState),
+			?assert(Out#state.hangup)
 		end}
 	end]}}.
 

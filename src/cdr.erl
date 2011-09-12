@@ -438,6 +438,7 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 	{atomic, Termed} = push_raw(Call, Cdr),
 	%?DEBUG("Termed:  ~p", [Termed]),
 	Extra = analyze(Transaction, Call, Time, Data, Termed),
+	[cpx_monitor:info({cdr_raw, ExtraRaw}) || ExtraRaw <- Extra],
 	mnesia:transaction(fun() ->
 		lists:foreach(fun(Rec) ->
 			mnesia:write(Rec#cdr_raw{nodes = State#state.nodes})

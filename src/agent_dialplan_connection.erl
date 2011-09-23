@@ -75,6 +75,7 @@ go_available(Pid) ->
 
 %% gen_server API
 init([AgentRec, _Security]) -> % TODO if not used, why is it here?
+	process_flag(trap_exit, true),
 	case agent_manager:start_agent(AgentRec) of
 		{ok, Apid} ->
 			ok;

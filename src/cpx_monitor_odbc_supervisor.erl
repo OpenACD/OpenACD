@@ -44,7 +44,7 @@
 	-define(stop_writer(Pid), 	cpx_monitor_kgb_odbc:stop(State#state.odbc_pid)).
 -endif.
 
-
+-define(DEFAULT_ANI, "Unknown").
 
 -include("log.hrl").
 -include("call.hrl").
@@ -563,11 +563,19 @@ build_event_log_call_base(E, Props) ->
 		Q ->
 			Q
 	end,
-	{AltHeader, FromHeader} = case {proplists:get_value(callerid, Props), proplists:get_value(statedata, Props)} of
+	{ProtoAltFrom, ProtoFromHeads} = case {proplists:get_value(callerid, Props), proplists:get_value(statedata, Props)} of
 		{undefined, #call{callerid = {A, H}}} ->
 			{A, H};
 		{{A, H}, undefined} ->
 			{A,H}
+	end,
+	AltHeader = case ProtoAltFrom of
+		[$* | _] -> ?DEFAULT_ANI ++ ProtoAltFrom;
+		_ -> ProtoAltFrom
+	end,
+	FromHeader = case ProtoFromHeads of
+		[$* | _] -> ?DEFAULT_ANI ++ ProtoFromHeads;
+		_ -> ProtoFromHeads
 	end,
 	[Ani, Uci, OriginCode, Did | _TailFromHeader] = case string:tokens(FromHeader, "*") of
 		[_, _, _, _ | _] = Out ->

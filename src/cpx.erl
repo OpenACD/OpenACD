@@ -89,6 +89,7 @@
 	get_queues/1,
 	get_queue_status/0,
 	get_agent_status/0,
+	status/0,
 	get_media/1,
 	get_commit/0,
 	kick_agent/1,
@@ -391,6 +392,20 @@ get_agent_status() ->
 	end,
 	{0, 0, 0, 0}, Agents),
 	io:format("~B Agents; ~B Idle, ~B Oncall, ~B Wrapup, ~B Released~n", [length(Agents), I, O, W, R]).
+
+-spec(status/0 :: () -> 'ok').
+status() ->
+	io:format("uptime:  "),
+	uptime(),
+	io:format("\nCore Modules running:\n"),
+	is_running(),
+	io:format("\nPlugins Enabled and running:\n"),
+	Plugins = plugins_running(),
+	pretty_print(Plugins),
+	io:format("\nAgents:  "),
+	get_agent_status(),
+	io:format("\nQueues:\n"),
+	get_queue_status().
 
 -spec(get_queues/1 :: (Group :: string()) -> [{string(), pid()}]).
 get_queues(Group) ->

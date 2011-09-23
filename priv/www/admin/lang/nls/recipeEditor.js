@@ -28,5 +28,7 @@
 	COMPARELESSTHAN:"is less than",
 	COMPARENOTEQUAL:"is not",
 	CLIENTCOUNT: "Client's Queued",
-	EDIT:"Edit"
+	EDIT:"Edit",
+	CALLERID:"Caller ID",
+	CALLERNAME:"Caller Name"
 }

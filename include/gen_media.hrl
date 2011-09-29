@@ -29,7 +29,8 @@
 	oncall_pid :: {string(), pid()},
 	ring_mon :: reference(),
 	ring_pid :: {string(), pid()},
-	ringout :: reference
+	ringout :: reference,
+	outband_ring_pid :: 'undefined' | pid()
 }).
 
 %% it is up to the media to maintain a list of held medias.

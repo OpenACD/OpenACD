@@ -302,9 +302,9 @@ init([Agent, Call, Endpoint, StateName]) ->
 % PRERING
 % ======================================================================
 
-prering({ringing, Call}, _From, State) ->
+prering({ringing, Call}, From, State) ->
 	% TODO check if valid
-	?DEBUG("Moving from prering to ringing state", []),
+	?DEBUG("Moving from prering to ringing state request from ~p", [From]),
 	conn_cast(State#state.agent_connection, {set_channel, self(), ringing, Call}),
 	{reply, ok, ringing, State#state{state_data = Call}};
 prering(Msg, _From, State) ->
@@ -409,9 +409,11 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 
-oncall({mediapush, From, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) ->
+oncall({mediapush, From, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) when is_pid(Conn) ->
 	Self = self(),
 	gen_server:cast(Conn, {mediapush, Self, Data}),
+	{next_state, oncall, State};
+oncall(_Msg, State) ->
 	{next_state, oncall, State}.
 
 % ======================================================================

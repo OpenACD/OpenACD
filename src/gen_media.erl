@@ -480,7 +480,7 @@ behaviour_info(callbacks) ->
 		{init, 1},
 		{handle_ring, 4},
 		{handle_ring_stop, 4},
-		{handle_answer, 3}, 
+		{handle_answer, 5}, 
 		%{handle_voicemail, 3}, 
 		%{handle_announce, 3}, 
 		{handle_agent_transfer, 4},
@@ -521,7 +521,8 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 
 -spec(takeover_ring/2 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}) -> 'ok' | 'invalid').
 takeover_ring(Genmedia, {_, Apid} = Agent) when is_pid(Apid) ->
-	gen_fsm:send_event(Genmedia, {{'$gen_media', takeover_ring}, Agent});
+	Self = self(),
+	gen_fsm:send_event(Genmedia, {{'$gen_media', takeover_ring}, {Agent, Self}});
 
 takeover_ring(Genmedia, Apid) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
@@ -1039,7 +1040,10 @@ inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, From, {BaseState, Int
 				{ok, NewState} ->
 					kill_outband_ring({BaseState, Internal}),
 					cdr:oncall(Call, Agent),
-					gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
+					case Internal#inqueue_ringing_state.ringout of
+						undefined -> ok;
+						_ -> gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout)
+					end,
 					{_, Qpid} = Internal#inqueue_ringing_state.queue_pid,
 					call_queue:remove(Qpid, self()),
 					NewBase = BaseState#base_state{substate = NewState},
@@ -1092,6 +1096,7 @@ inqueue_ringing({{'$gen_media', set_queue}, Qpid}, _From, State) ->
 
 inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, ChanType, takeover}},
 		From, {_, #inqueue_ringing_state{ring_pid = {Agent, Apid}}} = State) ->
+	?DEBUG("~p said it's taking over ring", [From]),
 	{BaseState, Internal} = State,
 	gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
 	agent_channel:set_state(Apid, ringing, BaseState#base_state.callrec),
@@ -1134,11 +1139,11 @@ inqueue_ringing({{'$gen_media', set_cook}, CookPid}, {BaseState, Internal}) ->
 	NewBase = BaseState#base_state{callrec = NewCall},
 	{next_state, inqueue_ringing, {NewBase, NewInternal}};
 
-inqueue_ringing({{'$gen_media', takeover_ring}, {Agent, Apid}}, {BaseState,
+inqueue_ringing({{'$gen_media', takeover_ring}, {{Agent, Apid}, OutbandRinger}}, {BaseState,
 		#inqueue_ringing_state{ring_pid = {Agent, Apid}} = Internal}) ->
 	gen_fsm:cancel_timer(Internal#inqueue_ringing_state.ringout),
 	agent_channel:set_state(Apid, ringing, BaseState#base_state.callrec),
-	NewInternal = Internal#inqueue_ringing_state{ringout = undefined},
+	NewInternal = Internal#inqueue_ringing_state{ringout = undefined, outband_ring_pid = OutbandRinger},
 	{next_state, inqueue_ringing, {BaseState, NewInternal}};
 	
 inqueue_ringing({{'$gen_media', Command}, _}, State) ->
@@ -1164,7 +1169,7 @@ oncall({{'$gen_media', queue}, Queue}, From, {BaseState, Internal}) ->
 			{reply, invalid, {BaseState, Internal}};
 		{default, Qpid} ->
 			set_agent_state(Apid, [wrapup, Call]),
-			{ok, NewState} = Callback:handle_queue_transfer(oncall, BaseState#base_state.callrec, Internal, BaseState#base_state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, BaseState#base_state.callrec, Internal, BaseState#base_state.substate),
 			cdr:queue_transfer(Call, "default_queue"),
 			cdr:inqueue(Call, "default_queue"),
 			cdr:wrapup(Call, Ocagent),
@@ -1646,7 +1651,7 @@ warm_transfer_merged({{'$gen_media', remove_agent}, undefined}, From, State) ->
 warm_transfer_merged({{'$gen_media', end_media}, undefined}, From, State) ->
 	{BaseState, Internal} = State,
 	#base_state{callrec = Call, callback = Callback, substate= Sub} = BaseState,
-	case Callback:handle_wrapup(From, warm_transfer_merged, Call, Sub) of
+	case Callback:handle_wrapup(From, warm_transfer_merged, Call, Internal, Sub) of
 		{error, Error, NewState} ->
 			NewBase = BaseState#base_state{substate = NewState},
 			{reply, invalid, warm_transfer_merged, {NewBase, Internal}};
@@ -2164,12 +2169,12 @@ handle_custom_return({AgentInteract, Reply, NewState}, State, reply,
 	{reply, Reply, NextState, {NewBase, Internal}};
 
 handle_custom_return({AgentInteract, NewState}, StateName, _Reply, State)
-		when State =:= oncall;
-		State =:= oncall_ringing;
-		State =:= inqueue_ringing;
-		State =:= warm_transfer_hold;
-		State =:= warm_transfer_3rd_party;
-		State =:= warm_transfer_merged ->
+		when StateName =:= oncall;
+		StateName =:= oncall_ringing;
+		StateName =:= inqueue_ringing;
+		StateName =:= warm_transfer_hold;
+		StateName =:= warm_transfer_3rd_party;
+		StateName =:= warm_transfer_merged ->
 	{NextState, {BaseState, Internal}} = agent_interact(AgentInteract, StateName, State),
 	NewBase = BaseState#base_state{substate = NewState},
 	{next_state, NextState, {NewBase, Internal}}.
@@ -2214,8 +2219,8 @@ handle_stop(Reason, StateName, #base_state{callrec = Call} = BaseState,
 			ok
 	end,
 	case Reason of
-		{hangup, _} -> normal;
-		_ -> Reason
+		{hangup, _} -> {normal, {BaseState, Internal}};
+		_ -> {Reason, {BaseState, Internal}}
 	end;
 
 handle_stop(Reason, StateName, BaseState, Internal) ->
@@ -2529,17 +2534,17 @@ kill_outband_ring(_) ->
 	ok.
 
 extract_agent(#inqueue_ringing_state{ring_pid = O, ring_mon = M}) ->
-	{O, M};
+	{M, O};
 extract_agent(#oncall_state{oncall_pid = O, oncall_mon = M}) ->
-	{O, M};
+	{M, O};
 extract_agent(#oncall_ringing_state{oncall_pid = O, oncall_mon = M}) ->
-	{O, M};
+	{M, O};
 extract_agent(#warm_transfer_hold_state{oncall_pid = O, oncall_mon = M}) ->
-	{O, M};
+	{M, O};
 extract_agent(#warm_transfer_3rd_party_state{oncall_pid = O, oncall_mon = M}) ->
-	{O, M};
+	{M, O};
 extract_agent(#warm_transfer_merged_state{oncall_pid = O, oncall_mon = M}) ->
-	{O, M}.
+	{M, O}.
 
 agent_interact(Action, StateName, {BaseState, Internal}) ->
 	Agent = extract_agent(Internal),

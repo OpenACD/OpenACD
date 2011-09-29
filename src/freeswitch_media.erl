@@ -43,6 +43,7 @@
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("gen_media.hrl").
 
 -define(TIMEOUT, 10000).
 
@@ -72,8 +73,8 @@
 	handle_spy/3,
 	handle_announce/3,
 	handle_agent_transfer/4,
-	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_queue_transfer/5,
+	handle_wrapup/5,
 	handle_call/4, 
 	handle_cast/3, 
 	handle_info/5,
@@ -203,9 +204,19 @@ handle_answer(Apid, warm_transfer_3rd_party, Callrec, _GenMediaState, #state{xfe
 %			{invalid, State}
 %	end;
 
-handle_answer(Apid, StateName, Callrec, _GenMedia, State) when
+handle_answer(Apid, StateName, Callrec, GenMediaState, State) when
 		StateName =:= inqueue_ringing; StateName =:= oncall_ringing ->
-	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+	UUID = case GenMediaState of
+		#inqueue_ringing_state{outband_ring_pid = undefined} ->
+			"";
+		#inqueue_ringing_state{outband_ring_pid = P} ->
+			freeswitch_ring:get_uuid(P);
+		#oncall_ringing_state{outband_ring_pid = undefined} ->
+			"";
+		#oncall_ringing_state{outband_ring_pid = P} ->
+			freeswitch_ring:get_uuid(P)
+	end,
+	%UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
 		{ok, _} ->
 			RecPath = case cpx_supervisor:get_archive_path(Callrec) of
@@ -223,11 +234,11 @@ handle_answer(Apid, StateName, Callrec, _GenMedia, State) when
 					freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
 					Path++".wav"
 			end,
-			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+			agent_channel:media_push(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 			{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
-			{invalid, State}
+			{error, Error, State}
 	end.
 
 handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
@@ -517,16 +528,16 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 
-handle_wrapup(#call{ring_path = inband, media_path = inband} = Call, State) ->
+handle_wrapup(_From, _StateName, #call{ring_path = inband, media_path = inband} = Call, _GenMediaState, State) ->
 	% TODO This could prolly stand to be a bit more elegant.
 	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
 	{hangup, State};
-handle_wrapup(_Call, State) ->
+handle_wrapup(_From, _StateName, _Call, _GenMediaState, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent
 	{ok, State}.
 	
-handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
+handle_queue_transfer(_Queue, _StateName, Call, _GenMediaState, #state{cnode = Fnode} = State) ->
 	case State#state.record_path of
 		undefined ->
 			ok;

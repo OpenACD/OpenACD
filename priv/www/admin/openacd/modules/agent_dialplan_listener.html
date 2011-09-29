@@ -6,6 +6,11 @@
 </p>
 
 <p>
+	<label>Unavailable Timeout:</label>
+	<input dojoType="dijit.form.TextBox" name="unavailableTimeout" id="agentDialplanListenerUnavailableTimeout" value="0" size="3"/> minutes
+</p>
+
+<p>
 	<label>&nbsp;</label>
 	<button dojoType="dijit.form.Button" name="submit" label="submit">
 		<script type="dojo/method" event="postCreate">
@@ -17,6 +22,7 @@
 				url: postUrl,
 				content:{
 					enabled:dijit.byId('agentDialplanListenerEnabled').get('checked'),
+					unavailableTimeout:dijit.byId('agentDialplanListenerUnavailableTimeout').get('value')
 				},
 				handleAs:'json',
 				load:function(res){
@@ -55,7 +61,9 @@
 			dijit.byId('agentDialplanListenerEnabled').set('checked', true);
 			if(res.enabled == false){
 				dijit.byId('agentDialplanListenerEnabled').set('checked', false);
+				return;
 			}
+			dijit.byId('agentDialplanListenerUnavailableTimeout').set('value', res.unavailableTimeout);
 		},
 		error:function(res){
 			errMessage('getting settings errored:  ' + res);

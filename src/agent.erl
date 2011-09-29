@@ -665,7 +665,7 @@ priv_set_endpoint(Agent, Module, {module, OtherMod} = Endpoint) ->
 			{ok, NewAgent}
 	end;
 priv_set_endpoint(Agent, Module, Data) ->
-	case Module:prepare_endpoint(Agent, Data) of
+	case catch Module:prepare_endpoint(Agent, Data) of
 		{error, Err} ->
 			?DEBUG("Didn't set endpoint ~s due to ~p", [Module, Err]),
 			{error, Err};

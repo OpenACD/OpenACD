@@ -44,6 +44,22 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		this.agentBrandNode.innerHTML = this.stateData.brandname;
 		this.calleridNode.innerHTML = this.stateData.callerid;
 		this.callTypeNode.innerHTML = this.stateData.type;
+		switch(this.state){
+			case "ringing":
+				if(this.stateData.ringpath == "outband"){
+					this.answerButton.domNode.style.display = 'none';
+				} else {
+					this.answerButton.domNode.style.display = 'inline';
+				}
+				break;
+			case "oncall":
+				if(this.stateData.mediapath == "outband"){
+					this.hangupButton.domNode.style.display = 'none';
+				} else {
+					this.hangupButton.domNode.style.display = 'inline';
+				}
+				break;
+		}
 
 		dojo.connect(this.answerButton, 'onClick', this, function(){
 			window.agentConnection.channels[this.channel].setState('oncall');
@@ -78,6 +94,15 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 			return false;
 		}
 		console.log('event', this, arguments);
+		if(arguments.length > 1){
+			var stateText = dojo.i18n.getLocalization("agentUI", "labels")[arguments[1].toUpperCase()];
+			if(! stateText){
+				stateText = this.agentStateNode.innerHTML;
+			}
+		} else {
+			stateText = this.agentStateNode.innerHTML;
+		}
+		this.agentStateNode.innerHTML = stateText;
 		switch(args){
 
 			case 'oncall':

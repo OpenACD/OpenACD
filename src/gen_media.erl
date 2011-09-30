@@ -2114,10 +2114,10 @@ handle_custom_return({noreply, NewState, Timebernate}, State, _Reply, {BaseState
 	NewBase = BaseState#base_state{substate = NewState},
 	{next_state, State, {NewBase, Internal}, Timebernate};
 
-handle_custom_return(hangup, inqueue, Reply, State) ->
-	handle_custom_return({hangup, undefined}, inqueue, Reply, State);
+handle_custom_return({hangup, NewSub}, inqueue, Reply, State) ->
+	handle_custom_return({{hangup, undefined}, NewSub}, inqueue, Reply, State);
 
-handle_custom_return({hangup, Who}, inqueue, Reply, 
+handle_custom_return({{hangup, Who}, NewSub}, inqueue, Reply, 
 		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
 	#inqueue_state{queue_mon = Qmon, queue_pid = {_, Qpid}} = Internal,
 	?INFO("hang for ~p up when only queue is a pid", [Callrec#call.id]),
@@ -2126,12 +2126,12 @@ handle_custom_return({hangup, Who}, inqueue, Reply,
 	erlang:demonitor(Qmon),
 	case Reply of
 		reply ->
-			{reply, ok, wrapup, {BaseState, #wrapup_state{}}};
+			{reply, ok, wrapup, {BaseState#base_state{substate = NewSub}, #wrapup_state{}}};
 		noreply ->
-			{next_state, wrapup, {BaseState, #wrapup_state{}}}
+			{next_state, wrapup, {BaseState#base_state{substate = NewSub}, #wrapup_state{}}}
 	end;
 
-handle_custom_return({hangup, Who}, inivr, Reply,
+handle_custom_return({{hangup, Who}, NewSub}, inivr, Reply,
 		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
 	case is_record(Callrec, call) of
 		true ->
@@ -2142,9 +2142,9 @@ handle_custom_return({hangup, Who}, inivr, Reply,
 	end,
 	case Reply of
 		reply ->
-			{reply, ok, wrapup, {BaseState, #wrapup_state{}}};
+			{reply, ok, wrapup, {BaseState#base_state{substate = NewSub}, #wrapup_state{}}};
 		noreply ->
-			{next_state, wrapup, {BaseState, #wrapup_state{}}}
+			{next_state, wrapup, {BaseState#base_state{substate = NewSub}, #wrapup_state{}}}
 	end;
 
 handle_custom_return({{hangup, Who}, NewState}, inqueue_ringing, noreply,

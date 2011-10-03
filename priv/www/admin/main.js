@@ -249,16 +249,16 @@ dojo.addOnLoad(function(){
 			dijit.byId('agentsTab').layout();
 		});
 		dojo.connect(agents.tree, "onClick", function(item){
-			if(agents.store.getValue(item, 'type') == "profile"){
+			if(item.type == "profile"){
 				dijit.byId("agentProfileSubmit").onClick = function(){
 					agents.updateProfile('editAgentProfileForm', 'agentsList');
 				};
-				dojo.byId("agentProfileOldName").value = agents.store.getValue(item, 'name');
-				dijit.byId("agentProfileName").set("value", agents.store.getValue(item, 'name'));
-				dijit.byId("agentProfileId").set("value", agents.store.getValue(item, 'id'));
+				dojo.byId("agentProfileOldName").value = item.name;
+				dijit.byId("agentProfileName").set("value", item.name);
+				dijit.byId("agentProfileId").set("value", item.id);
 				dijit.byId('agentProfileId').set('disabled', true);
-				dijit.byId("agentProfileOrder").set("value", agents.store.getValue(item, 'order'));
-				if(agents.store.getValue(item, 'name') == "Default"){
+				dijit.byId("agentProfileOrder").set("value", item.order);
+				if(item.name == "Default"){
 					dijit.byId("agentProfileName").set('disabled', true);
 				}
 				else{
@@ -273,11 +273,11 @@ dojo.addOnLoad(function(){
 				};
 				
 				var selectedSkills = [];
-				var profileSkills = agents.store.getValues(item, 'skills');
+				var profileSkills = item.skills;
 				for(var i = 0; i < profileSkills.length; i++){
-					var val = agents.store.getValue(profileSkills[i], 'atom');
-					if(agents.store.getValue(profileSkills[i], 'expanded')){
-						val = '{' + val + ',' + agents.store.getValue(profileSkills[i], 'expanded') + '}';
+					var val = profileSkills[i].atom;
+					if(profileSkills[i].expanded){
+						val = '{' + val + ',' + profileSkills[i].expanded + '}';
 					}
 					selectedSkills.push(val);
 				}
@@ -287,7 +287,7 @@ dojo.addOnLoad(function(){
 				skills.createSelect(skillCallback, selectedSkills, ['_brand', '_queue'], expanded);
 				
 				dijit.byId("agentsDestroyButton").onClick = function(){
-					var name = agents.store.getValue(item, 'name');
+					var name = item.name;
 					dojo.xhrGet({
 						url:"agents/profiles/" + name + "/delete",
 						handleAs:"json",
@@ -302,7 +302,7 @@ dojo.addOnLoad(function(){
 					});
 				};
 			} else {
-				var id = agents.store.getValue(item, 'id');
+				var id = item.id;
 				dojo.xhrGet({
 					url:"/agents/agents/" + id + "/get",
 					handleAs:"json",

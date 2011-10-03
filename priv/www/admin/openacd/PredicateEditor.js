@@ -27,53 +27,46 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit.
 		this._disabled = false;
 		dojo.safeMixin(this, args);
 	},
+	postCreate: function(){
+		if(dojo.isArray(this.store)){
+			if(this.store.length > 0 && dojo.isString(this.store[0])){
+				this.store = eval(this.store[0]);
+			} else {
+				this.store = new dojo.store.Memory({data:this.store});
+			}
+		} else if(dojo.isString(this.store)){
+			this.store = eval(this.store);
+		}
+	},
 	setComparisons: function(prop){
-		var ithis = this;
-		var callback = function(res, req){
-			var items = [];
-			if(res.length < 1){
-				return;
-			}
-			res = res[0];
-			var comparisons = req.store.getValues(res, 'comparisons');
-			for(var i = 0; i < comparisons.length; i++){
-				items.push({
-					'label':req.store.getValue(comparisons[i], 'label'),
-					'value':req.store.getValue(comparisons[i], 'value')
-				});
-			}
-			ithis.comparisonField.store = new dojo.data.ItemFileReadStore({
-				data:{
-					identifier:"value",
-					label:"label",
-					"items":items
-				}
-			});
-			var regex = ".*";
-			switch(req.store.getValue(res, "filter")){
-				case "integer":
-					regex = "[\\d]+";
-					break;
-				case "number":
-					regex = "[\\d]+\\.[\\d]*|[\\d]*\\.[\\d]+";
-					break;
-				case "regex":
-					regex = req.store.getValue(res, "regex");
-					break;
-				default:
-					regex = ".*";
-			}
-				
-			ithis.valueField.regExp = regex;
-			ithis.valueField.predFilter = req.store.getValue(res, "filter");
-		};
-		this.propertyField.store.fetch({
-			query:{
-				'value':prop,
-				'type':'property'
-			},
-			onComplete:callback
+		var propData = this.store.get(prop);
+		var desiredComps = dojo.map(propData.comparisons, function(instr){
+			return 'comp-' + instr;
 		});
+		var allComps = this.store.query({type:'comparison'});
+		var outComps = [];
+		for(var i = 0; i < allComps.length; i++){
+			if(dojo.indexOf(desiredComps, allComps[i].id) >= 0){
+				outComps.push(allComps[i]);
+			}
+		}
+		this.comparisonField.store = new dojo.store.Memory({data:outComps});
+		var regex = ".*";
+		switch(propData.filter){
+			case "integer":
+				regex = "[\\d]+";
+				break;
+			case "number":
+				regex = "[\\d]+\\.[\\d]*|[\\d]*\\.[\\d]+";
+				break;
+			case "regex":
+				regex = req.store.getValue(res, "regex");
+				break;
+			default:
+				regex = ".*";
+		}
+		this.valueField.regExp = regex;
+		this.valueField.predFilter = propData.filter;
 	},
 	getValue: function(){
 		var outval = "";
@@ -127,7 +120,21 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._Wi
 		this.valwidth = "20em";*/
 		this.store = [];
 		this.rows = [];
-		this._disabled = false;	 
+		this._disabled = false;
+		dojo.safeMixin(this, arguments);
+		// because the mixin seems to be fail.
+		this.store = arguments[0].store;
+	},
+	postCreate:function(){
+		if(dojo.isArray(this.store)){
+			if(this.store.length > 0 && dojo.isString(this.store[0])){
+				this.store = eval(this.store[0]);
+			} else {
+				this.store = new dojo.store.Memory({data:this.store});
+			}
+		} else if(dojo.isString(this.store)){
+			this.store = eval(this.store);
+		}
 	},
 	addRow:function(){
 		var ithis = this;

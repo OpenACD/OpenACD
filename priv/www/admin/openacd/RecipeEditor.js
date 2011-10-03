@@ -191,13 +191,17 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 				this.argsWidget.focus();
 			}
 		});*/
-		var nodes = this.actionField.store.root;
+		/*var nodes = this.actionField.store.domNode;
 		//onsole.log(['das nodes', nodes]);
 		for(var i = 0; i < nodes.childNodes.length; i++){
 			if(nodes.childNodes[i].nodeType == 1){
 				var untransed = nodes.childNodes[i].innerHTML;
 				nodes.childNodes[i].innerHTML = dojo.i18n.getLocalization('admin', 'recipeEditor')[untransed];
 			}
+		}*/
+		var toTranslate = this.actionField.store.data;
+		for(var i = 0; i < toTranslate.length; i++){
+			toTranslate[i].name = dojo.i18n.getLocalization("admin", "recipeEditor")[toTranslate[i].name];
 		}
 		//onsole.log(['reloading buttons', this.addButton, this.dropButton]);
 		this.addButton.set('label', dojo.i18n.getLocalization('admin', 'recipeEditor').ADDSTEP);
@@ -338,7 +342,8 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._Widge
 	//widgetsInTemplate: true,
 	templateString: "",
 	addRow: function(){
-		this.stepsContainer.set('style', 'visibility:visible');
+		dojo.style(this.stepsContainer.domNode, "visibility", "visible");
+		//this.stepsContainer.set('style', 'visibility:visible');
 		var ithis = this;
 		var row = new RecipeEditorRow({
 			propwidth: this.propwidth,
@@ -442,6 +447,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._Widge
 		this.rows = newrows;
 		if(this.rows.length === 0){
 			this.nullButton.domNode.style.display = "inline";
+			dojo.style(this.stepsContainer.domNode, "visibility", "hidden");
 		}
 	},
 	constructor: function(arg){
@@ -454,6 +460,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._Widge
 	},
 	postCreate: function(){
 		//this.addRow();
+		if(this.rows.length == 0){
+			dojo.style(this.nullButton.domNode, "display", "inline");
+			//this.stepsContainer.domNode.style.visibility = "hidden";
+			dojo.style(this.stepsContainer.domNode, "visibility", "hidden");
+		}
 	},
 	startup: function(){
 		this.inherited(arguments);
@@ -492,12 +503,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._Widge
 });
 
 openacd.inArray = function(needle, haystack){
-	for(var i = 0; i < haystack.length; i++){
-		if(haystack[i] == needle){
-			return true;
-		}
+	var index = dojo.indexOf(haystack, needle);
+	if(index < 0){
+		return false;
 	}
-	return false;
+	return true;
 }
 
 openacd.RecipeEditor.recipeConditionsStore = new dojo.store.Memory({data:[

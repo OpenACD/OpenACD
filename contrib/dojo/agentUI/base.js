@@ -15,6 +15,7 @@ dojo.require("dojox.encoding.digests.MD5");
 dojo.require("dijit.form.ComboBox");
 dojo.require("dojox.layout.ContentPane");
 dojo.require("dojox.layout.FloatingPane");
+dojo.require("dojo.data.ObjectStore");
 dojo.require("dojo.cookie");
 dojo.require("dojo.data.ItemFileReadStore");
 dojo.require("dijit.Editor");

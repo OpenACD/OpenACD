@@ -269,7 +269,7 @@ dojo.addOnLoad(function(){
 				var skillCallback = function(selectNode){
 					selectNode.name = 'skills';
 					dojo.place(selectNode, dojo.byId('agentProfileSkills'), 'only');
-					var out = new dijit.form.MultiSelect(selectNode);
+					//var out = new dijit.form.MultiSelect(selectNode);
 				};
 				
 				var selectedSkills = [];

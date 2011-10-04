@@ -1,6 +1,7 @@
 dojo.require("dijit.form.Select");
 dojo.require("dijit.form.FilteringSelect");
 dojo.require("dojo.data.ItemFileReadStore");
+dojo.require("dojo.store.Memory");
 dojo.require("dijit.layout.AccordionContainer");
 
 dojo.provide("openacd.RecipeEditorRow");
@@ -8,9 +9,9 @@ dojo.provide("openacd.RecipeEditor");
 
 dojo.requireLocalization("admin", "recipeEditor");
 
-dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
+dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	// actions go in rows, which go in the editor
-	widgetsInTemplate: true,
+	//widgetsInTemplate: true,
 	templateString: '<div dojoAttachPoint="containerNode"><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
 		'<option value="add_skills">ADDSKILLS</option>' +
 		'<option value="remove_skills">REMOVESKILLS</option>' +
@@ -190,13 +191,17 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				this.argsWidget.focus();
 			}
 		});*/
-		var nodes = this.actionField.store.root;
+		/*var nodes = this.actionField.store.domNode;
 		//onsole.log(['das nodes', nodes]);
 		for(var i = 0; i < nodes.childNodes.length; i++){
 			if(nodes.childNodes[i].nodeType == 1){
 				var untransed = nodes.childNodes[i].innerHTML;
 				nodes.childNodes[i].innerHTML = dojo.i18n.getLocalization('admin', 'recipeEditor')[untransed];
 			}
+		}*/
+		var toTranslate = this.actionField.store.data;
+		for(var i = 0; i < toTranslate.length; i++){
+			toTranslate[i].name = dojo.i18n.getLocalization("admin", "recipeEditor")[toTranslate[i].name];
 		}
 		//onsole.log(['reloading buttons', this.addButton, this.dropButton]);
 		this.addButton.set('label', dojo.i18n.getLocalization('admin', 'recipeEditor').ADDSTEP);
@@ -212,10 +217,19 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	}
 });
 
-dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
-	widgetsInTemplate: true,
-	templateString: "",
+dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
+	//templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
+	//widgetsInTemplate: true,
+	//templateString: "",
+	templateString: '<div><div dojoType="dijit.layout.ContentPane" dojoAttachPoint="containerNode">' +
+	'<div dojoAttachPoint="actionsDiv" style="display:inline-block;float:left"></div>' +
+	'<select dojoType="dijit.form.Select" dojoAttachPoint="runsField" style="float:right">' +
+	'	<option value="run_once">${labels.RUNONCE}</option>' +
+	'	<option value="run_many">${labels.RUNMANY}</option>' +
+	'</select>' +
+	'<div dojoAttachPoint="translate" style="float:right;clear:left" dojoType="dijit.form.Button" label="?"></div>' +
+	'<div dojoType="PredicateEditor" border="1" store="openacd.RecipeEditor.recipeConditionsStore" propwidth="12em" valwidth="4em"compwidth="4em" style="display:inline-block;padding:0 2em 0 2em;" dojoAttachPoint="conditionsEditor"></div>' +
+	'</div></div>',
 	comment:'',
 	addAction:function(index){
 		var widget = new RecipeEditorAction();
@@ -323,12 +337,13 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	}
 });
 
-dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
+dojo.declare("RecipeEditor", [dijit._Widget, dijit._TemplatedMixin, dijit._WidgetsInTemplateMixin], {
 	templatePath: dojo.moduleUrl("openacd","RecipeEditor.html"),
-	widgetsInTemplate: true,
+	//widgetsInTemplate: true,
 	templateString: "",
 	addRow: function(){
-		this.stepsContainer.set('style', 'visibility:visible');
+		dojo.style(this.stepsContainer.domNode, "visibility", "visible");
+		//this.stepsContainer.set('style', 'visibility:visible');
 		var ithis = this;
 		var row = new RecipeEditorRow({
 			propwidth: this.propwidth,
@@ -432,6 +447,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = newrows;
 		if(this.rows.length === 0){
 			this.nullButton.domNode.style.display = "inline";
+			dojo.style(this.stepsContainer.domNode, "visibility", "hidden");
 		}
 	},
 	constructor: function(arg){
@@ -444,6 +460,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 	},
 	postCreate: function(){
 		//this.addRow();
+		if(this.rows.length == 0){
+			dojo.style(this.nullButton.domNode, "display", "inline");
+			//this.stepsContainer.domNode.style.visibility = "hidden";
+			dojo.style(this.stepsContainer.domNode, "visibility", "hidden");
+		}
 	},
 	startup: function(){
 		this.inherited(arguments);
@@ -482,132 +503,85 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 });
 
 openacd.inArray = function(needle, haystack){
-	for(var i = 0; i < haystack.length; i++){
-		if(haystack[i] == needle){
-			return true;
-		}
+	var index = dojo.indexOf(haystack, needle);
+	if(index < 0){
+		return false;
 	}
-	return false;
+	return true;
 }
 
-
-openacd.RecipeEditor.recipeConditionsStore = new dojo.data.ItemFileReadStore({
-	data:{
-		identifier:"value",
-		label:"label",
-		"items":[
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").TICKINTERVAL,
-			"value":"ticks",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[{_reference:"="}]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSAVAILABLE,
-			"value":"agents_avail",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREEQUAL,
-			"value":"=",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREGREATERTHAN,
-			"value":">",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARELESSTHAN,
-			"value":"<",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARENOTEQUAL,
-			"value":"!=",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
-			"value":"eligible_agents",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CALLSINQUEUE,
-			"value":"calls_queued",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").POSITIONINQUEUE,
-			"value":"queue_position",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENT,
-			"value":"client",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").HOUR,
-			"value":"hour",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").WEEKDAY,
-			"value":"weekday",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"<"},
-				{_reference:">"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").MEDIATYPE,
-			"value":"mediatype",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENTCOUNT,
-			"value":"client_calls_queued",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERNAME,
-			"value":"caller_name",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERID,
-			"value":"caller_id",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]}
-		]
-	}
-});
+openacd.RecipeEditor.recipeConditionsStore = new dojo.store.Memory({data:[
+	{"id":"prop-ticks",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").TICKINTERVAL,
+	"value":"ticks",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["="]},
+	{"id":"prop-agents_avail",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSAVAILABLE,
+	"value":"agents_avail",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]},
+	{"id":"comp-=",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREEQUAL,
+	"value":"=",
+	"type":"comparison"},
+	{"id":"comp->",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREGREATERTHAN,
+	"value":">",
+	"type":"comparison"},
+	{"id":"comp-<",
+		"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARELESSTHAN,
+	"value":"<",
+	"type":"comparison"},
+	{"id":"comp-!=",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARENOTEQUAL,
+	"value":"!=",
+	"type":"comparison"},
+	{"id":"prop-eligible_agents",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
+	"value":"eligible_agents",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]},
+	{"id":"prop-calls_queued",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").CALLSINQUEUE,
+	"value":"calls_queued",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]},
+	{"id":"prop-queue_position",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").POSITIONINQUEUE,
+	"value":"queue_position",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]},
+	{"id":"prop-client",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENT,
+	"value":"client",
+	"type":"property",
+	"filter":"any",
+	"comparisons":["=", "!="]},
+	{"id":"prop-hour",
+	"label":dojo.i18n.getLocalization("admin", "recipeEditor").HOUR,
+	"value":"hour",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]},
+	{"label":dojo.i18n.getLocalization("admin", "recipeEditor").WEEKDAY,
+	"value":"weekday",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", "<", ">"]},
+	{"label":dojo.i18n.getLocalization("admin", "recipeEditor").MEDIATYPE,
+	"value":"mediatype",
+	"type":"property",
+	"filter":"any",
+	"comparisons":["=", "!="]},
+	{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENTCOUNT,
+	"value":"client_calls_queued",
+	"type":"property",
+	"filter":"integer",
+	"comparisons":["=", ">", "<"]}
+]});

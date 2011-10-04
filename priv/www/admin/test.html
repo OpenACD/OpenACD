@@ -17,7 +17,7 @@
 			}
 		}
 		</script>
-		<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+		<script type="text/javascript" src="/dojo/dojo.js"></script>
 		<script>
 		
 inArray = function(needle, haystack){
@@ -118,6 +118,10 @@ dojo.addOnLoad(function(){
 		</script>
 	</head>
 	<body class="tundra">
+		<h3>Predicate Editor Tests</h3>
+		<p>Default setup</p>
+		<div dojoType="PredicateEditor" id="basicPredicate" store="openacd.RecipeEditor.recipeConditionsStore"></div>
+		<h3>Recipe Editor Tests</h3>
 		<p>Default setup</p>
 		<p><div dojoType="RecipeEditor" id="basicCreate"></div></p>
 		<p>Set to emtpy value after load</p>

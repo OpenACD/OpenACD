@@ -217,10 +217,10 @@ function loadTab(tabid){
 	var href = '';
 	var title = '';
 	switch(tabid){
-		case 'supervisorTab':
+		/*case 'supervisorTab':
 			href = 'tabs/supervisor.html';
 			title = 'Supervisor';
-			break;
+			break;*/
 		case 'dashboardTab':
 			href = 'tabs/dashboard.html';
 			title = 'Dashboard';
@@ -1033,15 +1033,20 @@ dojo.addOnLoad(function(){
 	buildOutboundMenu = function(){
 		//var menu = dijit.byId("outboundmenu");
 		var widget;
-		var store = new dojo.data.ItemFileReadStore({
-				data: {
-					'label': 'label',
-					'identifier': 'id',
-					'items': [
-						{'label':'Failed to load brands', 'id':'0'}
-						]
-					}
-				});
+		var store = new dojo.store.Memory({data:[]});
+		/*var store = new dojo.data.ItemFileReadStore({
+			data: {
+				'label': 'label',
+				'identifier': 'id',
+				'items': [
+					{'label':'Failed to load brands', 'id':'0'}
+				]
+			}
+		});
+		store.query = function(query, options){
+			options = dojo.mixin({'query':query}, options);
+			return this.fetch(options);
+		}*/
 
 		if(!(widget = dijit.byId('boutboundcall'))){
 			widget = new dijit.form.FilteringSelect({
@@ -1067,13 +1072,14 @@ dojo.addOnLoad(function(){
 			},
 			success:function(response, ioargs){
 				debug(["buildOutboundMenu", response]);
-				store = new dojo.data.ItemFileReadStore({
+				store = new dojo.store.Memory({data:response});
+				/*store = new dojo.data.ItemFileReadStore({
 					data: {
 						'label': 'label',
 						'identifier':'id',
 						'items': response
 					}
-				});
+				});*/
 				widget.store = store;
 			}
 		};

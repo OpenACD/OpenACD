@@ -1321,18 +1321,27 @@ api({modules, Node, "agent_dialplan_listener", "get"}, ?COOKIE, _Post) ->
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [agent_dialplan_listener]) of
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
-		_ ->
-			{200, [], mochijson2:encode({struct, [{succes, true}, {<<"enabled">>, true}]})}
+		#cpx_conf{start_args = Args} ->
+			BaseJson = [{success, true}, {<<"enabled">>, true}],
+			JsonProps = case Args of
+				[] -> BaseJson;
+				[{unavailable_timeout, N}] -> [{<<"unavailableTimeout">>, N} | BaseJson]
+			end,
+			{200, [], mochijson2:encode({struct, JsonProps})}
 	end;
 api({modules, Node, "agent_dialplan_listener", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		"true" ->
+			StateArgs = case catch list_to_integer(proplists:get_value("unavailableTimeout", Post)) of
+				Time when is_integer(Time), Time > 0 -> [{unavailable_timeout, Time}];
+				_ -> []
+			end,
 			Conf = #cpx_conf{
 				id = agent_dialplan_listener,
 				module_name = agent_dialplan_listener,
 				start_function = start_link,
-				start_args = [],
+				start_args = StateArgs,
 				supervisor = agent_connection_sup
 			},
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [agent_dialplan_listener, Conf]) of

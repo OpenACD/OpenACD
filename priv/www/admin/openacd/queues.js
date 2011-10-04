@@ -8,16 +8,17 @@ queues = function(){
 
 dojo.requireLocalization("admin", "recipeEditor");
 
-queues.store = new dojo.data.ItemFileWriteStore({
+queues.store = new dojo.store.Memory({data:[]});
+/*queues.store = new dojo.data.ItemFileWriteStore({
 	data:{
 		"identifier":'name',
 		"label":'name',
 		"items":[]
 	}
-});
+});*/
 
 queues.model = new dijit.tree.ForestStoreModel({
-	store: queues.store,
+	store: new dojo.data.ObjectStore({objectStore:queues.store}),
 	labelAttr:"name",
 	query:{"type":"group"},
 	childrenAttrs:["queues"],
@@ -27,37 +28,59 @@ queues.model = new dijit.tree.ForestStoreModel({
 
 queues.tree = false;
 
-queues.init = function(){
-	queues.store = new dojo.data.ItemFileWriteStore({
-		url:"/queues/groups/get",
-		typeMap:{"object":function(obj){ return obj; }}
+/*queues.init = function(){
+	dojo.xhrGet({
+		url:'/queues/groups/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success != true){
+				return;
+			}
+			queues.store = new dojo.store.Memory({data:res.items});
+			queues.model = new dijit.tree.ForestStoreModel({
+				store:new dojo.data.ObjectStore({objectStore:queues.store}),
+				labelAttr:"name",
+				query:{"type":"group"},
+				childrenAttrs:["queues"],
+				rootId:"queues",
+				rootLabel:"queues"
+			});
+		}
 	});
-	queues.store.fetch();
-	queues.model = new dijit.tree.ForestStoreModel({
-		store: queues.store,
-		labelAttr:"name",
-		query:{"type":"group"},
-		childrenAttrs:["queues"],
-		rootId:"queues",
-		rootLabel:"queues"
-	});
-};
+}*/
 
 queues.refreshTree = function(node){
-	var parent = dojo.byId(node).parentNode;
-	queues.init();
-	if(dijit.byId(queues.tree.id)){
-		dijit.byId(queues.tree.id).destroy();
-	}
-	var n = dojo.doc.createElement('div');
-	n.id = node;
-	parent.appendChild(n);
-	queues.tree = new dijit.Tree({
-		store: queues.store,
-		model: queues.model,
-		showRoot:false
-	}, node);
-	dojo.publish("queues/tree/refreshed", []);
+	var parentNode = dojo.byId(node).parentNode;
+	dojo.xhrGet({
+		url:'/queues/groups/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success != true){
+				return;
+			}
+			queues.store = new dojo.store.Memory({data:res.items});
+			queues.model = new dijit.tree.ForestStoreModel({
+				store:new dojo.data.ObjectStore({objectStore:queues.store}),
+				labelAttr:"name",
+				query:{"type":"group"},
+				childrenAttrs:["queues"],
+				rootId:"queues",
+				rootLabel:"queues"
+			});
+			queues.tree = new dijit.Tree({
+				store: new dojo.data.ObjectStore({objectStore:queues.store}),
+				model: queues.model,
+				showRoot:false
+			}, node);
+			dojo.publish("queues/tree/refreshed", []);
+			if(dijit.byId(queues.tree.id)){
+				dijit.byId(queues.tree.id).destroy();
+			}
+			var n = dojo.doc.createElement('div');
+			n.id = node;
+			parentNode.appendChild(n);
+		}
+	});
 };
 
 queues.setGroup = function(vals, refreshnode){

@@ -404,7 +404,7 @@ dojo.addOnLoad(function(){
 									skills.init();
 									agents.getModules(dijit.byId('editAgentModuleForm'));
 									agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
-									queues.init();
+									//queues.init();
 									queues.refreshTree('queuesList');
 									modules.init();
 									modules.refreshTree('moduleList');
@@ -446,7 +446,7 @@ dojo.addOnLoad(function(){
 					skills.init();
 					agents.getModules(dijit.byId('editAgentModuleForm'));
 					agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
-					queues.init();
+					//queues.init();
 					queues.refreshTree('queuesList');
 					modules.init();
 					modules.refreshTree('moduleList');

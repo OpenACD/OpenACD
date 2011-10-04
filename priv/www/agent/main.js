@@ -217,10 +217,10 @@ function loadTab(tabid){
 	var href = '';
 	var title = '';
 	switch(tabid){
-		case 'supervisorTab':
+		/*case 'supervisorTab':
 			href = 'tabs/supervisor.html';
 			title = 'Supervisor';
-			break;
+			break;*/
 		case 'dashboardTab':
 			href = 'tabs/dashboard.html';
 			title = 'Dashboard';

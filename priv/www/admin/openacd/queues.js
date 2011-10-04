@@ -8,123 +8,17 @@ queues = function(){
 
 dojo.requireLocalization("admin", "recipeEditor");
 
-/*queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
-	data:{
-		identifier:"value",
-		label:"label",
-		"items":[
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").TICKINTERVAL,
-			"value":"ticks",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSAVAILABLE,
-			"value":"agents_avail",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREEQUAL,
-			"value":"=",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREGREATERTHAN,
-			"value":">",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARELESSTHAN,
-			"value":"<",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARENOTEQUAL,
-			"value":"!=",
-			"type":"comparison"},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
-			"value":"eligible_agents",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CALLSINQUEUE,
-			"value":"calls_queued",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").POSITIONINQUEUE,
-			"value":"queue_position",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENT,
-			"value":"client",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").HOUR,
-			"value":"hour",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").WEEKDAY,
-			"value":"weekday",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"<"},
-				{_reference:">"}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").MEDIATYPE,
-			"value":"mediatype",
-			"type":"property",
-			"filter":"any",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:"!="}
-			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENTCOUNT,
-			"value":"client_calls_queued",
-			"type":"property",
-			"filter":"integer",
-			"comparisons":[
-				{_reference:"="},
-				{_reference:">"},
-				{_reference:"<"}
-			]}
-		]
-	}
-});*/
-
-queues.store = new dojo.data.ItemFileWriteStore({
+queues.store = new dojo.store.Memory({data:[]});
+/*queues.store = new dojo.data.ItemFileWriteStore({
 	data:{
 		"identifier":'name',
 		"label":'name',
 		"items":[]
 	}
-});
+});*/
 
 queues.model = new dijit.tree.ForestStoreModel({
-	store: queues.store,
+	store: new dojo.data.ObjectStore({objectStore:queues.store}),
 	labelAttr:"name",
 	query:{"type":"group"},
 	childrenAttrs:["queues"],
@@ -134,37 +28,59 @@ queues.model = new dijit.tree.ForestStoreModel({
 
 queues.tree = false;
 
-queues.init = function(){
-	queues.store = new dojo.data.ItemFileWriteStore({
-		url:"/queues/groups/get",
-		typeMap:{"object":function(obj){ return obj; }}
+/*queues.init = function(){
+	dojo.xhrGet({
+		url:'/queues/groups/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success != true){
+				return;
+			}
+			queues.store = new dojo.store.Memory({data:res.items});
+			queues.model = new dijit.tree.ForestStoreModel({
+				store:new dojo.data.ObjectStore({objectStore:queues.store}),
+				labelAttr:"name",
+				query:{"type":"group"},
+				childrenAttrs:["queues"],
+				rootId:"queues",
+				rootLabel:"queues"
+			});
+		}
 	});
-	queues.store.fetch();
-	queues.model = new dijit.tree.ForestStoreModel({
-		store: queues.store,
-		labelAttr:"name",
-		query:{"type":"group"},
-		childrenAttrs:["queues"],
-		rootId:"queues",
-		rootLabel:"queues"
-	});
-};
+}*/
 
 queues.refreshTree = function(node){
-	var parent = dojo.byId(node).parentNode;
-	queues.init();
-	if(dijit.byId(queues.tree.id)){
-		dijit.byId(queues.tree.id).destroy();
-	}
-	var n = dojo.doc.createElement('div');
-	n.id = node;
-	parent.appendChild(n);
-	queues.tree = new dijit.Tree({
-		store: queues.store,
-		model: queues.model,
-		showRoot:false
-	}, node);
-	dojo.publish("queues/tree/refreshed", []);
+	var parentNode = dojo.byId(node).parentNode;
+	dojo.xhrGet({
+		url:'/queues/groups/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success != true){
+				return;
+			}
+			queues.store = new dojo.store.Memory({data:res.items});
+			queues.model = new dijit.tree.ForestStoreModel({
+				store:new dojo.data.ObjectStore({objectStore:queues.store}),
+				labelAttr:"name",
+				query:{"type":"group"},
+				childrenAttrs:["queues"],
+				rootId:"queues",
+				rootLabel:"queues"
+			});
+			queues.tree = new dijit.Tree({
+				store: new dojo.data.ObjectStore({objectStore:queues.store}),
+				model: queues.model,
+				showRoot:false
+			}, node);
+			dojo.publish("queues/tree/refreshed", []);
+			if(dijit.byId(queues.tree.id)){
+				dijit.byId(queues.tree.id).destroy();
+			}
+			var n = dojo.doc.createElement('div');
+			n.id = node;
+			parentNode.appendChild(n);
+		}
+	});
 };
 
 queues.setGroup = function(vals, refreshnode){

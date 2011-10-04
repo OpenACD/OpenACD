@@ -88,6 +88,7 @@ message CallRecord {
 		OUTBOUND = 2;
 	}
 	optional Direction direction = 8 [default=INBOUND];
+	optional string node = 9;
 }
 
 message Release {

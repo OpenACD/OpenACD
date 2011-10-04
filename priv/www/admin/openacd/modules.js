@@ -40,7 +40,7 @@ modules.init = function(){
 
 modules.refreshTree = function(node){
 	var parent = dojo.byId(node).parentNode;
-	queues.init();
+	//queues.init();
 	if(dijit.byId(modules.tree.id)){
 		dijit.byId(modules.tree.id).destroy();
 	}

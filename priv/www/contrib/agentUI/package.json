@@ -1,0 +1,19 @@
+{
+	"name": "agentUI",
+	"version":"1.0.0dev",
+	"main":"main",
+	"dependencies": {
+		"dojo": "current",
+		"dijit": "current",
+		"dojox":  "current"
+	},
+	"description": "Support functions for running OpenACD's built in web UI.",
+	"licenses": [{
+		"type": "MPL",
+		"url":	"http://github.com/OpenACD/OpenACD/wiki/MPL"
+	}],
+	"bugs": "http://github.com/OpenACD/OpenACD/issues",
+	"keywords":["OpenACD","agentUI","Bees, my god"],
+	"homepage": "http://github.com/OpenACD/OpenACD/wiki",
+	"dojoBuild": "openacd.profile.js"
+}

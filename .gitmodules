@@ -1,9 +1,12 @@
-[submodule "priv/www/contrib/dojo/dojo"]
-	path = priv/www/contrib/dojo/dojo
-	url = http://github.com/dojo/dojo.git
-[submodule "priv/www/contrib/dojo/dojox"]
-	path = priv/www/contrib/dojo/dojox
-	url = http://github.com/dojo/dojox.git
-[submodule "priv/www/contrib/dojo/dijit"]
-	path = priv/www/contrib/dojo/dijit
-	url = http://github.com/dojo/dijit.git
+[submodule "contrib/dojo/dojo"]
+	path = contrib/dojo/dojo
+	url = https://github.com/dojo/dojo.git
+[submodule "contrib/dojo/dijit"]
+	path = contrib/dojo/dijit
+	url = https://github.com/dojo/dijit.git
+[submodule "contrib/dojo/dojox"]
+	path = contrib/dojo/dojox
+	url = https://github.com/dojo/dojox.git
+[submodule "contrib/dojo/util"]
+	path = contrib/dojo/util
+	url = https://github.com/dojo/util.git

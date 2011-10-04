@@ -4,14 +4,16 @@ skills = function(){
 	return {};
 };
 
-skills.store = new dojo.data.ItemFileReadStore({
+skills.store = new dojo.store.Memory({data:[]});
+
+/*skills.store = new dojo.data.ItemFileReadStore({
 	data:{
 		"items":[]
 	}
-});
+});*/
 
 skills.model = new dijit.tree.ForestStoreModel({
-	store:skills.store,
+	store:new dojo.data.ObjectStore({objectStore:skills.store}),
 	labelAttr:"name",
 	query:{"type":"group"},
 	childrenAttrs:"skills",
@@ -22,47 +24,44 @@ skills.model = new dijit.tree.ForestStoreModel({
 skills.tree = false;
 
 skills.init = function(){
-	skills.store = new dojo.data.ItemFileWriteStore({
-		url:"/skills/groups/get"
-	});
-	skills.store.fetch();
-	skills.model = new dijit.tree.ForestStoreModel({
-		store:skills.store,
-		labelAttr: "name",
-		query:{"type":"group"},
-		childrenAttrs:["skills"],
-		rootId:"skills",
-		rootLabel:"Skills"
-	});
-	dojo.publish("skills/init", []);
+	dojo.xhrGet({
+		url:"/skills/groups/get",
+		handleAs:"json",
+		load:function(res){
+			if(res.success != true){
+				return;
+			}
+			skills.store = new dojo.store.Memory({data:res.items});
+			skills.model = new dijit.tree.ForestStoreModel({
+				store:new dojo.data.ObjectStore({objectStore:skills.store}),
+				labelAttr: "name",
+				query:{"type":"group"},
+				childrenAttrs:["skills"],
+				rootId:"skills",
+				rootLabel:"Skills"
+			});
+			dojo.publish("skills/init", []);
+		}
+	})
 };
 
 skills.refreshTree = function(targetnode){
-	var parent = dojo.byId(targetnode).parentNode;
-	skills.store = new dojo.data.ItemFileWriteStore({
-		url:"/skills/groups/get"
+	var handle = dojo.subscribe('skills/init', function(){
+		var parent = dojo.byId(targetnode).parentNode;
+		if(dijit.byId(skills.tree.id)){
+			dijit.byId(skills.tree.id).destroy();
+		}
+		var n = dojo.doc.createElement('div');
+		n.id = targetnode;
+		parent.appendChild(n);
+		skills.tree = new dijit.Tree({
+			store: new dojo.data.ObjectStore({objectStore:skills.store}),
+			model: skills.model,
+			showRoot: false
+		}, targetnode);
+		dojo.publish("skills/tree/refreshed", []);
+		dojo.unsubscribe(handle);
 	});
-	skills.store.fetch();
-	skills.model = new dijit.tree.ForestStoreModel({
-		store:skills.store,
-		labelAttr: "name",
-		query:{"type":"group"},
-		childrenAttrs:["skills"],
-		rootId:"skills",
-		rootLabel:"Skills"
-	});
-	if(dijit.byId(skills.tree.id)){
-		dijit.byId(skills.tree.id).destroy();
-	}
-	var n = dojo.doc.createElement('div');
-	n.id = targetnode;
-	parent.appendChild(n);
-	skills.tree = new dijit.Tree({
-		store: skills.store,
-		model: skills.model,
-		showRoot: false
-	}, targetnode);
-	dojo.publish("skills/tree/refreshed", []);
 };
 
 skills.createSelect = function(callback, selected, hidden, expand){
@@ -78,7 +77,27 @@ skills.createSelect = function(callback, selected, hidden, expand){
 		}
 		return out;
 	};
-	var groupsFetched = function(groups){
+	
+	skills.store.query({'type':'group'}).forEach(function(groupObj){
+		var optgroup = document.createElement('optgroup');
+		optgroup.label = groupObj.name;
+		dojo.place(optgroup, selectNode);
+		dojo.forEach(groupObj.skills, function(groupSkill){
+			if(dojo.indexOf(hidden, groupSkill.atom) >= 0){
+				return;
+			}
+			var optionNode = document.createElement('option');
+			optionNode.value = groupSkill.atom;
+			optionNode.title = groupSkill.description;
+			optionNode.innerHTML = groupSkill.name;
+			if(dojo.indexOf(selected, groupSkill.atom) >= 0){
+				optionNode.selected = true;
+			}
+			dojo.place(optionNode, optgroup);
+		})
+	});
+
+	/*var groupsFetched = function(groups){
 		for(var i = 0; i < groups.length; i++){
 			var groupname = skills.store.getValue(groups[i], 'name');
 			var optgroup = document.createElement('optgroup');
@@ -105,14 +124,16 @@ skills.createSelect = function(callback, selected, hidden, expand){
 
 			}			
 		}
-	};
+	};*/
 	
-	skills.store.fetch({
+	/*skills.store.fetch({
 		query:{
 			'type':'group'
 		},
 		onComplete:groupsFetched
-	});
+	});*/
+	/*var dasGroups = skills.store.query({'type':'group'});
+	groupsFetched(dasGroups);*/
 	
 	var expandCallback = function(expantions, expandLabel){
 		//var expandLabel = expand[thei];

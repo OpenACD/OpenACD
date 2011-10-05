@@ -139,7 +139,7 @@ init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum, SIPFrom} = get_info(Cnode, UUID),
-	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS},
+	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).

@@ -608,7 +608,6 @@ service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, Sta
 	},
 	{Reply, State};
 service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
-	C#call.source ! call_hangup,
 	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
 		invalid ->
 			BaseReply#serverreply{

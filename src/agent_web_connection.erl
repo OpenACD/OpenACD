@@ -671,8 +671,8 @@ handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid}
 		Status -> 
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State} 
 	end; 
-handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
-	{reply, agent:set_endpoint(Apid, Endpoint), State};
+handle_call({set_endpoint, Endpoint, Data, Persist}, _From, #state{agent_fsm = Apid} = State) -> 
+	{reply, agent:set_endpoint(Apid, Endpoint, Data, Persist), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	AgentRec = agent:dump_state(AgentPid),
 	case AgentRec#agent.state of

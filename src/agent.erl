@@ -116,6 +116,8 @@
 	state_to_integer/1, 
 	set_connection/2, 
 	set_endpoint/2, 
+	set_endpoint/3,
+	set_endpoint/4,
 	agent_transfer/2,
 	queue_transfer/2,
 	conn_cast/2,
@@ -168,9 +170,15 @@ stop(Pid) ->
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 
--spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpointtype(), string()}) -> ok).
+-spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: endpointtype()) -> ok).
 set_endpoint(Pid, Endpoint) ->
-	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
+	set_endpoint(Pid, Endpoint, undefined, transient).
+
+set_endpoint(Pid, Endpoint, EndpointData) ->
+	set_endpoint(Pid, Endpoint, EndpointData, transient).
+
+set_endpoint(Pid, Endpoint, EndpointData, Persistentness) ->
+	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint, EndpointData, Persistentness}).
 
 %% @doc When the agent manager can't register an agent, it 'casts' to this.
 -spec(register_rejected/1 :: (Pid :: pid()) -> 'ok').
@@ -1196,8 +1204,7 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
-handle_sync_event({set_endpoint, {{persistent, Endpointtype}, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	
+handle_sync_event({set_endpoint, Endpointtype, Endpointdata, persistent}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	case create_persistent_endpoint(Agent#agent{endpointtype = {undefined, persistent, Endpointtype}, endpointdata = Endpointdata}) of
 		{ok, Pid, _AnswerHangupSetting} ->
 			link(Pid),
@@ -1207,8 +1214,10 @@ handle_sync_event({set_endpoint, {{persistent, Endpointtype}, Endpointdata}}, _F
 			?ERROR("Couldn't start persistent channel:  ~p", [Error]),
 			{reply, {error, Error}, StateName, State}
 	end;
-handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = {undefined, transient, Endpointtype}, endpointdata = Endpointdata}}};
+handle_sync_event({set_endpoint, Endpointtype, Endpointdata, transient}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	Eptype = {undefined, transient, Endpointtype},
+	?INFO("Endpoint set to ~p", [Eptype]),
+	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Eptype, endpointdata = Endpointdata}}};
 handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_rec = #agent{connection=Connection} = _Agent} = State) when is_pid(Connection) ->
 	gen_server:cast(Connection, {url_pop, URL, Name}),
 	{reply, ok, StateName, State};

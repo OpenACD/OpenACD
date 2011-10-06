@@ -397,22 +397,26 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 				'H323' -> h323;
 				'PSTN' -> pstn
 			end,
-			Endpointdata = LoginRequest#loginrequest.voipendpointdata,
+			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
 			Persistance = LoginRequest#loginrequest.use_persistent_ring,
 			Username = LoginRequest#loginrequest.username,
-			Endpoint = case {EndpointType, Endpointdata, Persistance} of
+			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
 				{undefined, _, true} ->
-					{{persistent, sip_registration}, Username};
+					%{{persistent, sip_registration}, Username};
+					{{undefined, persistent, sip_registration}, Username};
 				{undefined, _, _} ->
-					{sip_registration, Username};
+					%{sip_registration, Username};
+					{{undefined, transient, sip_registration}, Username};
 				{sip_registration, undefined, true} ->
-					{{persistent, sip_registration}, Username};
+					%{{persistent, sip_registration}, Username};
+					{{undefined, persistent, sip_registration}, Username};
 				{sip_registration, undefined, false} ->
-					{sip_registration, Username};
+					%{sip_registration, Username};
+					{{undefined, transient, sip_registration}, Username};
 				{EndpointType, _, true} ->
-					{{persistent, EndpointType}, Endpointdata};
+					{{undefined, persistent, EndpointType}, ProtoEndpointdata};
 				{EndpointType, _, _} ->
-					{EndpointType, Endpointdata}
+					{{undefined, transient, EndpointType}, ProtoEndpointdata}
 			end,
 			Agent = #agent{
 				id = Id, 

@@ -661,22 +661,22 @@ login(badcookie, _, _, _) ->
 login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
-	Endpointdata = proplists:get_value(voipendpointdata, Opts),
-	Persistantness = proplists:get_value(use_persistent_ring, Opts),
+	ProtoEndpointdata = proplists:get_value(voipendpointdata, Opts),
+	Persistantness = case proplists:get_value(use_persistent_ring, Opts) of
+		true -> persistent;
+		_ -> transient
+	end,
 	?INFO("login opts:  ~p", [Opts]),
-	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata, Persistantness} of
-		{undefined, _, true} ->
-			{{persistent, sip_registration}, Username};
-		{undefined, _, _} ->
+	{Endpoint, Endpointdata} = case {proplists:get_value(voipendpoint, Opts), ProtoEndpointdata} of
+		{undefined, _} ->
+			%{{persistent, sip_registration}, Username};
 			{sip_registration, Username};
-		{sip_registration, undefined, true} ->
-			{{persistent, sip_registration}, Username};
-		{sip_registration, undefined, false} ->
+		{sip_registration, undefined} ->
+			%{{persistent, sip_registration}, Username};
 			{sip_registration, Username};
-		{EndpointType, _, true} ->
-			{{persistent, EndpointType}, Endpointdata};
-		{EndpointType, _, _} ->
-			{EndpointType, Endpointdata}
+		{EndpointType, _} ->
+			%{EndpointType, Endpointdata}
+			{EndpointType, ProtoEndpointdata}
 	end,
 	Bandedness = case proplists:get_value(use_outband_ring, Opts) of
 		true ->
@@ -733,7 +733,8 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									%agent:set_endpoint(Pid, Endpoint, Endpointdata, Persistantness),
+									gen_server:call(Pid, {set_endpoint, Endpoint, Endpointdata, Persistantness}),
 									linkto(Pid),
 									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
@@ -744,7 +745,9 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 											{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
 											{<<"statetime">>, StateTime},
-											{<<"timestamp">>, util:now()}]}}]})};
+											{<<"timestamp">>, util:now()}
+										]}}
+									]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);

@@ -399,6 +399,10 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			end,
 			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
 			Persistance = LoginRequest#loginrequest.use_persistent_ring,
+			Persisty = case LoginRequest#loginrequest.use_persistent_ring of
+				true -> persistent;
+				_ -> transient
+			end,
 			Username = LoginRequest#loginrequest.username,
 			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
 				{undefined, _, true} ->
@@ -430,7 +434,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
-					agent:set_endpoint(Pid, Endpoint),
+					agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),

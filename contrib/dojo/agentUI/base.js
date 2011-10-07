@@ -13,6 +13,8 @@ dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.Dialog");
 dojo.require("dojox.encoding.digests.MD5");
 dojo.require("dijit.form.ComboBox");
+dojo.require("dijit.form.HorizontalSlider");
+dojo.require("dijit.form.VerticalRule");
 dojo.require("dojox.layout.ContentPane");
 dojo.require("dojox.layout.FloatingPane");
 dojo.require("dojo.data.ObjectStore");

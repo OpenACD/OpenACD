@@ -45,3 +45,8 @@
 	<img src="/images/mic.png" 		width="15px" style="padding: 2px 2px 2px 0px" />
 	<img src="/images/speaker.png" 	width="15px" style="padding: 2px 0px 2px 2px" />
 </div>
+<button dojoType="dijit.form.Button" label="Hold">
+	<script type="dojo/connect" event="onClick">
+		agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
+	</script>
+</button>

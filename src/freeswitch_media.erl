@@ -191,7 +191,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			?DEBUG("resuming recording for ~p", [Callrec#call.id]),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"400px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
 %handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
@@ -602,6 +602,36 @@ handle_call(Msg, _From, Call, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+
+%% web api's
+handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = Statename} = State)
+		when Statename == oncall; Statename == oncall_ringing ->
+	?DEBUG("toggle hold while oncall", []),
+	#state{cnode = Fnode, moh = Muzak, ringuuid = Ringid} = State,
+	#call{id = Callid} = Call,
+	?INFO("Gonna try to set ~s on hold", [Call#call.id]),
+	%ok = fs_send_execute(Fnode, Callid, "set", "hangup_after_bridge=false"),
+	%ok = fs_send_execute(Fnode, Callid, "set", "park_after_bridge=true"),
+	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=false;park_after_bridge=true"),
+	ok = fs_send_execute(Fnode, Ringid, "set", "hangup_after_bridge=false"),
+	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
+	Res = freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
+	?ERROR("Res of the api:  ~p", [Res]),
+	case Muzak of
+		none -> ok;
+		_ ->
+			?ERROR("5 ~p", [fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)])
+	end,
+	{noreply, State#state{statename = oncall_hold}};
+
+handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = oncall_hold} = State) ->
+	?INFO("Gonna try to pick up the holder dude for ~s", [Call#call.id]),
+	#state{cnode = Fnode, ringuuid = Ringid} = State,
+	#call{id = Callid} = Call,
+	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
+	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
+	{noreply, State#state{statename = oncall}};
+	
 handle_cast({"audiolevel", Arguments}, Call, #state{statename = Statename} = State) when Statename == oncall; Statename == oncall_ringing ->
 	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
 	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
@@ -720,8 +750,32 @@ case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Callrec, #state{ringchannel =
 		?DEBUG("Result of oncall:  ~p", [Oot])
 	end),
 	{noreply, State#state{statename = oncall, ringuuid = RingUUID}};
-	
-case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{queued = false, warm_transfer_uuid = undefined} = State) ->
+
+case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
+		statename = oncall_hold} = State) ->
+	Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
+		"silence" ->
+			none;
+		MohMusak ->
+			MohMusak
+	end,
+	case Moh of
+		none ->
+			freeswitch:sendmsg(State#state.cnode, UUID,
+				[{"call-command", "execute"},
+					{"execute-app-name", "playback"},
+					{"execute-app-arg", "silence"}]);
+		_MohMusak ->
+			freeswitch:sendmsg(State#state.cnode, UUID,
+				[{"call-command", "execute"},
+					{"execute-app-name", "playback"},
+					{"execute-app-arg", "local_stream://"++Moh}])
+	end,
+	{noreply, State};
+
+case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
+		queued = false, warm_transfer_uuid = undefined, statename = Statename
+		} = State) when Statename == inqueue; Statename =/= inqueue_ringing ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 	Client = proplists:get_value("variable_brand", Rawcall),
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),

@@ -82,8 +82,30 @@
 	terminate/3,
 	code_change/4]).
 
+-record(conference_state, {
+	state :: 'in_conference'|'hold'|'3rdparty'|'limboconference',
+	conference_id :: string(),
+	held_3rd_party :: string()
+}).
+	
+-type(internal_statename() ::
+	'inivr' | % never been in queue.
+	'inqueue' | % waiting for an agent to call
+	'inqueue_ringing' | % got an agent, waiting for the anser
+	'oncall' | % oncall with an agent.
+	'oncall_ringing' | % starting an agent transfer
+	'oncall_hold' | % simple hold
+	'hold_conference' | % has a conference, but agent (self) not a member
+	'hold_conference_3rdparty' | % a conference is up, as is a call to a
+		% 3rd party, but agent is member of neither
+	'in_conference_3rdparty' | % agent is a member of the conference, 
+		% but there is a 3rd party in limbo.
+	'in_conference' | % agent is a member of the conference, no limbo party
+	'wrapup_conference' % there is no agent
+).
+
 -record(state, {
-	%callrec = undefined :: #call{} | 'undefined',
+	statename :: internal_statename(),
 	cook :: pid() | 'undefined',
 	queue :: string() | 'undefined',
 	cnode :: atom(),
@@ -91,6 +113,7 @@
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
+	ringuuid :: string() | 'undefined',
 	manager_pid :: 'undefined' | any(),
 	voicemail = false :: 'false' | string(),
 	xferchannel :: pid() | 'undefined',
@@ -103,7 +126,9 @@
 	caseid :: string() | 'undefined',
 	moh = "moh" :: string() | 'none',
 	record_path :: 'undefined' | string(),
-	dial_vars :: list()
+	dial_vars :: list(),
+	hold :: 'undefined' | 'hold',
+	conference_state :: #conference_state{}
 	}).
 
 -type(state() :: #state{}).
@@ -140,7 +165,7 @@ init([Cnode, DialString, UUID]) ->
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum, SIPFrom} = get_info(Cnode, UUID),
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
-	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
+	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
@@ -178,7 +203,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 %			?WARNING("Could not do answer:  ~p", [Error]),
 %			{invalid, State}
 %	end;
-handle_answer(Apid, Callrec, State) ->
+handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
 		{ok, _} ->
@@ -198,7 +223,7 @@ handle_answer(Apid, Callrec, State) ->
 					Path++".wav"
 			end,
 			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
-			{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}};
+			{ok, State#state{statename = oncall, agent_pid = Apid, ringuuid = UUID, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{invalid, State}
@@ -215,13 +240,21 @@ handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType
 	%% a persisitant ring does the hard work for us
 	%% go right to the okay.
 	?INFO("Ring channel made things happy, I assume", []),
-	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
+	NewStatename = case State#state.statename of
+		inqueue -> inqueue_ringing;
+		oncall -> oncall_ringing
+	end,
+	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{statename = NewStatename, ringchannel = EndpointPid, agent_pid = Apid}};
 handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
 	% if we get to this point, the ring channel is already up.
 	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
 	%	{ok, Pid} ->
 	%		link(Pid),
-			{ok, [{"itxt", State#state.ivroption}], State#state{agent_pid = Apid, ringchannel = RPid}}.
+	NewStatename = case State#state.statename of
+		inqueue -> inqueue_ringing;
+		oncall -> oncall_ringing
+	end,
+	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NewStatename, agent_pid = Apid, ringchannel = RPid}}.
 	%	{error, Error} ->
 	%		?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
 	%		{invalid, State}
@@ -257,7 +290,11 @@ handle_ring_stop(Callrec, State) ->
 			% the ring channel might have bridged and the message is sitting in our mailbox
 			freeswitch_ring:hangup(RingChannel)
 	end,
-	{ok, State#state{ringchannel=undefined}}.
+	NewStatename = case State#state.statename of
+		inqueue_ringing -> inqueue;
+		oncall_ringing -> oncall
+	end,
+	{ok, State#state{statename = NewStatename, ringchannel=undefined}}.
 
 -spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
@@ -266,7 +303,7 @@ handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),
-	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
+	{ok, State#state{statename = inivr, voicemail = "/tmp/"++UUID++".wav"}}.
 
 -spec(handle_spy/3 :: (Agent :: {pid(), #agent{}}, Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
@@ -296,7 +333,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	end,
 	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge, {dial_vars, State#state.dial_vars}]) of
 		{ok, Pid} ->
-			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
+			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{statename = oncall_ringing, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
@@ -518,7 +555,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 					{"execute-app-name", "playback"},
 					{"execute-app-arg", "local_stream://" ++ State#state.moh}])
 	end,
-	{ok, State#state{queued = true, agent_pid = undefined}}.
+	{ok, State#state{statename = inqueue, queued = true, agent_pid = undefined}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -532,6 +569,31 @@ handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
+
+handle_call({"toggle_hold", _}, _From, Call, #state{statename = oncall, conference_state = undefined, hold = undefined} = State) ->
+	#state{cnode = Fnode, moh = Muzak, ringuuid = Ringid} = State,
+	#call{id = Callid} = Call,
+	?INFO("Gonna try to set ~s on hold", [Call#call.id]),
+	ok = fs_send_execute(Fnode, Callid, "set", "hangup_after_bridge=false"),
+	ok = fs_send_execute(Fnode, Callid, "set", "park_after_bridge=true"),
+	ok = fs_send_execute(Fnode, Ringid, "set", "hangup_after_bridge=false"),
+	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
+	Res = freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
+	?ERROR("Res of the api:  ~p", [Res]),
+	case Muzak of
+		none -> ok;
+		_ ->
+			?ERROR("5 ~p", [fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)])
+	end,
+	{reply, ok, State#state{statename = oncall_hold}};
+
+handle_call({"toggle_hold", _}, _From, Call, #state{conference_state = undefined, statename = oncall_hold} = State) ->
+	?INFO("Gonna try to pick up the holder dude for ~s", [Call#call.id]),
+	#state{cnode = Fnode, ringuuid = Ringid} = State,
+	#call{id = Callid} = Call,
+	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
+	{reply, ok, State#state{statename = oncall}};
+
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.
@@ -540,7 +602,7 @@ handle_call(Msg, _From, Call, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({"audiolevel", Arguments}, Call, State) ->
+handle_cast({"audiolevel", Arguments}, Call, #state{statename = Statename} = State) when Statename == oncall; Statename == oncall_ringing ->
 	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
 	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
 	{noreply, State};
@@ -657,7 +719,7 @@ case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Callrec, #state{ringchannel =
 		Oot = gen_media:oncall(Callrec#call.source),
 		?DEBUG("Result of oncall:  ~p", [Oot])
 	end),
-	{noreply, State#state{ringuuid = RingUUID}};
+	{noreply, State#state{statename = oncall, ringuuid = RingUUID}};
 	
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{queued = false, warm_transfer_uuid = undefined} = State) ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
@@ -714,7 +776,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{queued = false, w
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
 	%% tell gen_media to (finally) queue the media
-	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt}};
+	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt, statename = inqueue}};
 
 case_event_name("CHANNEL_PARK", _UUID, _Rawcall, _Callrec, State) ->
 	{noreply, State};

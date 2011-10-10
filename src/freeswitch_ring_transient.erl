@@ -50,7 +50,8 @@
 
 -record(state, {
 	call :: 'undefined' | #call{},
-	no_oncall_on_bridge :: 'undefined' | 'true'
+	no_oncall_on_bridge :: 'undefined' | 'true',
+	hold :: 'hold' | 'undefined'
 }).
 
 %% ======

@@ -570,30 +570,6 @@ handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
 
-handle_call({"toggle_hold", _}, _From, Call, #state{statename = oncall, conference_state = undefined, hold = undefined} = State) ->
-	#state{cnode = Fnode, moh = Muzak, ringuuid = Ringid} = State,
-	#call{id = Callid} = Call,
-	?INFO("Gonna try to set ~s on hold", [Call#call.id]),
-	ok = fs_send_execute(Fnode, Callid, "set", "hangup_after_bridge=false"),
-	ok = fs_send_execute(Fnode, Callid, "set", "park_after_bridge=true"),
-	ok = fs_send_execute(Fnode, Ringid, "set", "hangup_after_bridge=false"),
-	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
-	Res = freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
-	?ERROR("Res of the api:  ~p", [Res]),
-	case Muzak of
-		none -> ok;
-		_ ->
-			?ERROR("5 ~p", [fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)])
-	end,
-	{reply, ok, State#state{statename = oncall_hold}};
-
-handle_call({"toggle_hold", _}, _From, Call, #state{conference_state = undefined, statename = oncall_hold} = State) ->
-	?INFO("Gonna try to pick up the holder dude for ~s", [Call#call.id]),
-	#state{cnode = Fnode, ringuuid = Ringid} = State,
-	#call{id = Callid} = Call,
-	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
-	{reply, ok, State#state{statename = oncall}};
-
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.

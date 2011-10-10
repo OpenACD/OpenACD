@@ -607,15 +607,21 @@ handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = oncall_hold} = Stat
 	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	{noreply, State#state{statename = oncall}};
-	
-handle_cast({"audiolevel", Arguments}, Call, #state{statename = Statename} = State) when Statename == oncall; Statename == oncall_ringing ->
-	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
-	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
+
+handle_cast({<<"audio_level">>, Arguments}, Call, #state{statename = Statename} =
+		State) when Statename == oncall; Statename == oncall_ringing ->
+	[Target, Level] = proplists:get_value("args", Arguments, [<<"read">>, 0]),
+	?INFO("uuid_audio for ~s with direction ~s set to ~p", [Call#call.id, Target, Level]),
+	ApiStr = Call#call.id ++ " start " ++ binary_to_list(Target) ++ " level "
+		++ integer_to_list(Level),
+	freeswitch:bgapi(State#state.cnode, uuid_audio, ApiStr),
 	{noreply, State};
+
 handle_cast({set_caseid, CaseID}, Call, State) ->
 	?INFO("setting caseid for ~p to ~p", [Call#call.id, CaseID]),
 	{noreply, State#state{caseid = CaseID}};
-handle_cast(_Msg, _Call, State) ->
+handle_cast(Msg, _Call, State) ->
+	?DEBUG("unhandled cast:  ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

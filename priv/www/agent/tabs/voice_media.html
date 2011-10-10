@@ -9,13 +9,7 @@
 <div dojoType="dijit.layout.ContentPane" style="height:400px;padding-left:10px; padding-top:5px;">
 	<div id="micBoost" dojoType="dijit.form.VerticalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="height:200px; float: left;">
 		<script type="dojo/connect" event="onChange">
-			dojo.xhrPost({
-				url: '/media',
-				content: {'mode': 'cast', 'command': 'audiolevel', 'target': 'write', 'value': this.attr('value')},
-				handleAs: 'json',
-				error: function() {},
-				load: function() {}
-			});
+			agentConnection.agentApi("media_command", {}, "audio_level", "cast", ["write", this.attr('value')]);
 		</script>
 		<div dojoType="dijit.form.VerticalRule" container="rightDecoration" count="9" style="width:5px"></div>
 		<ol dojoType="dijit.form.VerticalRuleLabels" container="rightDecoration"
@@ -32,13 +26,7 @@
 	</div>
 	<div id="speakerBoost" dojoType="dijit.form.VerticalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="height:200px;">
 		<script type="dojo/connect" event="onChange">
-			dojo.xhrPost({
-				url: '/media',
-				content: {'mode': 'cast', 'command': 'audiolevel', 'target': 'read', 'value': this.attr('value')},
-				handleAs: 'json',
-				error: function() {},
-				load: function() {}
-			});
+			agentConnection.agentApi("media_command", {}, "audio_level", "cast", ["read", this.attr('value')]);
 		</script>
 		<div dojoType="dijit.form.VerticalRule" container="leftDecoration" count="9" style="width:5px"></div>
 	</div>

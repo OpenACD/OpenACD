@@ -66,6 +66,10 @@
 	logout/1,
 	do_request/2
 ]).
+
+-export([
+	media_command/4
+]).
 	
 
 % gen_server callbacks.
@@ -84,6 +88,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("cpx_agent_pb.hrl").
+%-include("cpx_freeswitch_pb.hrl").
 
 -record(options, {
 	username,
@@ -241,6 +246,10 @@ logout(Pid) ->
 do_request(Pid, Request) when is_atom(Request) ->
 	gen_server:cast(Pid, {do_request, Request}).
 
+%% @doc Make a request to connection media.
+media_command(Pid, RequestHint, CallCast, Args) ->
+	gen_server:cast(Pid, {media_command, RequestHint, CallCast, Args}).
+
 % =====
 % Init
 % =====
@@ -373,6 +382,9 @@ handle_cast({do_request, Request}, #state{last_req_id = OldId, socket = {Mod, So
 	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, Request} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
+
+%handle_cast({media_command, RequestHint, CallCast, Args}, State) ->
+	% ew, hard coded.
 handle_cast(_, State) ->
 	{noreply, State}.
 

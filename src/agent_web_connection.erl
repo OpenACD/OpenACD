@@ -1082,6 +1082,22 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 						{success, false}
 					]},
 					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				caller_offhold ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, voice},
+						{<<"event">>, Data}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				caller_hold ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, voice},
+						{<<"event">>, Data}
+					]},
+					Newstate = push_event(Json, State),
 					{noreply, Newstate}
 			end;
 		Else ->

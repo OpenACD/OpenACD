@@ -1,5 +1,4 @@
 <script type="text/javascript">
-	console.log("mcgoober");
 	dojo.require("dijit.form.HorizontalSlider");
 	dojo.require("dijit.form.VerticalSlider");
 	dojo.require("dijit.form.VerticalRule");
@@ -33,7 +32,18 @@
 	<img src="/images/mic.png" 		width="15px" style="padding: 2px 2px 2px 0px" />
 	<img src="/images/speaker.png" 	width="15px" style="padding: 2px 0px 2px 2px" />
 </div>
-<button dojoType="dijit.form.Button" label="Hold">
+<button dojoType="dijit.form.ToggleButton">
+	<span class="profit">&bull;</span> Hold
+	<script type="dojo/method" event="postCreate">
+		this.sub = dojo.subscribe("OpenACD/Agent/mediaevent/voice", this, function(data){
+			console.log('the this of voice event hold button', this);
+			if(data['event'] == 'caller_hold'){
+				this.set('label', '<span class="loss">&bull;</span> Unhold');
+			} else if(data['event'] == 'caller_offhold'){
+				this.set('label', '<span class="profit">&bull;</span> Hold');
+			}
+		});
+	</script>
 	<script type="dojo/connect" event="onClick">
 		agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
 	</script>

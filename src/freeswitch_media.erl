@@ -128,6 +128,7 @@
 	record_path :: 'undefined' | string(),
 	dial_vars :: list(),
 	hold :: 'undefined' | 'hold',
+	spawn_oncall_mon :: 'undefined' | {pid(), reference()},
 	conference_state :: #conference_state{}
 	}).
 
@@ -687,6 +688,12 @@ handle_info(call_hangup, Call, State) ->
 	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
 	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
+
+handle_info({'DOWN', Ref, process, Pid, Cause}, _Call, #state{statename = 
+		oncall, spawn_oncall_mon = {Pid, Ref}} = State) ->
+	?DEBUG("Oncaller pid termination cause:  ~p", [Cause]),
+	{{mediapush, caller_offhold}, State#state{spawn_oncall_mon = undefined}};
+
 handle_info(Info, Call, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
 	{noreply, State}.
@@ -727,11 +734,11 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Callrec, #state{ringchannel = Rpid} = State) when is_pid(Rpid) ->
 	% TODO fix when this can return an {oncall, State}
 	RingUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
-	spawn(fun() ->
+	SpawnOncall = spawn_monitor(fun() ->
 		Oot = gen_media:oncall(Callrec#call.source),
 		?DEBUG("Result of oncall:  ~p", [Oot])
 	end),
-	{noreply, State#state{statename = oncall, ringuuid = RingUUID}};
+	{noreply, State#state{statename = oncall, spawn_oncall_mon = SpawnOncall, ringuuid = RingUUID}};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		statename = oncall_hold} = State) ->
@@ -753,7 +760,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-name", "playback"},
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
-	{noreply, State};
+	{{mediapush, caller_hold}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		queued = false, warm_transfer_uuid = undefined, statename = Statename

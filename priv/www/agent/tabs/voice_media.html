@@ -1,5 +1,7 @@
 <script type="text/javascript">
 	dojo.require("dijit.form.HorizontalSlider");
+	dojo.require("dijit.form.HorizontalRule");
+	dojo.require("dijit.form.HorizontalRuleLabels");
 	dojo.require("dijit.form.VerticalSlider");
 	dojo.require("dijit.form.VerticalRule");
 	dojo.require("dijit.form.VerticalRuleLabels");
@@ -36,14 +38,18 @@
 	}
 </script>
 
-<div dojoType="dijit.layout.ContentPane" style="height:400px;padding-left:10px; padding-top:5px;">
-	<div id="micBoost" dojoType="dijit.form.VerticalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="height:200px; float: left;">
+<div dojoType="dijit.layout.ContentPane" style="padding-left:10px; padding-top:5px;">
+	<span style="float:left">
+		<img src="/images/mic.png" 		width="15px" style="display:block;padding: 2px 2px 2px 0px" />
+		<img src="/images/speaker.png" 	width="15px" style="display:block;padding: 2px 0px 2px 2px" />
+	</span>
+	<div id="micBoost" dojoType="dijit.form.HorizontalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="width:200px;">
 		<script type="dojo/connect" event="onChange">
 			agentConnection.agentApi("media_command", {}, "audio_level", "cast", ["write", this.attr('value')]);
 		</script>
-		<div dojoType="dijit.form.VerticalRule" container="rightDecoration" count="9" style="width:5px"></div>
-		<ol dojoType="dijit.form.VerticalRuleLabels" container="rightDecoration"
-			style="width:1em;font-size:75%;color:gray;">
+		<div dojoType="dijit.form.HorizontalRule" container="bottomDecoration" count="9" style="width:5px"></div>
+		<ol dojoType="dijit.form.HorizontalRuleLabels" container="bottomDecoration"
+			style="font-size:75%;color:gray;">
 			<li>
 			-4
 			</li>
@@ -54,31 +60,32 @@
 			4
 			</li>
 	</div>
-	<div id="speakerBoost" dojoType="dijit.form.VerticalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="height:200px;">
+	<p></p>
+	<div id="speakerBoost" dojoType="dijit.form.HorizontalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="width:200px;">
 		<script type="dojo/connect" event="onChange">
 			agentConnection.agentApi("media_command", {}, "audio_level", "cast", ["read", this.attr('value')]);
 		</script>
-		<div dojoType="dijit.form.VerticalRule" container="leftDecoration" count="9" style="width:5px"></div>
+		<div dojoType="dijit.form.VerticalRule" container="topDecoration" count="9" style="width:5px"></div>
 	</div>
-	<img src="/images/mic.png" 		width="15px" style="padding: 2px 2px 2px 0px" />
-	<img src="/images/speaker.png" 	width="15px" style="padding: 2px 0px 2px 2px" />
-</div>
-<p>
-<button dojoType="dijit.form.Button">
-	<span class="profit">&bull;</span> Hold
-	<script type="dojo/method" event="postCreate">
-		window.freeswitch.onHoldButton = this.id;
-	</script>
-	<script type="dojo/connect" event="onClick">
-		agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
-	</script>
-</button>
-</p>
-<p id="voiceDialBox" style="display:none">
-	<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
-	<button dojoType="dijit.form.Button">-&gt;
+
+	<p>
+	<button dojoType="dijit.form.Button">
+		<span class="profit">&bull;</span> Hold
+		<script type="dojo/method" event="postCreate">
+			window.freeswitch.onHoldButton = this.id;
+		</script>
 		<script type="dojo/connect" event="onClick">
-			window.freeswitch.dial();
+			agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
 		</script>
 	</button>
-</p>
+	</p>
+	<p id="voiceDialBox" style="display:none">
+		<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
+		<button dojoType="dijit.form.Button">-&gt;
+			<script type="dojo/connect" event="onClick">
+				window.freeswitch.dial();
+			</script>
+		</button>
+	</p>
+
+</div>

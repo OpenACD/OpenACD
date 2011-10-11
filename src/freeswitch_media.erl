@@ -82,12 +82,6 @@
 	terminate/3,
 	code_change/4]).
 
--record(conference_state, {
-	state :: 'in_conference'|'hold'|'3rdparty'|'limboconference',
-	conference_id :: string(),
-	held_3rd_party :: string()
-}).
-	
 -type(internal_statename() ::
 	'inivr' | % never been in queue.
 	'inqueue' | % waiting for an agent to call
@@ -100,6 +94,7 @@
 		% 3rd party, but agent is member of neither
 	'in_conference_3rdparty' | % agent is a member of the conference, 
 		% but there is a 3rd party in limbo.
+	'3rd_party' | % there is a conference, but agent is talking w/ 3rd party.
 	'in_conference' | % agent is a member of the conference, no limbo party
 	'wrapup_conference' % there is no agent
 ).
@@ -129,8 +124,10 @@
 	dial_vars :: list(),
 	hold :: 'undefined' | 'hold',
 	spawn_oncall_mon :: 'undefined' | {pid(), reference()},
-	conference_state :: #conference_state{}
-	}).
+	conference_id :: 'undefined' | string(),
+	'3rd_party_id' :: 'undefined' | string(),
+	'3rd_party_mon' :: 'undefined' | {pid(), reference()}
+}).
 
 -type(state() :: #state{}).
 -define(GEN_MEDIA, true).
@@ -192,7 +189,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			?DEBUG("resuming recording for ~p", [Callrec#call.id]),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"400px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
 %handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
@@ -223,7 +220,7 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 					freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
 					Path++".wav"
 			end,
-			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 			{ok, State#state{statename = oncall, agent_pid = Apid, ringuuid = UUID, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
@@ -609,6 +606,50 @@ handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = oncall_hold} = Stat
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	{noreply, State#state{statename = oncall}};
 
+handle_cast({<<"contact_3rd_party">>, Args} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
+	% first step is to move to hold_conference state, which means 
+	% creating the conference.
+	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
+	case freeswitch:api(Fnode, uuid_transfer, Call#call.id ++ " conference:" ++ 
+		ConfId ++ " inline") of
+		{ok, Res} ->
+			?INFO("Success result creating conferance and transfering call to it:  ~p", [Res]),
+			% okay, solidify the conference state change, and go on.
+			Newstate = State#state{conference_id = ConfId, statename = hold_conference},
+			handle_cast(Cast, Call, Newstate);
+		Else ->
+			?ERROR("Could not create conference:  ~p", [Else]),
+			{noreply, State}
+	end;
+
+handle_cast({<<"contact_3rd_party">>, Args}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
+	% start a ring chan to 3rd party
+	% play a ringing sound to agent to be nice
+	% on any error, we just kill the playback
+	% otherwise if the 3rd party picks up, we send a message here to move 
+	% to the new state.
+	#call{client = Client} = Call,
+	#client{options = ClientOpts} = Client,
+	CallerIdOpt = case proplists:get_value(<<"caller_id">>, ClientOpts) of
+		undefined -> [];
+		{BinName, BinNumber} when is_binary(BinName), is_binary(BinNumber) ->
+			{caller_id, {binary_to_list(BinName), binary_to_list(BinNumber)}};
+		CidOut -> {caller_id, CidOut}
+	end,
+	Destination = binary_to_list(proplists:get_value("args", Args)),
+	RingOpts = lists:flatten([persistent, CallerIdOpt, {ringout, 60000},
+		{destination, Destination},
+		{dialstring, freeswitch_media_manager:get_default_dial_string()}]),
+	case freeswitch_ring:start(Fnode, [], RingOpts) of
+		{ok, Rpid} ->
+			RingUUID = freeswitch_ring:get_uuid(Rpid),
+			Monref = monitor(process, Rpid),
+			{noreply, State#state{'3rd_party_id' = RingUUID, '3rd_party_mon' = {Rpid, Monref}, statename = hold_conference_3rdparty}};
+		Else ->
+			?ERROR("Could not dial ~p:  ~p", [Destination, Else]),
+			{noreply, State}
+	end;
+	
 handle_cast({<<"audio_level">>, Arguments}, Call, #state{statename = Statename} =
 		State) when Statename == oncall; Statename == oncall_ringing ->
 	[Target, Level] = proplists:get_value("args", Arguments, [<<"read">>, 0]),

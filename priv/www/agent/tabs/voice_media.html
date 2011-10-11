@@ -27,7 +27,11 @@
 					default:
 						dojo.query("#voiceDialBox").style('display', 'none');
 				}
-			})
+			}),
+			dial: function(){
+				var num = dijit.byId(dojo.query('#voiceDialBox input[name=dialNumber]')[0].id).get('value');
+				agentConnection.agentApi("media_command", {}, "contact_3rd_party", "cast", num);
+			}
 		};
 	}
 </script>
@@ -70,7 +74,11 @@
 	</script>
 </button>
 </p>
-<p id="voiceDialBox">
-	<input name="dialNumber" dojoType="dijit.form.TextBox">
-	</input>
+<p id="voiceDialBox" style="display:none">
+	<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
+	<button>-&gt;
+		<script type="dojo/connect" event="onClick">
+			window.freeswitch.dial();
+		</script>
+	</button>
 </p>

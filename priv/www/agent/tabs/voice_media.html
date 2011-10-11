@@ -3,6 +3,33 @@
 	dojo.require("dijit.form.VerticalSlider");
 	dojo.require("dijit.form.VerticalRule");
 	dojo.require("dijit.form.VerticalRuleLabels");
+	if(! window.freeswitch){
+		window.freeswitch = {
+			onHoldButton: false,
+			onHoldButtonSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
+				var onHoldb = dijit.byId(window.freeswitch.onHoldButton);
+				if(! onHoldb){
+					window.freeswitch.onHoldButton = false;
+					return;
+				}
+				if(data['event'] == 'caller_hold'){
+					onHoldb.set('label', '<span class="loss">&bull;</span> Unhold');
+				} else if(data['event'] == 'caller_offhold'){
+					onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
+				}
+			}),
+			dialBoxSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
+				switch(data['event']){
+					case 'caller_hold':
+					case 'hold_conference':
+						dojo.query("#voiceDialBox").style('display', 'block');
+						break;
+					default:
+						dojo.query("#voiceDialBox").style('display', 'none');
+				}
+			})
+		};
+	}
 </script>
 
 <div dojoType="dijit.layout.ContentPane" style="height:400px;padding-left:10px; padding-top:5px;">
@@ -32,19 +59,18 @@
 	<img src="/images/mic.png" 		width="15px" style="padding: 2px 2px 2px 0px" />
 	<img src="/images/speaker.png" 	width="15px" style="padding: 2px 0px 2px 2px" />
 </div>
-<button dojoType="dijit.form.ToggleButton">
+<p>
+<button dojoType="dijit.form.Button">
 	<span class="profit">&bull;</span> Hold
 	<script type="dojo/method" event="postCreate">
-		this.sub = dojo.subscribe("OpenACD/Agent/mediaevent/voice", this, function(data){
-			console.log('the this of voice event hold button', this);
-			if(data['event'] == 'caller_hold'){
-				this.set('label', '<span class="loss">&bull;</span> Unhold');
-			} else if(data['event'] == 'caller_offhold'){
-				this.set('label', '<span class="profit">&bull;</span> Hold');
-			}
-		});
+		window.freeswitch.onHoldButton = this.id;
 	</script>
 	<script type="dojo/connect" event="onClick">
 		agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
 	</script>
 </button>
+</p>
+<p id="voiceDialBox">
+	<input name="dialNumber" dojoType="dijit.form.TextBox">
+	</input>
+</p>

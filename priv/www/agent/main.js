@@ -341,6 +341,8 @@ function load_media_tab(options){
 		var elem = document.createElement('div');
 		elem.id = options.id,
 		document.body.insertBefore(elem, document.body.firstChild);
+		var mainViewWidth = dojo.contentBox(dojo.byId('containerDiv')).w;
+		var left = mainViewWidth - 40 - parseInt(options.width);
 		var pane = new dojox.layout.FloatingPane({
 			title: options.title,
 			executeScripts: true,
@@ -348,7 +350,7 @@ function load_media_tab(options){
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
-			style: 'position:absolute;top:30px;left:80%;z-index:800;width:'+options.width+';height:'+options.height
+			style: 'position:absolute;top:30px;left:' + left + 'px;z-index:800;width:'+options.width+';height:'+options.height
 		}, elem);
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();

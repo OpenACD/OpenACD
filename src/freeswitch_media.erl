@@ -57,7 +57,8 @@
 	%get_agent/1,
 	%unqueue/1,
 	%set_agent/3,
-	dump_state/1
+	dump_state/1,
+	'3rd_party_pickup'/1
 	]).
 
 %% gen_media callbacks
@@ -101,6 +102,7 @@
 
 -record(state, {
 	statename :: internal_statename(),
+	uuid :: string(),
 	cook :: pid() | 'undefined',
 	queue :: string() | 'undefined',
 	cnode :: atom(),
@@ -153,6 +155,10 @@ get_call(MPid) ->
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
 	gen_media:call(Mpid, dump_state).
+
+'3rd_party_pickup'(Mpid) ->
+	Self = self(),
+	gen_media:cast(Mpid, {'3rd_party_pickup', Self}).
 	
 %%====================================================================
 %% gen_media callbacks
@@ -630,26 +636,23 @@ handle_cast({<<"contact_3rd_party">>, Args}, Call, #state{statename = hold_confe
 	% to the new state.
 	#call{client = Client} = Call,
 	#client{options = ClientOpts} = Client,
-	CallerIdOpt = case proplists:get_value(<<"caller_id">>, ClientOpts) of
-		undefined -> [];
+	{CallerNameOpt, CallerNumberOpt} = case proplists:get_value(<<"caller_id">>, ClientOpts) of
+		undefined -> {"", ""};
 		{BinName, BinNumber} when is_binary(BinName), is_binary(BinNumber) ->
-			{caller_id, {binary_to_list(BinName), binary_to_list(BinNumber)}};
-		CidOut -> {caller_id, CidOut}
+			{binary_to_list(BinName), binary_to_list(BinNumber)};
+		CidOut -> CidOut
 	end,
 	Destination = binary_to_list(proplists:get_value("args", Args)),
-	RingOpts = lists:flatten([persistent, CallerIdOpt, {ringout, 60000},
-		{destination, Destination},
-		{dialstring, freeswitch_media_manager:get_default_dial_string()}]),
-	case freeswitch_ring:start(Fnode, [], RingOpts) of
-		{ok, Rpid} ->
-			RingUUID = freeswitch_ring:get_uuid(Rpid),
-			Monref = monitor(process, Rpid),
-			{noreply, State#state{'3rd_party_id' = RingUUID, '3rd_party_mon' = {Rpid, Monref}, statename = hold_conference_3rdparty}};
+	BaseDs = freeswitch_media_manager:get_default_dial_string(),
+	RingOps = [CallerNameOpt, CallerNumberOpt, "park_after_bridge=true"],
+	case originate(Fnode, BaseDs, Destination, RingOps) of
+		{ok, UUID} ->
+			{noreply, State#state{'3rd_party_id' = UUID, statename = hold_conference_3rdparty}};
 		Else ->
-			?ERROR("Could not dial ~p:  ~p", [Destination, Else]),
+			?WARNING("Failed to contact 3rd party ~s due to:  ~p", [Destination, Else]),
 			{noreply, State}
 	end;
-	
+
 handle_cast({<<"audio_level">>, Arguments}, Call, #state{statename = Statename} =
 		State) when Statename == oncall; Statename == oncall_ringing ->
 	[Target, Level] = proplists:get_value("args", Arguments, [<<"read">>, 0]),
@@ -659,6 +662,11 @@ handle_cast({<<"audio_level">>, Arguments}, Call, #state{statename = Statename} 
 	freeswitch:bgapi(State#state.cnode, uuid_audio, ApiStr),
 	{noreply, State};
 
+handle_cast({'3rd_party_pickup', ChanPid}, Call, #state{'3rd_party_mon' = {ChanPid, ChanMon}} = State) ->
+	#state{cnode = Fnode, '3rd_party_id' = OtherParty, ringuuid = AgentChan} = State,
+	freeswitch:bgapi(Fnode, uuid_bridge, OtherParty ++ " " ++ AgentChan),
+	{noreply, State#state{statename = '3rd_party'}};
+	
 handle_cast({set_caseid, CaseID}, Call, State) ->
 	?INFO("setting caseid for ~p to ~p", [Call#call.id, CaseID]),
 	{noreply, State#state{caseid = CaseID}};
@@ -699,10 +707,21 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
+
+handle_info({call, {event, [UUID | Rest]}} = Event, Call, #state{uuid = undefined} = State) when is_list(UUID) ->
+	?DEBUG("reporting new call ~p when uuid not set", [UUID]),
+	handle_info(Event, Call, State#state{uuid = UUID});
+
 handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
-	?DEBUG("reporting new call ~p.", [UUID]),
-	freeswitch:session_setevent(State#state.cnode, ['CHANNEL_BRIDGE', 'CHANNEL_PARK', 'CHANNEL_HANGUP', 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF']),
-	freeswitch_media_manager:notify(UUID, self()),
+	SetSess = freeswitch:session_setevent(State#state.cnode, [
+		'CHANNEL_BRIDGE', 'CHANNEL_PARK', 'CHANNEL_HANGUP',
+		'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF',
+		'CHANNEL_ANSWER']),
+	?DEBUG("reporting new call ~p (eventage:  ~p).", [UUID, SetSess]),
+	case State#state.uuid of
+		UUID -> freeswitch_media_manager:notify(UUID, self());
+		_ -> ok
+	end,
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	%?DEBUG("reporting existing call progess ~p.", [UUID]),
@@ -766,13 +785,54 @@ fs_send_execute(Node, Callid, Name, Arg) ->
 		{"execute-app-arg", Arg}
 	]).
 
+originate(Node, BaseDialstring, Destination, InOpts) ->
+	{ok, UUID} = freeswitch:api(Node, create_uuid),
+	Opts = ["origination_uuid=" ++ UUID | InOpts],
+	Dialstring = freeswitch_media_manager:do_dial_string(BaseDialstring, Destination, Opts),
+	case freeswitch:bgapi(Node, originate, Dialstring ++ " &park()") of
+		{ok, _BgApiId} ->
+			case originate_gethandle(Node, UUID) of
+				{error, Err} ->
+					?WARNING("Cound not originate ~s due to ~p", [UUID, Err]),
+					{error, Err};
+				_ ->
+					{ok, UUID}
+			end;
+		Bgerr ->
+			?WARNING("Could not start originate:  ~p", [Bgerr]),
+			{error, Bgerr}
+	end.
+
+originate_gethandle(Node, UUID) ->
+	originate_gethandle(Node, UUID, 0).
+
+originate_gethandle(Node, UUID, Count) ->
+	case freeswitch:handlecall(Node, UUID) of
+		{error, badsession} when Count > 10 ->
+			{error, badsession};
+		{error, badsession} ->
+			timer:sleep(100),
+			originate_gethandle(Node, UUID, Count + 1);
+		{error, Other} ->
+			{error, Other};
+		Else ->
+			Else
+	end.
+
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
 	Ename = proplists:get_value("Event-Name", Rawcall),
 	case_event_name(Ename, UUID, Rawcall, Callrec, State).
 
 %% @private
-case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Callrec, #state{ringchannel = Rpid} = State) when is_pid(Rpid) ->
+case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
+		statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
+	#state{cnode = Fnode, ringuuid = Ruuid} = State,
+	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
+	freeswitch:bgapi(Fnode, uuid_bridge, UUID ++ " " ++ Ruuid),
+	{{mediapush, '3rd_party'}, State#state{statename = '3rd_party'}};
+
+case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = Rpid, uuid = UUID} = State) when is_pid(Rpid) ->
 	% TODO fix when this can return an {oncall, State}
 	RingUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	SpawnOncall = spawn_monitor(fun() ->
@@ -782,7 +842,7 @@ case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Callrec, #state{ringchannel =
 	{noreply, State#state{statename = oncall, spawn_oncall_mon = SpawnOncall, ringuuid = RingUUID}};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
-		statename = oncall_hold} = State) ->
+		statename = oncall_hold, uuid = UUID} = State) ->
 	Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
 		"silence" ->
 			none;
@@ -804,8 +864,9 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	{{mediapush, caller_hold}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
-		queued = false, warm_transfer_uuid = undefined, statename = Statename
-		} = State) when Statename == inqueue; Statename =/= inqueue_ringing ->
+		uuid = UUID, queued = false, warm_transfer_uuid = undefined,
+		statename = Statename} = State) when
+		Statename == inqueue; Statename =/= inqueue_ringing ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 	Client = proplists:get_value("variable_brand", Rawcall),
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
@@ -865,7 +926,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 case_event_name("CHANNEL_PARK", _UUID, _Rawcall, _Callrec, State) ->
 	{noreply, State};
 
-case_event_name("CHANNEL_HANGUP", _UUID, _Rawcall, Callrec, State)  when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->
+case_event_name("CHANNEL_HANGUP", UUID, _Rawcall, Callrec, #state{uuid = UUID} = State)  when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->
 	?NOTICE("caller hung up while agent was talking to third party ~p", [Callrec#call.id]),
 	RUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	% notify the agent that the caller hung up via some beeping
@@ -875,7 +936,7 @@ case_event_name("CHANNEL_HANGUP", _UUID, _Rawcall, Callrec, State)  when is_list
 	cdr:warmxfer_fail(Callrec, State#state.agent_pid),
 	{{hangup, "caller"}, State};
 
-case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, State) ->
+case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid = UUID} = State) ->
 	?DEBUG("Channel hangup ~p", [Callrec#call.id]),
 	Apid = State#state.agent_pid,
 	case Apid of
@@ -932,11 +993,11 @@ case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, State) ->
 	%{noreply, State};
 	{{hangup, Who}, State2};
 
-case_event_name("CHANNEL_DESTROY", _UUID, _Rawcall, Callrec, State) ->
+case_event_name("CHANNEL_DESTROY", UUID, _Rawcall, Callrec, #state{uuid = UUID} = State) ->
 	?DEBUG("Last message this will recieve, channel destroy ~p", [Callrec#call.id]),
 	{stop, normal, State};
 
-case_event_name("DTMF", UUID, Rawcall, Callrec, #state{allow_voicemail = VmAllowed, queued = true} = State) when VmAllowed =/= false ->
+case_event_name("DTMF", UUID, Rawcall, Callrec, #state{allow_voicemail = VmAllowed, queued = true, uuid = UUID} = State) when VmAllowed =/= false ->
 	case proplists:get_value("DTMF-Digit", Rawcall) of
 		"*" ->
 			% allow the media to go to voicemail
@@ -953,12 +1014,12 @@ case_event_name("DTMF", UUID, Rawcall, Callrec, #state{allow_voicemail = VmAllow
 			{noreply, State}
 	end;
 
-case_event_name({error, notfound}, _UUID, Rawcall, Callrec, State) ->
-	?WARNING("event name not found: ~p for ~p", [proplists:get_value("Content-Type", Rawcall), Callrec#call.id]),
+case_event_name({error, notfound}, UUID, Rawcall, Callrec, State) ->
+	?WARNING("event name not found: ~p for ~p", [proplists:get_value("Content-Type", Rawcall), UUID]),
 	{noreply, State};
 
-case_event_name(_, _, _, _, State) ->
-	%?DEBUG("Event unhandled ~p", [_Else]),
+case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
+	?DEBUG("Event ~s for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
 get_info(Cnode, UUID) ->

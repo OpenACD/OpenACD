@@ -1065,37 +1065,11 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 			end;
 		voice ->
 			case Data of
-				warm_transfer_succeeded ->
+				SimpleCommand when is_atom(SimpleCommand) ->
 					Json = {struct, [
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, voice},
-						{<<"event">>, Data},
-						{success, true}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate};
-				warm_transfer_failed ->
-					Json = {struct, [
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, Data},
-						{success, false}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate};
-				caller_offhold ->
-					Json = {struct, [
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, Data}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate};
-				caller_hold ->
-					Json = {struct, [
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, Data}
+						{<<"event">>, SimpleCommand}
 					]},
 					Newstate = push_event(Json, State),
 					{noreply, Newstate}

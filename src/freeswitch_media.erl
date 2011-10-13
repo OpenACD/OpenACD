@@ -647,6 +647,17 @@ handle_cast({<<"contact_3rd_party">>, Args} = Cast, Call, #state{statename = onc
 			{noreply, State}
 	end;
 
+handle_cast({<<"connect_conference">>, Args}, Call, #state{statename = '3rd_party'} = State) ->
+	{noreply, MidState} = handle_cast({<<"toggle_hold">>, undefined}, Call, State),
+	handle_cast({<<"connection_conference">>, Args}, Call, MidState);
+
+handle_cast({<<"connect_conference">>, Args}, Call, #state{
+		statename = Statename} = State) when Statename =:= 'hold_conference';
+		Statename =:= 'hold_conference_3rdparty' ->
+	#state{cnode = Fnode, ringuuid = Ringid, conference_id = Confid} = State,
+	freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " conference;" ++ Confid ++ " inline"),
+	{{mediapush, 'in_conference'}, State#state{statename = 'in_conference'}};
+
 handle_cast({<<"merge_3rd_party">>, Args}, Call, #state{statename = '3rd_party'} = State) ->
 	#state{cnode = Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdid, conference_id = Confid} = State,
 	NextState = case proplists:get_value("args", Args) of
@@ -777,10 +788,12 @@ handle_info({bgerror, Reply}, Call, State) ->
 handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR for ~p", [Call#call.id]),
 	{stop, hangup, State};
-handle_info(call_hangup, Call, State) ->
-	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
-	catch freeswitch_ring:hangup(State#state.ringchannel),
-	{stop, normal, State};
+% TODO This had a use at some point, but was cuasing ramdom hangups.
+% need to find what was sending :(
+%handle_info(call_hangup, Call, State) ->
+%	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
+%	catch freeswitch_ring:hangup(State#state.ringchannel),
+%	{stop, normal, State};
 
 handle_info({'DOWN', Ref, process, Pid, Cause}, _Call, #state{statename = 
 		oncall, spawn_oncall_mon = {Pid, Ref}} = State) ->

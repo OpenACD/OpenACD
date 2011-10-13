@@ -115,6 +115,7 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 		try gen_media:oncall(Call#call.source) of
 			invalid ->
 				freeswitch:api(FSNode, uuid_park, Call#call.id),
+				?DEBUG("Death due to invalid oncall request", []),
 				Self ! {stop, normal};
 			ok ->
 				ok
@@ -122,6 +123,7 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 			exit:{noproc, _} ->
 				?WARNING("~p died before I could complete the bridge", [Call#call.source]),
 				freeswitch:api(FSNode, uuid_park, Call#call.id),
+				?DEBUG("Death due to noproc error on oncall attempt", []),
 				Self ! {stop, normal}
 		end
 	end,
@@ -134,10 +136,12 @@ handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = Stat
 			{noreply, State};
 		ok ->
 			freeswitch:api(FsNode, uuid_kill, UUID),
+			?DEBUG("Death due to non-voice call answered", []),
 			{stop, normal, State}
 	catch
 		exit:{noproc, _} ->
 			freeswitch:api(FsNode, uuid_kill, UUID),
+			?DEBUG("Death due to noproc error setting non-voice call oncall", []),
 			{stop, normal, State}
 	end;
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
@@ -146,12 +150,13 @@ handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type 
 	try gen_media:oncall(Call#call.source) of
 		invalid ->
 			freeswitch:api(Fsnode, uuid_park, Call#call.id),
+			?DEBUG("Death due to invalid oncall request after bridge", []),
 			{stop, normal, State};
 		ok ->
 			{noreply, State}
 	catch
 		exit:{noproc, _} ->
-			?WARNING("~p died before I could complete the bridge", [Call#call.source]),
+			?WARNING("~p died before I could complete the bridge, I die with it", [Call#call.source]),
 			freeswitch:api(Fsnode, uuid_park, Call#call.id),
 			{stop, normal, State}
 	end;

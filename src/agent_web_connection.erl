@@ -834,6 +834,7 @@ handle_call({undefined, "/get_queue_transfer_options"}, _From, State) ->
 	{reply, ?reply_err(<<"Not in a call">>, <<"INVALID_STATE_CHANGE">>), State};
 handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
+	?DEBUG("The agent is committing call murder!", []),
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
 		invalid ->
 			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]};

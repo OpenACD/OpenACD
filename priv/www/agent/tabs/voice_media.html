@@ -50,6 +50,10 @@
 						setVis(true, 'voiceDialBox','conferenceHoldBox', 'joinConferenceBox');
 						setVis(false, 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
+					case 'in_conference':
+						setVis(true, 'voiceDialBox');
+						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+						break;
 					default:
 						console.error('freeswitch event not handled', data['event']);
 				}
@@ -66,16 +70,6 @@
 					onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
 				}
 			}),
-			/*dialBoxSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
-				switch(data['event']){
-					case 'caller_hold':
-					case 'hold_conference':
-						dojo.query("#voiceDialBox").style('display', 'block');
-						break;
-					default:
-						dojo.query("#voiceDialBox").style('display', 'none');
-				}
-			}),*/
 			dial: function(){
 				var num = dijit.byId(dojo.query('#voiceDialBox input[name=dialNumber]')[0].id).get('value');
 				agentConnection.agentApi("media_command", {}, "contact_3rd_party", "cast", num);

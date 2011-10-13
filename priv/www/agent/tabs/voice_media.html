@@ -23,7 +23,7 @@
 				dojo.query(nodeidList.join()).style('display', visible);
 			},
 			masterSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
-				dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
+				dojo.query('#freeswitchBusyBox').style('visibility', 'hidden');
 				var setVis = window.freeswitch.setVisible;
 				switch(data['event']){
 					case 'caller_hold':
@@ -111,7 +111,7 @@
 			window.freeswitch.onHoldButton = this.id;
 		</script>
 		<script type="dojo/connect" event="onClick">
-			dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 			agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
 		</script>
 	</button>
@@ -123,7 +123,7 @@
 			window.freeswitch.connectConferenceButton = this.id;
 		</script>
 		<script type="dojo/connect" event="onClick">
-			dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 			agentConnection.agentApi("media_command", {}, "connect_conference", "cast", "");
 		</script>
 	</button>
@@ -133,7 +133,7 @@
 			window.freeswitch.connect3rdPartyButton = this.id;
 		</script>
 		<script type="dojo/connect" event="onClick">
-			dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 			agentConnection.agentApi("media_command", {}, "connect_3rd_party", "cast", "");
 		</script>
 	</button>
@@ -145,14 +145,14 @@
 			window.freeswitch.conference3rdPartyButton = this.id;
 		</script>
 		<script type="dojo/connect" event="onClick">
-			dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 			agentConnection.agentApi("media_command", {}, "merge_3rd_party", "cast", "");
 		</script>
 	</button>
 
 	<button dojoType="dijit.form.Button">Conference All
 		<script type="dojo/connect" event="onClick">
-			dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 			agentConnection.agentApi("media_command", {}, "merge_3rd_party", "cast", "true");
 		</script>
 	</button>
@@ -162,7 +162,7 @@
 		<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
 		<button dojoType="dijit.form.Button">-&gt;
 			<script type="dojo/connect" event="onClick">
-				dojo.query('#freeswitchBusyBox').style('visible', 'hidden');
+				dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
 				window.freeswitch.dial();
 			</script>
 		</button>

@@ -647,6 +647,19 @@ handle_cast({<<"contact_3rd_party">>, Args} = Cast, Call, #state{statename = onc
 			{noreply, State}
 	end;
 
+handle_cast({<<"merge_3rd_party">>, Args}, Call, #state{statename = '3rd_party'} = State) ->
+	#state{cnode = Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdid, conference_id = Confid} = State,
+	NextState = case proplists:get_value("args", Args) of
+		<<"true">> ->
+			freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " conference:" ++ Confid ++ " inline"),
+			'in_conference';
+		_ ->
+			freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " park inline"),
+			'hold_conference'
+	end,
+	freeswitch:bgapi(Fnode, uuid_transfer, Thirdid ++ " conference:" ++ Confid ++ " inline"),
+	{noreply, State#state{statename = NextState}};
+
 handle_cast({<<"contact_3rd_party">>, Args}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
 	% start a ring chan to 3rd party
 	% play a ringing sound to agent to be nice
@@ -689,8 +702,9 @@ handle_cast({'3rd_party_pickup', ChanPid}, Call, #state{'3rd_party_mon' = {ChanP
 handle_cast({set_caseid, CaseID}, Call, State) ->
 	?INFO("setting caseid for ~p to ~p", [Call#call.id, CaseID]),
 	{noreply, State#state{caseid = CaseID}};
+
 handle_cast(Msg, _Call, State) ->
-	?DEBUG("unhandled cast:  ~p", [Msg]),
+	?DEBUG("unhandled cast while in state ~p:  ~p", [State#state.statename, Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -735,7 +749,7 @@ handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	SetSess = freeswitch:session_setevent(State#state.cnode, [
 		'CHANNEL_BRIDGE', 'CHANNEL_PARK', 'CHANNEL_HANGUP',
 		'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF',
-		'CHANNEL_ANSWER']),
+		'CHANNEL_ANSWER', 'CUSTOM', 'conference::maintenance']),
 	?DEBUG("reporting new call ~p (eventage:  ~p).", [UUID, SetSess]),
 	case State#state.uuid of
 		UUID -> freeswitch_media_manager:notify(UUID, self());
@@ -840,11 +854,18 @@ originate_gethandle(Node, UUID, Count) ->
 
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
-	Ename = proplists:get_value("Event-Name", Rawcall),
-	?DEBUG("Event ~s for ~s while in state ~p", [Ename, UUID, State#state.statename]),
+	Ename = case proplists:get_value("Event-Name", Rawcall) of
+		"CUSTOM" -> {"CUSTOM", proplists:get_value("Event-Subclass", Rawcall)};
+		Else -> Else
+	end,
+	?DEBUG("Event ~p for ~s while in state ~p", [Ename, UUID, State#state.statename]),
 	case_event_name(Ename, UUID, Rawcall, Callrec, State).
 
 %% @private
+case_event_name({"CUSTOM", "conference::maintenance"}, UUID, _Rawcall, Callrec, #state{statename = Statename, '3rd_party_id' = UUID} = State) when 
+		Statename =:= 'in_conference'; Statename =:= 'hold_conference' ->
+	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
+
 case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 		statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
 	#state{cnode = Fnode, ringuuid = Ruuid} = State,
@@ -1044,7 +1065,7 @@ case_event_name({error, notfound}, UUID, Rawcall, Callrec, State) ->
 	{noreply, State};
 
 case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
-	?DEBUG("Event ~s for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
+	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
 get_info(Cnode, UUID) ->

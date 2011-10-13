@@ -37,6 +37,12 @@
 					case '3rd_party':
 						setVis(true, 'merge3rdPartyBox', 'simpleHoldBox');
 						setVis(false, 'conferenceHoldBox', 'voiceDialBox');
+						var onHoldb = dijit.byId(window.freeswitch.onHoldButton);
+						onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
+						break;
+					case 'hold_conference_3rdparty':
+						setVis(true, 'merge3rdPartyBox', 'conferenceHoldBox');
+						setVis(false, 'simpleHoldBox', 'voiceDialBox');
 						break;
 					default:
 						console.error('freeswitch event not handled', data['event']);

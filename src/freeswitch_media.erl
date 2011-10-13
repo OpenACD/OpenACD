@@ -612,6 +612,25 @@ handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = oncall_hold} = Stat
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	{noreply, State#state{statename = oncall}};
 
+handle_cast({<<"toggle_hold">>, _}, Call, #state{statename = '3rd_party'} = State) ->
+	?INFO("Place 3rd party on hold", []),
+	#state{cnode = Fnode, moh = Muzak, ringuuid = Ringid, '3rd_party_id' = ThirdPId} = State,
+	ok = fs_send_execute(Fnode, Ringid, "set", "hangup_after_bridge=false"),
+	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
+	freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
+	Helddp = case Muzak of
+		none -> "park";
+		_ -> "park:,playback:local_stream://" ++ Muzak
+	end,
+	freeswitch:bgapi(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline"),
+	{noreply, State#state{statename = hold_conference_3rdparty}};
+
+handle_cast({<<"connect_3rd_party">>, _}, Call, #state{statename = hold_conference_3rdparty} = State) ->
+	#state{cnode= Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdpid} = State,
+	?INFO("Picking up help 3rd party:  ~s", [Thirdpid]),
+	freeswitch:bgapi(Fnode, uuid_bridge, Thirdpid ++ " " ++ Ringid),
+	{noreply, State#state{statename = '3rd_party'}};
+
 handle_cast({<<"contact_3rd_party">>, Args} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
@@ -822,6 +841,7 @@ originate_gethandle(Node, UUID, Count) ->
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
 	Ename = proplists:get_value("Event-Name", Rawcall),
+	?DEBUG("Event ~s for ~s while in state ~p", [Ename, UUID, State#state.statename]),
 	case_event_name(Ename, UUID, Rawcall, Callrec, State).
 
 %% @private
@@ -832,6 +852,10 @@ case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 	freeswitch:bgapi(Fnode, uuid_bridge, UUID ++ " " ++ Ruuid),
 	{{mediapush, '3rd_party'}, State#state{statename = '3rd_party'}};
 
+case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id' = UUID, statename = '3rd_party'} = State) ->
+	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),
+	{{mediapush, '3rd_party'}, State};
+
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = Rpid, uuid = UUID} = State) when is_pid(Rpid) ->
 	% TODO fix when this can return an {oncall, State}
 	RingUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
@@ -840,6 +864,10 @@ case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = 
 		?DEBUG("Result of oncall:  ~p", [Oot])
 	end),
 	{noreply, State#state{statename = oncall, spawn_oncall_mon = SpawnOncall, ringuuid = RingUUID}};
+
+case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
+	?DEBUG("park of the 3rd party, proll a hold", []),
+	{{mediapush, State#state.statename}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		statename = oncall_hold, uuid = UUID} = State) ->
@@ -922,9 +950,6 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	end,
 	%% tell gen_media to (finally) queue the media
 	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt, statename = inqueue}};
-
-case_event_name("CHANNEL_PARK", _UUID, _Rawcall, _Callrec, State) ->
-	{noreply, State};
 
 case_event_name("CHANNEL_HANGUP", UUID, _Rawcall, Callrec, #state{uuid = UUID} = State)  when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->
 	?NOTICE("caller hung up while agent was talking to third party ~p", [Callrec#call.id]),

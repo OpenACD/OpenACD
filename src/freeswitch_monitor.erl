@@ -21,7 +21,7 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 
-%% @doc Starts persistantly monitoring the given agent or client by the
+%% @doc Starts persistently monitoring the given agent or client by the
 %% given dialstring.
 
 -module(freeswitch_monitor).

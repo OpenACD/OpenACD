@@ -22,6 +22,7 @@ communicating with OpenACD as an agent.
 OpenACD.Agent = function(options){
 	this.username = '';
 	this.password = '';
+	this.loginOpts = {};
 	this.loggedIn = false;
 	this.securitylevel = "";
 	this.profile = "";

@@ -7,7 +7,7 @@
   @import "/dojo/dijit/themes/soria/soria.css";
   @import "/dojo/dijit/themes/tundra/tundra.css";
   @import "/dojo/dijit/themes/nihilo/nihilo.css";
-  @import "/dojo/dojox/form/resources/FileUploader.css";
+  //@import "/dojo/dojox/form/resources/FileUploader.css";
   .statusdisplay {
 		padding-left:0.5em;
   }
@@ -93,8 +93,8 @@
 		margin: 0;
 	}
 </style>
-<link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />	
-<link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />
+<!--<link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />
+<link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />-->
 <link rel="stylesheet" href="/application/css/email.css" />
 <script type="text/javascript">
 	/* this is lame, why do cookies suck in JS? */
@@ -107,7 +107,7 @@
 		}
 	}
 	var djConfig = {
-		modulePaths: {agentUI: "/application"},
+		//modulePaths: {agentUI: "/application"},
 		parseOnLoad: true,
 		isDebug: false,
 		locale: locale
@@ -126,9 +126,12 @@
 <!--<script type="text/javascript" src="SoundManager2/soundmanager2.js"></script>-->
 <script type="text/javascript" src="SoundManager2/soundmanager2-nodebug-jsmin.js"></script>
 
-<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript" src="/dojo/dojo.js.uncompressed.js"></script>
+<!--<script type="text/javascript" src="/dojo/dijit/dijit.js"></script>-->
+<!--<script type="text/javascript" src="/dojo/dojo/openacd.js"></script>-->
+<script type="text/javascript" src="/agentUI/base.js.uncompressed.js"></script>
 <script type="text/javascript">
-	dojo.require("dijit.layout.BorderContainer");
+	/*dojo.require("dijit.layout.BorderContainer");
 	dojo.require("dijit.layout.ContentPane");
 	dojo.require("dijit.layout.TabContainer");
 	dojo.require("dijit.form.SimpleTextarea");
@@ -149,8 +152,11 @@
 	//dojo.require("dijit.Menu");
 	dojo.require("agentUI.logLib");
 	dojo.require("agentUI.util");
-	dojo.requireLocalization("agentUI", "labels");
+	dojo.requireLocalization("agentUI", "labels");*/
 	function init() {
+		if(dojo.cookie("agentui-log")){
+			window.setLogLevel(dojo.cookie("agentui-log"));
+		}
 		if (dojo.config.locale == "") {
 			dojo.byId("loginerrp").style.display = "block";
 			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
@@ -161,14 +167,12 @@
 			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
 			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
 			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
+			dijit.byId('usepersistentringchannel').attr('checked', settings.usepersistentring);
 			if (settings.theme)
 				document.getElementsByTagName("body")[0].className = settings.theme;
 		}
 	} /* end of init() */
 
-	if(dojo.cookie("agentui-log")){
-		window.setLogLevel(dojo.cookie("agentui-log"));
-	}
 	dojo.addOnLoad(init);
 	soundManager.url = '/SoundManager2/';
 
@@ -272,6 +276,19 @@
 				</script>
 			</div>-->
 		</p>
+		<p>
+			<label>&nbsp;</label>
+			<input type="checkbox" name="usepersistentringchannel" id="usepersistentringchannel", value="true" dojoType="dijit.form.CheckBox" />
+			<span class="translate" id="usePersistantRingChannelLabel">USE_PERSISTANT_RING_CHANNEL</span>
+			<script type="text/javascript">
+				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
+			</script>
+			<div dojoType="dijit.Tooltip" connectId="usepersistentringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
+				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
+					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);
+				</script>
+			</div>
 		<p>
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
@@ -485,11 +502,6 @@
 			</script>
 			<span>TABS</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
-				<div dojoType="dijit.MenuItem">Supervisor
-					<script type="dojo/connect" event="onClick">
-						loadTab('supervisorTab');
-					</script>
-				</div>
 				<div dojoType="dijit.MenuItem">Dashboard
 					<script type="dojo/connect" event="onClick">
 						loadTab('dashboardTab');

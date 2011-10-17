@@ -182,6 +182,8 @@ message LoginRequest {
 	required string password = 2;
 	optional VoipEndpoint voipendpoint = 3 [default=SIP];
 	optional string voipendpointdata = 4;
+	optional bool use_outband_ring = 5;
+	optional bool use_persistent_ring = 6;
 }
 
 message AgentTransferRequest {
@@ -212,7 +214,7 @@ message WarmTransferRequest {
 }
 
 message GoReleasedRequest {
-	optional bool use_default = 1;
+	optional bool use_default = 1 [default=false];
 	optional Release release_opt = 2;
 }
 
@@ -228,5 +230,5 @@ message StateChange {
 	optional Release release = 3;
 	optional ClientRecord client = 4;
 	optional string warm_transfer_number = 5;
-	optional bool ssl_upgrade = 6;
+	optional bool ssl_upgrade = 6 [default=false];
 }

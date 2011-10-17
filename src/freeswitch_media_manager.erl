@@ -27,14 +27,76 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The controlling module for connection CPX to a freeswitch installation.  There are 2 primary requirements for this work:  
+%% @doc The controlling module for connection CPX to a freeswitch 
+%% installation.  There are 2 primary requirements for this work:  
 %% the freeswitch installaction must have mod_erlang installed and active, and the freeswitch dialplan must add the following
 %% variables to the call data:
 %% <dl>
 %% <dt>queue</dt><dd>The name of the queue as entered into the queue_manager</dd>
 %% <dt>brand</dt><dd>As the combined brand id</dd>
 %% </dl>
-%% Primary job of this module is to listen to freeswitch for events, and shove those events to the appriate child process.
+%% Primary job of this module is to listen to freeswitch for events, and 
+%% shove those events to the appriate child process.
+%%
+%% This also acts as the reference implementation of a ring_manager.  A ring
+%% manager is responsible for handling requests from agents to create a ring
+%% channel.
+%%
+%% A proper ring channel will respond to `{ring, AgentRec, Callrec}' with 
+%% either `{error, What}' or `{ok, Pid, Paths}' where pid is the process id the
+%% passed in agent will use as it's ring channel.
+%%
+%% The important parts of the agent record are: <ul>
+%% <li>`Agent#agent.endpointtype'</li>
+%% <li>`Agent#agent.endpointdata'</li>
+%% <li>`Agent#agent.login'</li>
+%% </ul>
+%%
+%% The endpoint type is a 3 element tuple.  The first element is the ring
+%% channel pid, if there is one.  This can usually be ignored as the agent
+%% will requrest a ring only if it does not have a ring pid.  The second 
+%% element is either `persistent' or `transient'.  `persistent' means the 
+%% will use the returned pid for any future ringing.  `transient' means the
+%% returned pid will be used only for the given ring duration and then 
+%% promply dropped like a bad habit.  The final bit is an end point type
+%% the agent process feels may be helpful to ring itself.  The values passed
+%% by default are useful to freeswitch_media_manager, though this may not be
+%% true for other ring_managers.
+%%
+%% Endpointdata is a string the agent supplies which may help ring itself.
+%% In the case of freeswitch_media_manager, the endpointdata or login are 
+%% combined with the sip, iax2, h323, or dialstring options (depending on
+%% the endpointtype).
+%% 
+%% Finally, the Callrec will be either `persistent' when setting up a 
+%% persistent ring channel, `test' when checking to see if an agent is 
+%% ringable, or the actual call record the ring channel will be used to 
+%% ring for.  This allows the ring_manager to tailor the ring channel used 
+%% to the media that is needed, without the agent needed to know much.  In 
+%% freeswith_media_manager's case, this allows it to choose between 
+%% freeswitch_transient that will die when answered (non freeswitch media) 
+%% or hang around until the call ends (freeswitch medias).  For persistent 
+%% ring channels, they will get the call record when they need to start 
+%% ringing, allowing them to make the choice.
+%%
+%% That just leaves that `Paths' varaible in the success return.  `Paths' 
+%% indicates which interactions can be requrested by the agent.  In the case
+%% of a persisitant channel with is ignored since the channel cannot be 
+%% answered or hungup on outside of OpenACD.  However, for transient 
+%% channels, the answer can happen outside the agent interface.  Furthermore
+%% some medias cannot be answered or hungup on within OpenACD.  Thus, there
+%% are 4 possible responses for `Paths':<ul>
+%% <li>`both'</li>
+%% <li>`answer'</li>
+%% <li>`hangup'</li>
+%% <li>`neither'</li>
+%% </ul>
+%% `both' indicates an agent can answer and hangup the media from the agent
+%% interface.  `answer' means only answering the media can be done.
+%% `hangup' means only hanging up the media.  Finally, `neither' means 
+%% answering and hanging up must be done through different means, such as 
+%% the softphone.
+%% channel can be answered 
 %% @see freeswitch_media
 
 -module(freeswitch_media_manager).
@@ -52,6 +114,13 @@
 -include("agent.hrl").
 
 -define(TIMEOUT, 10000).
+-define(default_dial_string(Type), case Type of
+		sip_registration -> "sofia/internal/$1%";
+		sip -> "sofia/internal/sip:$1";
+		iax2 -> "iax2/$1";
+		h323 -> "opal/h3232:$1";
+		pstn -> ""
+end).
 -define(EMPTYRESPONSE, "<document type=\"freeswitch/xml\"></document>").
 -define(NOTFOUNDRESPONSE,
 "<document type=\"freeswitch/xml\">
@@ -112,8 +181,11 @@
 	record_outage/3,
 	fetch_domain_user/2,
 	new_voicemail/5,
+	ring_agent/3,
 	ring_agent/4,
 	ring_agent_echo/4,
+	ring/3,
+	ring/4,
 	get_media/1,
 	get_default_dial_string/0,
 	do_dial_string/3,
@@ -144,22 +216,30 @@
 %% API
 %%====================================================================
 
+-type(domain_opt() :: {domain, string()}).
+-type(dialstring_opt() :: {dialstring, string()}). % dialing externals
+-type(sip_opt() :: {sip, string()}).
+-type(iax2_opt() :: {iax2, string()}).
+-type(h323_opt() :: {h323, string()}).
+-type(not_ring_manager_opt() :: 'not_ring_manager').
+-type(start_opt() :: 
+	domain_opt() |
+	dialstring_opt() |
+	sip_opt() |
+	iax2_opt() |
+	h323_opt() |
+	not_ring_manager_opt()
+).
+-type(start_opts() :: [start_opt()]).
 %% @doc Start the media manager unlinked to the parant process with C node `node() Nodemane' 
 %% and `[{atom(), term()] Options'.
 %% <ul>
 %% <li>`domain :: string()'</li>
 %% <li>`dialstring :: string()'</li>
 %% </ul>
--spec(start/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
+-spec(start/2 :: (Nodename :: atom(), Options :: start_opts()) -> {'ok', pid()}).
 start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
-	
-%% @doc Start the media manager unlinked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
-%% `Domain' is the domain to ring to sip agents.
-%% @clear
-% Domain is there to help ring agents.
-%start(Nodename) -> 
-%	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 	
 %% @doc Start the media manager linked to the parant process with C node `node() Nodemane' 
 %% and `[{atom(), term()] Options'.
@@ -170,15 +250,9 @@ start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 %% <li>`iax2 :: string()'</li>
 %% <li>`h323 :: string()'</li>
 %% </ul>
--spec(start_link/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
+-spec(start_link/2 :: (Nodename :: atom(), Options :: start_opts()) -> {'ok', pid()}).
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
-
-%% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
-%% `Domain' is the domain to ring to sip agents.
-%% @clear
-%start_link(Nodename) ->
-%    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 
 %% @doc returns {`ok', pid()} if there is a freeswitch media process handling the given `UUID'.
 -spec(get_handler/1 :: (UUID :: string()) -> {'ok', pid()} | 'noexists').
@@ -205,14 +279,30 @@ new_voicemail(UUID, File, Queue, Priority, Client) ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
-%% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
-%% Yes, this is a prank call function.
+ring(#agent{endpointdata = undefined} = Agent, RingCbs, Options) ->
+	ring(Agent#agent.endpointtype, Agent#agent.login, RingCbs, Options);
+ring(Agent, RingCbs, Options) when is_record(Agent, agent) ->
+	ring(Agent#agent.endpointtype, Agent#agent.endpointdata, RingCbs, Options).
+
+ring(EndpointType, Dialstring, RingCbs, Options) ->
+	gen_server:call(?MODULE, {ring, EndpointType, Dialstring, RingCbs, Options}).
+
+% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
+% Yes, this is a prank call function.
 -spec(ring_agent/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
 ring_agent(AgentPid, Agent, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
 
-%% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
-%% Yes, this is a prank call function.
+% @doc This functions primary use is to create a persistent ring channel to
+% the agent; ie:  off hook agent.  `Opts' is the same as what 
+% {@link freeswitch_ring:start/5} takes.
+% @see freeswitch_ring:start/5
+-spec(ring_agent/3 :: (Apid :: pid(), Agent :: #agent{}, Opts :: [any()]) -> {'ok', pid()} | {'error', any()}).
+ring_agent(Apid, Agent, Opts) ->
+	gen_server:call(?MODULE, {ring_agent, Apid, Agent, Opts}).
+
+% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
+% Yes, this is a prank call function.
 -spec(ring_agent_echo/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
 ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Agent, Call, Timeout}).
@@ -270,12 +360,19 @@ init([Nodename, Options]) ->
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
+			case proplists:get_value(not_ring_manager, Options) of
+				true ->
+					ok;
+				_ ->
+					application:set_env('OpenACD', ring_manager, ?MODULE)
+			end,
 			link(Pid),
 			{Lpid, Pid, StrippedOpts};
 		_ ->
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{undefined, undefined, StrippedOpts}
 	end,
+	?INFO("Started for node ~p", [Nodename]),
 	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true, fetch_domain_user = FetchUserOpts}}.
 
 %%--------------------------------------------------------------------
@@ -323,6 +420,87 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 handle_call(stop, _From, State) ->
 	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
+handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+%handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration}, endpointdata = EndPointData}, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
+%	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
+%	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
+%		{ok, Pid} ->
+%			{reply, {ok, Pid, neither}, State};
+%		Error ->
+%			{reply, Error, State}
+%	end;
+handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data} = Agent, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	Default = ?default_dial_string(Type),
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
+	Destination = case Data of
+		undefined -> Agent#agent.login;
+		_ -> Data
+	end,
+	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}, {call, Callrec}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, neither}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+%handle_call({ring, #agent{endpointtype = {undefined, persistent, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
+%	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
+%	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
+%		{ok, Pid} ->
+%			{reply, {ok, Pid, both}, State};
+%		Error ->
+%			{reply, Error, State}
+%	end;
+handle_call({ring, #agent{endpointtype = {undefined, persistent, Type}, endpointdata = Data} = Agentrec, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	Destination = case Data of
+		undefined -> Agentrec#agent.login;
+		_ -> Data
+	end,
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, ?default_dial_string(Type)),
+	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, both}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+handle_call({ring, _EndPointType, _EndPointData, _Callback, _Options}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+handle_call({ring, {undefined, transient, sip_registration}, EndPointData, Callback, Options}, _From, #state{dialstring = BaseDialstring} = State) ->
+	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData} | Options],
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
+	{reply, Out, State};
+handle_call({ring, {undefined, transient, Type}, EndPointData, Callback, Options}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	BaseDialString = proplists:get_value(Type, BaseDialOpts, ?default_dial_string(Type)),
+	NewOptions = [{dialstring, BaseDialString}, {destination, EndPointData} | Options],
+	Out = freeswitch_ring:start(State#state.nodename, Callback, NewOptions),
+	{reply, Out, State};
+handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
+	{reply, {error, noconnection}, State};
+handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
+	case Agent#agent.endpointtype of
+		{Rpid, persitent, _} when is_pid(Rpid) ->
+			spawn(fun() ->
+				freeswitch_ring:call(Rpid, {agent_state, ringing, "doesn't matter"})
+			end),
+			{reply, {ok, Rpid}, State};
+		{_, transient, Eptype} ->
+			Default = ?default_dial_string(Eptype),
+			BaseDialString = proplists:get_value(Eptype, State#state.fetch_domain_user, Default),
+			EndPointData = case Agent#agent.endpointdata of
+				undefined -> Agent#agent.login;
+				_ -> Agent#agent.endpointdata
+			end,
+			Options = [{dialstring, BaseDialString}, {destination, EndPointData} | Opts],
+			Out = freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, Options),
+			{reply, Out, State};
+		Else ->
+			{reply, {error, {badendpointtype, Else}}, State}
+	end;
+handle_call({ring_agent, _Apid, #agent{endpointtype = {Pid, _, _}} = Agent, Call, _Timout}, _From, #state{freeswitch_up = true} = State) when is_pid(Pid) ->
+	?INFO("~s already has a ring channel in ~p", [Agent#agent.login, Pid]),
+	{reply, {ok, Pid}, State};
 handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->
@@ -490,6 +668,10 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
 handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
+	case cpx:get_env(ring_manager) of
+		?MODULE -> application:unset_env('OpenACD', ring_manager);
+		_ -> ok
+	end,
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
 	case is_pid(Pid) of
 		true -> exit(Pid, kill);
@@ -510,6 +692,10 @@ handle_info(freeswitch_ping, #state{nodename = Nodename, fetch_domain_user = Fop
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+			case proplists:get_value(not_ring_manager, Fopts) of
+				true -> ok;
+				_ -> application:set_env('OpenACD', ring_manager, ?MODULE)
+			end,
 			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
@@ -524,6 +710,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(_Reason, _State) ->
+	application:unset_env('OpenACD', ring_manager),
     ok.
 
 %%--------------------------------------------------------------------
@@ -587,7 +774,7 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								Agent ->
-									DialString = case Agent#agent.endpointtype of
+									DialString = case element(3, Agent#agent.endpointtype) of
 										sip_registration ->
 											case Agent#agent.endpointdata of
 												undefined ->
@@ -686,6 +873,8 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
+get_agent_dial_string(#agent{endpointtype = {_, _, Endpointtype}} = Agent, Opts, State) ->
+	get_agent_dial_string(Agent#agent{endpointtype = Endpointtype}, Opts, State);
 get_agent_dial_string(AgentRec, Options, State) ->
 	case AgentRec#agent.endpointtype of
 		sip_registration ->

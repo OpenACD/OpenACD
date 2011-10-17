@@ -671,8 +671,8 @@ handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid}
 		Status -> 
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State} 
 	end; 
-handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
-	{reply, agent:set_endpoint(Apid, Endpoint), State};
+handle_call({set_endpoint, Endpoint, Data, Persist}, _From, #state{agent_fsm = Apid} = State) -> 
+	{reply, agent:set_endpoint(Apid, Endpoint, Data, Persist), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	AgentRec = agent:dump_state(AgentPid),
 	case AgentRec#agent.state of
@@ -843,17 +843,29 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, agent_fsm = Apid} = State) ->
 	AgentRec = agent:dump_state(Apid), % TODO - avoid
-	Json = case whereis(freeswitch_media_manager) of
-		Pid when is_pid(Pid), AgentRec#agent.state == released ->
-			Callrec = #call{id="unused", source=self(), callerid={"Echo Test", "0000000"}},
-			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 10000) of
+	Json = case cpx:get_env(ring_manager) of
+		{ok, Module} when AgentRec#agent.state == released ->
+			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
+				case EventName of
+					"CHANNEL_ANSWER" ->
+						freeswitch:sendmsg(FsNode, UUID, [
+							{"call-command", "execute"},
+							{"execute-app-name", "delay_echo"},
+							{"execute-app-arg", "1000"}
+						]),
+						{noreply, FunState};
+					_ ->
+						{noreply, FunState}
+				end
+			end,
+			case Module:ring(AgentRec, [{handle_event, HandleEvent}], [no_oncall_on_bridge]) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->
 					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
 			end;
 		undefined ->
-			{struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]};
+			{struct, [{success, false}, {<<"message">>, <<"no ring manager available">>}, {<<"errcode">>, <<"MEDIA_NOEXISTS">>}]};
 		_ ->
 			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}, {<<"errcode">>, <<"INVALID_STATE">>}]} 
 	end, 

@@ -38,11 +38,14 @@
 
 -record(state, {
 	agent_fsm :: pid(),
-	listener :: pid()
+	listener :: pid(),
+	suicide_time :: integer(),
+	suicide_timer
 }).
 
 %% API
--export([start/2, start_link/2, logout/1, go_released/1, go_available/1]).
+-export([start/2, start/3, start_link/2, start_link/3, logout/1,
+	go_released/1, go_available/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -52,14 +55,24 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+-type(security_atom() :: 'agent' | 'supervisor' | 'admin').
+
 %% API
--spec(start/2 :: (AgentRec :: #agent{}, Security :: 'agent' | 'supervisor' | 'admin') -> {'ok', pid()}).
+-spec(start/2 :: (AgentRec :: #agent{}, Security :: security_atom()) -> {'ok', pid()}).
 start(AgentRec, Security) ->
-	gen_server:start(?MODULE, [AgentRec, Security], []).
+	start(AgentRec, Security, undefined).
+
+-spec(start/3 :: (AgentRec :: #agent{}, Security :: security_atom(), SelfKillTime :: 'undefined' | integer()) -> {'ok', pid()}).
+start(AgentRec, Security, SelfKillTime) ->
+	gen_server:start(?MODULE, [AgentRec, Security, SelfKillTime], []).
 
 -spec(start_link/2 :: (AgentRec :: #agent{}, Security :: 'agent' | 'supervisor' | 'admin') -> {'ok', pid()}).
 start_link(AgentRec, Security) ->
-	gen_server:start_link(?MODULE, [AgentRec, Security], []).
+	start_link(AgentRec, Security, undefined).
+
+-spec(start_link/3 :: (AgentRec :: #agent{}, Security :: security_atom(), SelfKillTime :: 'undefined' | integer()) -> {'ok', pid()}).
+start_link(AgentRec, Security, SelfKillTime) ->
+	gen_server:start_link(?MODULE, [AgentRec, Security, SelfKillTime], []).
 
 -spec(logout/1 :: (Pid :: pid()) -> 'ok').
 logout(Pid) ->
@@ -74,7 +87,7 @@ go_available(Pid) ->
 	gen_server:call(Pid, go_available).
 
 %% gen_server API
-init([AgentRec, _Security]) -> % TODO if not used, why is it here?
+init([AgentRec, _Security, SelfKillTime]) -> % TODO if not used, why is it here?
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(AgentRec) of
 		{ok, Apid} ->
@@ -86,7 +99,11 @@ init([AgentRec, _Security]) -> % TODO if not used, why is it here?
 		error ->
 			{stop, "Agent is already logged in"};
 		_Else ->
-			{ok, #state{agent_fsm = Apid, listener = whereis(agent_dialplan_listener)}}
+			{ok, #state{
+				agent_fsm = Apid,
+				listener = whereis(agent_dialplan_listener),
+				suicide_time = SelfKillTime
+			}}
 	end.
 
 handle_call(logout, {From, _Ref}, #state{listener = From} = State) ->
@@ -103,12 +120,36 @@ handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
 	{reply, {unknown_call, Request}, State}.
 
+handle_cast({change_state, StateName, _}, State) -> 
+	handle_cast({change_state, StateName}, State);
+
+handle_cast({change_state, StateName}, State) when StateName =:= released; StateName =:= wrapup ->
+	KillAfter = State#state.suicide_time,
+	KillTimer = case {State#state.suicide_timer, KillAfter} of
+		{undefined, undefined} ->
+			undefined;
+		{undefined, _} ->
+			Self = self(),
+			erlang:send_after(KillAfter * 1000 * 60, Self, suicide_pact);
+		{OldTimer, _} ->
+			OldTimer
+	end,
+	{noreply, State#state{suicide_timer = KillTimer}};
+handle_cast({change_state, _}, State) ->
+	case State#state.suicide_timer of
+		undefined -> ok;
+		Else -> erlang:cancel_timer(Else)
+	end,
+	{noreply, State#state{suicide_timer = undefined}};
+
 handle_cast(Msg, State) ->
-	%% TODO - we need to catch change_state events from the agent FSM here
-	%% TODO - we need to have some sort of timeout to do an auto-logoff
 	?DEBUG("Cast ~p", [Msg]),
 	{noreply, State}.
 
+handle_info(suicide_pact, #state{suicide_timer = undefined} = State) ->
+	{noreply, State};
+handle_info(suicide_pact, State) ->
+	{stop, unavailble_timeout, State};
 handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
 	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
 	{stop, Reason, State};

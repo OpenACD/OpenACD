@@ -390,16 +390,47 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			{Reply, State};
 		{allow, Id, Skills, Security, Profile} ->
+			EndpointType = case LoginRequest#loginrequest.voipendpoint of
+				'SIP' -> sip;
+				'SIP_REGISTRATION' -> sip_registration;
+				'IAX' -> iax;
+				'H323' -> h323;
+				'PSTN' -> pstn
+			end,
+			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
+			Persistance = LoginRequest#loginrequest.use_persistent_ring,
+			Username = LoginRequest#loginrequest.username,
+			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
+				{undefined, _, true} ->
+					%{{persistent, sip_registration}, Username};
+					{{undefined, persistent, sip_registration}, Username};
+				{undefined, _, _} ->
+					%{sip_registration, Username};
+					{{undefined, transient, sip_registration}, Username};
+				{sip_registration, undefined, true} ->
+					%{{persistent, sip_registration}, Username};
+					{{undefined, persistent, sip_registration}, Username};
+				{sip_registration, undefined, false} ->
+					%{sip_registration, Username};
+					{{undefined, transient, sip_registration}, Username};
+				{EndpointType, _, true} ->
+					{{undefined, persistent, EndpointType}, ProtoEndpointdata};
+				{EndpointType, _, _} ->
+					{{undefined, transient, EndpointType}, ProtoEndpointdata}
+			end,
 			Agent = #agent{
 				id = Id, 
 				defaultringpath = outband, 
 				login = LoginRequest#loginrequest.username, 
 				skills = Skills, 
 				profile=Profile, 
-				password=DecryptedPass
+				password=DecryptedPass,
+				endpointtype = Endpoint,
+				endpointdata = Endpointdata
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
+					agent:set_endpoint(Pid, Endpoint),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),
@@ -507,6 +538,8 @@ service_request(#agentrequest{request_hint = 'GO_RELEASED', go_released_request 
 			default
 	end,
 	case agent:set_state(State#state.agent_fsm, released, ReleaseReason) of
+		queued ->
+			{BaseReply#serverreply{success = true}, State};
 		ok ->
 			{BaseReply#serverreply{success = true}, State};
 		invalid ->

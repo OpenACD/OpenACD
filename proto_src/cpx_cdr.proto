@@ -117,6 +117,7 @@ message AgentStateChange {
 	optional string profile = 12;
 	optional string dialed_number = 13;
 	repeated Skill skills = 14;
+	optional string node = 15;
 }
 
 message AgentProfileChange {

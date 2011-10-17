@@ -70,7 +70,7 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
-
+-type(endpoints() :: any()).
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
 -type(endpoint_type() :: {'endpoint_type', endpoints()}).

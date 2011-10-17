@@ -1,0 +1,25 @@
+Building Dojo
+=============
+
+Much effort was made to get this build to work.  The end result is commited
+to avoid needing to add the dojo build to the OpenACD build process.  There
+may come a time when dojo needs to be updated, this the submodules located
+here, along side the agent web interface code.  Not great for developement,
+but for now it will need to suffice.
+
+1. Update the submodules for dojo, dijit, dojox, and util.
+1. Modify the agentUI files as needed.
+1. Modify the agentUI/base.js file to add/remove require's as needed.
+1. Modify the agentUI.profile.js file to add or remove files as needed.
+1. Change directory to the util/buildscripts:
+		cd util/buildscripts
+1. Do the build:
+		./build.sh profile=../../agentUI.profile.js
+1. Copy the result to the web directory:
+		cd ../../release/agentUI
+		cp -R ./agentUI ./dijit ./dojo ./dojox ../../../priv/www/contrib
+		cd ../../../priv/www/contrib
+		cp -R dijit dojo/
+1. Commit the result:
+		cd ../../..
+		git commit -a

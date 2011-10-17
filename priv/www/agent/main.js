@@ -217,10 +217,10 @@ function loadTab(tabid){
 	var href = '';
 	var title = '';
 	switch(tabid){
-		case 'supervisorTab':
+		/*case 'supervisorTab':
 			href = 'tabs/supervisor.html';
 			title = 'Supervisor';
-			break;
+			break;*/
 		case 'dashboardTab':
 			href = 'tabs/dashboard.html';
 			title = 'Dashboard';
@@ -520,6 +520,7 @@ dojo.addOnLoad(function(){
 			voipendpoint:false,
 			voipendpointdata:false,
 			useoutbandring:true,
+			usepersistentchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -564,6 +565,7 @@ dojo.addOnLoad(function(){
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
+		settings.usepersistentchannel = confs.usepersistentchannel ? confs.usepersistnatchannel : settings.usepersistentchannel;
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
 				loadTab(settings.tabs[i]);
@@ -969,7 +971,10 @@ dojo.addOnLoad(function(){
 				voipendpointdata: attrs.voipendpointdata
 			}
 			if(attrs.useoutbandring){
-				window.agentConnection.useoutbandring = true;
+				window.agentConnection.loginOptions.useoutbandring = true;
+			}
+			if(attrs.usepersistentringchannel != false){
+				window.agentConnection.loginOptions.usepersistentringchannel = true;
 			}
 			window.agentConnection.login();
 		} else {
@@ -1028,15 +1033,20 @@ dojo.addOnLoad(function(){
 	buildOutboundMenu = function(){
 		//var menu = dijit.byId("outboundmenu");
 		var widget;
-		var store = new dojo.data.ItemFileReadStore({
-				data: {
-					'label': 'label',
-					'identifier': 'id',
-					'items': [
-						{'label':'Failed to load brands', 'id':'0'}
-						]
-					}
-				});
+		var store = new dojo.store.Memory({data:[]});
+		/*var store = new dojo.data.ItemFileReadStore({
+			data: {
+				'label': 'label',
+				'identifier': 'id',
+				'items': [
+					{'label':'Failed to load brands', 'id':'0'}
+				]
+			}
+		});
+		store.query = function(query, options){
+			options = dojo.mixin({'query':query}, options);
+			return this.fetch(options);
+		}*/
 
 		if(!(widget = dijit.byId('boutboundcall'))){
 			widget = new dijit.form.FilteringSelect({
@@ -1062,13 +1072,14 @@ dojo.addOnLoad(function(){
 			},
 			success:function(response, ioargs){
 				debug(["buildOutboundMenu", response]);
-				store = new dojo.data.ItemFileReadStore({
+				store = new dojo.store.Memory({data:response});
+				/*store = new dojo.data.ItemFileReadStore({
 					data: {
 						'label': 'label',
 						'identifier':'id',
 						'items': response
 					}
-				});
+				});*/
 				widget.store = store;
 			}
 		};

@@ -116,6 +116,8 @@
 	state_to_integer/1, 
 	set_connection/2, 
 	set_endpoint/2, 
+	set_endpoint/3,
+	set_endpoint/4,
 	agent_transfer/2,
 	queue_transfer/2,
 	conn_cast/2,
@@ -168,9 +170,15 @@ stop(Pid) ->
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 
--spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: {endpoints(), string()}) -> ok).
+-spec(set_endpoint/2 :: (Pid :: pid(), Endpoint :: endpointtype()) -> ok).
 set_endpoint(Pid, Endpoint) ->
-	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
+	set_endpoint(Pid, Endpoint, undefined, transient).
+
+set_endpoint(Pid, Endpoint, EndpointData) ->
+	set_endpoint(Pid, Endpoint, EndpointData, transient).
+
+set_endpoint(Pid, Endpoint, EndpointData, Persistentness) ->
+	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint, EndpointData, Persistentness}).
 
 %% @doc When the agent manager can't register an agent, it 'casts' to this.
 -spec(register_rejected/1 :: (Pid :: pid()) -> 'ok').
@@ -437,19 +445,81 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = State) ->
 	?INFO("~s rejected a ring request due to ring_locked.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
-idle({ringing, Call = #call{}}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
-	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
-	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, []),
-	Ringlock = case Call#call.media_path of
-		inband ->
-			% we can go oncall pretty damn fast
-			unlocked;
-		outband ->
-			wait
+idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefined, persistent, _}} = Agent} = State) ->
+	?INFO("~s rejected a ring request since persistent ring channel is not yet established.", [Agent#agent.login]),
+	{reply, invalid, idle, State};
+idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
+	case cpx:get_env(ring_manager) of
+		undefined ->
+			{reply, invalid, idle, State};
+		{ok, RingMan} ->
+			case gen_server:call(RingMan, {ring, Agent, InCall}) of
+				{ok, RingPid, Paths} ->
+					Call = case Paths of
+						both ->
+							InCall#call{ring_path = inband, media_path = inband};
+						answer ->
+							InCall#call{ring_path = inband};
+						hangup ->
+							InCall#call{media_path = inband};
+						neither ->
+							InCall
+					end,
+					link(RingPid),
+					NewEp = {RingPid, transient, EpType},
+					gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+					gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+					Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now(), endpointtype = NewEp},
+					set_cpx_monitor(Newagent, []),
+					{reply, ok, ringing, State#state{agent_rec = Newagent}};
+				Else ->
+					?WARNING("Trying to get ring chan didn't work:  ~p", [Else]),
+					{reply, invalid, idle, State}
+			end
+	end;
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
+	RingPid = case cpx:get_env(ring_manager) of
+		undefined ->
+			undefined;
+		{ok, RingMan} ->
+			case gen_server:call(RingMan, {ring, Agent, Incall}) of
+				{ok, NewRingPid, _Paths} ->
+					% TODO do something w/ paths?
+					link(NewRingPid),
+					NewRingPid;
+				RingManErr ->
+					?INFO("non-vital failure of the ring manager ~s:  ~p", [RingMan, RingManErr]),
+					undefined
+			end
 	end,
-	{reply, ok, ringing, State#state{ring_locked = Ringlock, agent_rec = Newagent}};
+	NewEp = {RingPid, transient, EpType},
+	gen_server:cast(Agent#agent.connection, {change_state, ringing, Incall}),
+	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Incall, lastchange = util:now(), endpointtype = NewEp},
+	set_cpx_monitor(Newagent, []),
+	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+idle({ringing, Incall}, {RingPid, _Tag}, #state{agent_rec = #agent{endpointtype = {RingPid, persistent, _EpType}} = Agent} = State) ->
+	%% If my ring pid says so.
+	gen_server:cast(Agent#agent.connection, {change_state, ringing, Incall#call{ring_path = inband, media_path = inband}}),
+	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+	Newagent = Agent#agent{state = ringing, oldstate = idle, statedata = Incall, lastchange = util:now()},
+	set_cpx_monitor(Newagent, []),
+	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {RingPid, persistent, _EpType}} = Agent} = State) ->
+	case gen_server:call(RingPid, {agent_state, ringing, Incall}) of
+		ok ->
+			% fake the call answerabled and hangup-able, because our
+			% ring channel really knows what's going on.
+			CachedCall = Incall#call{ring_path = inband, media_path = inband},
+			gen_server:cast(Agent#agent.connection, {change_state, ringing, CachedCall}),
+			gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+			Newagent = Agent#agent{state = ringing, oldstate = idle, statedata = CachedCall, lastchange = util:now()},
+			set_cpx_monitor(Newagent, []),
+			{reply, ok, ringing, State#state{agent_rec = Newagent}};
+		Else ->
+			?INFO("ringing process ~p could not ring: ~p.", [RingPid, Else]),
+			{reply, invalid, idle, State}
+	end;
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
@@ -479,6 +549,7 @@ idle(_Message, State) ->
 	(Event :: 'idle', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'idle', #state{}}).
 	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'ringing', #state{}}).
 ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) when Statecall#call.ring_path == inband ->
+	% for wehn the agent interface asks to go oncall.
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	case gen_media:oncall(Statecall#call.source) of
@@ -489,6 +560,13 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
 			set_cpx_monitor(Newagent, []),
+			% ring pid just needs to shutup and take it like a man.
+			case Agent#agent.endpointtype of
+				{undefined, _, _} ->
+					ok;
+				{Pid, _Persistance, _} ->
+					gen_server:cast(Pid, {agent_state, oncall, Statecall})
+			end,
 			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		invalid ->
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
@@ -499,6 +577,7 @@ ringing({oncall, Call}, {CallPid, _Tag} = From, #state{ring_locked = wait, agent
 ringing({oncall, _Call}, _From, #state{ring_locked = wait} = State) ->
 	{reply, invalid, ringing, State};
 ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) ->
+	% for when the media asks to go oncall.
 	case Statecall#call.id of
 		Callid -> 
 			Newagent = Agent#agent{state = oncall, statedata = Call, oldstate = ringing, lastchange = util:now()},
@@ -506,6 +585,13 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{stat
 			gen_leader:cast(agent_manager, {end_avail, Newagent#agent.login}),
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newagent, []),
+			% again, ring channel nees to shut up and take it like a man.
+			case Agent#agent.endpointtype of
+				{undefined, _, _} ->
+					ok;
+				{Pid, _Persistance, _} ->
+					gen_server:cast(Pid, {agent_state, oncall, Call})
+			end,
 			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		_Other -> 
 			{reply, invalid, ringing, State}
@@ -515,11 +601,19 @@ ringing({released, default}, From, State) ->
 ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	?DEBUG("going released from ringing", []),
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
+	% ring chan needs to just take it.
+	NewEndPointType = case Agent#agent.endpointtype of
+		{undefined, _, _} = EpType->
+			EpType;
+		{Pid, _Persistnace, _} = EpType ->
+			gen_server:cast(Pid, {agent_state, released}),
+			EpType
+	end,
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	Newagent = Agent#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
+	Newagent = Agent#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now(), endpointtype = NewEndPointType},
 	set_cpx_monitor(Newagent, [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 ringing(idle, _From, #state{ringouts = X, max_ringouts = Max} = State) when not (X < Max) ->
@@ -533,9 +627,16 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			erlang:send_after(Lock, Self, ring_unlock),
 			locked
 	end,
+	NewEndpointType = case Agent#agent.endpointtype of
+		{undefined, _, _} = EpType ->
+			EpType;
+		{Pid, _Persistance, _}  = EpType ->
+			gen_server:cast(Pid, {agent_state, idle}),
+			EpType
+	end,
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
-	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
+	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now(), endpointtype = NewEndpointType},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked, ringouts = State#state.ringouts + 1}};
 ringing(Event, _From, State) ->
@@ -630,7 +731,14 @@ oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent}
 	Newagent = Agent#agent{queuedrelease=Reason},
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Call#call.source ->
-	Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+	NewEndpoint = case Agent#agent.endpointtype of
+		{undefined, _, _} = EpElse ->
+			EpElse;
+		{EpPid, _, _} = EpElse ->
+			gen_server:cast(EpPid, {agent_state, wrapup}),
+			EpElse
+	end,
+	Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
 	set_cpx_monitor(Newagent, []),
 	Client = Call#call.client,
 	case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
@@ -647,8 +755,15 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
 	try gen_media:wrapup(Call#call.source) of
-		ok ->			
-			Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+		ok ->
+			NewEndpoint = Agent#agent.endpointtype,
+			case NewEndpoint of
+				{undefined, _, _} ->
+					ok;
+				{EpPid, _, _} ->
+					gen_server:cast(EpPid, {agent_state, wrapup, Call})
+			end,
+			Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
 			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
@@ -676,7 +791,17 @@ oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #
 		Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
-			Newagent = Agent#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
+			NewEndpoint = case Agent#agent.endpointtype of
+				{undefined, _, _} = ElseEp ->
+					ElseEp;
+				{EpPid, transient, Type} ->
+					exit(EpPid, normal),
+					{undefined, transient, Type};
+				{EpPid, _, _} = ElseEp ->
+					gen_server:cast(EpPid, {agent_state, wrapup}),
+					ElseEp
+			end,
+			Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
 			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
@@ -869,6 +994,7 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agen
 	log_change(Newagent),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 released({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
+	% TODO Wow is this ever enemic.
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
 	set_cpx_monitor(Newagent, []),
@@ -1078,8 +1204,20 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = Agent} = State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
-handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}}};
+handle_sync_event({set_endpoint, Endpointtype, Endpointdata, persistent}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	case create_persistent_endpoint(Agent#agent{endpointtype = {undefined, persistent, Endpointtype}, endpointdata = Endpointdata}) of
+		{ok, Pid, _AnswerHangupSetting} ->
+			link(Pid),
+			?INFO("Linking to ~p", [Pid]),
+			{reply, {ok, Pid}, StateName, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistent, Endpointtype}, endpointdata = Endpointdata}}};
+		{error, Error} ->
+			?ERROR("Couldn't start persistent channel:  ~p", [Error]),
+			{reply, {error, Error}, StateName, State}
+	end;
+handle_sync_event({set_endpoint, Endpointtype, Endpointdata, transient}, _From, StateName, #state{agent_rec = Agent} = State) ->
+	Eptype = {undefined, transient, Endpointtype},
+	?INFO("Endpoint set to ~p", [Eptype]),
+	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Eptype, endpointdata = Endpointdata}}};
 handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_rec = #agent{connection=Connection} = _Agent} = State) when is_pid(Connection) ->
 	gen_server:cast(Connection, {url_pop, URL, Name}),
 	{reply, ok, StateName, State};
@@ -1149,6 +1287,21 @@ handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid
 	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
 	Newagent = Agent#agent{log_pid = Pid},
 	{next_state, Statename, State#state{agent_rec = Newagent}};
+handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, persistent, Endpointtype}, endpointdata = _Endpointdata} = InAgent} = State) ->
+	?ERROR("Persistant endpoint ~p died due to ~p", [From, Reason]),
+	Agent = InAgent#agent{endpointtype = {undefined, persistent, Endpointtype}},
+	case create_persistent_endpoint(Agent) of
+		{ok, Pid, _AnswerHangupPaths} ->
+			link(Pid),
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {Pid, persistent, Endpointtype}}}};
+		Error ->
+			?ERROR("Cound not recreate persistent ring channel:  ~p", [Error]),
+			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {undefined, persistent, Endpointtype}}}}
+	end;
+handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, transient, EpType}} = Agent} = State) ->
+	?INFO("Transient ring pid ~p died; maybe it was supposed to?", [From]),
+	NewAgent = Agent#agent{endpointtype = {undefined, transient, EpType}},
+	{next_state, Statename, State#state{agent_rec = NewAgent}};
 handle_info({'EXIT', From, Reason}, oncall, #state{agent_rec = #agent{connection = From, statedata = Call} = Agent} = State) ->
 	?WARNING("agent connection died while ~w with ~w media", [oncall, Call#call.media_path]),
 	case Call#call.media_path of
@@ -1324,6 +1477,14 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 %% Internal functions
 %% =====
 
+create_persistent_endpoint(Agent) ->
+	case cpx:get_env(ring_manager) of
+		undefined ->
+			{error, no_ring_manager};
+		{ok, Manager} ->
+			gen_server:call(Manager, {ring, Agent, none})
+	end.
+
 set_cpx_monitor(State, Otherdeatils)->
 	set_cpx_monitor(State, Otherdeatils, ignore).
 
@@ -1467,6 +1628,11 @@ ring_oncall_mismatch_test() ->
 	{_, Pid} = start(#agent{login="testagent"}),
 	Goodcall = #call{id="Goodcall", source=self()},
 	Badcall = #call{id="Badcall", source=self()},
+	application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
+	{ok, Fsmmm} = gen_server_mock:named({local, freeswitch_media_manager}),
+	gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _, State) ->
+		{ok, {ok, spawn(fun() -> ok end)}, State}
+	end),
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
@@ -1552,6 +1718,11 @@ from_idle_tests() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to ringing",
 		fun() ->
+			{ok, Fsmmm} = gen_server_mock:named({local, freeswitch_media_manager}),
+			application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
+			gen_server_mock:expect_call(Fsmmm, fun({ring, {undefined, transient, sip_registration}, _EndPointData, _Callback, _Options}, _From, State) ->
+				{ok, {ok, spawn(fun() -> ok end)}, State}
+			end),
 			Self = self(),
 			Call = #call{
 				id = "testcall",
@@ -1567,11 +1738,10 @@ from_idle_tests() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			TestOut = idle({ringing, Call}, "from", State),
-			?assertMatch({reply, ok, ringing, _State}, TestOut),
-			TestState = element(4, TestOut),
-			?assertEqual(wait, TestState#state.ring_locked),
-			Assertmocks()
+			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", State)),
+			gen_server_mock:assert_expectations(whereis(freeswitch_media_manager)),
+			Assertmocks(),
+			gen_server_mock:stop(whereis(freeswitch_media_manager))
 		end}
 	end,
 	fun({Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks} = _Testargs) ->
@@ -1584,6 +1754,19 @@ from_idle_tests() ->
 			},
 			State = Seedstate#state{ring_locked = locked},
 			?assertEqual({reply, invalid, idle, State}, idle({ringing, Call}, "from", State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = SeedAgent} = Seedstate, AMmock, _Dmmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to ringing with down perisistant ring",
+		fun() ->
+			#state{agent_rec = Agent} = State = Seedstate#state{agent_rec = SeedAgent#agent{endpointtype = {undefined, persistent, sip_registration}}}, 
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self
+			},
+			?assertMatch({reply, invalid, idle, _State}, idle({ringing, Call}, "from", State)),
 			Assertmocks()
 		end}
 	end,
@@ -2192,12 +2375,13 @@ from_oncall_tests() ->
 		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
+		{ok, RingChanMock} = gen_server_mock:new(),
 		Callrec = #call{
 			id = "testcall",
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid, endpointtype = {RingChanMock, transient, sip_registration}},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			cpx_monitor:assert_mock(),
@@ -2342,7 +2526,7 @@ from_oncall_tests() ->
 			gen_server_mock:expect_call(Callrec#call.source, fun('$gen_media_wrapup', _From, _State) ->
 				ok
 			end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
 			Assertmocks()
 		end}
 	end,
@@ -2361,7 +2545,7 @@ from_oncall_tests() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Assertmocks()
 		end}
 	end,
@@ -2372,14 +2556,15 @@ from_oncall_tests() ->
 			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
 			Callrec = Basecall#call{client = Client},
 			Agent = BaseAgent#agent{statedata = Callrec},
-			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {spawn(fun() -> ok end), make_ref()}, State)),
+			Out = oncall({wrapup, Agent#agent.statedata}, {spawn(fun() -> ok end), make_ref()}, State),
+			?assertMatch({reply, invalid, oncall, #state{agent_rec = #agent{endpointtype = {_, transient, _}}} = _State}, Out),
 			Assertmocks()
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup request from agent connection with outband media",
 		fun() ->
-			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State)),
+			?assertMatch({reply, invalid, oncall, #state{agent_rec = #agent{endpointtype = {_, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State)),
 			Assertmocks()
 		end}
 	end,
@@ -2393,7 +2578,7 @@ from_oncall_tests() ->
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
 			Assertmocks()
 		end}
 	end,
@@ -2401,6 +2586,25 @@ from_oncall_tests() ->
 		{"to wrapup request from some other pid with outband media",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {spawn(fun() -> ok end), make_ref()}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{endpointtype = {RingChanPid, _, _}} = BaseAgent} = BaseState, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup with persistent ring channel",
+		fun() ->
+			Agent = BaseAgent#agent{endpointtype = {RingChanPid, persistent, sip_registration}},
+			State = BaseState#state{agent_rec = Agent},
+			Call = Agent#agent.statedata,
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			Out = oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State),
+
+			?DEBUG("Das out:  ~p", [Out]),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {RingChanPid, persistent, _}}} = _State}, Out),
 			Assertmocks()
 		end}
 	end,
@@ -3157,7 +3361,7 @@ handle_sync_event_test_() ->
 		{"setting end point doesn't corrupt state",
 		fun() ->
 			Seedstate = #state{agent_rec = #agent{login = "test"}},
-			?assertMatch({reply, ok, state, #state{agent_rec = #agent{endpointtype = "end point type", endpointdata = "end point data"} = _Agent} = _State}, handle_sync_event({set_endpoint, {"end point type", "end point data"}}, "from", state, Seedstate))
+			?assertMatch({reply, ok, state, #state{agent_rec = #agent{endpointtype = {undefined, transient, "end point type"}, endpointdata = "end point data"} = _Agent} = _State}, handle_sync_event({set_endpoint, {"end point type", "end point data"}}, "from", state, Seedstate))
 		end}
 	end]}.
 

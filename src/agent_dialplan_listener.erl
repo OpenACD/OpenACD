@@ -38,7 +38,8 @@
 -endif.
 
 -record(state, {
-	registry = dict:new() :: dict()
+	registry = dict:new() :: dict(),
+	start_opts = [] :: start_opts()
 }).
 
 -type(state() :: #state{}).
@@ -46,27 +47,39 @@
 -include("gen_spec.hrl").
 
 %% API
--export([start/0, start_link/0, stop/0]).
+-export([start/0, start_link/0, start/1, start_link/1, stop/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-type(unavailable_timeout_opt() :: {'unavailable_timeout', integer()}).
+-type(start_opt() :: unavailable_timeout_opt()).
+-type(start_opts() :: [start_opt()]).
+
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+	start([]).
+
+-spec(start/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+start(Options) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, Options, []).
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+	start_link([]).
+
+-spec(start_link/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+start_link(Options) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 
-init([]) ->
+init(Options) ->
 	process_flag(trap_exit, true),
-	{ok, #state{}}.
+	{ok, #state{start_opts = Options}}.
 
 handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
@@ -104,7 +117,7 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 						skills = lists:umerge(lists:sort(AgentAuth#agent_auth.skills), lists:sort(['_agent', '_node'])),
 						profile = AgentAuth#agent_auth.profile
 					},
-					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel) of
+					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel, State#state.start_opts) of
 						{ok, Pid} ->
 							?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),

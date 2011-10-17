@@ -631,6 +631,7 @@ get_salt({Reflist, _Salt, Conn}) ->
 %% 	"voipendpointdata":  string(),
 %% 	"voipendpoint":  "sip_registration" | "sip" | "iax2" | "h323" | "pstn",
 %% 	"useoutbandring":  boolean(); optional,
+%%  "usepersistentring":  boolean(); optional
 %%  "supervisor":boolean(); optional
 %% }</pre>
 %% 
@@ -660,14 +661,22 @@ login(badcookie, _, _, _) ->
 login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
-	Endpointdata = proplists:get_value(voipendpointdata, Opts),
-	Endpoint = case {proplists:get_value(voipendpoint, Opts), Endpointdata} of
+	ProtoEndpointdata = proplists:get_value(voipendpointdata, Opts),
+	Persistantness = case proplists:get_value(use_persistent_ring, Opts) of
+		true -> persistent;
+		_ -> transient
+	end,
+	?INFO("login opts:  ~p", [Opts]),
+	{Endpoint, Endpointdata} = case {proplists:get_value(voipendpoint, Opts), ProtoEndpointdata} of
 		{undefined, _} ->
+			%{{persistent, sip_registration}, Username};
 			{sip_registration, Username};
 		{sip_registration, undefined} ->
+			%{{persistent, sip_registration}, Username};
 			{sip_registration, Username};
 		{EndpointType, _} ->
-			{EndpointType, Endpointdata}
+			%{EndpointType, Endpointdata}
+			{EndpointType, ProtoEndpointdata}
 	end,
 	Bandedness = case proplists:get_value(use_outband_ring, Opts) of
 		true ->
@@ -717,12 +726,15 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 								login = Username, 
 								skills = Skills, 
 								profile=Profile, 
-								password=DecryptedPassword
+								password=DecryptedPassword,
+								endpointtype = Endpoint,
+								endpointdata = Endpointdata
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									%agent:set_endpoint(Pid, Endpoint, Endpointdata, Persistantness),
+									gen_server:call(Pid, {set_endpoint, Endpoint, Endpointdata, Persistantness}),
 									linkto(Pid),
 									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
@@ -733,7 +745,9 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 											{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
 											{<<"statetime">>, StateTime},
-											{<<"timestamp">>, util:now()}]}}]})};
+											{<<"timestamp">>, util:now()}
+										]}}
+									]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);
@@ -814,6 +828,7 @@ api(ApiArea, Cookie, Post) when ApiArea =:= api; ApiArea =:= supervisor ->
 		{<<"login">>, [Username, Password]} ->
 			login(Cookie, binary_to_list(Username), binary_to_list(Password), []);
 		{<<"login">>, [Username, Password, {struct, LoginProps}]} ->
+			?INFO("Login opts:  ~p", [LoginProps]),
 			LoginOpts = lists:flatten([case X of
 				{<<"voipendpointdata">>, <<>>} ->
 					{voipendpointdata, undefined};
@@ -831,6 +846,8 @@ api(ApiArea, Cookie, Post) when ApiArea =:= api; ApiArea =:= supervisor ->
 					{voipendpoint, pstn};
 				{<<"useoutbandring">>, true} ->
 					use_outband_ring;
+				{<<"usepersistentringchannel">>, true} ->
+					use_persistent_ring;
 				{_, _} ->
 					[]
 			end || X <- LoginProps]),

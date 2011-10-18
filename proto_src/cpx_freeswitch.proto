@@ -1,0 +1,53 @@
+import "cpx_agent.proto";
+
+package openacd.agent.freeswitch;
+
+// By the power vested in me by my OS and being at the keyboard,
+// I hearby declare Freeswitch reserves message extension range from
+// 3000 to 3500.  I doubt I'll need 500 new fields, but one never knows.
+
+enum FreeswitchEvent {
+	CALLER_ONHOLD = 1;
+	CALLER_OFFHOLD = 2;
+	IN_CONFERENCE = 3;
+	HOLD_CONFERENCE = 4;
+	THIRD_PARTY = 5;
+	HOLD_CONFERENCE_3RD_PARTY = 6;
+}
+
+enum FreeswitchRequest {
+	SET_AUDIO_LEVEL = 1;
+	TOGGLE_HOLD = 2;
+	CONNECT_3RD_PARTY = 3;
+	CONNECT_CONFERENCE = 4;
+	MERGE_3RD_PARTY = 5;
+}
+
+message AudioLevelRequest {
+	enum AudioChannel {
+		SPEAKER = 1;
+		MIC = 2;
+	}
+	required AudioChannel channel = 1;
+	required int32 value = 2; // This is -4 to 4
+}
+
+message Connect3rdPartyRequest {
+	optional string target = 1;
+}
+
+message Merge3rdPartyRequest {
+	optional bool include_self = 1 [default=false];
+}
+
+extend MediaCommandRequest {
+	optional FreeswitchRequest freeswitch_request_hint = 3000;
+	optional AudioLevelRequest audio_level_request = 3001;
+	optional Connect3rdPartyRequest connect_3rd_party = 3002;
+	optional Merge3rdPartyRequest merge_3rd_party = 3003;
+}
+
+extend MediaEvent {
+	option FreeswitchEvent freeswitch_event = 3000;
+}
+

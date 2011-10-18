@@ -21,6 +21,7 @@ enum FreeswitchRequest {
 	CONNECT_3RD_PARTY = 3;
 	CONNECT_CONFERENCE = 4;
 	MERGE_3RD_PARTY = 5;
+	BLIND_TRANSFER = 6;
 }
 
 message AudioLevelRequest {
@@ -40,11 +41,16 @@ message Merge3rdPartyRequest {
 	optional bool include_self = 1 [default=false];
 }
 
+message BlindTransferRequest {
+	required string target = 1;
+}
+
 extend MediaCommandRequest {
 	optional FreeswitchRequest freeswitch_request_hint = 3000;
 	optional AudioLevelRequest audio_level_request = 3001;
 	optional Connect3rdPartyRequest connect_3rd_party = 3002;
 	optional Merge3rdPartyRequest merge_3rd_party = 3003;
+	optional BlindTransferRequest blind_transfer = 3004;
 }
 
 extend MediaEvent {

@@ -705,6 +705,24 @@ handle_cast({audio_level, Target, Level}, Call, #state{statename = Statename} =
 	freeswitch:bgapi(State#state.cnode, uuid_audio, ApiStr),
 	{noreply, State};
 
+handle_cast({blind_transfer, Destination}, Call, #state{statename = oncall} = State) ->
+	#state{cnode = Fnode} = State,
+	#call{client = Client, id = UUID} = Call,
+	#client{options= ClientOpts} = Client,
+	{CallerNameOpt,CallerNumberOpt} = case proplists:get_value(<<"caller_id">>, ClientOpts) of
+		undefined -> {"",""};
+		{BinName,BinNumber} when is_binary(BinName),is_binary(BinNumber) ->
+			{binary_to_list(binName),binary_to_list(BinNumber)};
+		CidOut -> CidOut
+	end,
+	BaseDS = freeswitch_media_manager:get_default_dial_string(),
+	RingOpts = [CallerNameOpt, CallerNumberOpt, "hangup_after_bridge=true"],
+	Dialstring = freeswitch_media_manager:do_dial_string(BaseDS, Destination, RingOpts),
+	?DEBUG("Transfering ~s to ~s blindly.", [UUID, Dialstring]),
+	freeswitch:api(Fnode, uuid_setvar, UUID ++ " hangup_after_bridge=false"),
+	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " " ++ Dialstring),
+	{noreply, State};
+
 %% web api's
 handle_cast({<<"toggle_hold">>, _}, Call, State) ->
 	handle_cast(toggle_hold, Call, State);
@@ -735,6 +753,10 @@ handle_cast({<<"audio_level">>, Arguments}, Call, State) ->
 		_ -> [read,0]
 	end,
 	handle_cast({audio_level, Target, Level}, Call, State);
+
+handle_cast({<<"blind_transfer">>, Args}, Call, State) ->
+	Dest = proplists:get_value("args", Args),
+	handle_cast({blind_transfer, Dest}, Call, State);
 
 %% tcp api's
 handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) ->
@@ -767,6 +789,12 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 				undefined -> handle_cast({merge_3rd_party, false},Call,State);
 				#merge3rdpartyrequest{include_self = AndSelf} ->
 					handle_cast({merge_3rd_party, AndSelf},Call,State)
+			end;
+		'BLIND_TRANSFER' ->
+			case cpx_freeswitch_pb:get_extension(blind_transfer, FixedRequest) of
+				#blindtransferrequest{target = Dest} ->
+					handle_cast({blind_transfer, Dest}, Call, State);
+				_ -> {noreply, State}
 			end;
 		_ -> {noreply, State}
 	end;

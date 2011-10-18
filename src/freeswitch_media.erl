@@ -655,7 +655,7 @@ handle_cast(connect_conference, Call, #state{
 		statename = Statename} = State) when Statename =:= 'hold_conference';
 		Statename =:= 'hold_conference_3rdparty' ->
 	#state{cnode = Fnode, ringuuid = Ringid, conference_id = Confid} = State,
-	freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " conference;" ++ Confid ++ " inline"),
+	freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " conference:" ++ Confid ++ " inline"),
 	{{mediapush, 'in_conference'}, State#state{statename = 'in_conference'}};
 
 handle_cast({merge_3rd_party, IncludeAgent}, Call, #state{statename = '3rd_party'} = State) ->

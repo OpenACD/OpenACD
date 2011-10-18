@@ -54,6 +54,6 @@ extend MediaCommandRequest {
 }
 
 extend MediaEvent {
-	option FreeswitchEvent freeswitch_event = 3000;
+	optional FreeswitchEvent freeswitch_event = 3000;
 }
 

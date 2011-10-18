@@ -228,14 +228,15 @@ handle_cast({mediaload, Callrec}, State) ->
 	{noreply, State#state{mediaload = []}};
 handle_cast({mediaload, _Callrec, Options}, State) ->
 	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, _Callrec, Data}, State) when is_tuple(Data) ->
+handle_cast({mediapush, Callrec, Data}, State) when is_tuple(Data) ->
 	case element(1, Data) of
 		mediaevent ->
 			Command = #serverevent{
 				command = 'MEDIA_EVENT',
 				media_event = Data
 			},
-			server_event(State#state.socket, Command, State#state.radix);
+			%server_event(State#state.socket, Command, State#state.radix);
+			media_event(State#state.socket, Command, Callrec, State#state.radix);
 		_Else ->
 			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
 			ok
@@ -313,6 +314,19 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+media_event({Mod,Socket}, Command, Callrec, Radix) ->
+	BaseOutrec = #servermessage{
+		type_hint = 'EVENT',
+		event = Command
+	},
+	% TODO ugh, hard coding
+	Bin = case Callrec#call.type of
+		voice -> cpx_freeswitch_pb:encode(BaseOutrec);
+		_ -> cpx_agent_pb:encode(BaseOutrec)
+	end,
+	Outbin = protobuf_util:bin_to_netstring(Bin,Radix),
+	ok = Mod:send(Socket, Outbin).
 
 server_event(Socket, Record, Radix) ->
 	Outrec = #servermessage{

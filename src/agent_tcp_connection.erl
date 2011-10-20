@@ -228,18 +228,19 @@ handle_cast({mediaload, Callrec}, State) ->
 	{noreply, State#state{mediaload = []}};
 handle_cast({mediaload, _Callrec, Options}, State) ->
 	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, Callrec, Data}, State) when is_tuple(Data) ->
-	case element(1, Data) of
-		mediaevent ->
+handle_cast({mediapush, Callrec, Data}, State) ->
+	Newpush = translate_media_push(Callrec, Data, State),
+	case Newpush of
+		false -> 
+			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
+			ok;
+		_ ->
 			Command = #serverevent{
 				command = 'MEDIA_EVENT',
-				media_event = Data
+				media_event = Newpush
 			},
 			%server_event(State#state.socket, Command, State#state.radix);
-			media_event(State#state.socket, Command, Callrec, State#state.radix);
-		_Else ->
-			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
-			ok
+			media_event(State#state.socket, Command, Callrec, State#state.radix)
 	end,
 	{noreply, State};
 handle_cast({set_salt, Salt}, State) ->
@@ -314,6 +315,17 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+translate_media_push(#call{type = voice} = Callrec, Data, State) when is_atom(Data) ->
+	NewData = case Data of
+		'3rd_party' -> 'THIRD_PARTY';
+		caller_hold -> 'CALLER_ONHOLD';
+		_ -> list_to_atom(string:to_upper(atom_to_list(Data)))
+	end,
+	{ok, Out} = cpx_freeswitch_pb:set_extension(#mediaevent{}, freeswitch_event, NewData),
+	Out;
+translate_media_push(_,_,_) ->
+	false.
 
 media_event({Mod,Socket}, Command, Callrec, Radix) ->
 	BaseOutrec = #servermessage{

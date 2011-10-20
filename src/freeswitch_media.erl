@@ -761,7 +761,11 @@ handle_cast({<<"blind_transfer">>, Args}, Call, State) ->
 %% tcp api's
 handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) ->
 	FixedRequest = cpx_freeswitch_pb:decode_extensions(Request),
-	case cpx_freeswitch_pb:get_extension(freeswitch_request_hint, FixedRequest) of
+	Hint = case cpx_freeswitch_pb:get_extension(FixedRequest, freeswitch_request_hint) of
+		{ok, O} -> O;
+		_ -> undefined
+	end,
+	case Hint of
 		'SET_AUDIO_LEVEL' ->
 			case cpx_freeswitch_pb:get_extension(audio_level_request,FixedRequest) of
 				#audiolevelrequest{channel = X, value = Y} when X == undefined; Y == undefined ->
@@ -778,21 +782,21 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 		'TOGGLE_HOLD' ->
 			handle_cast(toggle_hold, Call, State);
 		'CONNECT_3RD_PARTY' ->
-			case cpx_freeswitch_pb:get_extension(connect_3rd_party, FixedRequest) of
+			case cpx_freeswitch_pb:get_extension(FixedRequest, connect_3rd_party) of
 				undefined -> handle_cast(connect_3rd_party, Call, State);
-				#connect3rdpartyrequest{target = Target} ->
+				{ok, #connect3rdpartyrequest{target = Target}} ->
 					handle_cast({contact_3rd_party, Target}, Call, State)
 			end;
 		'CONNECT_CONFERENCE' -> handle_cast(connect_conference, Call, State);
 		'MERGE_3RD_PARTY' ->
 			case cpx_freeswitch_pb:get_extension(merge_3rd_party, FixedRequest) of
 				undefined -> handle_cast({merge_3rd_party, false},Call,State);
-				#merge3rdpartyrequest{include_self = AndSelf} ->
+				{ok, #merge3rdpartyrequest{include_self = AndSelf}} ->
 					handle_cast({merge_3rd_party, AndSelf},Call,State)
 			end;
 		'BLIND_TRANSFER' ->
 			case cpx_freeswitch_pb:get_extension(blind_transfer, FixedRequest) of
-				#blindtransferrequest{target = Dest} ->
+				{ok, #blindtransferrequest{target = Dest}} ->
 					handle_cast({blind_transfer, Dest}, Call, State);
 				_ -> {noreply, State}
 			end;

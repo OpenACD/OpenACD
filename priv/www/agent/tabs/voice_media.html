@@ -22,19 +22,21 @@
 				}
 				dojo.query(nodeidList.join()).style('display', visible);
 			},
+			lastEvent:'caller_offhold',
 			masterSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
 				dojo.query('#freeswitchBusyBox').style('visibility', 'hidden');
 				var setVis = window.freeswitch.setVisible;
 				// boxs:  voiceDialBox, merge3rdPartyBox, unhold3rdPartyBox
 				// 	joinConferenceBox, simpleHoldBox
+				window.freeswitch.lastEvent = data['event'];
 				switch(data['event']){
 					case 'caller_hold':
 						setVis(true, 'simpleHoldBox', 'voiceDialBox');
 						setVis(false, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
 						break;
 					case 'caller_offhold':
-						setVis(true, 'simpleHoldBox');
-						setVis(false, 'joinConferenceBox', 'merge3rdPartyBox', 'voiceDialBox', 'unhold3rdPartyBox');
+						setVis(true, 'simpleHoldBox','voiceDialBox');
+						setVis(false, 'joinConferenceBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					case '3rd_party':
 						setVis(true, 'merge3rdPartyBox', 'joinConferenceBox', 'simpleHoldBox');
@@ -72,7 +74,11 @@
 			}),
 			dial: function(){
 				var num = dijit.byId(dojo.query('#voiceDialBox input[name=dialNumber]')[0].id).get('value');
-				agentConnection.agentApi("media_command", {}, "contact_3rd_party", "cast", num);
+				var command = 'contact_3rd_party';
+				if(window.freeswitch.lastEvent == 'caller_offhold'){
+					command = 'blind_transfer';
+				}
+				agentConnection.agentApi("media_command", {}, command, "cast", num);
 			}
 		};
 	}
@@ -118,7 +124,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
+			agentConnection.agentApi("media_command", {}, "toggle_hoold", "cast", "");
 		</script>
 	</button>
 	</span>
@@ -166,7 +172,7 @@
 	</button>
 	</span>
 
-	<span id="voiceDialBox" style="display:none">
+	<span id="voiceDialBox" style="display:inline">
 		<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
 		<button dojoType="dijit.form.Button">-&gt;
 			<script type="dojo/connect" event="onClick">

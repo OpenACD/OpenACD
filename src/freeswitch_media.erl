@@ -716,11 +716,11 @@ handle_cast({blind_transfer, Destination}, Call, #state{statename = oncall} = St
 		CidOut -> CidOut
 	end,
 	BaseDS = freeswitch_media_manager:get_default_dial_string(),
-	RingOpts = [CallerNameOpt, CallerNumberOpt, "hangup_after_bridge=true"],
+	RingOpts = [CallerNameOpt, CallerNumberOpt, "hangup_after_bridge=false"],
 	Dialstring = freeswitch_media_manager:do_dial_string(BaseDS, Destination, RingOpts),
 	?DEBUG("Transfering ~s to ~s blindly.", [UUID, Dialstring]),
-	freeswitch:api(Fnode, uuid_setvar, UUID ++ " hangup_after_bridge=false"),
-	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " " ++ Dialstring),
+	freeswitch:api(Fnode, uuid_setvar, UUID ++ " park_after_bridge true"),
+	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " 'm:^:bridge:" ++ Dialstring ++ "' inline"),
 	{noreply, State};
 
 %% web api's
@@ -795,12 +795,16 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 					handle_cast({merge_3rd_party, AndSelf},Call,State)
 			end;
 		'BLIND_TRANSFER' ->
-			case cpx_freeswitch_pb:get_extension(blind_transfer, FixedRequest) of
+			case cpx_freeswitch_pb:get_extension(FixedRequest,blind_transfer) of
 				{ok, #blindtransferrequest{target = Dest}} ->
 					handle_cast({blind_transfer, Dest}, Call, State);
-				_ -> {noreply, State}
+				BTIgnored ->
+					?DEBUG("blind transfer ignored:  ~p", [BTIgnored]),
+					{noreply, State}
 			end;
-		_ -> {noreply, State}
+		FullReqIgnored ->
+			?DEBUG("Request fully ignored:  ~p", [FullReqIgnored]),
+			{noreply, State}
 	end;
 
 handle_cast({'3rd_party_pickup', ChanPid}, Call, #state{'3rd_party_mon' = {ChanPid, ChanMon}} = State) ->

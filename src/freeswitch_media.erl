@@ -712,7 +712,7 @@ handle_cast({blind_transfer, Destination}, Call, #state{statename = oncall} = St
 	{CallerNameOpt,CallerNumberOpt} = case proplists:get_value(<<"caller_id">>, ClientOpts) of
 		undefined -> {"",""};
 		{BinName,BinNumber} when is_binary(BinName),is_binary(BinNumber) ->
-			{binary_to_list(binName),binary_to_list(BinNumber)};
+			{binary_to_list(BinName),binary_to_list(BinNumber)};
 		CidOut -> CidOut
 	end,
 	BaseDS = freeswitch_media_manager:get_default_dial_string(),

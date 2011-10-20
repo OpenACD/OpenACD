@@ -674,42 +674,42 @@ service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
 			end
 	end,
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
-	Number = WarmTransRequest#warmtransferrequest.number,
-	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
-	Call = State#state.statedata,
-	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
-	Call = State#state.statedata,
-	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
+%	Number = WarmTransRequest#warmtransferrequest.number,
+%	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
 service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
 	gen_tcp:close(State#state.socket),
 	%% TODO Not a very elegant shutdown from this point onward...

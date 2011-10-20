@@ -474,15 +474,15 @@ make_bin(Record, LastReqId) when is_record(Record, goreleasedrequest) ->
 	},
 	NetBin = make_netstring(Request),
 	{ReqId, NetBin};
-make_bin(Record, LastReqId) when is_record(Record, warmtransferrequest) ->
-	ReqId = make_req_id(LastReqId),
-	Request = #agentrequest{
-		request_id = ReqId,
-		request_hint = 'WARM_TRANSFER_BEGIN',
-		warm_transfer_request = Record
-	},
-	NetBin = make_netstring(Request),
-	{ReqId, NetBin};
+%make_bin(Record, LastReqId) when is_record(Record, warmtransferrequest) ->
+%	ReqId = make_req_id(LastReqId),
+%	Request = #agentrequest{
+%		request_id = ReqId,
+%		request_hint = 'WARM_TRANSFER_BEGIN',
+%		warm_transfer_request = Record
+%	},
+%	NetBin = make_netstring(Request),
+%	{ReqId, NetBin};
 make_bin(Record, LastReqId) when is_record(Record, agenttransferrequest) ->
 	ReqId = make_req_id(LastReqId),
 	Request = #agentrequest{

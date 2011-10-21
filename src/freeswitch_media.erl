@@ -993,8 +993,8 @@ case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id'
 	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),
 	{{mediapush, '3rd_party'}, State};
 
-case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, _Callrec, #state{statename =  blind_transfered} = State) ->
-	?DEBUG("UUID picked up by 3rd party in blind transfer", []),
+case_event_name(EventName, UUID, _Rawcall, _Callrec, #state{statename =  blind_transfered} = State) ->
+	?DEBUG("Blind transfer state doing nothing for event event ~s of uuid ~s", [EventName, UUID]),
 	{noreply, State};
 
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = Rpid, uuid = UUID} = State) when is_pid(Rpid) ->

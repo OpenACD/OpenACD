@@ -45,16 +45,16 @@
 						onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
 						break;
 					case 'hold_conference_3rdparty':
-						setVis(true, 'unhold3rdPartyBox', 'joinConferenceBox');
-						setVis(false, 'simpleHoldBox', 'voiceDialBox', 'merge3rdPartyBox');
+						setVis(true, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
+						setVis(false, 'simpleHoldBox', 'voiceDialBox');
 						break;
 					case 'hold_conference':
 						setVis(true, 'voiceDialBox','conferenceHoldBox', 'joinConferenceBox');
 						setVis(false, 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					case 'in_conference':
-						setVis(true, 'voiceDialBox');
-						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+						setVis(true, 'voiceDialBox', 'simpleHoldBox');
+						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					default:
 						console.error('freeswitch event not handled', data['event']);
@@ -68,7 +68,7 @@
 				}
 				if(data['event'] == 'caller_hold'){
 					onHoldb.set('label', '<span class="loss">&bull;</span> Unhold');
-				} else if(data['event'] == 'caller_offhold'){
+				} else {
 					onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
 				}
 			}),
@@ -124,7 +124,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "toggle_hoold", "cast", "");
+			agentConnection.agentApi("media_command", {}, "toggle_hold", "cast", "");
 		</script>
 	</button>
 	</span>
@@ -136,7 +136,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "connect_conference", "cast", "");
+			agentConnection.agentApi("media_command", {}, "retrieve_conference", "cast", "");
 		</script>
 	</button>
 	</span>
@@ -148,7 +148,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "connect_3rd_party", "cast", "");
+			agentConnection.agentApi("media_command", {}, "retrieve_3rd_party", "cast", "");
 		</script>
 	</button>
 	</span>

@@ -98,7 +98,8 @@
 		% but there is a 3rd party in limbo.
 	'3rd_party' | % there is a conference, but agent is talking w/ 3rd party.
 	'in_conference' | % agent is a member of the conference, no limbo party
-	'wrapup_conference' % there is no agent
+	'wrapup_conference' | % there is no agent
+	'blind_transfered'
 ).
 
 -record(state, {
@@ -721,7 +722,7 @@ handle_cast({blind_transfer, Destination}, Call, #state{statename = oncall} = St
 	?DEBUG("Transfering ~s to ~s blindly.", [UUID, Dialstring]),
 	freeswitch:api(Fnode, uuid_setvar, UUID ++ " park_after_bridge true"),
 	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " 'm:^:bridge:" ++ Dialstring ++ "' inline"),
-	{noreply, State};
+	{wrapup, State#state{statename = 'blind_transfered'}};
 
 %% web api's
 handle_cast({<<"toggle_hold">>, _}, Call, State) ->
@@ -991,6 +992,10 @@ case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id' = UUID, statename = '3rd_party'} = State) ->
 	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),
 	{{mediapush, '3rd_party'}, State};
+
+case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, _Callrec, #state{statename =  blind_transfered} = State) ->
+	?DEBUG("UUID picked up by 3rd party in blind transfer", []),
+	{noreply, State};
 
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = Rpid, uuid = UUID} = State) when is_pid(Rpid) ->
 	% TODO fix when this can return an {oncall, State}

@@ -102,6 +102,10 @@
 	'blind_transfered'
 ).
 
+-define(cdr_states, ['oncall', 'oncall_hold', 'hold_conference',
+	'hold_conference_3rdparty', 'in_conference_3rdparty', '3rd_party',
+	'in_conference', 'wrapup_conference', 'blind_transfered']).
+
 -record(state, {
 	statename :: internal_statename(),
 	uuid :: string(),
@@ -665,6 +669,7 @@ handle_cast(retrieve_conference, Call, #state{
 		'hold_conference' -> 'in_conference';
 		'hold_conference_3rdparty' -> 'in_conference_3rdparty'
 	end,
+	cdr:media_custom(Call, NewState, ?cdr_states, []),
 	{{mediapush, NewState}, State#state{statename = NewState}};
 
 % 3rd_party -> hold_conference_3rdparty | in_conference | hold_conference
@@ -943,9 +948,10 @@ handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when 
 %	catch freeswitch_ring:hangup(State#state.ringchannel),
 %	{stop, normal, State};
 
-handle_info({'DOWN', Ref, process, Pid, Cause}, _Call, #state{statename = 
+handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename = 
 		oncall, spawn_oncall_mon = {Pid, Ref}} = State) ->
 	?DEBUG("Oncaller pid termination cause:  ~p", [Cause]),
+	cdr:media_custom(Call, oncall, ?cdr_states, []),
 	{{mediapush, caller_offhold}, State#state{spawn_oncall_mon = undefined}};
 
 handle_info(Info, Call, State) ->
@@ -1025,6 +1031,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 %% @private
 case_event_name({"CUSTOM", "conference::maintenance"}, UUID, _Rawcall, Callrec, #state{statename = Statename, '3rd_party_id' = UUID} = State) when 
 		Statename =:= 'in_conference'; Statename =:= 'hold_conference' ->
+	cdr:media_custom(Callrec, Statename, ?cdr_states, []),
 	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
 
 case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
@@ -1032,10 +1039,12 @@ case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 	#state{cnode = Fnode, ringuuid = Ruuid} = State,
 	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
 	freeswitch:bgapi(Fnode, uuid_bridge, UUID ++ " " ++ Ruuid),
+	cdr:media_custom(Callrec, '3rd_party', ?cdr_states, []),
 	{{mediapush, '3rd_party'}, State#state{statename = '3rd_party'}};
 
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id' = UUID, statename = '3rd_party'} = State) ->
 	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),
+	cdr:media_custom(Callrec, '3rd_party', ?cdr_states, []),
 	{{mediapush, '3rd_party'}, State};
 
 case_event_name(EventName, UUID, _Rawcall, _Callrec, #state{statename =  blind_transfered} = State) ->
@@ -1053,6 +1062,7 @@ case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{ringchannel = 
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
 	?DEBUG("park of the 3rd party, proll a hold", []),
+	cdr:media_custom(Callrec, State#state.statename, ?cdr_states, []),
 	{{mediapush, State#state.statename}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
@@ -1075,6 +1085,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-name", "playback"},
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
+	cdr:media_custom(Callrec, 'oncall_hold', ?cdr_states, []),
 	{{mediapush, caller_hold}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{

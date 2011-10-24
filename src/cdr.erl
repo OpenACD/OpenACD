@@ -431,7 +431,10 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		true ->
 			Time;
 		false ->
-			undefined
+			case {Transaction, Data} of
+				{{media_custom, _}, {self, _}} -> Time;
+				_ -> undefined
+			end
 	end,
 	Cdr = #cdr_raw{
 		id = Callid,
@@ -1014,9 +1017,9 @@ push_raw_test_() ->
 			{voicemail, "na"},
 			{hangup, "na"},
 			{annouce, "na"},
-			{cdrend, "na"},
 			{{media_custom, ends}, {[unending], "any"}},
-			{{media_custom, unending}, {[], "any"}}
+			{{media_custom, unending}, {[], "any"}},
+			{cdrend, "na"}
 		],
 		Seedfun = fun() ->
 			lists:foreach(fun({Trans, Data}) ->
@@ -1025,23 +1028,23 @@ push_raw_test_() ->
 			end, Basedata)
 		end,
 		mnesia:transaction(Seedfun),
-		Testfun = fun
-			(_Fun, [], _Endedlist) ->
-				ok;
-			(_Fun, List, _Endedlist) when length(List) =:= 1 ->
-				ok;
-			(Fun, [Cdr | Tail], Endedlist) ->
-				?DEBUG("~p", [Cdr#cdr_raw.transaction]),
-				case lists:member(Cdr#cdr_raw.transaction, Endedlist) of
-					true ->
-						?assertNot(Cdr#cdr_raw.ended =:= undefined);
-					false ->
-						?assertEqual(undefined, Cdr#cdr_raw.ended)
-				end,
-				Fun(Fun, Tail, Endedlist)
-		end,
-		AssertEnded = fun(Input, ShouldbeEnded) ->
-			Testfun(Testfun, Input, ShouldbeEnded)
+		AssertEnded = fun(RawInput, ShouldbeEnded) ->
+			% the last cdr is the pushed one, meaning it's dupe and should be
+			% ignored for the purposes of this test.
+			[_ | MidInput] = lists:reverse(RawInput),
+			Input = lists:reverse(MidInput),
+			Res = [begin
+				InShouldEndList = lists:member(Cdr#cdr_raw.transaction, ShouldbeEnded),
+				Ended = Cdr#cdr_raw.ended,
+				case {InShouldEndList, Ended} of
+					{true, undefined} -> {notended, Cdr#cdr_raw.transaction};
+					{false, undefined} -> ok;
+					{false, _} -> {ended, Cdr#cdr_raw.transaction};
+					_ -> ok
+				end
+			end
+			|| Cdr <- Input],
+			[?assertEqual(X, ok) || X <- Res]
 		end,
 		{Call, Pull, AssertEnded}
 	end,

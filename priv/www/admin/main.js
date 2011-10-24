@@ -168,23 +168,18 @@ dojo.addOnLoad(function(){
 				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
 				dijit.byId('queueRecipe').setValue(recipe);
 				
-				var callback = function(gitems, req){
-					var gitem = gitems[0];
-					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
-					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
-					var scb = function(select){
-						select.name = 'qgSkills';
-						select.id = "qgSkills";
-						dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
-						select.disabled = true;
-					}
-					var qgSkillsSelected = req.store.getValues(gitem, 'skills');
-					skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
-				};
-				queues.store.fetch({
-					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
-					onComplete:callback
-				});
+				var gitem = queues.store.query({type:'group', name:queues.tree.store.getValue(item, 'group')})[0];
+				//var gitem = gitems[0];
+				dijit.byId("queueGroupRecipeDisplay").setValue(gitem.recipe);
+				dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
+				var scb = function(select){
+					select.name = 'qgSkills';
+					select.id = "qgSkills";
+					dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
+					select.disabled = true;
+				}
+				var qgSkillsSelected = gitem.skills;
+				skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
 				
 				dijit.byId('queueSubmit').onClick = function(){
 					queues.setQueue(queues.tree.store.getValue(item, 'name'), dijit.byId('editQueueForm'), dijit.byId('queueRecipe'), 'queuesList');

@@ -1000,7 +1000,9 @@ push_raw_test_() ->
 			{voicemail, "na"},
 			{hangup, "na"},
 			{annouce, "na"},
-			{cdrend, "na"}
+			{cdrend, "na"},
+			{{media_custom, ends}, {[unending], "any"}},
+			{{media_custom, unending}, {[], "any"}}
 		],
 		Seedfun = fun() ->
 			lists:foreach(fun({Trans, Data}) ->
@@ -1211,7 +1213,9 @@ push_raw_test_() ->
 				voicemail,
 				hangup,
 				annouce,
-				cdrend
+				cdrend,
+				{media_custom,ends},
+				{media_custom,unending}
 			])
 		end}
 	end]}}.

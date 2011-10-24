@@ -846,20 +846,7 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 	AgentRec = agent:dump_state(Apid), % TODO - avoid
 	Json = case cpx:get_env(ring_manager) of
 		{ok, Module} when AgentRec#agent.state == released ->
-			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
-				case EventName of
-					"CHANNEL_ANSWER" ->
-						freeswitch:sendmsg(FsNode, UUID, [
-							{"call-command", "execute"},
-							{"execute-app-name", "delay_echo"},
-							{"execute-app-arg", "1000"}
-						]),
-						{noreply, FunState};
-					_ ->
-						{noreply, FunState}
-				end
-			end,
-			case Module:ring(AgentRec, [{handle_event, HandleEvent}], [no_oncall_on_bridge]) of
+			case Module:ring_agent_echo(Apid, AgentRec, undefined, 60000) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->

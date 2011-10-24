@@ -1187,6 +1187,20 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
+		{"media_custom: ends",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = {media_custom, ends}, eventdata = {[unending],"any"}}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"media_custom:  unending",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = {media_custom, unending}, eventdata = {[], "any"}}),
+			Ended(Pull(), [{media_custom, ends}])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
 		{"cdrend",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = cdrend, eventdata = "na"}),

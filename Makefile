@@ -25,9 +25,9 @@ dist: deps
 	git archive --format tar --prefix OpenACD/ HEAD > $(TARBALL:.gz=)
 	tar -rf $(TARBALL:.gz=) \
 		OpenACD/deps/* \
-		OpenACD/priv/www/contrib/dojo/dojo \
-		OpenACD/priv/www/contrib/dojo/dojox \
-		OpenACD/priv/www/contrib/dojo/dijit \
+		OpenACD/priv/www/contrib/dojo \
+		OpenACD/priv/www/contrib/dojox \
+		OpenACD/priv/www/contrib/dijit \
 		OpenACD/include/commit_ver.hrl
 	cat $(TARBALL:.gz=) | gzip > $(TARBALL)
 

@@ -1264,11 +1264,18 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 				error:badarg ->
 					?DEFAULT_PRIORITY
 			end,
-
+			InitCallerIdName = proplists:get_value("Caller-Caller-ID-Name", Proplist),
+			InitCallerIdNumber = proplists:get_value("Caller-Caller-ID-Number", Proplist),
+			{CallerIdName, CallerIdNumber} = case {InitCallerIdName, InitCallerIdNumber} of
+				{NixCidName, _} when NixCidName =:= "unknown"; NixCidName =:= undefined ->
+					{proplists:get_value("variable_sip_from_user_stripped", Proplist, "Unknown"),
+					proplists:get_value("variable_sip_from_uri", Proplist, "Unknown")};
+				_ ->
+					{InitCallerIdName, InitCallerIdNumber}
+			end,
 			{proplists:get_value("Caller-Destination-Number", Proplist, ""),
 				proplists:get_value("variable_brand", Proplist, ""), Priority,
-				proplists:get_value("Caller-Caller-ID-Name", Proplist, "Unknown"),
-				proplists:get_value("Caller-Caller-ID-Number", Proplist, "Unknown"),
+				CallerIdName, CallerIdNumber,
 				proplists:get_value("variable_sip_from_display", Proplist, "")
 			};
 		timeout ->

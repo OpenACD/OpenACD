@@ -18,10 +18,12 @@ enum FreeswitchEvent {
 enum FreeswitchRequest {
 	SET_AUDIO_LEVEL = 1;
 	TOGGLE_HOLD = 2;
-	CONNECT_3RD_PARTY = 3;
-	CONNECT_CONFERENCE = 4;
+	CONTACT_3RD_PARTY = 3;
+	RETRIEVE_CONFERENCE = 4;
 	MERGE_3RD_PARTY = 5;
 	BLIND_TRANSFER = 6;
+	RETRIEVE_3RD_PARTY = 7;
+	HANGUP_3RD_PARTY = 8;
 }
 
 message AudioLevelRequest {

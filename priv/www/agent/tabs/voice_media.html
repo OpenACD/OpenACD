@@ -22,19 +22,21 @@
 				}
 				dojo.query(nodeidList.join()).style('display', visible);
 			},
+			lastEvent:'caller_offhold',
 			masterSub: dojo.subscribe('OpenACD/Agent/mediaevent/voice', function(data){
 				dojo.query('#freeswitchBusyBox').style('visibility', 'hidden');
 				var setVis = window.freeswitch.setVisible;
 				// boxs:  voiceDialBox, merge3rdPartyBox, unhold3rdPartyBox
 				// 	joinConferenceBox, simpleHoldBox
+				window.freeswitch.lastEvent = data['event'];
 				switch(data['event']){
 					case 'caller_hold':
 						setVis(true, 'simpleHoldBox', 'voiceDialBox');
 						setVis(false, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
 						break;
 					case 'caller_offhold':
-						setVis(true, 'simpleHoldBox');
-						setVis(false, 'joinConferenceBox', 'merge3rdPartyBox', 'voiceDialBox', 'unhold3rdPartyBox');
+						setVis(true, 'simpleHoldBox','voiceDialBox');
+						setVis(false, 'joinConferenceBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					case '3rd_party':
 						setVis(true, 'merge3rdPartyBox', 'joinConferenceBox', 'simpleHoldBox');
@@ -43,16 +45,16 @@
 						onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
 						break;
 					case 'hold_conference_3rdparty':
-						setVis(true, 'unhold3rdPartyBox', 'joinConferenceBox');
-						setVis(false, 'simpleHoldBox', 'voiceDialBox', 'merge3rdPartyBox');
+						setVis(true, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
+						setVis(false, 'simpleHoldBox', 'voiceDialBox');
 						break;
 					case 'hold_conference':
 						setVis(true, 'voiceDialBox','conferenceHoldBox', 'joinConferenceBox');
 						setVis(false, 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					case 'in_conference':
-						setVis(true, 'voiceDialBox');
-						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+						setVis(true, 'voiceDialBox', 'simpleHoldBox');
+						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
 					default:
 						console.error('freeswitch event not handled', data['event']);
@@ -66,13 +68,17 @@
 				}
 				if(data['event'] == 'caller_hold'){
 					onHoldb.set('label', '<span class="loss">&bull;</span> Unhold');
-				} else if(data['event'] == 'caller_offhold'){
+				} else {
 					onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
 				}
 			}),
 			dial: function(){
 				var num = dijit.byId(dojo.query('#voiceDialBox input[name=dialNumber]')[0].id).get('value');
-				agentConnection.agentApi("media_command", {}, "contact_3rd_party", "cast", num);
+				var command = 'contact_3rd_party';
+				if(window.freeswitch.lastEvent == 'caller_offhold'){
+					command = 'blind_transfer';
+				}
+				agentConnection.agentApi("media_command", {}, command, "cast", num);
 			}
 		};
 	}
@@ -130,7 +136,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "connect_conference", "cast", "");
+			agentConnection.agentApi("media_command", {}, "retrieve_conference", "cast", "");
 		</script>
 	</button>
 	</span>
@@ -142,7 +148,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.query('#freeswitchBusyBox').style('visibility', 'visible');
-			agentConnection.agentApi("media_command", {}, "connect_3rd_party", "cast", "");
+			agentConnection.agentApi("media_command", {}, "retrieve_3rd_party", "cast", "");
 		</script>
 	</button>
 	</span>
@@ -166,7 +172,7 @@
 	</button>
 	</span>
 
-	<span id="voiceDialBox" style="display:none">
+	<span id="voiceDialBox" style="display:inline">
 		<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
 		<button dojoType="dijit.form.Button">-&gt;
 			<script type="dojo/connect" event="onClick">

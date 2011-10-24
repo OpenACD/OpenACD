@@ -1119,8 +1119,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	catch
 		error:badarg -> ?DEFAULT_PRIORITY
 	end,
-	Calleridname = proplists:get_value("Caller-Caller-ID-Name", Rawcall, "Unknown"),
-	Calleridnum = proplists:get_value("Caller-Caller-ID-Number", Rawcall, "Unknown"),
+	{Calleridname, Calleridnum} = get_caller_id(Rawcall),
 	Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
 	NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority, skills = Skills},
 	case Doanswer of
@@ -1244,6 +1243,20 @@ case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
 	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
+get_caller_id(Proplist) ->
+ InitCallerIdName = proplists:get_value("Caller-Caller-ID-Name", Proplist),
+ InitCallerIdNumber = proplists:get_value("Caller-Caller-ID-Number", Proplist),
+ ?DEBUG("Originat cid/cname:  ~p, ~p", [InitCallerIdName, InitCallerIdNumber]),
+ {CallerIdName, CallerIdNumber} = case {InitCallerIdName, InitCallerIdNumber} of
+	 {NixCidName, _} when NixCidName =:= "unknown"; NixCidName =:= undefined ->
+		 {proplists:get_value("variable_sip_from_user_stripped", Proplist, "Unknown"),
+		 proplists:get_value("variable_sip_from_uri", Proplist, "Unknown")};
+	 _ ->
+		 {InitCallerIdName, InitCallerIdNumber}
+ end,
+ ?DEBUG("And what shall be used:  ~p  ~p", [CallerIdName,CallerIdNumber]),
+ {CallerIdName, CallerIdNumber}.
+
 get_info(Cnode, UUID) ->
 	get_info(Cnode, UUID, 0).
 
@@ -1264,15 +1277,7 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 				error:badarg ->
 					?DEFAULT_PRIORITY
 			end,
-			InitCallerIdName = proplists:get_value("Caller-Caller-ID-Name", Proplist),
-			InitCallerIdNumber = proplists:get_value("Caller-Caller-ID-Number", Proplist),
-			{CallerIdName, CallerIdNumber} = case {InitCallerIdName, InitCallerIdNumber} of
-				{NixCidName, _} when NixCidName =:= "unknown"; NixCidName =:= undefined ->
-					{proplists:get_value("variable_sip_from_user_stripped", Proplist, "Unknown"),
-					proplists:get_value("variable_sip_from_uri", Proplist, "Unknown")};
-				_ ->
-					{InitCallerIdName, InitCallerIdNumber}
-			end,
+			{CallerIdName, CallerIdNumber} = get_caller_id(Proplist),
 			{proplists:get_value("Caller-Destination-Number", Proplist, ""),
 				proplists:get_value("variable_brand", Proplist, ""), Priority,
 				CallerIdName, CallerIdNumber,

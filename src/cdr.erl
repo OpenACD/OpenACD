@@ -701,6 +701,14 @@ find_untermed(cdrend, #call{id = Cid}, _Whatever) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
+find_untermed({media_custom, CustomName}, #call{id = Cid}, _Whatever) ->
+	QH = qlc:q([X ||
+		#cdr_raw{eventdata = {EndedBy, _}, transaction = {media_custom, _}} = X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.ended =:= undefined,
+		lists:member(CustomName, EndedBy)
+	]),
+	qlc:e(QH);
 find_untermed(_, _, _) ->
 	%% some other event, prolly an info.  unknowns terminate nothing.
 	[].

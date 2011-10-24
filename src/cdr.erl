@@ -63,6 +63,7 @@
 	warmxfer_cancel/2,
 	warmxfer_complete/2,
 	warmxfer_fail/2,
+	media_custom/4,
 	truncate/0,
 	truncate/1,
 	status/1,
@@ -273,6 +274,11 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 	voicemail(Call, Queue);
 voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
+
+%% @doc Notify the cdr handler about a custom media vent for `#call{} Call'.
+-spec(media_custom/4 :: (Call :: #call{}, Name :: atom(), EndedBy :: [atom()], Data :: any()) -> 'ok').
+media_custom(Call, Name, EndedBy, Data) when is_atom(Name), is_list(EndedBy) ->
+	event({{media_custom, Name}, Call, util:now(), {EndedBy, Data}}).
 
 -spec(truncate/0 :: () -> ['none' | 'ok' | pid()]).
 truncate() ->

@@ -113,13 +113,13 @@ dojo.addOnLoad(function(){
 			dijit.byId('skillsTab').layout();
 		});
 		dojo.connect(skills.tree, "onClick", function(item){
-			if(skills.store.getValue(item, 'type') == "skill"){
+			if(item.type == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
 				dijit.byId('editSkill').set('value', item);
 				var descendants = dijit.byId('editSkill').getDescendants();
-				for(var i =0; i < descendants.length; i++){
+				for(var i = 0; i < descendants.length; i++){
 					try{
-						 descendants[i].set('disabled', skills.store.getValue(item, 'protected'));
+						 descendants[i].set('disabled', item['protected']);
 					}
 					catch(err){
 						//ditching it sinse this will ususally be "this is a funciton" error
@@ -134,8 +134,8 @@ dojo.addOnLoad(function(){
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
 				dijit.byId('editSkillGroupForm').set('value', item);
-				dijit.byId('skillGroupOldName').set('value', item.name[0]);
-				dijit.byId('skillGroupName').set('disabled', item.name[0] == "Magic");
+				dijit.byId('skillGroupOldName').set('value', item.name);
+				dijit.byId('skillGroupName').set('disabled', (item.name == "Magic"));
 			}
 		});
 	});

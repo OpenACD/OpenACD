@@ -431,7 +431,10 @@ handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State)
 %			{reply, Error, State}
 %	end;
 handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data} = Agent, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
-	Default = ?default_dial_string(Type),
+	Default = case Type of
+		pstn -> State#state.dialstring;
+		_ -> ?default_dial_string(Type)
+	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	Destination = case Data of
 		undefined -> Agent#agent.login;

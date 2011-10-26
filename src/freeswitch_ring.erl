@@ -240,7 +240,7 @@ init([Fsnode, Module, Options]) when is_atom(Module) ->
 init([Fsnode, CallbackList, Options]) when is_list(CallbackList) ->
 	Callbacks = #callbacks{
 		init = proplists:get_value(init, CallbackList, fun(_, _) -> {ok, [], <<"dummy_state">>} end),
-		handle_event = proplists:get_value(handle_event, CallbackList, fun(_, _, _, InState) -> {ok, InState} end),
+		handle_event = proplists:get_value(handle_event, CallbackList, fun(_, _, _, InState) -> {noreply, InState} end),
 		handle_call = proplists:get_value(handle_call, CallbackList, fun(_, _, _, InState) -> {reply, ok, InState} end),
 		handle_cast = proplists:get_value(handle_cast, CallbackList, fun(_, _, InState) -> {noreply, InState} end),
 		handle_info = proplists:get_value(handle_info, CallbackList, fun(_, _, InState) -> {noreply, InState} end),

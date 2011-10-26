@@ -751,7 +751,6 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#state{agent_rec = Newagent}};	
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Agent#agent.connection ->
-	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
 	try gen_media:wrapup(Call#call.source) of
@@ -773,6 +772,7 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 				_ ->
 					ok
 			end,
+			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}};
 		invalid ->
 			?WARNING("a living media replied it could not go to wrapup", []),
@@ -782,6 +782,7 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 			?WARNING("Seems the call died without ~s noticing", [Agent#agent.login]),
 			Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),
+			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}}
 	end;
 oncall({wrapup, #call{media_path = inband} = _Call}, From, State) ->

@@ -31,6 +31,9 @@
 
 -module(freeswitch_ring_persistent).
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 -include("log.hrl").
 -include("call.hrl").
 

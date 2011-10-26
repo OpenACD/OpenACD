@@ -55,6 +55,7 @@ enum CdrTransactionType {
 	ANNOUNCE = 22;
 	CDREND = 23;
 	INFOEVENT = 24;
+	MEDIA_CUSTOM = 25;
 }
 
 message CpxCdrRaw {
@@ -73,6 +74,9 @@ message CpxCdrRaw {
 	optional string transfer_to = 13;
 	optional string agent_transfer_recipient = 14;
 	optional CallRecord call_record = 15;
+	optional string media_custom_name = 16;
+	repeated string media_custom_terminated = 17;
+	extensions 2000 to max;
 }
 
 // A more precise version of SimpleKeyValue

@@ -583,5 +583,15 @@ openacd.RecipeEditor.recipeConditionsStore = new dojo.store.Memory({data:[
 	"value":"client_calls_queued",
 	"type":"property",
 	"filter":"integer",
-	"comparisons":["=", ">", "<"]}
+	"comparisons":["=", ">", "<"]},
+	{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERID,
+	"value":"caller_id",
+	"type":"property",
+	"filter":"any",
+	"comparisons":["-","!="]},
+	{"label":dojo.i18n.getLocalization("admin","recipeEditor").CALLERNAME,
+	"value":"caller_name",
+	"type":"property",
+	"filter":"any",
+	"comparisons":["=","!="]}
 ]});

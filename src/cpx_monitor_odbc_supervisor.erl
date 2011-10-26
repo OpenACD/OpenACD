@@ -588,13 +588,14 @@ build_event_log_call_base(E, Props) ->
 					["Unknown", "Unknown", "Unknown", "Unknown"]
 			end
 	end,
+	[ChoppedDid | _]  = string:tokens(Did, "@"),
 	E#event_log_row{
 		queue = Queue,
 		queue_name = Queue,
 		from_header = FromHeader,
 		ani = Ani,
 		uci = Uci ++ "*" ++ OriginCode,
-		did = Did,
+		did = ChoppedDid,
 		origin_code = OriginCode,
 		freeswitch_id = proplists:get_value(mediaid, Props, "")
 	}.

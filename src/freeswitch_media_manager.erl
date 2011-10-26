@@ -431,7 +431,10 @@ handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State)
 %			{reply, Error, State}
 %	end;
 handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data} = Agent, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
-	Default = ?default_dial_string(Type),
+	Default = case Type of
+		pstn -> State#state.dialstring;
+		_ -> ?default_dial_string(Type)
+	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	Destination = case Data of
 		undefined -> Agent#agent.login;
@@ -516,20 +519,21 @@ handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename
 handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->
-			Fun = fun(UUID) ->
-				fun(ok, _Reply) ->
-					freeswitch:sendmsg(Node, UUID,
-						[{"call-command", "execute"},
-						{"execute-app-name", "delay_echo"},
-						{"execute-app-arg", "1000"}]);
-				(error, Reply) ->
-					agent:blab(AgentPid, lists:flatten(io_lib:format("ring test failed: ~p", [Reply]))),
-					%?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
-					ok
+			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
+				case EventName of
+					"CHANNEL_ANSWER" ->
+						freeswitch:sendmsg(FsNode, UUID, [
+							{"call-command", "execute"},
+							{"execute-app-name", "delay_echo"},
+							{"execute-app-arg", "1000"}
+						]),
+						{noreply, FunState};
+					_ ->
+						{noreply, FunState}
 				end
 			end,
 			DialString = get_agent_dial_string(Agent, [], State),
-			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge, {dialstring, DialString}]),
+			Out = freeswitch_ring:start(Node, [{handle_event, HandleEvent}], [{agent, Agent},{dialstring,DialString},{destination,Agent#agent.endpointdata}]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}

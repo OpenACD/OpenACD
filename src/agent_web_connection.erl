@@ -834,6 +834,7 @@ handle_call({undefined, "/get_queue_transfer_options"}, _From, State) ->
 	{reply, ?reply_err(<<"Not in a call">>, <<"INVALID_STATE_CHANGE">>), State};
 handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
+	?DEBUG("The agent is committing call murder!", []),
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
 		invalid ->
 			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}]};
@@ -845,20 +846,7 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 	AgentRec = agent:dump_state(Apid), % TODO - avoid
 	Json = case cpx:get_env(ring_manager) of
 		{ok, Module} when AgentRec#agent.state == released ->
-			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
-				case EventName of
-					"CHANNEL_ANSWER" ->
-						freeswitch:sendmsg(FsNode, UUID, [
-							{"call-command", "execute"},
-							{"execute-app-name", "delay_echo"},
-							{"execute-app-arg", "1000"}
-						]),
-						{noreply, FunState};
-					_ ->
-						{noreply, FunState}
-				end
-			end,
-			case Module:ring(AgentRec, [{handle_event, HandleEvent}], [no_oncall_on_bridge]) of
+			case Module:ring_agent_echo(Apid, AgentRec, undefined, 60000) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->
@@ -1065,21 +1053,11 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 			end;
 		voice ->
 			case Data of
-				warm_transfer_succeeded ->
+				SimpleCommand when is_atom(SimpleCommand) ->
 					Json = {struct, [
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, voice},
-						{<<"event">>, Data},
-						{success, true}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate};
-				warm_transfer_failed ->
-					Json = {struct, [
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, Data},
-						{success, false}
+						{<<"event">>, SimpleCommand}
 					]},
 					Newstate = push_event(Json, State),
 					{noreply, Newstate}

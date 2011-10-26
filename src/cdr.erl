@@ -63,6 +63,7 @@
 	warmxfer_cancel/2,
 	warmxfer_complete/2,
 	warmxfer_fail/2,
+	media_custom/4,
 	truncate/0,
 	truncate/1,
 	status/1,
@@ -274,6 +275,11 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
 
+%% @doc Notify the cdr handler about a custom media vent for `#call{} Call'.
+-spec(media_custom/4 :: (Call :: #call{}, Name :: atom(), EndedBy :: [atom()], Data :: any()) -> 'ok').
+media_custom(Call, Name, EndedBy, Data) when is_atom(Name), is_list(EndedBy) ->
+	event({{media_custom, Name}, Call, util:now(), {EndedBy, Data}}).
+
 -spec(truncate/0 :: () -> ['none' | 'ok' | pid()]).
 truncate() ->
 	Now = util:now(),
@@ -425,7 +431,10 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		true ->
 			Time;
 		false ->
-			undefined
+			case {Transaction, Data} of
+				{{media_custom, _}, {self, _}} -> Time;
+				_ -> undefined
+			end
 	end,
 	Cdr = #cdr_raw{
 		id = Callid,
@@ -699,6 +708,14 @@ find_untermed(cdrend, #call{id = Cid}, _Whatever) ->
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
 		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed({media_custom, CustomName}, #call{id = Cid}, _Whatever) ->
+	QH = qlc:q([X ||
+		#cdr_raw{eventdata = {EndedBy, _}, transaction = {media_custom, _}} = X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.ended =:= undefined,
+		lists:member(CustomName, EndedBy)
 	]),
 	qlc:e(QH);
 find_untermed(_, _, _) ->
@@ -1000,6 +1017,8 @@ push_raw_test_() ->
 			{voicemail, "na"},
 			{hangup, "na"},
 			{annouce, "na"},
+			{{media_custom, ends}, {[unending], "any"}},
+			{{media_custom, unending}, {[], "any"}},
 			{cdrend, "na"}
 		],
 		Seedfun = fun() ->
@@ -1009,23 +1028,23 @@ push_raw_test_() ->
 			end, Basedata)
 		end,
 		mnesia:transaction(Seedfun),
-		Testfun = fun
-			(_Fun, [], _Endedlist) ->
-				ok;
-			(_Fun, List, _Endedlist) when length(List) =:= 1 ->
-				ok;
-			(Fun, [Cdr | Tail], Endedlist) ->
-				?DEBUG("~p", [Cdr#cdr_raw.transaction]),
-				case lists:member(Cdr#cdr_raw.transaction, Endedlist) of
-					true ->
-						?assertNot(Cdr#cdr_raw.ended =:= undefined);
-					false ->
-						?assertEqual(undefined, Cdr#cdr_raw.ended)
-				end,
-				Fun(Fun, Tail, Endedlist)
-		end,
-		AssertEnded = fun(Input, ShouldbeEnded) ->
-			Testfun(Testfun, Input, ShouldbeEnded)
+		AssertEnded = fun(RawInput, ShouldbeEnded) ->
+			% the last cdr is the pushed one, meaning it's dupe and should be
+			% ignored for the purposes of this test.
+			[_ | MidInput] = lists:reverse(RawInput),
+			Input = lists:reverse(MidInput),
+			Res = [begin
+				InShouldEndList = lists:member(Cdr#cdr_raw.transaction, ShouldbeEnded),
+				Ended = Cdr#cdr_raw.ended,
+				case {InShouldEndList, Ended} of
+					{true, undefined} -> {notended, Cdr#cdr_raw.transaction};
+					{false, undefined} -> ok;
+					{false, _} -> {ended, Cdr#cdr_raw.transaction};
+					_ -> ok
+				end
+			end
+			|| Cdr <- Input],
+			[?assertEqual(X, ok) || X <- Res]
 		end,
 		{Call, Pull, AssertEnded}
 	end,
@@ -1185,6 +1204,20 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
+		{"media_custom: ends",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = {media_custom, ends}, eventdata = {[unending],"any"}}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"media_custom:  unending",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = {media_custom, unending}, eventdata = {[], "any"}}),
+			Ended(Pull(), [{media_custom, ends}])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
 		{"cdrend",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = cdrend, eventdata = "na"}),
@@ -1211,7 +1244,9 @@ push_raw_test_() ->
 				voicemail,
 				hangup,
 				annouce,
-				cdrend
+				cdrend,
+				{media_custom,ends},
+				{media_custom,unending}
 			])
 		end}
 	end]}}.

@@ -114,8 +114,13 @@ handle_call(go_released, {From, _Ref}, #state{listener = From} = State) ->
 handle_call(go_available, {From, _Ref}, #state{listener = From} = State) ->
 	Res = agent:set_state(State#state.agent_fsm, idle),
 	{reply, Res, State};
-handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) ->
-	{reply, agent:set_endpoint(Apid, Endpoint), State};
+handle_call({set_endpoint, MidEndpoint}, _From, #state{agent_fsm = Apid} = State) ->
+	% TODO flesh this out so more than just perfect data works.
+	{EndpointType, Endpointdata} = case MidEndpoint of
+		{_Type, _Data} -> MidEndpoint
+	end,
+	Reply = agent:set_endpoint(Apid, EndpointType, Endpointdata, transient),
+	{reply, Reply, State};
 handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
 	{reply, {unknown_call, Request}, State}.

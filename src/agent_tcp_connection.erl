@@ -228,17 +228,19 @@ handle_cast({mediaload, Callrec}, State) ->
 	{noreply, State#state{mediaload = []}};
 handle_cast({mediaload, _Callrec, Options}, State) ->
 	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, _Callrec, Data}, State) when is_tuple(Data) ->
-	case element(1, Data) of
-		mediaevent ->
+handle_cast({mediapush, Callrec, Data}, State) ->
+	Newpush = translate_media_push(Callrec, Data, State),
+	case Newpush of
+		false -> 
+			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
+			ok;
+		_ ->
 			Command = #serverevent{
 				command = 'MEDIA_EVENT',
-				media_event = Data
+				media_event = Newpush
 			},
-			server_event(State#state.socket, Command, State#state.radix);
-		_Else ->
-			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
-			ok
+			%server_event(State#state.socket, Command, State#state.radix);
+			media_event(State#state.socket, Command, Callrec, State#state.radix)
 	end,
 	{noreply, State};
 handle_cast({set_salt, Salt}, State) ->
@@ -313,6 +315,30 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+translate_media_push(#call{type = voice} = Callrec, Data, State) when is_atom(Data) ->
+	NewData = case Data of
+		'3rd_party' -> 'THIRD_PARTY';
+		caller_hold -> 'CALLER_ONHOLD';
+		_ -> list_to_atom(string:to_upper(atom_to_list(Data)))
+	end,
+	{ok, Out} = cpx_freeswitch_pb:set_extension(#mediaevent{}, freeswitch_event, NewData),
+	Out;
+translate_media_push(_,_,_) ->
+	false.
+
+media_event({Mod,Socket}, Command, Callrec, Radix) ->
+	BaseOutrec = #servermessage{
+		type_hint = 'EVENT',
+		event = Command
+	},
+	% TODO ugh, hard coding
+	Bin = case Callrec#call.type of
+		voice -> cpx_freeswitch_pb:encode(BaseOutrec);
+		_ -> cpx_agent_pb:encode(BaseOutrec)
+	end,
+	Outbin = protobuf_util:bin_to_netstring(Bin,Radix),
+	ok = Mod:send(Socket, Outbin).
 
 server_event(Socket, Record, Radix) ->
 	Outrec = #servermessage{
@@ -399,6 +425,10 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			end,
 			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
 			Persistance = LoginRequest#loginrequest.use_persistent_ring,
+			Persisty = case LoginRequest#loginrequest.use_persistent_ring of
+				true -> persistent;
+				_ -> transient
+			end,
 			Username = LoginRequest#loginrequest.username,
 			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
 				{undefined, _, true} ->
@@ -430,7 +460,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
-					agent:set_endpoint(Pid, Endpoint),
+					agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),
@@ -604,7 +634,6 @@ service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, Sta
 	},
 	{Reply, State};
 service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
-	C#call.source ! call_hangup,
 	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
 		invalid ->
 			BaseReply#serverreply{
@@ -645,42 +674,42 @@ service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
 			end
 	end,
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
-	Number = WarmTransRequest#warmtransferrequest.number,
-	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
-	Call = State#state.statedata,
-	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
-	Call = State#state.statedata,
-	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "media denied transfer",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
+%	Number = WarmTransRequest#warmtransferrequest.number,
+%	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "media denied transfer",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
 service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
 	gen_tcp:close(State#state.socket),
 	%% TODO Not a very elegant shutdown from this point onward...

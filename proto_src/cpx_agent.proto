@@ -48,9 +48,9 @@ enum RequestHint {
 	LOAD_MEDIA = 11;
 	MEDIA_HANGUP = 12;
 	RING_TEST = 13;
-	WARM_TRANSFER_BEGIN = 14;
-	WARM_TRANSFER_COMPLETE = 15;
-	WARM_TRANSFER_CANCEL = 16;
+	DEPRICATED_WARM_TRANSFER_BEGIN = 14;
+	DEPRICATED_WARM_TRANSFER_COMPLETE = 15;
+	DEPRICATED_WARM_TRANSFER_CANCEL = 16;
 	GO_RELEASED = 17;
 	LOGOUT = 18;
 	DIAL = 19;
@@ -75,7 +75,7 @@ message AgentRequest {
 	optional InitOutboundRequest init_outbound_request = 6;
 	optional MediaCommandRequest media_command_request = 7;
 	optional QueueTransferRequest queue_transfer_request = 8;
-	optional WarmTransferRequest warm_transfer_request = 9;
+	optional WarmTransferRequest DEPRICATED_warm_transfer_request = 9;
 	optional GoReleasedRequest go_released_request = 11;
 	optional AgentClientVersion agent_client_version = 12;
 }
@@ -167,7 +167,7 @@ message MediaEvent {
 
 message AgentClientVersion {
 	required int32 major = 1 [default=0];
-	required int32 minor = 2 [default=1];
+	required int32 minor = 2 [default=2];
 }
 
 message LoginRequest {

@@ -113,13 +113,13 @@ dojo.addOnLoad(function(){
 			dijit.byId('skillsTab').layout();
 		});
 		dojo.connect(skills.tree, "onClick", function(item){
-			if(skills.store.getValue(item, 'type') == "skill"){
+			if(item.type == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
 				dijit.byId('editSkill').set('value', item);
 				var descendants = dijit.byId('editSkill').getDescendants();
-				for(var i =0; i < descendants.length; i++){
+				for(var i = 0; i < descendants.length; i++){
 					try{
-						 descendants[i].set('disabled', skills.store.getValue(item, 'protected'));
+						 descendants[i].set('disabled', item['protected']);
 					}
 					catch(err){
 						//ditching it sinse this will ususally be "this is a funciton" error
@@ -134,8 +134,8 @@ dojo.addOnLoad(function(){
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
 				dijit.byId('editSkillGroupForm').set('value', item);
-				dijit.byId('skillGroupOldName').set('value', item.name[0]);
-				dijit.byId('skillGroupName').set('disabled', item.name[0] == "Magic");
+				dijit.byId('skillGroupOldName').set('value', item.name);
+				dijit.byId('skillGroupName').set('disabled', (item.name == "Magic"));
 			}
 		});
 	});
@@ -168,23 +168,18 @@ dojo.addOnLoad(function(){
 				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
 				dijit.byId('queueRecipe').setValue(recipe);
 				
-				var callback = function(gitems, req){
-					var gitem = gitems[0];
-					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
-					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
-					var scb = function(select){
-						select.name = 'qgSkills';
-						select.id = "qgSkills";
-						dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
-						select.disabled = true;
-					}
-					var qgSkillsSelected = req.store.getValues(gitem, 'skills');
-					skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
-				};
-				queues.store.fetch({
-					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
-					onComplete:callback
-				});
+				var gitem = queues.store.query({type:'group', name:queues.tree.store.getValue(item, 'group')})[0];
+				//var gitem = gitems[0];
+				dijit.byId("queueGroupRecipeDisplay").setValue(gitem.recipe);
+				dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
+				var scb = function(select){
+					select.name = 'qgSkills';
+					select.id = "qgSkills";
+					dojo.place(select, dojo.byId('queueGroupSkillsDisplayDiv'), 'only');
+					select.disabled = true;
+				}
+				var qgSkillsSelected = gitem.skills;
+				skills.createSelect(scb, qgSkillsSelected, ['_agent', '_profile'], ['_profile']);
 				
 				dijit.byId('queueSubmit').onClick = function(){
 					queues.setQueue(queues.tree.store.getValue(item, 'name'), dijit.byId('editQueueForm'), dijit.byId('queueRecipe'), 'queuesList');

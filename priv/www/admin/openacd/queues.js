@@ -58,6 +58,9 @@ queues.refreshTree = function(node){
 			if(res.success != true){
 				return;
 			}
+			if(dijit.byId(queues.tree.id)){
+				dijit.byId(queues.tree.id).destroy();
+			}
 			queues.store = new dojo.store.Memory({data:res.items});
 			queues.model = new dijit.tree.ForestStoreModel({
 				store:new dojo.data.ObjectStore({objectStore:queues.store}),
@@ -71,11 +74,8 @@ queues.refreshTree = function(node){
 				store: new dojo.data.ObjectStore({objectStore:queues.store}),
 				model: queues.model,
 				showRoot:false
-			}, node);
+			}, dojo.byId(node));
 			dojo.publish("queues/tree/refreshed", []);
-			if(dijit.byId(queues.tree.id)){
-				dijit.byId(queues.tree.id).destroy();
-			}
 			var n = dojo.doc.createElement('div');
 			n.id = node;
 			parentNode.appendChild(n);

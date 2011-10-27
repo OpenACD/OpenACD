@@ -284,6 +284,33 @@
 	</div>
 </div>
 
+<div dojoType="dijit.Dialog" title="EMBEDDED_PHONE_LOGIN" id="embeddedPhoneLoginDialog" style="display:none">
+	<span class="translate">EMBEDDED_PHONE_LOGIN_PROMPT</span>
+	<p>
+		<label for="embeddedPhoneUsername" class="translatecol">USERNAME</label>
+		<input type="text" dojoType="dijit.form.TextBox" id="embeddedPhoneUsername" />
+	</p>
+	<p>
+		<label for="embeddedPhonePassword" class="translatecol">PASSWORD</label>
+		<input type="password" dojoType="dijit.form.TextBox" id="embeddedPhonePassword" />
+	</p>
+	<p>
+		<label>&nbsp;</label>
+		<button dojoType="dijit.form.Button" type="submit" label="SUBMIT">
+			<script type="dojo/connect" event="onClick">
+				var dij = dijit.byId("embeddedPhoneLoginDialog");
+				if(dij.phone){
+					var username = dijit.byId('embeddedPhoneUsername').get('value');
+					var password = dijit.byId('embeddedPhonePassword').get('value');
+					var nick = window.agentConnection.username;
+					dij.phone.login(username, password, nick);
+				}
+				dij.hide();
+			</script>
+		</button>
+	</p>
+</div>
+
 <div dojoType="dijit.Dialog" title="Enter Case ID" id="getCaseIDDialog" style="display:none">
 	Please enter the Case ID for this call, if any<br/>(you can leave it blank if its already been set, too).<br/>
 	<input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]*" invalidMessage="Invalid case ID" id="caseid" /><br/>

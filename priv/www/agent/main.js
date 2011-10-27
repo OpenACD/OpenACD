@@ -493,6 +493,10 @@ initializeFlashPhone = function(endpointData){
 	var onConnect = function(evt){
 		phone.flashObject.addEventListener("onLogin", onReg, false);
 		phone.flashObject.addEventListener("onIncomingCall", onRing, false);
+		if(window.agentConnection.password == ""){
+			showFlashphoneLogin(phone);
+			return;
+		}
 		phone.login(endpointData, window.agentConnection.password, window.agentConnection.username);
 	};
 
@@ -503,6 +507,17 @@ initializeFlashPhone = function(endpointData){
 
 	return phone;
 }
+
+showFlashphoneLogin = function(phone){
+	var loginName = window.agentConneciton.username;
+	if(window.agentConnection.loginOptions.voipendpointdata){
+		loginName = window.agentConneciton.loginOptions.voipendpointdata;
+	}
+	var dij = dijit.byId("embeddedPhoneLoginDialog");
+	dij.phone = phone;
+	dijit.byId("embeddedPhoneUseranme").set('value', loginName);
+	dij.show();
+};
 
 dojo.addOnLoad(function(){
 	//create a 'bugs' button and move it to a nice spot.
@@ -621,23 +636,21 @@ dojo.addOnLoad(function(){
 		},
 		success:function(result){
 			console.log('success', result);
-			var seedConf = dojo.clone(result);
-			seedConf.username = seedConf.login;
-			seedConf.securityLevel = result.securityLevel;
-			seedConf.elapsed = parseInt(result.statetime, 10);
-			seedConf.skew = result.timestamp;
-			seedConf.voipendpoint = result.endpointtype;
-			seedConf.voipendpointdata = result.endpointdata;
-			seedConf.usepersistentchannel = result.endpointpersist;
-			seedUI(seedConf);
+//			var seedConf = dojo.clone(result);
+//			seedConf.username = seedConf.login;
+//			seedConf.securityLevel = result.securityLevel;
+//			seedConf.elapsed = parseInt(result.statetime, 10);
+//			seedConf.skew = result.timestamp;
+//			seedConf.voipendpoint = result.endpointtype;
+//			seedConf.voipendpointdata = result.endpointdata;
+//			seedConf.usepersistentchannel = result.endpointpersist;
+//			seedUI(seedConf);
 		},
 		failure: function(errcode, message){
 			dijit.byId("loginpane").show();
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		}
 	};
-	window.agentConnection = new OpenACD.Agent({});
-	window.agentConnection.checkCookie(checkCookieOpts);
 	var loginHandle = dojo.subscribe('OpenACD/Agent/login', function(agent){
 		console.log('handling login', this, agent);
 		var seedConf = {};
@@ -645,10 +658,12 @@ dojo.addOnLoad(function(){
 		seedConf.securityLevel = agent.securityLevel;
 		seedConf.elapsed = parseInt(agent.stopwatch.time());
 		seedConf.skew = agent.skew;
-		seedConf.voipendpoint = agent.voipendpoint;
-		seedConf.voipendpointdata = agent.voipdendpointdata;
+		seedConf.voipendpoint = agent.loginOptions.voipendpoint;
+		seedConf.voipendpointdata = agent.loginOptions.voipendpointdata;
 		seedUI(seedConf);
 	});
+	window.agentConnection = new OpenACD.Agent({});
+	window.agentConnection.checkCookie(checkCookieOpts);
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
@@ -1017,6 +1032,9 @@ dojo.addOnLoad(function(){
 				window.agentConnection.loginOptions.usepersistentringchannel = true;
 			}
 			window.agentConnection.login();
+			if(window.agentConnection.loginOptions.voidendpoint == "rtmp"){
+				initializeFlashPhone(window.agentConnection.loginOptions.voipendpointdata);
+			}
 		} else {
 			console.warn('Form has invalid value');
 		}

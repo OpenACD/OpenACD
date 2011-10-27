@@ -119,7 +119,8 @@
 		sip -> "sofia/internal/sip:$1";
 		iax2 -> "iax2/$1";
 		h323 -> "opal/h3232:$1";
-		pstn -> ""
+		pstn -> "";
+		rtmp -> "rtmp/$1"
 end).
 -define(EMPTYRESPONSE, "<document type=\"freeswitch/xml\"></document>").
 -define(NOTFOUNDRESPONSE,
@@ -221,6 +222,7 @@ end).
 -type(sip_opt() :: {sip, string()}).
 -type(iax2_opt() :: {iax2, string()}).
 -type(h323_opt() :: {h323, string()}).
+-type(rtmp_opt() :: {rtmp, string()}).
 -type(not_ring_manager_opt() :: 'not_ring_manager').
 -type(start_opt() :: 
 	domain_opt() |
@@ -228,6 +230,7 @@ end).
 	sip_opt() |
 	iax2_opt() |
 	h323_opt() |
+	rtmp_opt() |
 	not_ring_manager_opt()
 ).
 -type(start_opts() :: [start_opt()]).
@@ -246,9 +249,10 @@ start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 %% <ul>
 %% <li>`domain :: string()'</li>
 %% <li>`dialstring :: string()'</li>
-%% <li>`sip' :: string()'</li>
+%% <li>`sip :: string()'</li>
 %% <li>`iax2 :: string()'</li>
 %% <li>`h323 :: string()'</li>
+%% <li>`rtmp :: string()'</li>
 %% </ul>
 -spec(start_link/2 :: (Nodename :: atom(), Options :: start_opts()) -> {'ok', pid()}).
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
@@ -793,7 +797,9 @@ fetch_domain_user(Node, State) ->
 										h323 ->
 											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Agent#agent.endpointdata, []);
 										pstn ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, [])
+											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, []);
+										rtmp ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State, "rtmp/$1"), Agent#agent.endpointdata, [])
 									end,
 									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
 									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString])))
@@ -896,5 +902,7 @@ get_agent_dial_string(AgentRec, Options, State) ->
 		h323 ->
 			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
 		pstn ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options)
+			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options);
+		rtmp ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options)
 	end.

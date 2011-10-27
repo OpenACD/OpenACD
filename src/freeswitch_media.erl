@@ -831,9 +831,9 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 		'TOGGLE_HOLD' ->
 			handle_cast(toggle_hold, Call, State);
 		'CONTACT_3RD_PARTY' ->
-			case cpx_freeswitch_pb:get_extension(FixedRequest, connect_3rd_party) of
+			case cpx_freeswitch_pb:get_extension(FixedRequest, contact_3rd_party) of
 				undefined -> handle_cast(contact_3rd_party, Call, State);
-				{ok, #connect3rdpartyrequest{target = Target}} ->
+				{ok, #contact3rdpartyrequest{target = Target}} ->
 					handle_cast({contact_3rd_party, Target}, Call, State)
 			end;
 		'RETRIEVE_CONFERENCE' -> handle_cast(retrieve_conference, Call, State);

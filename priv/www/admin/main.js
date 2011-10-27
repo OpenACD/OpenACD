@@ -170,7 +170,7 @@ dojo.addOnLoad(function(){
 				
 				var gitem = queues.store.query({type:'group', name:queues.tree.store.getValue(item, 'group')})[0];
 				//var gitem = gitems[0];
-				dijit.byId("queueGroupRecipeDisplay").setValue(gitem.recipe);
+				dijit.byId("queueGroupRecipeDisplay").setValue(gitem.recipe._value);
 				dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
 				var scb = function(select){
 					select.name = 'qgSkills';
@@ -203,7 +203,7 @@ dojo.addOnLoad(function(){
 					dojo.place(select, dojo.byId('queueGroupSkillsDiv'), 'only');
 				};
 				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_profile']);
-				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe'));
+				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe')._value);
 				dijit.byId("queueGroupName").set('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
 					var base = dijit.byId("editQueueGroupForm").get('value');

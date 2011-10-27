@@ -49,6 +49,7 @@
 	IAXTWOHINT: "IAX2 URI (a host or IP with an optional port eg. myhost:4569)",
 	HTHREETWOTHREEHINT: "H.323 URI (a host or IP with an optional port eg. myhost:1720)",
 	PSTNHINT: "Public telephone number",
+	FLASHPHONEHINT: "Use a flash player based phone with a nickname",
 	TRANSFERTOMENU: "Transfer to...",
 	QUEUE: "Queue",
 	SUBMIT: "Submit",

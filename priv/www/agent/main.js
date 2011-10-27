@@ -474,6 +474,36 @@ function reportIssue(humanReport){
 	});
 }
 
+initializeFlashPhone = function(endpointData){
+	if(! endpointData){
+		endpointData = window.agentConnection.username;
+	}
+	dojo.place('<div id="flashPhone"></div>', dojo.doc.body, 'last');
+	var phone;
+
+	var onReg = function(evt){
+		window.agentConnection.agentApi('set_endpoint', {}, 'rtmp', phone.sessionId + '/' + endpointData, false);
+	};
+
+	var onRing = function(evt){
+		dijit.byId("embeddedPhoneAnswer").style.display = "inline";
+		//console.log('holy shit, it\'s ringing!');
+	}
+
+	var onConnect = function(evt){
+		phone.flashObject.addEventListener("onLogin", onReg, false);
+		phone.flashObject.addEventListener("onIncomingCall", onRing, false);
+		phone.login(endpointData, window.agentConnection.password, window.agentConnection.username);
+	};
+
+	phone = new flashPhone(dojo.doc.location.hostname, 'flashPhone', {
+		onConnected:onConnect,
+		pathToFreeswitchSwf:'/flashPhone/'
+	});
+
+	return phone;
+}
+
 dojo.addOnLoad(function(){
 	//create a 'bugs' button and move it to a nice spot.
 	var div = dojo.create('div', {'class':'rightFloater'}, 'tabPanel_tablist', 'first');
@@ -573,6 +603,9 @@ dojo.addOnLoad(function(){
 				loadTab(settings.tabs[i]);
 			}
 		}
+		if(settings.voipendpoint == "rtmp"){
+			window.agentPhone = initializeFlashPhone(settings.voipendpointdata);
+		}
 		if(confs.securityLevel == 'agent'){
 			dijit.byId("tabsmenubutton").set('disabled', true);
 		} else {
@@ -593,6 +626,9 @@ dojo.addOnLoad(function(){
 			seedConf.securityLevel = result.securityLevel;
 			seedConf.elapsed = parseInt(result.statetime, 10);
 			seedConf.skew = result.timestamp;
+			seedConf.voipendpoint = result.endpointtype;
+			seedConf.voipendpointdata = result.endpointdata;
+			seedConf.usepersistentchannel = result.endpointpersist;
 			seedUI(seedConf);
 		},
 		failure: function(errcode, message){
@@ -609,6 +645,8 @@ dojo.addOnLoad(function(){
 		seedConf.securityLevel = agent.securityLevel;
 		seedConf.elapsed = parseInt(agent.stopwatch.time());
 		seedConf.skew = agent.skew;
+		seedConf.voipendpoint = agent.voipendpoint;
+		seedConf.voipendpointdata = agent.voipdendpointdata;
 		seedUI(seedConf);
 	});
 	
@@ -1195,6 +1233,8 @@ dojo.addOnLoad(function(){
 
 function endpointselect() {
 	switch(dijit.byId("voipendpoint").attr('value')) {
+		case "Embedded Phone":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").FLASHPHONEHINT;
 		case "SIP Registration":
 			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").SIPREGHINT;
 			break;

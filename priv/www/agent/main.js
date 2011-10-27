@@ -478,6 +478,12 @@ initializeFlashPhone = function(endpointData){
 	if(! endpointData){
 		endpointData = window.agentConnection.username;
 	}
+
+	// if we got the endpoint data on a reload, it's gonna have a stale
+	// session id, so we be stripping that off.
+	var sessIdRegex = /^[a-z\d]{8}-[a-z\d]{4}-[a-z\d]{4}-[a-z\d]{4}-[a-z\d]{12}\//;
+	endpointData = endpointData.replace(sessIdRegex, "");
+
 	dojo.place('<div id="flashPhone"></div>', dojo.doc.body, 'last');
 	var phone;
 
@@ -494,7 +500,7 @@ initializeFlashPhone = function(endpointData){
 		phone.flashObject.addEventListener("onLogin", onReg, false);
 		phone.flashObject.addEventListener("onIncomingCall", onRing, false);
 		if(window.agentConnection.password == ""){
-			showFlashphoneLogin(phone);
+			showFlashphoneLogin(phone, endpointData);
 			return;
 		}
 		phone.login(endpointData, window.agentConnection.password, window.agentConnection.username);
@@ -508,14 +514,10 @@ initializeFlashPhone = function(endpointData){
 	return phone;
 }
 
-showFlashphoneLogin = function(phone){
-	var loginName = window.agentConneciton.username;
-	if(window.agentConnection.loginOptions.voipendpointdata){
-		loginName = window.agentConneciton.loginOptions.voipendpointdata;
-	}
+showFlashphoneLogin = function(phone, username){
 	var dij = dijit.byId("embeddedPhoneLoginDialog");
 	dij.phone = phone;
-	dijit.byId("embeddedPhoneUseranme").set('value', loginName);
+	dijit.byId("embeddedPhoneUsername").set('value', username);
 	dij.show();
 };
 

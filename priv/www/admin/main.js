@@ -165,7 +165,7 @@ dojo.addOnLoad(function(){
 					options[i].selected = inArray(options[i].value, skills);
 				}*/
 				dijit.byId('queueWeight').set('value', queues.tree.store.getValue(item, 'weight'));
-				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
+				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe')._value : [];
 				dijit.byId('queueRecipe').setValue(recipe);
 				
 				var gitem = queues.store.query({type:'group', name:queues.tree.store.getValue(item, 'group')})[0];

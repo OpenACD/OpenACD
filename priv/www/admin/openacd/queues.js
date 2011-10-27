@@ -201,31 +201,28 @@ queues.setQueue = function(queue, form, reciper, refreshnode){
 	var vals = form.get('value');
 	vals.recipe = dojo.toJson(reciper.getValue());
 	vals.skills = form.domNode.skills.getValues();
-	var doxhr = function(){
-		dojo.xhrPost({
-			url:"/queues/queue/" + queue + "/update",
-			handleAs:"json",
-			content:vals,
-			load:function(resp, ioargs){
-				if(resp.success){
-					queues.refreshTree(refreshnode);
-				}
-				else{
-					errMessage(["queue update failed", resp.message]);
-					console.warn(["queue update failed", resp.message]);
-				}
-			},
-			error: function(res){
-				errMessage(["queue update errored", res]);
-				console.warn(["queue update errored", res]);
+	var groupage = queues.store.query({name:vals.group});
+	if(groupage.length < 1){
+		vals.group = 'Default';
+	} else {
+		vals.group = groupage[0].name;
+	}
+	dojo.xhrPost({
+		url:"/queues/queue/" + queue + "/update",
+		handleAs:"json",
+		content:vals,
+		load:function(resp, ioargs){
+			if(resp.success){
+				queues.refreshTree(refreshnode);
 			}
-		});
-	};
-	queues.store.fetchItemByIdentity({
-		identity:vals.group,
-		onItem:function(i){
-			vals.group = queues.store.getValue(i, 'name');
-			doxhr();
+			else{
+				errMessage(["queue update failed", resp.message]);
+				console.warn(["queue update failed", resp.message]);
+			}
+		},
+		error: function(res){
+			errMessage(["queue update errored", res]);
+			console.warn(["queue update errored", res]);
 		}
 	});
 };

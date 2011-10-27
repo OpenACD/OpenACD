@@ -2895,13 +2895,13 @@ decode_recipe_conditions([], Acc) ->
 decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 	Cond = proplists:get_value(<<"property">>, Props),
 	Comp = case proplists:get_value(<<"comparison">>, Props) of
-		<<"=">> ->
+		<<"comp-=">> ->
 			'=';
-		<<">">> ->
+		<<"comp->">> ->
 			'>';
-		<<"<">> ->
+		<<"comp-<">> ->
 			'<';
-		<<"!=">> ->
+		<<"comp-!=">> ->
 			'!='
 	end,
 	Val = case proplists:get_value(<<"value">>, Props) of
@@ -2918,29 +2918,29 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 %		list_to_integer(L)
 %	end,
 	Tuple = case {Cond, Comp, Val} of
-		{<<"ticks">>, '=', Val} when is_integer(Val) ->
+		{<<"prop-ticks">>, '=', Val} when is_integer(Val) ->
 			{ticks, Val};
-		{<<"eligible_agents">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-eligible_agents">>, Comp, Val} when is_integer(Val) ->
 			{eligible_agents, Comp, Val};
-		{<<"agents_avail">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-agents_avail">>, Comp, Val} when is_integer(Val) ->
 			{available_agents, Comp, Val};
-		{<<"queue_position">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-queue_position">>, Comp, Val} when is_integer(Val) ->
 			{queue_position, Comp, Val};
-		{<<"calls_queued">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-calls_queued">>, Comp, Val} when is_integer(Val) ->
 			{calls_queued, Comp, Val};
-		{<<"client">>, Comp, Val} ->
+		{<<"prop-client">>, Comp, Val} ->
 			{client, Comp, Val};
-		{<<"hour">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-hour">>, Comp, Val} when is_integer(Val) ->
 			{hour, Comp, Val};
-		{<<"weekday">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-weekday">>, Comp, Val} when is_integer(Val) ->
 			{weekday, Comp, Val};
-		{<<"mediatype">>, Comp, Val} ->
+		{<<"prop-mediatype">>, Comp, Val} ->
 			{type, Comp, Val};
-		{<<"client_calls_queued">>, Comp, Val} when is_integer(Val) ->
+		{<<"prop-client_calls_queued">>, Comp, Val} when is_integer(Val) ->
 			{client_calls_queued, Comp, Val};
-		{<<"caller_id">>, Comp, Val} ->
+		{<<"prop-caller_id">>, Comp, Val} ->
 			{caller_id, Comp, Val};
-		{<<"caller_name">>, Comp, Val} ->
+		{<<"prop-caller_name">>, Comp, Val} ->
 			{caller_name, Comp, Val}
 	end,
 	decode_recipe_conditions(Tail, [Tuple | Acc]).	
@@ -2971,8 +2971,8 @@ encode_recipe_conditions([], Acc) ->
 	lists:reverse(Acc);
 encode_recipe_conditions([{ticks, Num} | Tail], Acc) ->
 	encode_recipe_conditions([{ticks, '=', Num} | Tail], Acc);
-encode_recipe_conditions([{type, Comp, Num} | Tail], Acc) ->
-	encode_recipe_conditions([{<<"mediatype">>, Comp, Num} | Tail], Acc);
+%encode_recipe_conditions([{type, Comp, Num} | Tail], Acc) ->
+%	encode_recipe_conditions([{<<"mediatype">>, Comp, Num} | Tail], Acc);
 encode_recipe_conditions([{Prop, Comp, Val} | Tail], Acc) ->
 	Fixedval = case Val of
 		Val when is_integer(Val) ->
@@ -2981,11 +2981,19 @@ encode_recipe_conditions([{Prop, Comp, Val} | Tail], Acc) ->
 			list_to_binary(Val)
 	end,
 	Jcond = {struct, [
-		{<<"property">>, Prop},
-		{<<"comparison">>, Comp},
+		{<<"property">>, encode_recipe_conditions_prop(Prop)},
+		{<<"comparison">>, encode_recipe_conditions_operator(Comp)},
 		{<<"value">>, Fixedval}
 	]},
 	encode_recipe_conditions(Tail, [Jcond | Acc]).
+
+encode_recipe_conditions_operator(Op) ->
+	list_to_binary(["comp-", atom_to_list(Op)]).
+
+encode_recipe_conditions_prop(type) ->
+	encode_recipe_conditions_prop(mediatype);
+encode_recipe_conditions_prop(Prop) ->
+	list_to_binary(["prop-", atom_to_list(Prop)]).
 
 encode_recipe_actions(Actions) ->
 	encode_recipe_actions(Actions, []).

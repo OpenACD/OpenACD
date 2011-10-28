@@ -700,15 +700,15 @@
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
-				this.stateChanger = dojo.subscribe("OpenACD/Agent/state", this, function(data){
+				/*this.stateChanger = dojo.subscribe("OpenACD/Agent/state", this, function(data){
 					switch(data.state){
 						case "ringing": break;
 						default: this.style.display = "none";
 					}
-				});
+				});*/
 			</script>
 			<script type="dojo/connect" event="onClick">
-				window.embeddedPhone.answer();
+				window.agentPhone.answer();
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=window.agentConnection.setState("wrapup")>

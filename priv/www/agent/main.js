@@ -494,7 +494,7 @@ initializeFlashPhone = function(endpointData){
 	};
 
 	var onRing = function(evt){
-		dijit.byId("embeddedPhoneAnswer").style.display = "inline";
+		dijit.byId("embeddedPhoneAnswer").domNode.style.display = "inline";
 		playRingSound();
 	}
 
@@ -503,6 +503,7 @@ initializeFlashPhone = function(endpointData){
 	}
 
 	var onAttach = function(evt){
+		dijit.byId("embeddedPhoneAnswer").domNode.style.display = "none";
 		ringSound.stop();
 	}
 

@@ -157,6 +157,8 @@
 
 	dojo.addOnLoad(init);
 	soundManager.url = '/SoundManager2/';
+	soundManager.preferFlash = false;
+	//soundManager.useHTML5Audio = true;
 
 	soundManager.onready(function(oStatus) {
 		if (!oStatus.success) {
@@ -173,6 +175,18 @@
 			url: '/SoundManager2/36365__matiasromero__clareira_sininho.mp3',
 			volume: 25
 		});
+		soundManager.createSound({
+			id:'phoneRingWav',
+			url: '/SoundManager2/65535__eliasheuninck__1x-telefoon.wav',
+			volume: 25
+		});
+		soundManager.createSound({
+			id:'phoneRing',
+			url: '/SoundManager2/65535__eliasheuninck__1x-telefoon.m4a',
+			volume: 25
+		});
+
+
 	});
 </script>
 

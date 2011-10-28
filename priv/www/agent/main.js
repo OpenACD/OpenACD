@@ -489,16 +489,37 @@ initializeFlashPhone = function(endpointData){
 
 	var onReg = function(evt){
 		window.agentConnection.agentApi('set_endpoint', {}, 'rtmp', phone.sessionId + '/' + endpointData, false);
+		var sessId = phone.sessionId;
+		console.log('\n\nbgapi originate {origination_caller_id_name=testing,origination_caller_id_number=testing}rtmp/' + sessId + '/' + window.agentConnection.username + ' echo: inline');
 	};
 
 	var onRing = function(evt){
 		dijit.byId("embeddedPhoneAnswer").style.display = "inline";
-		//console.log('holy shit, it\'s ringing!');
+		playRingSound();
+	}
+
+	var onHangup = function(evt){
+		ringSound.stop();
+	}
+
+	var onAttach = function(evt){
+		ringSound.stop();
+	}
+
+	var ringSound = soundManager.getSoundById('phoneRing');
+	var playRingSound = function(){
+		ringSound.play({
+			onfinish:function(){
+				playRingSound(ringSound);
+			}
+		});
 	}
 
 	var onConnect = function(evt){
 		phone.flashObject.addEventListener("onLogin", onReg, false);
 		phone.flashObject.addEventListener("onIncomingCall", onRing, false);
+		phone.flashObject.addEventListener("onHangup", onHangup, false);
+		phone.flashObject.addEventListener("onAttach", onAttach, false);
 		if(window.agentConnection.password == ""){
 			showFlashphoneLogin(phone, endpointData);
 			return;

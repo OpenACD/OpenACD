@@ -337,7 +337,7 @@ dojo.addOnLoad(function(){
 			
 				dijit.byId('agentsMain').selectChild('agentEditor');
 				dijit.byId('agentsDestroyButton').onClick = function(){
-					var id = agents.store.getValue(item, 'id');
+					var id = item.id;
 					dojo.xhrGet({
 						url:"agents/agents/" + id + "/delete",
 						handleAs:"json",

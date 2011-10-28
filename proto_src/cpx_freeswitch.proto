@@ -35,7 +35,7 @@ message AudioLevelRequest {
 	required int32 value = 2; // This is -4 to 4
 }
 
-message Connect3rdPartyRequest {
+message Contact3rdPartyRequest {
 	optional string target = 1;
 }
 
@@ -50,7 +50,7 @@ message BlindTransferRequest {
 extend MediaCommandRequest {
 	optional FreeswitchRequest freeswitch_request_hint = 3000;
 	optional AudioLevelRequest audio_level_request = 3001;
-	optional Connect3rdPartyRequest connect_3rd_party = 3002;
+	optional Contact3rdPartyRequest contact_3rd_party = 3002;
 	optional Merge3rdPartyRequest merge_3rd_party = 3003;
 	optional BlindTransferRequest blind_transfer = 3004;
 }

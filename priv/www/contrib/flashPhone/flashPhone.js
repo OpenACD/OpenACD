@@ -63,7 +63,7 @@ flashPhone = function(rtmpUrl, parentNode, OtherArgs){
 
 	var pathToSwf = "";
 	if(OtherArgs.pathToFreeswitchSwf){
-		pathtoSwf = OtherArgs.pathToFreeswitchSwf;
+		pathToSwf = OtherArgs.pathToFreeswitchSwf;
 	}
 
 	swfobject.embedSWF(pathToSwf + "freeswitch.swf", parentNode, "250", "150", "9.0.0", "expressInstall.swf", flashvars, params, []);
@@ -236,7 +236,10 @@ flashPhone.prototype.login = function(username, password, nick){
 Log out.  Does not disconnect.
 */
 flashPhone.prototype.logout = function(){
-	return this.flashObject.logout();
+	if(! this.user){
+		return false;
+	}
+	return this.flashObject.logout(this.user + "@" + this.domain);
 }
 
 /**

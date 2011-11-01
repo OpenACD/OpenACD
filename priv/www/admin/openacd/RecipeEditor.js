@@ -32,7 +32,9 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 			getValue:function(){ return ""; },
 			setValue:function(){ return ""; },
 			destroy:function(){ },
-			setDisabled:function(){ }
+			setDisabled:function(){ },
+			set:function(){ },
+			get:function(){ }
 		};
 	},
 	_buildSelect: function(select){
@@ -211,7 +213,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 	setDisabled:function(bool){
 		this._disabled = bool;
 		this.actionField.set('disabled', bool);
-		this._nullArgsWidget.set('disabled', bool);
+		//this._nullArgsWidget.set('disabled', bool);
+		this.argsWidget.set('disabled', bool);
 		this.numberWidget.set('disabled', bool);
 		this.stringWidget.set('disabled', bool);
 	}

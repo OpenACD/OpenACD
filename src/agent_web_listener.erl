@@ -493,6 +493,11 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
 	{Agentrec, Security} = agent_web_connection:dump_agent(Conn),
+	{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
+	Peristence = case PersistAtom of
+		persistent -> true;
+		_ -> false
+	end,
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
@@ -500,7 +505,10 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 		{<<"state">>, Agentrec#agent.state},
 		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
 		{<<"statetime">>, Agentrec#agent.lastchange},
-		{<<"timestamp">>, util:now()}
+		{<<"timestamp">>, util:now()},
+		{<<"endpointtype">>, EpType},
+		{<<"endpointdata">>, list_to_binary(Agentrec#agent.endpointdata)},
+		{<<"endpointpersist">>, Peristence}
 	],
 	Fulljson = case Agentrec#agent.state of
 		oncall ->

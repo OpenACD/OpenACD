@@ -146,6 +146,7 @@
 	warm_transfer_cancel/1,
 	queue_transfer/3,
 	init_outbound/3,
+	set_endpoint/4,
 	logout/1
 ]).
 
@@ -168,6 +169,7 @@
 	{warm_transfer_cancel, 1},
 	{queue_transfer, 3},
 	{init_outbound, 3},
+	{set_endpoint, 4},
 	{poll, 2},
 	{logout, 1}
 ]).
@@ -375,6 +377,33 @@ queue_transfer(Conn, Queue, {struct, Opts}) ->
 -spec(init_outbound/3 :: (Conn :: pid(), Client :: bin_string(), Type :: bin_string()) -> any()).
 init_outbound(Conn, Client, Type) ->
 	gen_server:call(Conn, {init_outbound, binary_to_list(Client), binary_to_list(Type)}).
+
+%% @doc {@web} Sets the agent's endpoint data to the given, well, data.
+%% Particularly useful if the flash phone is used, as all of the connection
+%% data will not be available for that until it is started on in the 
+%% browser.
+-spec(set_endpoint/4 :: (Conn :: pid(), Endpoint :: bin_string(), Data :: bin_string(), Persist :: 'true' | 'false') -> any()).
+set_endpoint(Conn, Endpoint, Data, Persist) ->
+	case catch list_to_existing_atom(binary_to_list(Endpoint)) of
+		{'EXIT', {badarg, _}} ->
+			{200, [], mochijson2:encode({struct, [{success, false},{<<"message">>, <<"invalid endpoint type">>}, {<<"errcode">>, <<"INVALID_ENDPOINT_TYPE">>}]})};
+		EndpointType ->
+			EndpointData = binary_to_list(Data),
+			Persisty = case Persist of
+				true -> persistent;
+				false -> transient
+			end,
+			case gen_server:call(Conn, {set_endpoint, EndpointType, EndpointData, Persisty}) of
+				ok -> {200, [], mochijson2:encode({struct, [{success, true}]})};
+				{ok, _Pid} -> {200, [], mochijson2:encode({stuct, [{success, true}]})};
+				{error, Error} ->
+					{200, [], mochijson2:encode({struct, [
+						{success, false},
+						{<<"message">>, list_to_binary(io_lib:format("Error setting endpoint:  ~p", [Error]))},
+						{<<"errcode">>, <<"INVALID_ENDPOINT">>}
+					]})}
+			end
+	end.
 
 %% @doc {@web} If the media set anything to be loaded at call start, 
 %% retreive it.  This is useful if the client (such as web browser) needs 

@@ -3,12 +3,13 @@
 		<form dojoType="dijit.form.Form" id="freeswitchEndpointForm" jsId="freeswitchEndpointForm" action="javascript:void(0);" method="post">
 
 			<p>
-				<label for="endpointType" class="translatecol">TYPE</label>
+				<label for="endpointType" class="translatecol">VOIPENDPOINT</label>
 				<select dojoType="dijit.form.FilteringSelect" id="freeswitchEndpointType" name="endpointType">
 				<script type="dojo/method" event="onChange">
 					//endpointselect()
 				</script>
-					<option value="sip_registration" selected="selected" class="translate">SIP Registration</option>
+					<option value="rtmp" selected="selected" class="translate">EMBEDDED PHONE</option>
+					<option value="sip_registration" class="translate">SIP Registration</option>
 					<option value="sip" class="translate">SIP URI</option>
 					<option value="iax" class="translate">IAX2 URI</option>
 					<option value="h323" class="translate">H323 URI</option>
@@ -17,7 +18,7 @@
 			</p>
 	
 			<p>
-				<label for="endpointData" class="translatecol">DATA</label>
+				<label for="endpointData" class="translatecol">VOIPENDPOINTDATA</label>
 				<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
 			</p>
 	
@@ -29,14 +30,17 @@
 
 			<p>
 				<label>&nbsp;</label>
-				<input type="submit" dojoType="dijit.form.Button" label="SAVE" />
+				<input type="submit" dojoType="dijit.form.Button" class="translate" label="SAVE" />
 			</p>
 
 		</form>
 	</div>
 
 	<div dojoType="dijit.layout.ContentPane" id="emailEndpointPane" title="Email">
-		<input type="checkbox" name="emailEndpointEnable" dojoType="dijit.form.CheckBox" id="emailEndpointEnable" />
+		<p>
+			<input type="checkbox" name="emailEndpointEnable" dojoType="dijit.form.CheckBox" id="emailEndpointEnable" />
+			<label class="translate" for="emailEndpointEnable">ENABLE</label>
+		</p>
 	</div>
 
 	<div dojoType="dijit.layout.ContentPane" id="dummyEndpointPane" title="Dummy Media">

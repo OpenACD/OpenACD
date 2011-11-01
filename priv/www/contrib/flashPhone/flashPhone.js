@@ -136,7 +136,8 @@ flashPhone.prototype._onIncomingCall = function(evt){
 flashPhone.prototype._onHangup = function(evt){
 	if(this.oncallId == evt.uuid){
 		delete this.oncallId;
-	} else if(this.ringId == evt.uuid){
+	}
+	if(this.ringId == evt.uuid){
 		delete this.ringId;
 	}
 }

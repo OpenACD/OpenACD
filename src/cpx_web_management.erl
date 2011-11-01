@@ -794,7 +794,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 			?DEBUG("Updating password", []),
 			agent_auth:set_agent(Agent, [
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(proplists:get_value("password", Post)))},
+				{password, proplists:get_value("password", Post)},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
@@ -821,7 +821,7 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			Fixedskills = parse_posted_skills(Postedskills),
 			agent_auth:add_agent([
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(Confirmpw))},
+				{password, Confirmpw},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},

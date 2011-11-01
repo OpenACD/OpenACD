@@ -55,7 +55,7 @@
 	init/1,
 	handle_announce/3,
 	handle_answer/3,
-	handle_ring/3,
+	handle_ring/4,
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_ring_stop/2,
@@ -144,7 +144,7 @@ handle_answer(Apid, Callrec, State) ->
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid}}.
 
-handle_ring(Apid, Callrec, State) ->
+handle_ring(Apid, _RingData, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	AgentRec = agent:dump_state(Apid),
 	F = fun(UUID) ->

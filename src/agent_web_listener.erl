@@ -493,34 +493,20 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
 	{Agentrec, Security} = agent_web_connection:dump_agent(Conn),
-	{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
-	Peristence = case PersistAtom of
-		persistent -> true;
-		_ -> false
-	end,
+	%{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
+%	Peristence = case PersistAtom of
+%		persistent -> true;
+%		_ -> false
+%	end,
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 		{<<"securityLevel">>, Security},
-		{<<"state">>, Agentrec#agent.state},
-		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-		{<<"statetime">>, Agentrec#agent.lastchange},
-		{<<"timestamp">>, util:now()},
-		{<<"endpointtype">>, EpType},
-		{<<"endpointdata">>, list_to_binary(Agentrec#agent.endpointdata)},
-		{<<"endpointpersist">>, Peristence}
+		{<<"timestamp">>, util:now()}
 	],
-	Fulljson = case Agentrec#agent.state of
-		oncall ->
-			case agent_web_connection:mediaload(Conn) of
-				undefined ->
-					Basejson;
-				MediaLoad ->
-					[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
-			end;
-		_ ->
-			Basejson
-	end,
+	% TODO when a new connection is established, the channels should do the
+	% media load command.
+	Fulljson = Basejson,
 	Json = {struct, [
 		{<<"success">>, true},
 		{<<"result">>, {struct, Fulljson}} |
@@ -728,34 +714,30 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
 							end;
 						{{allow, Id, Skills, Security, Profile}, _} ->
+							{atomic, [AgentAuth]} = agent_auth:get_agent(id, Id),
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = Bandedness, 
 								login = Username, 
 								skills = Skills, 
-								profile=Profile, 
-								password=DecryptedPassword,
-								endpointtype = Endpoint,
-								endpointdata = Endpointdata
+								profile=Profile
 							},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
-									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-									%agent:set_endpoint(Pid, Endpoint, Endpointdata, Persistantness),
-									gen_server:call(Pid, {set_endpoint, Endpoint, Endpointdata, Persistantness}),
+									?INFO("~s logged in", [Username]),
 									linkto(Pid),
-									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									{true, Apid} = agent_manager:query_agent(Username),
+									agent:set_endpoints(Apid, AgentAuth#agent_auth.endpoints),
+									% TODO make real profile
+%									{#agent{profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
-											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"profile">>, list_to_binary(Profile)}, 
+											%{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
-											{<<"statetime">>, StateTime},
-											{<<"timestamp">>, util:now()}
-										]}}
-									]})};
+											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);

@@ -43,6 +43,7 @@
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("gen_media.hrl").
 
 -define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete]).
 
@@ -53,6 +54,7 @@
 	start/0,
 	start/1,
 	start/2,
+	start_ring/4,
 	ring_agent/2,
 	stop/1,
 	stop/2,
@@ -71,17 +73,18 @@
 	init/1, 
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
-	terminate/3, 
+	handle_info/5,
+	terminate/5, 
 	code_change/4,
-	handle_ring/3, 
-	handle_answer/3, 
+	prepare_endpoint/2,
+	handle_ring/4, 
+	handle_answer/5, 
 	handle_voicemail/3, 
 	handle_announce/3, 
-	handle_ring_stop/2,
+	handle_ring_stop/4,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_wrapup/5,
 	handle_spy/3,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
@@ -98,8 +101,8 @@
 	}).
 
 -type(state() :: #state{}).
--define(GEN_MEDIA, true).
--include("gen_spec.hrl").
+%-define(GEN_MEDIA, true).
+%-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -224,7 +227,11 @@ make_id() ->
 	Ref = erlang:ref_to_list(make_ref()),
 	Fullmdf = erlang:md5(lists:append([Now, Ref])),
 	string:sub_string(util:bin_to_hexstr(Fullmdf), 1, 8).
-	
+
+start_ring(Agent, Chan, Call, Mode) ->
+	Pid = spawn(fun() -> start_ring_loop(Agent, Chan, Call, Mode) end),
+	{ok, Pid}.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -432,9 +439,9 @@ handle_cast(_Msg, _Callrec, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(<<"hagurk">>, _Callrec, State) ->
+handle_info(<<"hagurk">>, _StateName, _Callrec, _Internal, State) ->
 	{stop, normal, State};
-handle_info(Info, _Callrec, State) ->
+handle_info(Info, _StateNaem, _Callrec, _Internal, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.
 
@@ -445,7 +452,7 @@ handle_info(Info, _Callrec, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _Callrec, _State) ->
+terminate(_Reason, Statename, _Callrec, _Internal, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
@@ -456,11 +463,22 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
+prepare_endpoint(#agent{ring_channel = none}, ring_channel) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(#agent{ring_channel = RingChan}, ring_channel) ->
+	{ok, RingChan};
+prepare_endpoint(_Agent, inband) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(_Agent, outband) ->
+	{ok, {dummy_media, start_ring, [transient]}};
+prepare_endpoint(Agent, persistant) ->
+	{ok, dummy_media:start_ring(Agent, undefined, persistant)}.
+
 -spec(handle_announce/3 :: (Announce :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
-handle_answer(Agent, Call, #state{fail = Fail} = State) ->
+handle_answer(Agent, _Statename, Call, _Internal, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),
@@ -480,7 +498,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			{error, dummy_fail, State#state{fail = Newfail}}
 	end.
 
-handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
+handle_ring(_Agent, _RingData, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
 			{ok, [{"caseid", State#state.caseid}], State};
@@ -520,10 +538,10 @@ handle_agent_transfer(_Agent, _Timeout, _Callrec, #state{fail = Fail} = State) -
 handle_queue_transfer(_Callrec, State) ->
 	{ok, State}.
 
-handle_ring_stop(_Callrec, State) ->
+handle_ring_stop(_StateName, _Callrec, _Internal, State) ->
 	{ok, State}.
 
-handle_wrapup(_Callrec, State) ->
+handle_wrapup(_From, _StateName, _Callrec, _Internal, State) ->
 	{hangup, State}.
 
 -spec(handle_warm_transfer_begin/3 :: (Number :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'invalid', #state{}}).
@@ -569,6 +587,48 @@ handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+start_ring_loop(Agent, Chan, undefined, persistant) ->
+	persistant_ring_loop(Agent, undefined);
+start_ring_loop(Agent, Chan, Call, transient) ->
+	process_flag(trap_exit, true),
+	?INFO("Starting transient ring, I guess.", []),
+	ok = gen_media:ring(Call#call.source, {Agent#agent.login, Chan}, transient, takeover),
+	Client = Call#call.client,
+	Opts = Client#client.options,
+	Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+	Self = self(),
+	erlang:send_after(Ringout, Self, ringout),
+	transient_ring_loop(Agent, Chan, Call).
+
+persistant_ring_loop(Agent, undefined) ->
+	receive
+		{prering, Agent, #call{client = Client} = Call} ->
+			gen_media:ring(Call#call.source, Agent, persistant, takeover),
+			Opts = Client#client.options,
+			Ringout = proplists:get_value(ringout, Opts, ?getRingout),
+			Self = self(),
+			erlang:send_after(Ringout, Self, ringout),
+			persistant_ring_loop(Agent, Call)
+	end;
+persistant_ring_loop(Agent, #call{source = Src} = Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			persistant_ring_loop(Agent, undefined);
+		{'EXIT', Src, Cause} ->
+			persistant_ring_loop(Agent, undefined)
+	end.
+
+transient_ring_loop(Agent, Chan, Call) ->
+	receive
+		ringout ->
+			gen_media:stop_ringing(Call#call.source),
+			normal;
+		Msg ->
+			?INFO("msg nom:  ~p", [Msg]),
+			transient_ring_loop(Agent, Chan, Call)
+	end.
+
 check_fail(Key, Dict) ->
 	case dict:fetch(Key, Dict) of
 		fail_once ->
@@ -607,7 +667,7 @@ dummy_test_() ->
 			"Set agent ringing when set to success",
 			fun() -> 
 				{ok, {State, _Call}} = init([[{queues, none}], success]),
-				?assertEqual({ok, [{"caseid", undefined}], State}, handle_ring("apid", "callrec", State))
+				?assertEqual({ok, [{"caseid", undefined}], State}, handle_ring("apid", "ringdata", "callrec", State))
 			end
 		},
 		{

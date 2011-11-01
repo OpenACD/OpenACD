@@ -44,6 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("cpx_freeswitch_pb.hrl").
+-include("gen_media.hrl").
 
 -define(TIMEOUT, 10000).
 
@@ -66,22 +67,23 @@
 -export([
 	init/1,
 	urlpop_getvars/1,
-	handle_ring/3,
-	handle_ring_stop/2,
-	handle_answer/3,
+	prepare_endpoint/2,
+	handle_ring/4,
+	handle_ring_stop/4,
+	handle_answer/5,
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
 	handle_agent_transfer/4,
-	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_queue_transfer/5,
+	handle_wrapup/5,
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
+	handle_info/5,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
 	handle_warm_transfer_complete/2,
-	terminate/3,
+	terminate/5,
 	code_change/4]).
 
 -type(internal_statename() ::
@@ -138,8 +140,8 @@
 }).
 
 -type(state() :: #state{}).
--define(GEN_MEDIA, true).
--include("gen_spec.hrl").
+%-define(GEN_MEDIA, true).
+%-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -189,7 +191,30 @@ handle_announce(Announcement, Callrec, State) ->
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
 
-handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
+%%--------------------------------------------------------------------
+%% perpare_endpoint
+%%--------------------------------------------------------------------
+
+prepare_endpoint(Agent, Options) ->
+	{Node, Dialstring, Dest} = freeswitch_media_manager:get_ring_data(Agent, Options),
+	case proplists:get_value(persistant, Options) of
+		undefined ->
+			{ok, {freeswitch_ring, start, [Node, freeswitch_ring_transient, [
+				{destination, Dest},
+				{dialstring, Dialstring}]]}};
+		true ->
+			freeswitch_ring:start([Node, freeswitch_persistant_ring, [
+				{destination, Dest},
+				{dialstring, Dialstring},
+				persistant
+			]])
+	end.
+
+%%--------------------------------------------------------------------
+%% handle_answer
+%%--------------------------------------------------------------------
+
+handle_answer(Apid, warm_transfer_3rd_party, Callrec, _GenMediaState, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
@@ -213,8 +238,20 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 %			?WARNING("Could not do answer:  ~p", [Error]),
 %			{invalid, State}
 %	end;
-handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
-	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+
+handle_answer(Apid, StateName, Callrec, GenMediaState, State) when
+		StateName =:= inqueue_ringing; StateName =:= oncall_ringing ->
+	UUID = case GenMediaState of
+		#inqueue_ringing_state{outband_ring_pid = undefined} ->
+			"";
+		#inqueue_ringing_state{outband_ring_pid = P} ->
+			freeswitch_ring:get_uuid(P);
+		#oncall_ringing_state{outband_ring_pid = undefined} ->
+			"";
+		#oncall_ringing_state{outband_ring_pid = P} ->
+			freeswitch_ring:get_uuid(P)
+	end,
+	%UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
 		{ok, _} ->
 			RecPath = case cpx_supervisor:get_archive_path(Callrec) of
@@ -232,30 +269,26 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 					freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
 					Path++".wav"
 			end,
-			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
-			{ok, State#state{statename = oncall, agent_pid = Apid, ringuuid = UUID, record_path = RecPath, queued = false}};
+			agent_channel:media_push(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+			{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
-			{invalid, State}
+			{error, Error, State}
 	end.
 
-handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
+handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login,
-	handle_ring({Apid, AgentRec}, Callrec, State);
-handle_ring({_Apid, #agent{endpointtype = {undefined, persistent, _}} = Agent}, _Callrec, State) ->
-	?WARNING("Agent (~p) does not have it's persistent channel up yet", [Agent#agent.login]),
+	handle_ring({Apid, AgentRec}, RingData, Callrec, State);
+handle_ring({_Apid, #agent{ring_channel = {undefined, persistant, _}} = Agent}, _RingData, _Callrec, State) ->
+	?WARNING("Agent (~p) does not have it's persistant channel up yet", [Agent#agent.login]),
 	{invalid, State};
-handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType}}} = Agent, Callrec, State) ->
+handle_ring({Apid, #agent{ring_channel = {EndpointPid, persistant, _EndPointType}}} = Agent, _RingData, Callrec, State) ->
 	%% a persisitant ring does the hard work for us
 	%% go right to the okay.
 	?INFO("Ring channel made things happy, I assume", []),
-	NewStatename = case State#state.statename of
-		inqueue -> inqueue_ringing;
-		oncall -> oncall_ringing
-	end,
-	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{statename = NewStatename, ringchannel = EndpointPid, agent_pid = Apid}};
-handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
+	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
+handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, _RingData, Callrec, State) ->
 	% if we get to this point, the ring channel is already up.
 	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
 	%	{ok, Pid} ->
@@ -286,11 +319,13 @@ handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Call
 %			{invalid, State}
 %	end.
 
-handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
+% TODO This needs to be updated when conferencing is fixed.
+handle_ring_stop(_StateName, Callrec, _GenMedia, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
 	freeswitch_ring:hangup(RingChannel),
 	{ok, State#state{xferchannel = undefined, xferuuid = undefined}};
-handle_ring_stop(Callrec, State) ->
+
+handle_ring_stop(_StateName, Callrec, _GenMedia, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
 	case State#state.ringchannel of
 		undefined ->
@@ -308,7 +343,7 @@ handle_ring_stop(Callrec, State) ->
 
 -spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
-	{ok, Midstate} = handle_ring_stop(Callrec, State),
+	{ok, Midstate} = handle_ring_stop(undefined, Callrec, undefined, State),
 	handle_voicemail(undefined, Callrec, Midstate);
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
@@ -536,16 +571,16 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 
-handle_wrapup(#call{ring_path = inband, media_path = inband} = Call, State) ->
+handle_wrapup(_From, _StateName, #call{ring_path = inband, media_path = inband} = Call, _GenMediaState, State) ->
 	% TODO This could prolly stand to be a bit more elegant.
 	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
 	{hangup, State};
-handle_wrapup(_Call, State) ->
+handle_wrapup(_From, _StateName, _Call, _GenMediaState, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent
 	{ok, State}.
 	
-handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
+handle_queue_transfer(_Queue, _StateName, Call, _GenMediaState, #state{cnode = Fnode} = State) ->
 	case State#state.record_path of
 		undefined ->
 			ok;
@@ -875,7 +910,7 @@ handle_cast(Msg, _Call, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info(check_recovery, Call, State) ->
+handle_info(check_recovery, _StateName, Call, _Internal, State) ->
 	case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
@@ -885,31 +920,37 @@ handle_info(check_recovery, Call, State) ->
 			{ok, Tref} = timer:send_after(1000, check_recovery),
 			{noreply, State#state{manager_pid = Tref}}
 	end;
-handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
+
+%% TODO refinment for actuall warm transfer.
+handle_info({'EXIT', Pid, Reason}, warm_transfer_hold, Call, _Internal, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{xferchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+
+handle_info({'EXIT', Pid, Reason}, warm_transfer_hold, Call, _Internal, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	cdr:warmxfer_fail(Call, State#state.agent_pid),
 	{noreply, State#state{ringchannel = undefined}};
-handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
+
+handle_info(warm_transfer_succeeded, warm_transfer_3rd_party, Call, _Internal, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
 	?DEBUG("Got warm transfer success notification from ring channel for ~p", [Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
+%% and end of warm transfer gook.
+
+handle_info({'EXIT', Pid, Reason}, StateName, Call, _Internal, 
+		#state{ringchannel = Pid} = State) when StateName =:= oncall_ringing;
+		StateName =:= inqueue_ringing ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{ringchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Reason}, _StateName, Call, _Internal, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
 
-handle_info({call, {event, [UUID | Rest]}} = Event, Call, #state{uuid = undefined} = State) when is_list(UUID) ->
-	?DEBUG("reporting new call ~p when uuid not set", [UUID]),
-	handle_info(Event, Call, State#state{uuid = UUID});
-
-handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
+%% TODO make awesome by taking advantage of the state machine-ness.
+handle_info({call, {event, [UUID | Rest]}}, _StateName, Call, _Internal, State) when is_list(UUID) ->
 	SetSess = freeswitch:session_setevent(State#state.cnode, [
 		'CHANNEL_BRIDGE', 'CHANNEL_PARK', 'CHANNEL_HANGUP',
 		'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF',
@@ -920,25 +961,32 @@ handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 		_ -> ok
 	end,
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
-handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
+
+handle_info({call_event, {event, [UUID | Rest]}}, _StateName, Call, _Internal, State) when is_list(UUID) ->
 	%?DEBUG("reporting existing call progess ~p.", [UUID]),
 	case_event_name([ UUID | Rest], Call, State);
-handle_info({set_agent, Login, Apid}, _Call, State) ->
+
+handle_info({set_agent, Login, Apid}, _StateName, _Call, _Intenral, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
-handle_info({bgok, Reply}, Call, State) ->
+
+handle_info({bgok, Reply}, _StateName, Call, _Internal, State) ->
 	?DEBUG("bgok:  ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
-handle_info({bgerror, "-ERR NO_ANSWER\n"}, Call, State) ->
+
+handle_info({bgerror, "-ERR NO_ANSWER\n"}, _StateName, Call, _Internal, State) ->
 	?INFO("Potential ringout.  Statecook:  ~p for ~p", [State#state.cook, Call#call.id]),
 	%% the apid is known by gen_media, let it handle if it is not not.
 	{stop_ring, State};
-handle_info({bgerror, "-ERR USER_BUSY\n"}, Call, State) ->
+
+handle_info({bgerror, "-ERR USER_BUSY\n"}, _StateName, Call, _Internal, State) ->
 	?NOTICE("Agent rejected the call ~p", [Call#call.id]),
 	{stop_ring, State};
-handle_info({bgerror, Reply}, Call, State) ->
+
+handle_info({bgerror, Reply}, _StateName, Call, _Internal, State) ->
 	?WARNING("unhandled bgerror: ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
-handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when not InControl ->
+
+handle_info(channel_destroy, _StateName, Call, _Internal, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR for ~p", [Call#call.id]),
 	{stop, hangup, State};
 % TODO This had a use at some point, but was cuasing ramdom hangups.
@@ -948,13 +996,19 @@ handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when 
 %	catch freeswitch_ring:hangup(State#state.ringchannel),
 %	{stop, normal, State};
 
-handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename = 
-		oncall, spawn_oncall_mon = {Pid, Ref}} = State) ->
+handle_info({'DOWN', Ref, process, Pid, Cause}, _Statename, Call,
+		_Internal, #state{statename = oncall,
+		spawn_oncall_mon = {Pid, Ref}} = State) ->
 	?DEBUG("Oncaller pid termination cause:  ~p", [Cause]),
 	cdr:media_custom(Call, oncall, ?cdr_states, []),
 	{{mediapush, caller_offhold}, State#state{spawn_oncall_mon = undefined}};
 
-handle_info(Info, Call, State) ->
+handle_info(call_hangup, _StateName, Call, _Internal, State) ->
+	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
+	catch freeswitch_ring:hangup(State#state.ringchannel),
+	{stop, normal, State};
+
+handle_info(Info, _StateName, Call, _Internal, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
 	{noreply, State}.
 
@@ -962,7 +1016,7 @@ handle_info(Info, Call, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, Call, _State) ->
+terminate(Reason, _StateName, Call, _Internal, _State) ->
 	?NOTICE("terminating: ~p ~p", [Reason, Call#call.id]),
 	ok.
 

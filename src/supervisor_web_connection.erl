@@ -510,9 +510,7 @@ handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 	{reply, {200, [], Json}, State};
 handle_call({supervisor, {spy, Agent}}, _From, State) ->
 	FakeAgent = #agent{
-		login=State#state.login,
-		endpointtype = State#state.endpointtype,
-		endpointdata = State#state.endpointdata
+		login=State#state.login
 	},
 	SpyPid = case agent_manager:query_agent(State#state.login) of
 		{true, Spid} -> Spid;
@@ -520,19 +518,19 @@ handle_call({supervisor, {spy, Agent}}, _From, State) ->
 	end,
 	Json  = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
-			case agent:dump_state(Apid) of
-				#agent{statedata = CallRec} when is_record(CallRec, call) ->
-					case gen_media:spy(CallRec#call.source, SpyPid, FakeAgent) of
-						ok ->
-							{struct, [{success, true}]};
-						invalid -> 
-							{struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]};
-						{error, Err} ->
-							{struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Error:  ~p", [Err]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
-					end;
-				_ ->
-					{struct, [{success, false}, {<<"message">>, <<"agent not oncall">>}, {<<"errcode">>, <<"INVALID_STATE">>}]}
-			end;
+%			case agent:dump_state(Apid) of
+%				#agent{statedata = CallRec} when is_record(CallRec, call) ->
+%					case gen_media:spy(CallRec#call.source, SpyPid, FakeAgent) of
+%						ok ->
+%							{struct, [{success, true}]};
+%						invalid -> 
+%							{struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]};
+%						{error, Err} ->
+%							{struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Error:  ~p", [Err]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
+%					end;
+%				_ ->
+%					{struct, [{success, false}, {<<"message">>, <<"agent not oncall">>}, {<<"errcode">>, <<"INVALID_STATE">>}]}
+					{struct, [{success, false}, {<<"message">>, <<"Not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]};
 		false ->
 			{struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]}
 	end,
@@ -600,9 +598,7 @@ handle_call({supervisor, {start_problem_recording, Clientid}}, _From, State) ->
 	AgentRec = #agent{
 		login = Login,
 		id = Login,
-		connection = self(),
-		endpointtype = Endpoint,
-		endpointdata = EndpointData
+		connection = self()
 	},
 	case whereis(freeswitch_media_manager) of
 		P when is_pid(P) ->

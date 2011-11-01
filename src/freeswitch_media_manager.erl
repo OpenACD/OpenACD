@@ -185,9 +185,10 @@ end).
 	ring_agent/3,
 	ring_agent/4,
 	ring_agent_echo/4,
-	ring/3,
+	%ring/3,
 	ring/4,
 	get_media/1,
+	get_ring_data/2,
 	get_default_dial_string/0,
 	do_dial_string/3,
 	get_agent_dial_string/2,
@@ -283,10 +284,10 @@ new_voicemail(UUID, File, Queue, Priority, Client) ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
-ring(#agent{endpointdata = undefined} = Agent, RingCbs, Options) ->
-	ring(Agent#agent.endpointtype, Agent#agent.login, RingCbs, Options);
-ring(Agent, RingCbs, Options) when is_record(Agent, agent) ->
-	ring(Agent#agent.endpointtype, Agent#agent.endpointdata, RingCbs, Options).
+%ring(#agent{endpointdata = undefined} = Agent, RingCbs, Options) ->
+%	ring(Agent#agent.endpointtype, Agent#agent.login, RingCbs, Options);
+%ring(Agent, RingCbs, Options) when is_record(Agent, agent) ->
+%	ring(Agent#agent.endpointtype, Agent#agent.endpointdata, RingCbs, Options).
 
 ring(EndpointType, Dialstring, RingCbs, Options) ->
 	gen_server:call(?MODULE, {ring, EndpointType, Dialstring, RingCbs, Options}).
@@ -314,6 +315,9 @@ ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
+
+get_ring_data(Agent, Options) ->
+	gen_server:call(?MODULE, {get_ring_data, Agent, Options}).
 
 -spec(get_default_dial_string/0 :: () -> string()).
 get_default_dial_string() ->
@@ -349,6 +353,10 @@ monitor_agent(Agent, Watcher) ->
 monitor_client(Client, Watcher) ->
 	gen_server:call(?MODULE, {monitor, client, Client, Watcher}).
 
+-spec(get_node/0 :: () -> atom()).
+get_node() ->
+	gen_server:call(?MODULE, get_node).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -364,12 +372,6 @@ init([Nodename, Options]) ->
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
-			case proplists:get_value(not_ring_manager, Options) of
-				true ->
-					ok;
-				_ ->
-					application:set_env('OpenACD', ring_manager, ?MODULE)
-			end,
 			link(Pid),
 			{Lpid, Pid, StrippedOpts};
 		_ ->
@@ -384,34 +386,59 @@ init([Nodename, Options]) ->
 %%--------------------------------------------------------------------
 %% @private
 
+handle_call({get_ring_data, Agent, Options}, _From, #state{fetch_domain_user = UserOpts} = State) ->
+	Node = State#state.nodename,
+	Type = proplists:get_value(type, Options, sip_registration),
+	Data = proplists:get_value(data, Options),
+	{Base, Destination} = case {Type, Data} of
+		{sip_registration, undefined} ->
+			{"sofia/internal/$1%", re:replace(Agent#agent.login, "@", "_", [{return, list}])};
+		{sip_registration, Data} ->
+			{"sofia/internal/$1%", re:replace(Data, "@", "_", [{return, list}])};
+		{_, undefined} ->
+			{error, undefined};
+		{sip, Data} ->
+			{proplists:get_value(sip, UserOpts, "sofia/internal/sip:$1"), Data};
+		{iax2, Data} ->
+			{proplists:get_value(iax2, UserOpts, "iax2/$1"), Data};
+		{h323, Data} ->
+			{proplists:get_value(h323, UserOpts, "opal/h323:$1"), Data};
+		{pstn, Data} ->
+			{proplists:get_value(dialstring, UserOpts, State#state.dialstring), Data}
+	end,
+	case Base of
+		error -> {reply, {error, bad_destination}, State};
+		_ -> {reply, {Node, Base, Destination}, State}
+	end;
+
 handle_call({make_outbound_call, Client, AgentPid, Agent}, _From, #state{nodename = Node, dialstring = DS, freeswitch_up = FS} = State) when FS == true ->
 	{ok, Pid} = freeswitch_outbound:start(Node, Agent, AgentPid, Client, DS, 30),
 	link(Pid),
 	{reply, {ok, Pid}, State};
 handle_call({make_outbound_call, _Client, _AgentPid, _Agent}, _From, State) -> % freeswitch is down
 	{reply, {error, noconnection}, State};
-handle_call({record_outage, Client, AgentPid, Agent}, _From, #state{nodename = Node, freeswitch_up = FS} = State) when FS == true ->
-	Recording = "/tmp/"++Client++"/problem.wav",
-	case filelib:ensure_dir(Recording) of
-		ok ->
-			F = fun(UUID) ->
-					fun(ok, _Reply) ->
-							freeswitch:api(State#state.nodename, uuid_transfer, UUID ++ " 'gentones:%(500\\,0\\,500),sleep:600,record:/tmp/"++Client++"/problem.wav' inline");
-						(error, Reply) ->
-							?WARNING("originate failed: ~p", [Reply]),
-							ok
-					end
-			end,
-			DialString = get_agent_dial_string(Agent, [], State),
-			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, ?getRingout, F, [no_oncall_on_bridge, {dialstring, DialString}]) of
-				{ok, _Pid} ->
-					{reply, ok, State};
-				{error, Reason} ->
-					{reply, {error, Reason}, State}
-			end;
-		{error, Reason} ->
-			{reply, {error, Reason}, State}
-	end;
+%handle_call({record_outage, Client, AgentPid, Agent}, _From, #state{nodename = Node, freeswitch_up = FS} = State) when FS == true ->
+%	Recording = "/tmp/"++Client++"/problem.wav",
+%	case filelib:ensure_dir(Recording) of
+%		ok ->
+%			F = fun(UUID) ->
+%					fun(ok, _Reply) ->
+%							freeswitch:api(State#state.nodename, uuid_transfer, UUID ++ " 'gentones:%(500\\,0\\,500),sleep:600,record:/tmp/"++Client++"/problem.wav' inline");
+%						(error, Reply) ->
+%							?WARNING("originate failed: ~p", [Reply]),
+%							ok
+%					end
+%			end,
+%			DialString = get_agent_dial_string(Agent, [], State),
+%			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, ?getRingout, F, [no_oncall_on_bridge, {dialstring, DialString}]) of
+%				{ok, _Pid} ->
+%					{reply, ok, State};
+%				{error, Reason} ->
+%					{reply, {error, Reason}, State}
+%			end;
+%		{error, Reason} ->
+%			{reply, {error, Reason}, State}
+%	end;
 handle_call({record_outage, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
 	{reply, {error, noconnection}, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
@@ -426,22 +453,23 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({ring, _Agent, _Call}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};
-%handle_call({ring, #agent{endpointtype = {undefined, transient, sip_registration}, endpointdata = EndPointData}, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
-%	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
-%	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
-%		{ok, Pid} ->
-%			{reply, {ok, Pid, neither}, State};
-%		Error ->
-%			{reply, Error, State}
-%	end;
-handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointdata = Data} = Agent, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+handle_call({ring, EndPointData, Callrec}, _From, #state{dialstring = BaseDialstring} = State) ->
+	NewOptions = [{dialstring, BaseDialstring}, {destination, EndPointData}, {call, Callrec}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, neither}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+handle_call({ring, {Type, Data}, Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
 	Default = case Type of
 		pstn -> State#state.dialstring;
 		_ -> ?default_dial_string(Type)
 	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, Default),
 	Destination = case Data of
-		undefined -> Agent#agent.login;
+		Agent when is_record(Agent, agent) ->
+			Agent#agent.login;
 		_ -> Data
 	end,
 	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}, {call, Callrec}],
@@ -451,21 +479,23 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointd
 		Error ->
 			{reply, Error, State}
 	end;
-%handle_call({ring, #agent{endpointtype = {undefined, persistent, sip_registration}, endpointdata = EndPointData}, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
-%	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
-%	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
-%		{ok, Pid} ->
-%			{reply, {ok, Pid, both}, State};
-%		Error ->
-%			{reply, Error, State}
-%	end;
-handle_call({ring, #agent{endpointtype = {undefined, persistent, Type}, endpointdata = Data} = Agentrec, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
-	Destination = case Data of
-		undefined -> Agentrec#agent.login;
-		_ -> Data
+handle_call({ring, EndPointData, _Callrec}, _From, #state{dialstring = BaseDailstring} = State) ->
+	NewOptions = [{dialstring, BaseDailstring}, {destination, EndPointData}],
+	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistant, NewOptions) of
+		{ok, Pid} ->
+			{reply, {ok, Pid, both}, State};
+		Error ->
+			{reply, Error, State}
+	end;
+handle_call({ring, {Type, Data}, _Callrec}, _From, #state{fetch_domain_user = BaseDialOpts} = State) ->
+	Default = case Type of
+		sip -> "sofia/internal/sip:$1";
+		iax2 -> "iax2/$1";
+		h323 -> "opal/h323:$1";
+		pstn -> ""
 	end,
 	BaseDialString = proplists:get_value(Type, BaseDialOpts, ?default_dial_string(Type)),
-	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}],
+	NewOptions = [{dialstring, BaseDialString}],
 	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_persistent, NewOptions) of
 		{ok, Pid} ->
 			{reply, {ok, Pid, both}, State};
@@ -485,63 +515,63 @@ handle_call({ring, {undefined, transient, Type}, EndPointData, Callback, Options
 	{reply, Out, State};
 handle_call({ring_agent, _Apid, _Agent, _Opts}, _From, #state{freeswitch_up = false} = State) ->
 	{reply, {error, noconnection}, State};
-handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
-	case Agent#agent.endpointtype of
-		{Rpid, persitent, _} when is_pid(Rpid) ->
-			spawn(fun() ->
-				freeswitch_ring:call(Rpid, {agent_state, ringing, "doesn't matter"})
-			end),
-			{reply, {ok, Rpid}, State};
-		{_, transient, Eptype} ->
-			Default = ?default_dial_string(Eptype),
-			BaseDialString = proplists:get_value(Eptype, State#state.fetch_domain_user, Default),
-			EndPointData = case Agent#agent.endpointdata of
-				undefined -> Agent#agent.login;
-				_ -> Agent#agent.endpointdata
-			end,
-			Options = [{dialstring, BaseDialString}, {destination, EndPointData} | Opts],
-			Out = freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, Options),
-			{reply, Out, State};
-		Else ->
-			{reply, {error, {badendpointtype, Else}}, State}
-	end;
-handle_call({ring_agent, _Apid, #agent{endpointtype = {Pid, _, _}} = Agent, Call, _Timout}, _From, #state{freeswitch_up = true} = State) when is_pid(Pid) ->
-	?INFO("~s already has a ring channel in ~p", [Agent#agent.login, Pid]),
-	{reply, {ok, Pid}, State};
-handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
-	case State#state.freeswitch_up of
-		true ->
-			Fun = fun(_) ->
-				fun(_, _) -> ok end
-			end,
-			DialString = get_agent_dial_string(Agent, [], State),
-			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg, {dialstring, DialString}]),
-			{reply, Out, State};
-		false ->
-			{reply, {error, noconnection}, State}
-	end;
-handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
-	case State#state.freeswitch_up of
-		true ->
-			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
-				case EventName of
-					"CHANNEL_ANSWER" ->
-						freeswitch:sendmsg(FsNode, UUID, [
-							{"call-command", "execute"},
-							{"execute-app-name", "delay_echo"},
-							{"execute-app-arg", "1000"}
-						]),
-						{noreply, FunState};
-					_ ->
-						{noreply, FunState}
-				end
-			end,
-			DialString = get_agent_dial_string(Agent, [], State),
-			Out = freeswitch_ring:start(Node, [{handle_event, HandleEvent}], [{agent, Agent},{dialstring,DialString},{destination,Agent#agent.endpointdata}]),
-			{reply, Out, State};
-		false ->
-			{reply, {error, noconnection}, State}
-	end;
+%handle_call({ring_agent, Apid, Agent, Opts}, _From, #state{nodename = Node} = State) ->
+%	case Agent#agent.endpointtype of
+%		{Rpid, persitent, _} when is_pid(Rpid) ->
+%			spawn(fun() ->
+%				freeswitch_ring:call(Rpid, {agent_state, ringing, "doesn't matter"})
+%			end),
+%			{reply, {ok, Rpid}, State};
+%		{_, transient, Eptype} ->
+%			Default = ?default_dial_string(Eptype),
+%			BaseDialString = proplists:get_value(Eptype, State#state.fetch_domain_user, Default),
+%			EndPointData = case Agent#agent.endpointdata of
+%				undefined -> Agent#agent.login;
+%				_ -> Agent#agent.endpointdata
+%			end,
+%			Options = [{dialstring, BaseDialString}, {destination, EndPointData} | Opts],
+%			Out = freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, Options),
+%			{reply, Out, State};
+%		Else ->
+%			{reply, {error, {badendpointtype, Else}}, State}
+%	end;
+%handle_call({ring_agent, _Apid, #agent{endpointtype = {Pid, _, _}} = Agent, Call, _Timout}, _From, #state{freeswitch_up = true} = State) when is_pid(Pid) ->
+%	?INFO("~s already has a ring channel in ~p", [Agent#agent.login, Pid]),
+%	{reply, {ok, Pid}, State};
+%handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+%	case State#state.freeswitch_up of
+%		true ->
+%			Fun = fun(_) ->
+%				fun(_, _) -> ok end
+%			end,
+%			DialString = get_agent_dial_string(Agent, [], State),
+%			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg, {dialstring, DialString}]),
+%			{reply, Out, State};
+%		false ->
+%			{reply, {error, noconnection}, State}
+%	end;
+%handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+%	case State#state.freeswitch_up of
+%		true ->
+%			HandleEvent = fun(EventName, _Data, {FsNode, UUID}, FunState) ->
+%				case EventName of
+%					"CHANNEL_ANSWER" ->
+%						freeswitch:sendmsg(FsNode, UUID, [
+%							{"call-command", "execute"},
+%							{"execute-app-name", "delay_echo"},
+%							{"execute-app-arg", "1000"}
+%						]),
+%						{noreply, FunState};
+%					_ ->
+%						{noreply, FunState}
+%				end
+%			end,
+%			DialString = get_agent_dial_string(Agent, [], State),
+%			Out = freeswitch_ring:start(Node, [{handle_event, HandleEvent}], [{agent, Agent},{dialstring,DialString},{destination,Agent#agent.endpointdata}]),
+%			{reply, Out, State};
+%		false ->
+%			{reply, {error, noconnection}, State}
+%	end;
 handle_call({get_media, MediaPid}, _From, #state{call_dict = Dict} = State) when is_pid(MediaPid) ->
 	Folder = fun(Id, Pid, _Acc) ->
 		case Pid of
@@ -564,25 +594,25 @@ handle_call({get_media, MediaKey}, _From, #state{call_dict = Dict} = State) ->
 		error ->
 			{reply, none, State}
 	end;
-handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
-	DialString = get_agent_dial_string(AgentRec, Options, State),
-	{reply, DialString, State};
+%handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
+%	DialString = get_agent_dial_string(AgentRec, Options, State),
+%	{reply, DialString, State};
 handle_call(get_default_dial_string, _From, State) ->
 	{reply, State#state.dialstring, State};
-handle_call({monitor, Type, Watched, Watcher}, _From, State) ->
-	DialString = case Watcher of
-		X when is_record(X, agent) ->
-			get_agent_dial_string(Watcher, [], State);
-		_ ->
-			Watcher
-	end,
-	Res = case Type of
-		agent ->
-			freeswitch_monitor:monitor_agent(Watched, DialString, State#state.nodename);
-		client ->
-			freeswitch_monitor:monitor_client(Watched, DialString, State#state.nodename)
-	end,
-	{reply, Res, State};
+%handle_call({monitor, Type, Watched, Watcher}, _From, State) ->
+%	DialString = case Watcher of
+%		X when is_record(X, agent) ->
+%			get_agent_dial_string(Watcher, [], State);
+%		_ ->
+%			Watcher
+%	end,
+%	Res = case Type of
+%		agent ->
+%			freeswitch_monitor:monitor_agent(Watched, DialString, State#state.nodename);
+%		client ->
+%			freeswitch_monitor:monitor_client(Watched, DialString, State#state.nodename)
+%	end,
+%	{reply, Res, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,
@@ -621,10 +651,15 @@ handle_info({freeswitch_sendmsg, "inivr "++UUID}, #state{call_dict = Dict} = Sta
 		{ok, Pid} ->
 			Pid;
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
-			link(Pid)
-	end,
-	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+			case freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID) of
+				{ok, Pid} ->
+					link(Pid),
+					{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+				Else ->
+					?WARNING("Error setting up new call ~s:  ~p", [UUID, Else]),
+					{noreply, State}
+			end
+	end;
 handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of
 		{ok, Pid} ->
@@ -632,10 +667,16 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 			?NOTICE("pid for ~s already allocated", [UUID]),
 			{noreply, State};
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
-			From ! {Ref, Pid},
-			link(Pid),
-			{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}}
+			case freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID) of
+				{ok, Pid} -> 
+					From ! {Ref, Pid},
+					link(Pid),
+					{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+				Else ->
+					From ! {Ref, Else},
+					?WARNING("Could not create pid for ~s:  ~p", [UUID, Else]),
+					{noreply, State}
+			end
 	end;
 handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->
 	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),
@@ -782,24 +823,21 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								Agent ->
-									DialString = case element(3, Agent#agent.endpointtype) of
+									DialString = case agent:get_endpoint(freeswitch_media, Agent) of
 										sip_registration ->
-											case Agent#agent.endpointdata of
-												undefined ->
-													"${sofia_contact("++User++"@"++Domain++")}";
-												_ ->
-													"${sofia_contact("++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"@"++Domain++")}"
-											end;
-										sip ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:"), Agent#agent.endpointdata, []);
-										iax2 ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/"), Agent#agent.endpointdata, []);
-										h323 ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Agent#agent.endpointdata, []);
-										pstn ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, []);
+											"${sofia_contact("++User++"@"++Domain++")}";
+										{sip_registration, Data} ->
+											"${sofia_contact("++re:replace(Data, "@", "_", [{return, list}])++"@"++Domain++")}";
+										{sip, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:"), Data, []);
+										{iax2, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/"), Data, []);
+										{h323, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Data, []);
+										{pstn, Data} ->
+											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Data, []);
 										rtmp ->
-											freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State, "rtmp/$1"), Agent#agent.endpointdata, [])
+											freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State, "rtmp/$1"), Data, [])
 									end,
 									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
 									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString])))
@@ -823,23 +861,25 @@ fetch_domain_user(Node, State) ->
 									User = proplists:get_value("user", Data),
 									Domain = proplists:get_value("domain", Data),
 									Realm = proplists:get_value("sip_auth_realm", Data),
-									case agent_manager:query_agent(User) of
-										{true, Pid} ->
-											try agent:dump_state(Pid) of
-												Agent when Agent#agent.password == 'undefined' ->
-													return_a1_hash(Domain, User, Node, ID);
-												Agent ->
-													Password=Agent#agent.password,
-													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
-													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
-												catch
-													_:_ -> % agent pid is toast?
-														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
-												end;
-											false ->
-												return_a1_hash(Domain, User, Node, ID)
-										end
+									% TODO Can this be done w/o dealing w/ a plain text pw?
+									freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+%									case agent_manager:query_agent(User) of
+%										{true, Pid} ->
+%											try agent:dump_state(Pid) of
+%												Agent when Agent#agent.password == 'undefined' ->
+%													return_a1_hash(Domain, User, Node, ID);
+%												Agent ->
+%													Password=Agent#agent.password,
+%													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
+%													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
+%													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
+%												catch
+%													_:_ -> % agent pid is toast?
+%														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+%												end;
+%											false ->
+%												return_a1_hash(Domain, User, Node, ID)
+%										end
 								end;
 						undefined -> % I guess we're just looking up a user?
 							% Looking up for first part of an auth most likely.
@@ -890,26 +930,26 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
-get_agent_dial_string(#agent{endpointtype = {_, _, Endpointtype}} = Agent, Opts, State) ->
-	get_agent_dial_string(Agent#agent{endpointtype = Endpointtype}, Opts, State);
-get_agent_dial_string(AgentRec, Options, State) ->
-	case AgentRec#agent.endpointtype of
-		sip_registration ->
-			case AgentRec#agent.endpointdata of
-				undefined ->
-					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
-				_ ->
-					%"sofia/internal/"++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"%"
-					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.endpointdata, "@", "_", [{return, list}]), Options)
-			end;
-		sip ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State#state.fetch_domain_user, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
-		iax2 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State#state.fetch_domain_user, "iax2/$1"), AgentRec#agent.endpointdata, Options);
-		h323 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
-		pstn ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options);
-		rtmp ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State#state.fetch_domain_user, "rtmp/$1"), AgentRec#agent.endpointdata, Options)
-	end.
+%get_agent_dial_string(#agent{endpointtype = {_, _, Endpointtype}} = Agent, Opts, State) ->
+%	get_agent_dial_string(Agent#agent{endpointtype = Endpointtype}, Opts, State);
+%ret_agent_dial_string(AgentRec, Options, State) ->
+%	case AgentRec#agent.endpointtype of
+%		sip_registration ->
+%			case AgentRec#agent.endpointdata of
+%				undefined ->
+%					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
+%				_ ->
+%					%"sofia/internal/"++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"%"
+%					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.endpointdata, "@", "_", [{return, list}]), Options)
+%			end;
+%		sip ->
+%			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State#state.fetch_domain_user, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
+%		iax2 ->
+%			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State#state.fetch_domain_user, "iax2/$1"), AgentRec#agent.endpointdata, Options);
+%		h323 ->
+%			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
+%		pstn ->
+%			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options);
+%		rtmp ->
+%			freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State#state.fetch_domain_user, "rtmp/$1"), AgentRec#agent.endpointdata, Options)
+%	end.

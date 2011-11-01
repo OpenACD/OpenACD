@@ -128,6 +128,10 @@
 <!--<script type="text/javascript" src="SoundManager2/soundmanager2.js"></script>-->
 <script type="text/javascript" src="SoundManager2/soundmanager2-nodebug-jsmin.js"></script>
 
+<!-- FlashPhone -->
+<script type="text/javascript" src="flashPhone/swfobject.js"></script>
+<script type="text/javascript" src="flashPhone/flashPhone.js"></script>
+
 <script type="text/javascript" src="/dojo/dojo.js.uncompressed.js"></script>
 <script type="text/javascript" src="/agentUI/base.js.uncompressed.js"></script>
 <script type="text/javascript">
@@ -153,6 +157,8 @@
 
 	dojo.addOnLoad(init);
 	soundManager.url = '/SoundManager2/';
+	soundManager.preferFlash = false;
+	//soundManager.useHTML5Audio = true;
 
 	soundManager.onready(function(oStatus) {
 		if (!oStatus.success) {
@@ -169,6 +175,18 @@
 			url: '/SoundManager2/36365__matiasromero__clareira_sininho.mp3',
 			volume: 25
 		});
+		soundManager.createSound({
+			id:'phoneRingWav',
+			url: '/SoundManager2/65535__eliasheuninck__1x-telefoon.wav',
+			volume: 25
+		});
+		soundManager.createSound({
+			id:'phoneRing',
+			url: '/SoundManager2/65535__eliasheuninck__1x-telefoon.m4a',
+			volume: 25
+		});
+
+
 	});
 </script>
 
@@ -218,7 +236,8 @@
 				<script type="dojo/method" event="onChange">
 					//endpointselect()
 				</script>
-				<option value="sip_registration" selected="selected">SIP Registration</option>
+				<option value="rtmp" selected="selected">Embedded Phone</option>
+				<option value="sip_registration">SIP Registration</option>
 				<option value="sip">SIP URI</option>
 				<option value="iax">IAX2 URI</option>
 				<option value="h323">H323 URI</option>
@@ -277,6 +296,33 @@
 			</button>
 		</p>
 	</div>
+</div>
+
+<div dojoType="dijit.Dialog" title="EMBEDDED_PHONE_LOGIN" id="embeddedPhoneLoginDialog" style="display:none">
+	<span class="translate">EMBEDDED_PHONE_LOGIN_PROMPT</span>
+	<p>
+		<label for="embeddedPhoneUsername" class="translatecol">USERNAME</label>
+		<input type="text" dojoType="dijit.form.TextBox" id="embeddedPhoneUsername" />
+	</p>
+	<p>
+		<label for="embeddedPhonePassword" class="translatecol">PASSWORD</label>
+		<input type="password" dojoType="dijit.form.TextBox" id="embeddedPhonePassword" />
+	</p>
+	<p>
+		<label>&nbsp;</label>
+		<button dojoType="dijit.form.Button" type="submit" label="SUBMIT">
+			<script type="dojo/connect" event="onClick">
+				var dij = dijit.byId("embeddedPhoneLoginDialog");
+				if(dij.phone){
+					var username = dijit.byId('embeddedPhoneUsername').get('value');
+					var password = dijit.byId('embeddedPhonePassword').get('value');
+					var nick = window.agentConnection.username;
+					dij.phone.login(username, password, nick);
+				}
+				dij.hide();
+			</script>
+		</button>
+	</p>
 </div>
 
 <div dojoType="dijit.Dialog" title="Enter Case ID" id="getCaseIDDialog" style="display:none">
@@ -648,6 +694,21 @@
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" id="embeddedPhoneAnswer" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
+				/*this.stateChanger = dojo.subscribe("OpenACD/Agent/state", this, function(data){
+					switch(data.state){
+						case "ringing": break;
+						default: this.style.display = "none";
+					}
+				});*/
+			</script>
+			<script type="dojo/connect" event="onClick">
+				window.agentPhone.answer();
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=window.agentConnection.setState("wrapup")>

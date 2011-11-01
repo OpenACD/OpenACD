@@ -732,6 +732,10 @@ OpenACD.Agent.prototype._handleCheckCookieSuccess = function(res){
 	this.securityLevel = res.securityLevel;
 	this.elapsed = res.elapsed;
 	this.setSkew(res.timestamp);
+	this.loginOptions = {};
+	this.loginOptions.voipendpoint = res.endpointtype;
+	this.loginOptions.voipendpointdata = res.endpointdata;
+	this.loginOptions.useendpointpersistence = res.endpointpersist;
 	this.poll();
 	try{
 		this.loggedIn = true;

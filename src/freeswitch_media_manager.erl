@@ -842,13 +842,20 @@ fetch_domain_user(Node, State) ->
 										end
 								end;
 						undefined -> % I guess we're just looking up a user?
-							User = proplists:get_value("user", Data),
-							Domain = proplists:get_value("domain", Data),
-							case agent_manager:query_agent(User) of
-								{true, _Pid} ->
-									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User])));
-								false ->
-									freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+							% Looking up for first part of an auth most likely.
+							% only auth we support is sip (which is above) so we'll
+							% depend on that.
+							case proplists:get_value(sipauth, State) of
+								undefined -> freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE);
+								_ ->
+									User = proplists:get_value("user", Data),
+									Domain = proplists:get_value("domain", Data),
+									case agent_manager:query_agent(User) of
+										{true, _Pid} ->
+											freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User])));
+										false ->
+											freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
+									end
 							end;
 						_ ->
 							freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
@@ -904,5 +911,5 @@ get_agent_dial_string(AgentRec, Options, State) ->
 		pstn ->
 			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options);
 		rtmp ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options)
+			freeswitch_media_manager:do_dial_string(proplists:get_value(rtmp, State#state.fetch_domain_user, "rtmp/$1"), AgentRec#agent.endpointdata, Options)
 	end.

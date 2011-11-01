@@ -691,10 +691,10 @@ handle_cast(retrieve_conference, Call, #state{statename = '3rd_party'} = State) 
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(retrieve_conference, Call, MidState);
 
-handle_cast(hangup_3rdparty, Call, #state{statename = '3rd_party'} = State) ->
+handle_cast(hangup_3rd_party, Call, #state{statename = '3rd_party'} = State) ->
 	?INFO("killing 3rd party channel while talking w/ them", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
-	handle_cast(hangup_3rdparty, Call, MidState);
+	handle_cast(hangup_3rd_party, Call, MidState);
 
 handle_cast({merge_3rd_party, _IncludeSelf}, Call, #state{'3rd_party_id' = undefined} = State) ->
 	{noreply, State};
@@ -721,11 +721,11 @@ handle_cast(retrieve_3rd_party, Call, #state{statename = hold_conference_3rdpart
 	freeswitch:bgapi(Fnode, uuid_bridge, Thirdpid ++ " " ++ Ringid),
 	{noreply, State#state{statename = '3rd_party'}};
 
-handle_cast(hangup_3rdparty, Call, #state{statename = 'hold_conference_3rdparty'} = State) ->
+handle_cast(hangup_3rd_party, Call, #state{statename = 'hold_conference_3rdparty'} = State) ->
 	?INFO("hangling up on 3rd party", []),
 	#state{cnode = Fnode, '3rd_party_id' = Thirdid} = State,
 	freeswitch:bgapi(Fnode, uuid_kill, Thirdid),
-	{noreply, State#state{statename = 'hold_conference', '3rd_party_id' = undefined}};
+	{noreply, State#state{statename = 'hold_conference'}};
 
 % in_conference -> '3rdparty' | 'conference_hold'
 handle_cast(toggle_hold, Call, #state{statename = 'in_conference'} = State) ->
@@ -1087,6 +1087,10 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	end,
 	cdr:media_custom(Callrec, 'oncall_hold', ?cdr_states, []),
 	{{mediapush, caller_hold}, State};
+
+case_event_name("CHANNEL_DESTROY", UUID, Rawcall, Callrec, #state{
+		'3rd_party_id' = UUID, statename = Statename} = State) ->
+	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		uuid = UUID, queued = false, warm_transfer_uuid = undefined,

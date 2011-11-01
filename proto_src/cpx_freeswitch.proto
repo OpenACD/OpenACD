@@ -13,6 +13,7 @@ enum FreeswitchEvent {
 	HOLD_CONFERENCE = 4;
 	THIRD_PARTY = 5;
 	HOLD_CONFERENCE_3RD_PARTY = 6;
+	IN_CONFERENCE_3RDPARTY = 7;
 }
 
 enum FreeswitchRequest {

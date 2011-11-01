@@ -151,11 +151,7 @@
 			/*dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
 			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
 			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
-<<<<<<< HEAD
 			dijit.byId('usepersistentringchannel').attr('checked', settings.usepersistentring);
-=======
-			dijit.byId('usepersistantringchannel').attr('checked', settings.usepersistantring);*/
->>>>>>> v2dev
 			if (settings.theme)
 				document.getElementsByTagName("body")[0].className = settings.theme;
 		}
@@ -233,69 +229,6 @@
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
 		<p>
-<<<<<<< HEAD
-			<label for="voipendpoint" id="voipendpointlabel">
-				<script type="text/javascript">
-					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
-				</script>
-			</label>
-			<select dojoType="dijit.form.FilteringSelect" id="voipendpoint" name="voipendpoint">
-				<script type="dojo/method" event="onChange">
-					//endpointselect()
-				</script>
-				<option value="rtmp" selected="selected">Embedded Phone</option>
-				<option value="sip_registration">SIP Registration</option>
-				<option value="sip">SIP URI</option>
-				<option value="iax">IAX2 URI</option>
-				<option value="h323">H323 URI</option>
-				<option value="pstn">PSTN Number</option>
-			</select>
-		</p>
-		<p>
-			<label for="voipendpointdata" id="voipendpointdatalabel">
-				<script type="text/javascript">
-					dojo.byId("voipendpointdatalabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINTDATA + ":";
-					dojo.addOnLoad(endpointselect);
-				</script>
-			</label>
-			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
-			<!--<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-				</script>
-			</div>-->
-		</p>
-		<p>
-			<label>&nbsp;</label>
-			<input type="checkbox" name="useoutbandring" id="useoutbandring" value="useoutbandring" dojoType="dijit.form.CheckBox" checked />
-			<span class="translate" id="useoutbandringlabel">USE_OUTBAND_RING</span>
-			<script type="text/javascript">
-				dojo.byId("useoutbandringlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_OUTBAND_RING;
-			</script>
-			<!--<div dojoType="dijit.Tooltip" connectId="useoutbandring" label="OUTBAND_RING_TIP" id="outbandringtip">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').OUTBAND_RING_TIP);
-					
-				</script>
-			</div>-->
-		</p>
-		<p>
-			<label>&nbsp;</label>
-			<input type="checkbox" name="usepersistentringchannel" id="usepersistentringchannel", value="true" dojoType="dijit.form.CheckBox" />
-			<span class="translate" id="usePersistantRingChannelLabel">USE_PERSISTANT_RING_CHANNEL</span>
-			<script type="text/javascript">
-				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
-			</script>
-			<div dojoType="dijit.Tooltip" connectId="usepersistentringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);
-				</script>
-			</div>
-		<p>
-=======
->>>>>>> v2dev
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
 				<script type="dojo/method" event="postCreate">

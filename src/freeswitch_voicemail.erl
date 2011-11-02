@@ -165,69 +165,17 @@ handle_answer(Apid, Callrec, #state{file=File} = State) ->
 handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
 	AgentRec = agent:dump_state(Apid),
 	handle_ring({Apid, AgentRec}, RingData, Callrec, State);
-handle_ring({_Apid, #agent{endpointtype = {undefined, persistent, _}} = Agent}, RingData, _Callrec, State) ->
+handle_ring({_Apid, #agent{ring_channel = {undefined, persistent, _}} = Agent}, RingData, _Callrec, State) ->
 	?WARNING("Agent (~p) does not have it's persistent channel up yet", [Agent#agent.login]),
 	{invalid, State};
 
-handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndpointType}} = Agent}, RingData, Callrec, State) ->
+handle_ring({Apid, #agent{ring_channel = {EndpointPid, persistent, _EndpointType}} = Agent}, RingData, Callrec, State) ->
 	?INFO("Ring channel made things happy, I assume", []),
 	{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = EndpointPid, ringuuid = freeswitch_ring:get_uuid(EndpointPid), agent_pid = Apid}};
 
-handle_ring({Apid, #agent{endpointtype = {EndpointPid, transient, _EndpintType}} = Agent}, RingData, Callrec, State) when is_pid(EndpointPid) ->
+handle_ring({Apid, #agent{ring_channel = {EndpointPid, transient, _EndpintType}} = Agent}, RingData, Callrec, State) when is_pid(EndpointPid) ->
 	?INFO("Agent already has transient ring pid up:  ~p", [EndpointPid]),
-	{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = EndpointPid, ringuuid = freeswitch_ring:get_uuid(EndpointPid), agent_pid = Apid}};
-
-%% ===== old stuff ======
-handle_ring(Apid, RingData, Callrec, State) ->
-	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
-	F = fun(UUID) ->
-		fun(ok, _Reply) ->
-			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
-		(error, Reply) ->
-			?WARNING("originate failed: ~p", [Reply]),
-			ok
-		end
-	end,
-	F2 = fun(UUID, EventName, Event) ->
-			case EventName of
-				"DTMF" ->
-					case proplists:get_value("DTMF-Digit", Event) of
-						"5" ->
-							freeswitch:sendmsg(State#state.cnode, UUID,
-								[{"call-command", "execute"},
-									{"event-lock", "true"},
-									{"execute-app-name", "playback"},
-									{"execute-app-arg", State#state.file}]);
-						_ ->
-							ok
-					end;
-				"CHANNEL_EXECUTE_COMPLETE" ->
-					File = State#state.file,
-					case proplists:get_value("Application-Data", Event) of
-						File ->
-							?NOTICE("Finished playing voicemail recording", []),
-							freeswitch:sendmsg(State#state.cnode, UUID,
-								[{"call-command", "execute"},
-									{"event-lock", "true"},
-									{"execute-app-name", "playback"},
-									{"execute-app-arg", "file_string://voicemail/8000/vm-press.wav!digits/8000/5.wav!voicemail/8000/vm-repeat_message.wav"}]);
-						_ ->
-							ok
-					end;
-				_ ->
-					ok
-			end,
-			true
-	end,
-	AgentRec = agent:dump_state(Apid),
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, ?getRingout, F, [single_leg, {eventfun, F2}, {needed_events, ['DTMF', 'CHANNEL_EXECUTE_COMPLETE']}]) of
-		{ok, Pid} ->
-			link(Pid),
-			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};
-		{error, Error} ->
-			?ERROR("error:  ~p", [Error]),
-			{invalid, State}
-	end.
+	{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = EndpointPid, ringuuid = freeswitch_ring:get_uuid(EndpointPid), agent_pid = Apid}}.
 
 handle_ring_stop(_Callrec, State) ->
 	?DEBUG("hanging up ring channel", []),

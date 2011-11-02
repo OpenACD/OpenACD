@@ -141,40 +141,82 @@
 -ifdef(GEN_MEDIA).
 
 -type(route_hint() :: {string(), #call{}} | 'undefined' | #call{}).
+-type(gen_media_statename() :: 'iniver' | 'inqueue' | 'inqueue_ringing' |
+	'oncall' | 'oncall_ringing' | 'wrapup').
+-type(gen_media_state() :: #inivr_state{} | #inqueue_state{} |
+	#inqueue_ringing_state{} | #oncall_state{} | #oncall_ringing_state{} |
+	#wrapup_state{}).
 
--spec(init/1 :: (Args :: any()) -> {'ok', {state(), route_hint()}} | {'ok', {state(), #call{}, {transaction_type(), any()}}} | {'stop', any()} | 'ignore').
--spec(handle_ring/4 :: (Agent :: pid(), RingData :: any(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
--spec(handle_ring_stop/2 :: (Call :: #call{}, State :: state()) -> {'ok', state()}).
--spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
--spec(handle_agent_transfer/4 :: (Agent :: pid(), Timeout :: pos_integer(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
--spec(handle_queue_transfer/2 :: (Call :: #call{}, State :: state()) -> {'ok', state()}).
--spec(handle_wrapup/2 :: (Call :: #call{}, State :: state()) -> {'ok', state()} | {'hangup', state()}).
--spec(handle_call/4 :: (Event :: any(), From :: {pid(), any()}, Call :: #call{}, State :: state()) -> 
-	{'reply', any(), state()} | 
-	{'reply', any(), state(), gen_timeout()} | 
-	{'noreply', state()} | 
-	{'noreply', state(), gen_timeout()} | 
-	{'stop', any(), any(), state()} | 
-	{'stop', any(), state()} |
-	{'stop_ring', any(), state()} |
-	{'answer', any(), state()} |
-	{'wrapup', any(), state()}).
--spec(handle_cast/3 :: (Request :: any(), Call :: #call{}, State :: state()) ->
-	{'noreply', state()} | 
-	{'noreply', state(),  gen_timeout()} | 
-	{'stop', any(), state()} | 
-	{'stop_ring', state()} | 
-	{'answer', state()} | 
-	{'wrapup', state()}).
--spec(handle_info/3 :: (Request :: any(), Call :: #call{}, State :: state()) ->
-	{'noreply', state()} | 
-	{'noreply', state(),  gen_timeout()} | 
-	{'stop', any(), state()} | 
-	{'stop_ring', state()} | 
-	{'answer', state()} | 
-	{'wrapup', state()}).
--spec(terminate/3 :: (Reason :: any(), Call :: #call{}, State :: state()) -> any()).
--spec(code_change/4 :: (Vsn :: {'down', any()} | any(), Call :: #call{}, State :: state(), Extra :: any()) -> {'ok', state()}).
+-spec(init/1 :: (Args :: any()) ->
+		{'ok', {state(), route_hint()}} |
+		{'ok', {state(), #call{}, {transaction_type(), any()}}} |
+		{'stop', any()} | 'ignore').
+
+-spec(handle_ring/4 :: (Agent :: pid(), RingData :: any(), Call :: #call{}, 
+	State :: state()) ->
+		{'ok', state()} | {'invalid', state()}).
+
+-spec(handle_ring_stop/4 :: (Statename :: gen_media_statename(),
+	Call :: #call{}, GenMediaState :: gen_media_state(), State :: state()) ->
+		{'ok', state()}).
+
+-spec(handle_answer/5 :: (Agent :: pid(),
+	Statename :: gen_media_statename(), Call :: #call{},
+	GenMediaState :: gen_media_state(), State :: state()) ->
+		{'ok', state()} | {'error', any(), state()}).
+
+-spec(handle_agent_transfer/4 :: (Agent :: pid(), Timeout :: pos_integer(),
+	Call :: #call{}, State :: state()) ->
+		{'ok', state()} | {'error', any(), state()}).
+
+-spec(handle_queue_transfer/5 :: (Queue :: string(),
+	Statename :: gen_media_statename(), Call :: #call{},
+	GenMediaState :: gen_media_state(), State :: state()) ->
+		{'ok', state()}).
+
+-spec(handle_wrapup/5 :: (From :: {pid(), reference()}, 
+	Statename :: gen_media_statename(), Call :: #call{},
+	GenMediaState :: gen_media_state(), State :: state()) ->
+		{'ok', state()} | {'hangup', state()}).
+
+-spec(handle_call/4 :: (Event :: any(), From :: {pid(), any()},
+	Call :: #call{}, State :: state()) -> 
+		{'reply', any(), state()} | 
+		{'reply', any(), state(), gen_timeout()} | 
+		{'noreply', state()} | 
+		{'noreply', state(), gen_timeout()} | 
+		{'stop', any(), any(), state()} | 
+		{'stop', any(), state()} |
+		{'stop_ring', any(), state()} |
+		{'answer', any(), state()} |
+		{'wrapup', any(), state()}).
+
+-spec(handle_cast/3 :: (Request :: any(), Call :: #call{},
+	State :: state()) ->
+		{'noreply', state()} | 
+		{'noreply', state(),  gen_timeout()} | 
+		{'stop', any(), state()} | 
+		{'stop_ring', state()} | 
+		{'answer', state()} | 
+		{'wrapup', state()}).
+
+-spec(handle_info/5 :: (Request :: any(),
+	Statename :: gen_media_statename(), Call :: #call{},
+	GenMediaState :: gen_media_state(), State :: state()) ->
+		{'noreply', state()} | 
+		{'noreply', state(),  gen_timeout()} | 
+		{'stop', any(), state()} | 
+		{'stop_ring', state()} | 
+		{'answer', state()} | 
+		{'wrapup', state()}).
+
+-spec(terminate/5 :: (Reason :: any(), Statename :: gen_media_statename(),
+	Call :: #call{}, GenMediaState :: gen_media_state(), State :: state()) -> 
+		any()).
+
+-spec(code_change/4 :: (Vsn :: {'down', any()} | any(), Call :: #call{},
+	State :: state(), Extra :: any()) ->
+		{'ok', state()}).
 
 -endif.
 

@@ -39,6 +39,7 @@
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("cpx_freeswitch_pb.hrl").
 
 -define(TIMEOUT, 10000).
 
@@ -132,7 +133,7 @@ init([Cnode, UUID, File, Queue, Priority, Client]) ->
 handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	%freeswitch_ring:hangup(State#state.ringchannel),
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"100px">>},{<<"height">>, <<"60px">>},{<<"title">>,<<>>}]}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
 	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
 		[{"call-command", "execute"},
@@ -148,7 +149,7 @@ handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = Stat
 			ringuuid = State#state.xferuuid, xferuuid = undefined, xferchannel = undefined, answered = true}};
 handle_answer(Apid, Callrec, #state{file=File} = State) ->
 	?NOTICE("Voicemail ~s successfully answered! Time to play ~s", [Callrec#call.id, File]),
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"100px">>},{<<"height">>, <<"60px">>},{<<"title">>,<<>>}]}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"event-lock", "true"},
@@ -325,6 +326,34 @@ handle_call(Msg, _From, _Call, State) ->
 %% @private
 handle_cast({set_caseid, CaseID}, _Call, State) ->
 	{noreply, State#state{caseid = CaseID}};
+
+handle_cast(replay, _Call, #state{file = File} = State) ->
+	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
+		[{"call-command", "execute"},
+			{"event-lock", "true"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", File}]),
+	{noreply, State};
+
+%% web api
+handle_cast({<<"replay">>, _}, Call, State) ->
+	handle_cast(replay, Call, State);
+
+%% tcp api
+handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) ->
+	FixedRequest = cpx_freeswitch_pb:decode_extensions(Request),
+	Hint = case cpx_freeswitch_pb:get_extension(FixedRequest, freeswitch_voicemail_request_hint) of
+		{ok, O} -> O;
+		_ -> undefined
+	end,
+	case Hint of
+		'REPLAY' ->
+			handle_cast(replay, Call, State);
+		Else ->
+			?INFO("Invalid request hint:  ~p", [Else]),
+			{noreply, State}
+	end;
+
 handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 

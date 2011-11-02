@@ -173,7 +173,7 @@ init([Cnode, DialString, UUID]) ->
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum, SIPFrom} = get_info(Cnode, UUID),
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
-	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
+	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"], uuid = UUID}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
@@ -939,9 +939,8 @@ case_event_name("CHANNEL_DESTROY", UUID, Rawcall, Callrec, #state{
 	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
-		uuid = UUID, queued = false, warm_transfer_uuid = undefined,
-		statename = Statename} = State) when
-		Statename == inqueue; Statename =/= inqueue_ringing ->
+		uuid = UUID, queued = false, statename = Statename} = State) when
+		Statename == inivr ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 	Client = proplists:get_value("variable_brand", Rawcall),
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),

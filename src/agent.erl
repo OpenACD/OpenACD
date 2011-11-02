@@ -528,7 +528,8 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 	Newagent = Agent#agent{skills = NewSkills},
 	{next_state, StateName, State#state{agent_rec = Newagent}};
 
-handle_event({set_endpoints, Ends}, StateName, State) ->
+handle_event({set_endpoints, InEnds}, StateName, State) ->
+	Ends = sort_endpoints(InEnds),
 	NewAgent = priv_set_endpoints(State#state.agent_rec, State#state.original_endpoints, Ends),
 	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
 	{next_state, StateName, State#state{agent_rec = NewAgent}};
@@ -708,6 +709,15 @@ filter_endpoints([{Module, _Data} = Head | Tail], Acc) ->
 					filter_endpoints(Tail, Acc)
 			end
 	end.
+
+sort_endpoints(Ends) ->
+	{Full, Referencers} = lists:partition(fun sort_endpoint_pred/1, Ends),
+	Full ++ Referencers.
+
+sort_endpoint_pred({_Module, {module, Atom}}) when is_atom(Atom) ->
+	false;
+sort_endpoint_pred(_) ->
+	true.
 
 inform_connection(#agent{connection = undefined}, _Msg) ->
 	ok;

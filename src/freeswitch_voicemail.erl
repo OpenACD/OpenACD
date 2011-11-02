@@ -39,7 +39,7 @@
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
--include("gen_media.hrl").
+%-include("gen_media.hrl").
 -include("cpx_freeswitch_pb.hrl").
 
 -define(TIMEOUT, 10000).

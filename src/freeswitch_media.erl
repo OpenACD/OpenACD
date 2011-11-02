@@ -44,7 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("cpx_freeswitch_pb.hrl").
--include("gen_media.hrl").
+%-include("gen_media.hrl").
 
 -define(TIMEOUT, 10000).
 
@@ -136,8 +136,8 @@
 }).
 
 -type(state() :: #state{}).
-%-define(GEN_MEDIA, true).
-%-include("gen_spec.hrl").
+-define(GEN_MEDIA, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API

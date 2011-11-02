@@ -53,11 +53,7 @@
 
 %% API
 -export([
-%	start_link/3,
-%	start_link/2,
 	start_link/1,
-%	start/3,
-%	start/2,
 	start/1,
 	get_disposition/1
 ]).
@@ -73,15 +69,15 @@
 	prepare_endpoint/2,
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
-	terminate/3, 
+	handle_info/5,
+	terminate/5, 
 	code_change/4,
 	handle_ring/4, 
-	handle_answer/3, 
-	handle_ring_stop/2,
+	handle_answer/5, 
+	handle_ring_stop/4,
 	handle_agent_transfer/4,
-	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_queue_transfer/5,
+	handle_wrapup/5,
 	handle_spy/3,
 	format_status/2
 ]).
@@ -434,7 +430,7 @@ handle_cast(Msg, Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(check_manager, _Callrec, State) ->
+handle_info(check_manager, _Statename, _Callrec, _Gmstate, State) ->
 	case whereis(email_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
@@ -443,24 +439,28 @@ handle_info(check_manager, _Callrec, State) ->
 			{ok, Tref} = timer:send_after(1000, check_manager),
 			{noreply, State#state{manager = Tref}}
 	end;
-handle_info({'EXIT', Pid, normal}, Callrec, #state{sending_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, normal}, _Statename, Callrec, _GmState, #state{sending_pid = Pid} = State) ->
 	?DEBUG("sending complete (~p)", [Callrec#call.id]),
 	{{mediapush, send_done}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Notnormal}, Callrec, #state{sending_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Notnormal}, _Statename, Callrec, _GmState, #state{sending_pid = Pid} = State) ->
 	?INFO("Sending failed:  ~p (~p)", [Notnormal, Callrec#call.id]),
 	{{mediapush, {send_fail, Notnormal}}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Reason}, Callrec, #state{manager = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Reason}, _Statename, Callrec, _GmState, #state{manager = Pid} = State) ->
 	?WARNING("Handling media manager ~w death of ~p (~p)", [Pid, Reason, Callrec#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_manager),
 	{noreply, State#state{manager = Tref}};
-handle_info(Info, Callrec, State) ->
+
+handle_info(Info, _Statename, Callrec, _GmState, State) ->
 	?DEBUG("Info: ~p (~p)", [Info, Callrec#call.id]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(_Reason, _Callrec, _State) ->
+terminate(_Reason, _Statename, _Callrec, _GmState, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
@@ -475,7 +475,7 @@ format_status(_, [_PDict, State]) ->
 	State#state{mimed = {}, skeleton = undefined, file_map = [], outgoing_attachments = []}.
 
 %% gen_media specific callbacks
-handle_answer(Agent, Call, State) ->
+handle_answer(Agent, _Statename, Call, _Gmstate, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
 	agent_channel:media_push(Agent, {mediaload, Call}),
 	%agent_channel:conn_cast(Agent, {mediaload, Call}),
@@ -487,13 +487,13 @@ handle_ring(_Agent, _RingData, _Call, #state{caseid = CaseID} = State) ->
 handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->
 	{ok, [{"caseid", State#state.caseid}], State}.
 
-handle_queue_transfer(_Callrec, State) ->
+handle_queue_transfer(_Queue, _Statename, _Callrec, _Gmstate, State) ->
 	{ok, State}.
 
-handle_ring_stop(_Callrec, State) ->
+handle_ring_stop(_Statename, _Callrec, _Gmstate, State) ->
 	{ok, State}.
 
-handle_wrapup(_Callrec, State) ->
+handle_wrapup(_From, _Statename, _Callrec, _Gmstate, State) ->
 	{hangup, State}.
 
 -spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> 'ok').

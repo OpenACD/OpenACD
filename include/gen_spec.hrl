@@ -140,6 +140,8 @@
 
 -ifdef(GEN_MEDIA).
 
+-include("gen_media.hrl").
+
 -type(route_hint() :: {string(), #call{}} | 'undefined' | #call{}).
 -type(gen_media_statename() :: 'iniver' | 'inqueue' | 'inqueue_ringing' |
 	'oncall' | 'oncall_ringing' | 'wrapup').

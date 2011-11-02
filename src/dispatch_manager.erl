@@ -160,7 +160,7 @@ handle_cast({end_avail, AgentPid}, State) ->
 		error ->
 			{State#state.agents, State#state.channel_count};
 		{ok, {Ref, Chans}} ->
-			{ok, Ref} = dict:find(AgentPid, State#state.agents),
+			%{ok, Ref} = dict:find(AgentPid, State#state.agents),
 			erlang:demonitor(Ref),
 			OutD = dict:erase(AgentPid, State#state.agents),
 			OutC = State#state.channel_count - length(Chans),

@@ -2157,6 +2157,15 @@ handle_custom_return({{hangup, Who}, NewState}, inqueue_ringing, noreply,
 	unqueue(Internal#inqueue_ringing_state.queue_pid,self()),
 	{next_state, wrapup, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};
 
+handle_custom_return({{hangup, Who}, NewState}, wrapup, noreply,
+		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
+	% this can occur when a media goes to voicemail.
+	% TODO add a 'leaving voicemail' state?
+	?INFO("hangup for ~s while in wrapup", [Callrec#call.id]),
+	cdr:hangup(Callrec, Who),
+	% leaving it up to the media whether it should stop or not.
+	{next_state, wrapup, {BaseState#base_state{substate = NewState}, Internal}};
+
 handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
 		StateTuple) when State =:= oncall;
 		State =:= oncall_ringing;
@@ -2485,7 +2494,7 @@ priv_voicemail({BaseState, #inqueue_ringing_state{ring_mon = Rmon, ring_pid = {_
 	priv_voicemail({BaseState, NewInternal});
 
 priv_voicemail({BaseState, #inqueue_state{queue_mon = Mon, queue_pid = {QNom, QPid}}}) ->
-	erlaang:demonitor(Mon),
+	erlang:demonitor(Mon),
 	call_queue:remove(QPid, self()),
 	cdr:voicemail(BaseState#base_state.callrec, QNom),
 	ok.

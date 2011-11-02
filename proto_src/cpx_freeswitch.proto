@@ -27,6 +27,10 @@ enum FreeswitchRequest {
 	HANGUP_3RD_PARTY = 8;
 }
 
+enum FreeswitchVoicemailRequest {
+	REPLAY = 1;
+}
+
 message AudioLevelRequest {
 	enum AudioChannel {
 		SPEAKER = 1;
@@ -54,6 +58,7 @@ extend MediaCommandRequest {
 	optional Contact3rdPartyRequest contact_3rd_party = 3002;
 	optional Merge3rdPartyRequest merge_3rd_party = 3003;
 	optional BlindTransferRequest blind_transfer = 3004;
+	optional FreeswitchVoicemailRequest freeswitch_voicemail_request_hint = 3005;
 }
 
 extend MediaEvent {

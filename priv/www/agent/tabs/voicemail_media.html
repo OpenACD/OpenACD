@@ -1,0 +1,7 @@
+<div dojoType="dijit.layout.ContentPane" style="padding-left:10px; padding-top:5px;">
+	<button dojoType="dijit.form.Button" label="REPLAY">
+		<script type="dojo/connect" event="onClick">
+			agentConnection.agentApi("media_command", {}, "replay", "cast", "");
+		</script>
+	</button>
+</div>

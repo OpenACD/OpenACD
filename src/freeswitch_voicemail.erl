@@ -82,7 +82,7 @@
 	answered = false :: boolean(),
 	caseid :: string() | 'undefined',
 	time = util:now() :: integer()
-	}).
+}).
 
 -type(state() :: #state{}).
 -define(GEN_MEDIA, true).
@@ -116,7 +116,7 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID, File, Queue, Priority, Client]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	Callrec = #call{id=UUID++"-vm", type=voicemail, source=self(), priority = Priority, client = Client},
+	Callrec = #call{id=UUID++"-vm", type=voicemail, source=self(), priority = Priority, client = Client, media_path = inband},
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);
@@ -131,7 +131,8 @@ init([Cnode, UUID, File, Queue, Priority, Client]) ->
 
 handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
-	freeswitch_ring:hangup(State#state.ringchannel),
+	%freeswitch_ring:hangup(State#state.ringchannel),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"100px">>},{<<"height">>, <<"60px">>},{<<"title">>,<<>>}]}),
 	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
 		[{"call-command", "execute"},
@@ -147,6 +148,7 @@ handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = Stat
 			ringuuid = State#state.xferuuid, xferuuid = undefined, xferchannel = undefined, answered = true}};
 handle_answer(Apid, Callrec, #state{file=File} = State) ->
 	?NOTICE("Voicemail ~s successfully answered! Time to play ~s", [Callrec#call.id, File]),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"100px">>},{<<"height">>, <<"60px">>},{<<"title">>,<<>>}]}),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"event-lock", "true"},
@@ -159,6 +161,22 @@ handle_answer(Apid, Callrec, #state{file=File} = State) ->
 			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid, answered = true}}.
 
+handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
+	AgentRec = agent:dump_state(Apid),
+	handle_ring({Apid, AgentRec}, Callrec, State);
+handle_ring({_Apid, #agent{endpointtype = {undefined, persistent, _}} = Agent}, _Callrec, State) ->
+	?WARNING("Agent (~p) does not have it's persistent channel up yet", [Agent#agent.login]),
+	{invalid, State};
+
+handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndpointType}} = Agent}, Callrec, State) ->
+	?INFO("Ring channel made things happy, I assume", []),
+	{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = EndpointPid, ringuuid = freeswitch_ring:get_uuid(EndpointPid), agent_pid = Apid}};
+
+handle_ring({Apid, #agent{endpointtype = {EndpointPid, transient, _EndpintType}} = Agent}, Callrec, State) when is_pid(EndpointPid) ->
+	?INFO("Agent already has transient ring pid up:  ~p", [EndpointPid]),
+	{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = EndpointPid, ringuuid = freeswitch_ring:get_uuid(EndpointPid), agent_pid = Apid}};
+
+%% ===== old stuff ======
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	F = fun(UUID) ->

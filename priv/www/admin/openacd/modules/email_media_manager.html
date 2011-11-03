@@ -169,26 +169,9 @@
 				load:function(res){
 					if(! res.success){
 						console.warn('getting mappings failed', res.message);
-						window.mailMappings = new dojo.store.Memory({data:[]});
+						window.mailMappings = new dojo.store.Memory({idProperty:'address',data:[]});
 					} else {
-						window.mailMappings = new dojo.store.Memory({data:res.items});
-					}
-					window.mailMappings._saveCustom = function(savecomplete){
-						debugger;
-						var changeset = window.mailMappings._pending;
-						var updates = [];
-						for(var i in changeset._modifiedItems){
-							var item = null;
-							if(window.mailMappings._itemsByIdentity){
-								item = window.mailMappings._itemsByIdentity[i];
-							}
-							else{
-								item = window.mailMappings._arrayOfAllItems[i];
-							}
-							updates.push(item);
-						}
-						//onsole.log(updates);
-						savecomplete();
+						window.mailMappings = new dojo.store.Memory({idProperty:'address',data:res.items});
 					}
 					dijit.byId('mapGrid').setStore(new dojo.data.ObjectStore({
 						objectStore:window.mailMappings
@@ -234,36 +217,36 @@
 			}, dojo.byId("mapGrid"));
 
 			dojo.connect(mapGrid, "onRowClick", mapGrid, function(e){
-				this.cachedAddress = this.store.getValue(this.getItem(e.rowIndex), "address");
-				//mapGrid.cachedAddress = window.mailMappings.getValue(mapGrid.getItem(e.rowIndex), "address");
+				if(e.rowIndex){
+					this.cachedAddress = this.getItem(e.rowIndex).address;
+				}
 			});
 
-			/*dojo.connect(mapGrid, "onApplyEdit", function(row){
-				debugger;
-				var ajax = function(oldaddy, newitem){
-					dojo.xhrPost({
-						url:"/modules/anynode/email_media_manager/setMapping",
-						content:{
-							"oldaddress":oldaddy,
-							"address":window.mailMappings.getValue(newitem, "address"),
-							"queue":window.mailMappings.getValue(newitem, "queue"),
-							"client":windwo.mailMappings.getValue(newitem, "client"),
-							"skills":window.mailMappings.getValue(newitem, "skills")
-						},
-						handleAs:"json",
-						load:function(resp, ioargs){
-							if(resp.success){
-								window.mailMappings.save();
-							}
-							else{
-								console.warn(resp.message);
-							}
+			dojo.connect(mapGrid, "onApplyEdit", mapGrid, function(row){
+				console.log(this, row);
+				var oldaddy = mapGrid.cachedAddress;
+				var item = mapGrid.getItem(row);
+				dojo.xhrPost({
+					url:"/modules/anynode/email_media_manager/setMapping",
+					content:{
+						"oldaddress":oldaddy,
+						"address":item.address,
+						"queue":item.queue,
+						"client":item.client,
+						"skills":item.skills
+					},
+					handleAs:"json",
+					load:function(resp, ioargs){
+						if(resp.success){
+							mapGrid.store.save();
 						}
-					});
-				}
-				
-				ajax(mapGrid.cachedAddress, mapGrid.getItem(row));
-			});*/
+						else{
+							console.warn(resp.message);
+							mapGrid.store.revert();
+						}
+					}
+				});
+			});
 			
 			mapGrid.tabSelectSub = dojo.subscribe("emailMain-selectChild", function(kid){
 				if(kid.id == "emailMappings"){
@@ -319,7 +302,6 @@
 				var res;
 				var grid = dijit.byId("mapGrid");
 				do{
-					debugger;
 					res = grid.store.objectStore.query({'address':newAddress});
 					if(res.length > 0){
 						count++;

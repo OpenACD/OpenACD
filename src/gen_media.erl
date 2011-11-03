@@ -489,7 +489,7 @@ behaviour_info(callbacks) ->
 %		{handle_warm_transfer_cancel, 2},
 %		{handle_warm_transfer_complete, 2},
 		{handle_wrapup, 5},
-		{handle_call, 4},
+		{handle_call, 6},
 		{handle_cast, 3},
 		{handle_info, 5},
 		{terminate, 5},

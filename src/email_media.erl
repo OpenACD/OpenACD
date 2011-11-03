@@ -67,7 +67,7 @@
 -export([
 	init/1,
 	prepare_endpoint/2,
-	handle_call/4, 
+	handle_call/6, 
 	handle_cast/3, 
 	handle_info/5,
 	terminate/5, 
@@ -266,18 +266,20 @@ prepare_endpoint(Agent, _Data) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
+handle_call({get_path, Path}, _From, _Statename, _Callrec, _GenMediaState, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
 	{reply, Reply, State};
-handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is_list(Id) ->
+
+handle_call({get_id, Id}, From, Statename, Callrec, GenMediaState, #state{file_map = Map} = State) when is_list(Id) ->
 	case proplists:get_value(Id, Map) of
 		undefined ->
 			{reply, none, State};
 		Path ->
 			?DEBUG("path:  ~p (~p)", [Path, Callrec#call.id]),
-			handle_call({get_path, Path}, From, Callrec, State)
+			handle_call({get_path, Path}, From, Statename, Callrec, GenMediaState, State)
 	end;
-handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+
+handle_call({get_blind, Key}, _From, _Statename, Callrec, _GenMediaStaet, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
 	?DEBUG("get blind: ~p (~p)", [Key, Callrec#call.id]),
 	case proplists:get_value(Key, Map) of
 		undefined ->
@@ -307,19 +309,20 @@ handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mim
 			Reply = get_part(Path, Mime),
 			{reply, Reply, State}
 	end;
-handle_call(dump, _From, _Callrec, State) ->
+
+handle_call(dump, _From, _Statename, _Callrec, _GenMediaState, State) ->
 	{reply, State, State};
 	
 %% now the web calls.
-handle_call({agent_web_connection, Command, Args}, _From, Callrec, State) ->
+handle_call({agent_web_connection, Command, Args}, _From, _Statename, Callrec, _GenMediaState, State) ->
 	handle_web_call(Command, Args, Callrec, State);
 
-handle_call({peek, PeekingApid}, _From, Callrec, State) ->
+handle_call({peek, PeekingApid}, _From, _Statename, Callrec, _GenMediaState, State) ->
 	agent:conn_cast(PeekingApid, {mediaload, Callrec}),
 	{reply, ok, State};
 	
 %% and anything else
-handle_call(Msg, _From, Callrec, State) ->
+handle_call(Msg, _From, _Statename, Callrec, _GenMediaState, State) ->
 	?INFO("unhandled mesage ~p (~p)", [Msg, Callrec#call.id]),
 	{reply, invalid, State}.
 

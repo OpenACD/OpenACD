@@ -1,0 +1,84 @@
+<div style="width:100%; height: 100%">
+
+<a href='/tabs/email_media_popout.html' target='_blank'>
+	<img src='/images/popout.png' class='popout' />
+</a>
+
+<div dojoAttachPoint="emailView">
+	<table>
+		<tr>
+			<th class="translatecol">TO</th>
+			<td dojoAttachPoint="emailToSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">FROM</th>
+			<td dojoAttachPoint="emailFromSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">SUBJECT</th>
+			<td dojoAttachPoint="emailSubjectSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">DATE</th>
+			<td dojoAttachPoint="emailDateSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">SHOW_HEADERS</th>
+			<td>
+			<button label='&rarr;' dojoType='dijit.form.Button' style="float:left;" dojoAttachPoint="toggleRawHeaderButton">
+			</button>
+			<span dojoAttachPoint='emailRawHeadersSpan' style='display:none'></span>
+			</td>
+		</tr>
+		<tr>
+			<th>&nbsp;</th>
+			<td>
+			<button label="REPLY" dojoAttachPoint="emailReply" dojoType="dijit.form.Button">
+			</button>
+			</td>
+		</tr>
+	</table>
+	<div dojoAttachPoint="emailViewDiv" style="height: 250px; overflow: auto; border: grey solid 1px;"></div>
+	
+</div>
+
+<div dojoAttachPoint="emailReplyDiv">
+
+	<form dojoType="dijit.form.Form" action="javascript:void(0)" dojoAttachPoint="emailReplyForm">
+		<div style="width:59%; display:inline-block;">
+			<label class="translatecol narrow">TO</label>
+			<input dojoType="dijit.form.TextBox" dojoAttachPoint="emailTo" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">FROM</label>
+			<input dojoType="dijit.form.TextBox" dojoAttachPoint="emailFrom" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">SUBJECT</label>
+			<input dojoType="dijit.form.TextBox" dojoAttachPoint="emailSubject" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">CC</label>
+			<textarea dojoType="dijit.form.Textarea" dojoAttachPoint="emailCC" name="emailCC" cols="20"></textarea><br/>
+			<label class="translatecol narrow">BCC</label>
+			<textarea dojoType="dijit.form.Textarea" dojoAttachPoint="emailBCC" name="emailBCC" cols="20"></textarea><br/>
+			<label class="translatecol narrow">DATE</label>
+			<span dojoAttachPoint="emailDateSpanReply"></span><br/>
+			<label class="narrow">&nbsp;</label>
+			<span dojoAttachPoint="attachmentList"></span>
+			<button label="UPLOAD" dojoType="dijit.form.Button" style="display:none" dojoAttachPoint="emailUploadButton">
+			</button>		
+			<span dojoAttachPoint="attachmentListP" style="display:none">
+				<label>&nbsp;</label>
+				<ul style="list-style-type:none; display:inline-block" dojoAttachPoint="attachedList"></ul>
+			</span>
+		</div>
+
+		<div>
+			<div dojoAttachPoint="emailDisp" style="width:100%;" />
+		</div>
+		<div style="margin-left: auto; margin-right: auto; width: 20%;">
+			<button label="SUBMIT" dojoType="dijit.form.Button" dojoAttachPoint="emailSubmit">
+			</button>
+			
+			<button label="CANCEL" dojoType="dijit.form.Button" dojoAttachPoint="emailCancel">
+			</button>
+		</div>
+	</form>
+</div>
+
+</div>

@@ -4,8 +4,9 @@
 
 <div class="emailMediaHolder" init="initializeEmailMedia"></div>
 
+<script type="text/javascript" src="application/EmailPane.js"></script>
 <script type="text/javascript">
-	dojo.require('agentUI.EmailPane');
+	//dojo.require('agentUI.EmailPane');
 	function initializeEmailMedia(agentChannel, topNode){
 		console.log('initializeEmailMedia', agentChannel, topNode);
 		var node = dojo.query('div.emailMediaHolder', topNode)[0];

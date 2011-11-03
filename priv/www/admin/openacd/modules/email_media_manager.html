@@ -317,9 +317,10 @@
 				var newAddress = "support@example.com";
 				var available = false;
 				var res;
+				var grid = dijit.byId("mapGrid");
 				do{
-					res = window.mailMappings.query({'address':newAddress});
-					console.log('count', count);
+					debugger;
+					res = grid.store.objectStore.query({'address':newAddress});
 					if(res.length > 0){
 						count++;
 						newAddress = 'support' + count + '@example.com';
@@ -334,7 +335,6 @@
 						"queue":"default_queue",
 						"skills":""
 					};
-					var grid = dijit.byId("mapGrid");
 					grid.store.newItem(itemData);
 					grid.store.save();
 				};

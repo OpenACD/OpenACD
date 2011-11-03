@@ -158,28 +158,45 @@
 			var spit = function(){
 				//onsole.log(["spit", arguments]);
 			};
-			
-			mailMappings = new dojo.data.ItemFileWriteStore({
-				url:"/modules/anynode/email_media_manager/getMappings"
-			});
-			mailMappings._forceLoad();
-			//onsole.log(mailMappings);
-			mailMappings._saveCustom = function(savecomplete){
-				var changeset = mailMappings._pending;
-				var updates = [];
-				for(var i in changeset._modifiedItems){
-					var item = null;
-					if(mailMappings._itemsByIdentity){
-						item = mailMappings._itemsByIdentity[i];
-					}
-					else{
-						item = mailMappings._arrayOfAllItems[i];
-					}
-					updates.push(item);
-				}
-				//onsole.log(updates);
-				savecomplete();
+
+			if(window.mailMappings){
+				return;
 			}
+			window.mailMappings;
+			dojo.xhrGet({
+				url:"/modules/anynode/email_media_manager/getMappings",
+				handleAs:'json',
+				load:function(res){
+					if(! res.success){
+						console.warn('getting mappings failed', res.message);
+						window.mailMappings = new dojo.data.ObjectStore([]);
+					} else {
+						window.mailMappings = new dojo.data.ObjectStore(res.result);
+					}
+					window.mailMappings._saveCustom = function(savecomplete){
+						var changeset = window.mailMappings._pending;
+						var updates = [];
+						for(var i in changeset._modifiedItems){
+							var item = null;
+							if(window.mailMappings._itemsByIdentity){
+								item = window.mailMappings._itemsByIdentity[i];
+							}
+							else{
+								item = window.mailMappings._arrayOfAllItems[i];
+							}
+							updates.push(item);
+						}
+						//onsole.log(updates);
+						savecomplete();
+					}
+				},
+				error:function(res){
+					console.error('getting maappings errored', res);
+				}
+			});
+
+			//mailMappings._forceLoad();
+			//onsole.log(mailMappings);
 		</script>
 		<script type="dojo/method" event="postCreate">
 			this.title = dojo.i18n.getLocalization("admin", "email_media_manager").MAIL_MAPPINGS;
@@ -199,7 +216,7 @@
 			}
 			
 			var mapGrid = new dojox.grid.DataGrid({
-				store: mailMappings,
+				store: window.mailMappings,
 				query: {address: "*"},
 				selectionMode:"single",
 				structure: [{
@@ -213,7 +230,7 @@
 			}, dojo.byId("mapGrid"));
 
 			dojo.connect(mapGrid, "onRowClick", function(e){
-				mapGrid.cachedAddress = mailMappings.getValue(mapGrid.getItem(e.rowIndex), "address");
+				mapGrid.cachedAddress = window.mailMappings.getValue(mapGrid.getItem(e.rowIndex), "address");
 			});
 
 			dojo.connect(mapGrid, "onApplyEdit", function(row){
@@ -222,15 +239,15 @@
 						url:"/modules/anynode/email_media_manager/setMapping",
 						content:{
 							"oldaddress":oldaddy,
-							"address":mailMappings.getValue(newitem, "address"),
-							"queue":mailMappings.getValue(newitem, "queue"),
-							"client":mailMappings.getValue(newitem, "client"),
-							"skills":mailMappings.getValue(newitem, "skills")
+							"address":window.mailMappings.getValue(newitem, "address"),
+							"queue":window.mailMappings.getValue(newitem, "queue"),
+							"client":windwo.mailMappings.getValue(newitem, "client"),
+							"skills":window.mailMappings.getValue(newitem, "skills")
 						},
 						handleAs:"json",
 						load:function(resp, ioargs){
 							if(resp.success){
-								mailMappings.save();
+								window.mailMappings.save();
 							}
 							else{
 								console.warn(resp.message);
@@ -252,11 +269,16 @@
 				queueOpt.push(queues.store.getValue(item, "name"));
 			}
 
-			queues.store.fetch({
-				query: {type:"queue"},
-				queryOptions:{deep:true},
-				onItem:onQueue
-			});
+			var queueGroups = queues.store.query({});
+			var i;
+			var j;
+			for(i = 0; i < queueGroups.length; i++){
+				for(j = 0; j < queueGroups[i].queues.length; j++){
+					(function(dahQ){
+						queueOpt.push(dahQ.name);
+					})(queueGroups[i].queues[j]);
+				}
+			}
 			
 			var onClient = function(item){
 				clientOpt.push(clients.store.getValue(item, "label"));
@@ -289,20 +311,20 @@
 				var foundIt = function(item, request){
 					if(item.length > 0){
 						count++;
-						mailMappings.fetch({
+						window.mailMappings.fetch({
 							query:{"address":"support" + count + "@example.com"},
 							onComplete:foundIt
 						});
 					}
 					else{
 						var updateLocal = function(){
-							mailMappings.newItem({
+							window.mailMappings.newItem({
 								"address":"support" + count + "@example.com",
 								"client":"undefined",
 								"queue":"default_queue",
 								"skills":""
 							});
-							mailMappings.save();
+							window.mailMappings.save();
 						};
 						dojo.xhrPost({
 							url:"/modules/node/email_media_manager/new",
@@ -331,12 +353,12 @@
 						dojo.xhrPost({
 							url:"/modules/node/email_media_manager/destroyMapping",
 							content:{
-								"address":mailMappings.getValue(item, "address")
+								"address":window.mailMappings.getValue(item, "address")
 							},
 							handleAs:"json",
 							load:function(res, ioargs){
-								mailMappings.deleteItem(item);
-								mailMappings.save();
+								window.mailMappings.deleteItem(item);
+								window.mailMappings.save();
 							}
 						});
 					}

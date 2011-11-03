@@ -1764,7 +1764,7 @@ handle_sync_event(Msg, From, StateName, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->
 	Return = Callback:handle_call(Msg, From, StateName, Call, Extra, BaseState#base_state.substate),
 	Wts = [warm_transfer_merged, warm_transfer_3rd_party, warm_transfer_hold],
-	case lists:memeber(StateName, Wts) of
+	case lists:member(StateName, Wts) of
 		true ->
 			handle_custom_wt_return(Return, StateName, reply, State);
 		false ->

@@ -652,11 +652,11 @@ do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
 			ok;
 		prioritize ->
 			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
-			call_queue:set_priority(Qpid, Callpid, Prior + 1),
+			call_queue:set_priority(Qpid, Callpid, Prior - 1),
 			ok;
 		deprioritize ->
 			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
-			call_queue:set_priority(Qpid, Callpid, Prior - 1),
+			call_queue:set_priority(Qpid, Callpid, Prior + 1),
 			ok;
 		voicemail ->
 			case gen_media:voicemail(Callpid) of
@@ -931,7 +931,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				{ok, {{7, now()}, #call{id = "testcall", source = Mpid}}, State}
 			end),
-			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 8}, _Fun, _State) ->
+			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 6}, _Fun, _State) ->
 				Incpid = Mpid,
 				ok
 			end),
@@ -946,7 +946,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				{ok, {{27, now()}, #call{id = "testcall", source = Mpid}}, State}
 			end),
-			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 26}, _Fun, _State) ->
+			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 28}, _Fun, _State) ->
 				Incpid = Mpid,
 				ok
 			end),
@@ -1613,7 +1613,7 @@ tick_manipulation_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, Pid} = queue_manager:add_queue("testqueue", []),
-		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
+		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none},{priority, 5}]),
 		{Pid, Dummy}
 	end,
 	fun({Pid, Dummy}) ->
@@ -1630,7 +1630,8 @@ tick_manipulation_test_() ->
 			{"Stop Tick Test",
 			fun() ->
 				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
-				call_queue:add(Pid, Dummy),
+				Call = gen_media:get_call(Dummy),
+				call_queue:add(Pid, Dummy, Call),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
 				receive
@@ -1638,14 +1639,15 @@ tick_manipulation_test_() ->
 					ok
 				end,
 				{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
-				?assertEqual(1, Priority)
+				?assertEqual(5, Priority)
 			end}
 		end,
 		fun({Pid, Dummy}) ->
 			{"Restart Tick Test",
 			fun() ->
 				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
-				call_queue:add(Pid, Dummy),
+				Call = gen_media:get_call(Dummy),
+				call_queue:add(Pid, Dummy, Call),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
 				receive
@@ -1659,8 +1661,8 @@ tick_manipulation_test_() ->
 					ok
 				end,
 				{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
-				?assertEqual(1, Priority1),
-				?assertEqual(4, Priority2)
+				?assertEqual(5, Priority1),
+				?assertEqual(2, Priority2)
 			end}
 		end
 	]

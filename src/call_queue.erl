@@ -946,10 +946,10 @@ call_update_test_() ->
 					add(Pid, 1, Dummy1),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
-					{_Key1, Call1} = ask(Pid),
+					{{1,_}, Call1} = ask(Pid),
 					?assertEqual("C1", Call1#queued_call.id),
 					set_priority(Pid, Dummy2, 0),
-					{_Key2, Call2} = ask(Pid),
+					{{0,_}, Call2} = ask(Pid),
 					?assertEqual("C2", Call2#queued_call.id)
 				end
 			}, {
@@ -963,10 +963,10 @@ call_update_test_() ->
 					add(Pid, 1, Dummy1),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
-					{_Key1, Call1} = ask(Pid),
+					{{1,_}, Call1} = ask(Pid),
 					?assertEqual("C1", Call1#queued_call.id),
 					set_priority(Pid, Dummy1, 2),
-					{_Key2, Call2} = ask(Pid),
+					{{1,_}, Call2} = ask(Pid),
 					?assertEqual("C2", Call2#queued_call.id)
 				end
 			}, {

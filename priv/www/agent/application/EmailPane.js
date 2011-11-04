@@ -270,6 +270,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			}
 			emailLib.getFrom(_fetchFromCallback);
 		});
+		this.email.fetchPaths(paths);
 	},
 
 	_rebuildAttachmentList: function(filenames){

@@ -1621,9 +1621,14 @@ parse_media_call(#call{source_module = email_media}, {agent_web_connection, <<"g
 					F(F, Rest, [Bin | Acc])
 			end,
 			Newhtml = Stripper(Stripper, Parsed, []),
-			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
+			Outjson = {struct, [
+				{success, true},
+				{result, mochiweb_html:to_html({<<"span">>, [], Newhtml})}
+			]},
+			{[], mochijson2:encode(Outjson)};
 		{Type, Subtype, _Disposition} ->
-			{[{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}], Body}
+			%% well, here's hoping it doesn't explode later.
+			{[{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}], mochijson2:encode({struct, [{success, true},{<<"result">>, Body}]})}
 %
 %		{"text", _, _} ->
 %			{[], list_to_binary(Body)};

@@ -511,10 +511,14 @@ handle_spy({Spy, _AgentRec}, Callrec, State) ->
 handle_web_call(<<"get_skeleton">>, _Post, _Callrec, State) ->
 	{reply, State#state.skeleton, State};
 
-handle_web_call(<<"get_path">>, Post, _Callrec, #state{mimed = Mime} = State) ->
-	Path = lists:flatten(proplists:get_value("args", Post)),
-	Out = get_part(Path, Mime),
-	{reply, Out, State};
+handle_web_call(<<"get_path">>, [Path], _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
+	case lists:any(fun(X) -> not is_integer(X) end, Path) of
+		true ->
+			{reply, {error, badarg}, State};
+		false ->
+			Out = get_part(Path, Mime),
+			{reply, Out, State}
+	end;
 
 handle_web_call(<<"attach">>, Postdata, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
 	case proplists:get_value("attachFiles", Postdata) of

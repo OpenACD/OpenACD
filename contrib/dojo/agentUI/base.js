@@ -25,6 +25,7 @@ dojo.require("dojox.widget.Standby");
 //dojo.require("dijit.Menu");
 dojo.require("agentUI.logLib");
 dojo.require("agentUI.util");
+dojo.require("agentUI.MediaTab");
 
 dojo.ready(function() {
 	console.log('base loaded');

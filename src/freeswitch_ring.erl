@@ -99,7 +99,9 @@
 %% API
 -export([
 	start/3,
+	start/6,
 	start_link/3,
+	start_link/6,
 	hangup/1,
 	get_uuid/1,
 	ring/3
@@ -188,9 +190,17 @@
 start(Fsnode, Callbacks, Options) ->
 	gen_server:start(?MODULE, [Fsnode, Callbacks, Options], []).
 
+start(Agent, Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+	NewOptions = [{agent, Agent}, {agent_channel, Chan}, {call, Call} | Options],
+	gen_server:start(?MODULE, [Fsnode, Callbacks, NewOptions], []).
+
 -spec(start_link/3 :: (Fsnode :: atom(), Callbacks :: atom() | callbacks(), Options :: start_opts()) -> {'ok', pid()}).
 start_link(Fsnode, Callbacks, Options) ->
 	gen_server:start_link(?MODULE, [Fsnode, Callbacks, Options], []).
+
+start_link(Agent, _Chan, Call, Fsnode, Callbacks, Options) when is_record(Call, call) ->
+	NewOptions = [{call, Call} | Options],
+	gen_server:start_link(?MODULE, [Fsnode, Callbacks, NewOptions], []).
 
 %% @doc Used by erlang to detmine if a module implementing this behavor is 
 %% valid.
@@ -226,6 +236,12 @@ ring(RingPid, CallId, Ringout) ->
 %% gen_server callbacks
 %%====================================================================
 
+%init([Agent, Call, Fsnode, Callbacks, Options]) ->
+%	NewOpts = case is_record(Call, call) of
+%		true -> [{call, Call} | Options];
+%		_ -> Options
+%	end,
+%	init([Fsnode, Callbacks, NewOpts]);
 init([Fsnode, Module, Options]) when is_atom(Module) ->
 	Callbacks = #callbacks{
 		init = fun(FsRefs, Args) -> Module:init(FsRefs, Args) end,
@@ -294,7 +310,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 							exit(bad_destination);
 						{BaseDialstring, Destination} ->
 							% safe because it doesn't dive into fs manager pid
-							?ERROR("ds:  ~s;  dest:  ~s", [BaseDialstring, Destination]),
+							%?ERROR("ds:  ~s;  dest:  ~s", [BaseDialstring, Destination]),
 							freeswitch_media_manager:do_dial_string(BaseDialstring, Destination, DialStringOpts)
 					end,
 					case proplists:get_value(call, Options) of

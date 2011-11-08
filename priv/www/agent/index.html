@@ -135,6 +135,9 @@
 <script type="text/javascript" src="/dojo/dojo.js.uncompressed.js"></script>
 <script type="text/javascript" src="/agentUI/base.js.uncompressed.js"></script>
 <script type="text/javascript">
+	dojo.require("dijit.layout.AccordionContainer");
+	dojo.require("agentUI.MediaTab");
+	dojo.requireLocalization("agentUI", "labels");
 	function init() {
 		if(dojo.cookie("agentui-log")){
 			window.setLogLevel(dojo.cookie("agentui-log"));
@@ -146,8 +149,8 @@
 		if(dojo.cookie('agentui-settings')) {
 			var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 			dijit.byId('username').attr('value', settings.username);
-			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
-			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
+			/*dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
+			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);*/
 			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
 			dijit.byId('usepersistentringchannel').attr('checked', settings.usepersistentring);
 			if (settings.theme)
@@ -226,66 +229,6 @@
 			</label>
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
-		<p>
-			<label for="voipendpoint" id="voipendpointlabel">
-				<script type="text/javascript">
-					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
-				</script>
-			</label>
-			<select dojoType="dijit.form.FilteringSelect" id="voipendpoint" name="voipendpoint">
-				<script type="dojo/method" event="onChange">
-					//endpointselect()
-				</script>
-				<option value="rtmp" selected="selected">Embedded Phone</option>
-				<option value="sip_registration">SIP Registration</option>
-				<option value="sip">SIP URI</option>
-				<option value="iax">IAX2 URI</option>
-				<option value="h323">H323 URI</option>
-				<option value="pstn">PSTN Number</option>
-			</select>
-		</p>
-		<p>
-			<label for="voipendpointdata" id="voipendpointdatalabel">
-				<script type="text/javascript">
-					dojo.byId("voipendpointdatalabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINTDATA + ":";
-					dojo.addOnLoad(endpointselect);
-				</script>
-			</label>
-			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
-			<!--<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-				</script>
-			</div>-->
-		</p>
-		<p>
-			<label>&nbsp;</label>
-			<input type="checkbox" name="useoutbandring" id="useoutbandring" value="useoutbandring" dojoType="dijit.form.CheckBox" checked />
-			<span class="translate" id="useoutbandringlabel">USE_OUTBAND_RING</span>
-			<script type="text/javascript">
-				dojo.byId("useoutbandringlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_OUTBAND_RING;
-			</script>
-			<!--<div dojoType="dijit.Tooltip" connectId="useoutbandring" label="OUTBAND_RING_TIP" id="outbandringtip">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').OUTBAND_RING_TIP);
-					
-				</script>
-			</div>-->
-		</p>
-		<p>
-			<label>&nbsp;</label>
-			<input type="checkbox" name="usepersistentringchannel" id="usepersistentringchannel", value="true" dojoType="dijit.form.CheckBox" />
-			<span class="translate" id="usePersistantRingChannelLabel">USE_PERSISTANT_RING_CHANNEL</span>
-			<script type="text/javascript">
-				dojo.byId("usePersistantRingChannelLabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_PERSISTANT_RING_CHANNEL;
-			</script>
-			<div dojoType="dijit.Tooltip" connectId="usepersistentringchannel" label="PERSISTANT_RING_CHANNEL_TIP">
-				<script type="dojo/method" event="postCreate">
-					this.inherited("postCreate", arguments);
-					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').PERSISTANT_RING_CHANNEL_TIP);
-				</script>
-			</div>
 		<p>
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
@@ -411,6 +354,27 @@
 			<span id="timerdisp">Time</span>
 			<span class="statusdisplay" id="profiledisp">Profile:Goober</span>
 			<span class="statusdisplay" id="statedisp">State:denial</span>
+
+
+
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setRelease("none")>
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
+			</script>
+		</button>
+		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
+			</script>
+			<span>GORELEASED</span>
+			<div dojoType="dijit.Menu" id="releasedmenu">
+			</div>
+		</div>
+
+
+
 		</span>
 
 		<div dojoType="dijit.form.DropDownButton" id="filemenubutton">
@@ -473,7 +437,7 @@
 			</script>
 			<span>EDIT</span>
 			<div dojoType="dijit.Menu" id="Editmenu">
-				<div dojoType="dijit.MenuItem" label="CONFIG" onclick="alert('NYI');">
+				<div dojoType="dijit.MenuItem" label="CONFIG" onclick="loadTab('endpointsTab');">
 					<script type="dojo/method" event="postCreate">
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CONFIG);
 					</script>
@@ -545,26 +509,6 @@
 					dojo.byId("agentlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").AGENT;
 				</script>
 			</label><span id="agentname"></span></p>
-			<p id="agentstatep"><label for="state" id="statelabel" class="narrow">
-				<script type="text/javascript">
-					dojo.byId("statelabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").STATE;
-				</script>
-			</label><span id="state">Login needed</span></p>
-			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel" class="narrow">
-				<script type="text/javascript">
-					dojo.byId("brandlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").BRAND;
-				</script>
-			</label><span id="brand"></span></p>
-			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel" class="narrow">
-				<script type="text/javascript">
-					dojo.byId("calleridlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").CALLERID;
-				</script>
-			</label><span id="callerid"></span></p>
-			<p id="calltypep" style="display:none"><label for="calltype" id="calltypelabel" class="narrow">
-				<script type="text/javascript">
-					dojo.byId("calltypelabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").MEDIATYPE;
-				</script>
-			</label><span id="calltype"></span></p>
 		</div>
 		<!--<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
 		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>-->
@@ -579,21 +523,6 @@
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail" onclick=window.agentConnection.setState("idle")>
-			<script type="dojo/method" event="postCreate">
-				this.inherited("postCreate", arguments);
-				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
-			</script>
-		</button>
-		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
-			<script type="dojo/method" event="postCreate">
-				this.inherited("postCreate", arguments);
-				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
-			</script>
-			<span>GORELEASED</span>
-			<div dojoType="dijit.Menu" id="releasedmenu">
-			</div>
-		</div>
 
 		<select id="boutboundcall"></select>
 

@@ -53,11 +53,7 @@
 
 %% API
 -export([
-%	start_link/3,
-%	start_link/2,
 	start_link/1,
-%	start/3,
-%	start/2,
 	start/1,
 	get_disposition/1
 ]).
@@ -69,18 +65,19 @@
 
 %% gen_media callbacks
 -export([
-	init/1, 
+	init/1,
+	prepare_endpoint/2,
 	handle_call/4, 
 	handle_cast/3, 
-	handle_info/3,
-	terminate/3, 
+	handle_info/5,
+	terminate/5, 
 	code_change/4,
-	handle_ring/3, 
-	handle_answer/3, 
-	handle_ring_stop/2,
+	handle_ring/4, 
+	handle_answer/5, 
+	handle_ring_stop/4,
 	handle_agent_transfer/4,
-	handle_queue_transfer/2,
-	handle_wrapup/2,
+	handle_queue_transfer/5,
+	handle_wrapup/5,
 	handle_spy/3,
 	format_status/2
 ]).
@@ -236,7 +233,7 @@ init(Options) ->
 	end,
 	Proto = #call{
 		id = Defaultid,
-		type = email,
+		type = slow_text,
 		callerid = Callerid,
 		client = Mailmap#mail_map.client,
 		skills = Mailmap#mail_map.skills,
@@ -257,7 +254,14 @@ init(Options) ->
 				caseid = CaseID,
 				mail_map_address = Mailmap#mail_map.address},
 			{Mailmap#mail_map.queue, Proto}}}.
-	
+
+%%--------------------------------------------------------------------
+%% prepare_endpoint
+%%--------------------------------------------------------------------
+
+prepare_endpoint(Agent, _Data) ->
+	{ok, {module, dummy_media}}.
+
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
@@ -307,70 +311,9 @@ handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
 	
 %% now the web calls.
-handle_call({<<"get_skeleton">>, _Post}, _From, _Callrec, State) ->
-	{reply, State#state.skeleton, State};
-handle_call({<<"get_path">>, Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
-	Path = lists:flatten(proplists:get_value("args", Post)),
-	Out = get_part(Path, Mime),
-	{reply, Out, State};
-handle_call({<<"attach">>, Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
-	case proplists:get_value("attachFiles", Postdata) of
-		{_Name, Bin} = T ->
-			case byte_size(Bin) + State#state.attachment_size of
-				Toobig when Toobig > 5242880 ->
-					%Size = State#state.attachment_size,
-					{reply, {error, toobig}, State};
-				Size ->
-					Attachments = [T | Oldattachments],
-					Keys = get_prop_keys(Attachments),
-					?DEBUG("files list:  ~p (~p)", [Keys, Callrec#call.id]),
-					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
-			end;
-		_Else ->
-			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
-			{reply, {error, nofile}, State}
-	end;
-handle_call({<<"detach">>, Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
-	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
-		false ->
-			{reply, {error, badarg}, State};
-		[Nth, Namebin] ->
-			Name = binary_to_list(Namebin),
-			case (Nth > length(Attachments)) of
-				true ->
-					{reply, {error, out_of_range, Nth}, State};
-				false ->
-					case lists:split(Nth - 1, Attachments) of
-						{Toplist, [{Name, _Bin} | Tail]} ->
-							Newattaches = lists:append(Toplist, Tail),
-							%Newsize = State#state.attachment_size - byte_size(Bin),
-							Keys = get_prop_keys(Newattaches),
-							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
-						{_, [{Gotname, _} | _]} ->
-							{reply, {error, bad_name, Gotname}, State}
-					end
-			end
-	end;
-handle_call({<<"get_from">>, _Post}, _From, #call{client = Client}, State) ->
-	#client{options = Options} = Client,
-	case proplists:get_value(emailfrom, Options) of
-		undefined ->
-			{reply, undefined, State};
-		{Label, Address} when is_atom(Label), is_atom(Address) ->
-			{reply, undefined, State};
-		{_Label, Address} when is_atom(Address) ->
-			{reply, undefined, State};
-		{Label, Address} ->
-			FixedLabel = case {Label, Client#client.label} of
-				{Label, undefined} when is_atom(Label) ->
-					undefined;
-				{Label, _} when is_list(Label) ->
-					list_to_binary(Client#client.label);
-				{Label, _} ->
-					Label
-			end,
-			{reply, {FixedLabel, Address}, State}
-	end;
+handle_call({agent_web_connection, Command, Args}, _From, Callrec, State) ->
+	handle_web_call(Command, Args, Callrec, State);
+
 handle_call({peek, PeekingApid}, _From, Callrec, State) ->
 	agent:conn_cast(PeekingApid, {mediaload, Callrec}),
 	{reply, ok, State};
@@ -487,7 +430,7 @@ handle_cast(Msg, Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(check_manager, _Callrec, State) ->
+handle_info(check_manager, _Statename, _Callrec, _Gmstate, State) ->
 	case whereis(email_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
@@ -496,24 +439,28 @@ handle_info(check_manager, _Callrec, State) ->
 			{ok, Tref} = timer:send_after(1000, check_manager),
 			{noreply, State#state{manager = Tref}}
 	end;
-handle_info({'EXIT', Pid, normal}, Callrec, #state{sending_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, normal}, _Statename, Callrec, _GmState, #state{sending_pid = Pid} = State) ->
 	?DEBUG("sending complete (~p)", [Callrec#call.id]),
 	{{mediapush, send_done}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Notnormal}, Callrec, #state{sending_pid = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Notnormal}, _Statename, Callrec, _GmState, #state{sending_pid = Pid} = State) ->
 	?INFO("Sending failed:  ~p (~p)", [Notnormal, Callrec#call.id]),
 	{{mediapush, {send_fail, Notnormal}}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Reason}, Callrec, #state{manager = Pid} = State) ->
+
+handle_info({'EXIT', Pid, Reason}, _Statename, Callrec, _GmState, #state{manager = Pid} = State) ->
 	?WARNING("Handling media manager ~w death of ~p (~p)", [Pid, Reason, Callrec#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_manager),
 	{noreply, State#state{manager = Tref}};
-handle_info(Info, Callrec, State) ->
+
+handle_info(Info, _Statename, Callrec, _GmState, State) ->
 	?DEBUG("Info: ~p (~p)", [Info, Callrec#call.id]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(_Reason, _Callrec, _State) ->
+terminate(_Reason, _Statename, _Callrec, _GmState, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
@@ -528,35 +475,105 @@ format_status(_, [_PDict, State]) ->
 	State#state{mimed = {}, skeleton = undefined, file_map = [], outgoing_attachments = []}.
 
 %% gen_media specific callbacks
-handle_answer(Agent, Call, State) ->
+handle_answer(Agent, _Statename, Call, _Gmstate, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	agent:conn_cast(Agent, {mediaload, Call}),
+	agent_channel:media_push(Agent, {mediaload, Call}),
+	%agent_channel:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
-handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) ->
+handle_ring(_Agent, _RingData, _Call, #state{caseid = CaseID} = State) ->
 	{ok, [{"caseid", CaseID}], State}.
 
 handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->
 	{ok, [{"caseid", State#state.caseid}], State}.
 
-handle_queue_transfer(_Callrec, State) ->
+handle_queue_transfer(_Queue, _Statename, _Callrec, _Gmstate, State) ->
 	{ok, State}.
 
-handle_ring_stop(_Callrec, State) ->
+handle_ring_stop(_Statename, _Callrec, _Gmstate, State) ->
 	{ok, State}.
 
-handle_wrapup(_Callrec, State) ->
+handle_wrapup(_From, _Statename, _Callrec, _Gmstate, State) ->
 	{hangup, State}.
 
 -spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> 'ok').
 handle_spy({Spy, _AgentRec}, Callrec, State) ->
-	agent:conn_cast(Spy, {mediaload, Callrec}),
+	%agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
 	
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-	
+
+handle_web_call(<<"get_skeleton">>, _Post, _Callrec, State) ->
+	{reply, State#state.skeleton, State};
+
+handle_web_call(<<"get_path">>, Post, _Callrec, #state{mimed = Mime} = State) ->
+	Path = lists:flatten(proplists:get_value("args", Post)),
+	Out = get_part(Path, Mime),
+	{reply, Out, State};
+
+handle_web_call(<<"attach">>, Postdata, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
+	case proplists:get_value("attachFiles", Postdata) of
+		{_Name, Bin} = T ->
+			case byte_size(Bin) + State#state.attachment_size of
+				Toobig when Toobig > 5242880 ->
+					%Size = State#state.attachment_size,
+					{reply, {error, toobig}, State};
+				Size ->
+					Attachments = [T | Oldattachments],
+					Keys = get_prop_keys(Attachments),
+					?DEBUG("files list:  ~p (~p)", [Keys, Callrec#call.id]),
+					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
+			end;
+		_Else ->
+			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
+			{reply, {error, nofile}, State}
+	end;
+
+handle_web_call(<<"detach">>, Postdata, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
+	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
+		false ->
+			{reply, {error, badarg}, State};
+		[Nth, Namebin] ->
+			Name = binary_to_list(Namebin),
+			case (Nth > length(Attachments)) of
+				true ->
+					{reply, {error, out_of_range, Nth}, State};
+				false ->
+					case lists:split(Nth - 1, Attachments) of
+						{Toplist, [{Name, _Bin} | Tail]} ->
+							Newattaches = lists:append(Toplist, Tail),
+							%Newsize = State#state.attachment_size - byte_size(Bin),
+							Keys = get_prop_keys(Newattaches),
+							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
+						{_, [{Gotname, _} | _]} ->
+							{reply, {error, bad_name, Gotname}, State}
+					end
+			end
+	end;
+
+handle_web_call(<<"get_from">>, _Post, #call{client = Client}, State) ->
+	#client{options = Options} = Client,
+	case proplists:get_value(emailfrom, Options) of
+		undefined ->
+			{reply, undefined, State};
+		{Label, Address} when is_atom(Label), is_atom(Address) ->
+			{reply, undefined, State};
+		{_Label, Address} when is_atom(Address) ->
+			{reply, undefined, State};
+		{Label, Address} ->
+			FixedLabel = case {Label, Client#client.label} of
+				{Label, undefined} when is_atom(Label) ->
+					undefined;
+				{Label, _} when is_list(Label) ->
+					list_to_binary(Client#client.label);
+				{Label, _} ->
+					Label
+			end,
+			{reply, {FixedLabel, Address}, State}
+	end.
+
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.
 get_prop_keys(List) ->

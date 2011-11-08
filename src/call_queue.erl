@@ -585,7 +585,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 			?NOTICE("~p Handling exit of queue manager with reason ~p.  Dying with it.", [State#state.name, Reason]),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
-			?DEBUG("~p ~w exited due to ~p; looping through calls", [State#state.name, From, Reason]),
+			?DEBUG("~p got exit of ~w due to ~p; looping through calls", [State#state.name, From, Reason]),
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
@@ -624,7 +624,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% =====
 
 queue_call(Cookpid, Callrec, Key, State) ->
-	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
+	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id, channel = Callrec#call.type, module = Callrec#call.source_module},
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 	Expandedskills = expand_magic_skills(State, Callrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},

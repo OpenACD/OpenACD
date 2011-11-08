@@ -158,28 +158,32 @@
 			var spit = function(){
 				//onsole.log(["spit", arguments]);
 			};
-			
-			mailMappings = new dojo.data.ItemFileWriteStore({
-				url:"/modules/anynode/email_media_manager/getMappings"
-			});
-			mailMappings._forceLoad();
-			//onsole.log(mailMappings);
-			mailMappings._saveCustom = function(savecomplete){
-				var changeset = mailMappings._pending;
-				var updates = [];
-				for(var i in changeset._modifiedItems){
-					var item = null;
-					if(mailMappings._itemsByIdentity){
-						item = mailMappings._itemsByIdentity[i];
-					}
-					else{
-						item = mailMappings._arrayOfAllItems[i];
-					}
-					updates.push(item);
-				}
-				//onsole.log(updates);
-				savecomplete();
+
+			if(window.mailMappings){
+				return;
 			}
+			window.mailMappings;
+			dojo.xhrGet({
+				url:"/modules/anynode/email_media_manager/getMappings",
+				handleAs:'json',
+				load:function(res){
+					if(! res.success){
+						console.warn('getting mappings failed', res.message);
+						window.mailMappings = new dojo.store.Memory({idProperty:'address',data:[]});
+					} else {
+						window.mailMappings = new dojo.store.Memory({idProperty:'address',data:res.items});
+					}
+					dijit.byId('mapGrid').setStore(new dojo.data.ObjectStore({
+						objectStore:window.mailMappings
+					}));
+				},
+				error:function(res){
+					console.error('getting maappings errored', res);
+				}
+			});
+
+			//mailMappings._forceLoad();
+			//onsole.log(mailMappings);
 		</script>
 		<script type="dojo/method" event="postCreate">
 			this.title = dojo.i18n.getLocalization("admin", "email_media_manager").MAIL_MAPPINGS;
@@ -199,7 +203,7 @@
 			}
 			
 			var mapGrid = new dojox.grid.DataGrid({
-				store: mailMappings,
+				//store: new dojo.data.ObjectStore({objectStore:window.mailMappings}),
 				query: {address: "*"},
 				selectionMode:"single",
 				structure: [{
@@ -212,34 +216,36 @@
 				}]
 			}, dojo.byId("mapGrid"));
 
-			dojo.connect(mapGrid, "onRowClick", function(e){
-				mapGrid.cachedAddress = mailMappings.getValue(mapGrid.getItem(e.rowIndex), "address");
+			dojo.connect(mapGrid, "onRowClick", mapGrid, function(e){
+				if(e.rowIndex){
+					this.cachedAddress = this.getItem(e.rowIndex).address;
+				}
 			});
 
-			dojo.connect(mapGrid, "onApplyEdit", function(row){
-				var ajax = function(oldaddy, newitem){
-					dojo.xhrPost({
-						url:"/modules/anynode/email_media_manager/setMapping",
-						content:{
-							"oldaddress":oldaddy,
-							"address":mailMappings.getValue(newitem, "address"),
-							"queue":mailMappings.getValue(newitem, "queue"),
-							"client":mailMappings.getValue(newitem, "client"),
-							"skills":mailMappings.getValue(newitem, "skills")
-						},
-						handleAs:"json",
-						load:function(resp, ioargs){
-							if(resp.success){
-								mailMappings.save();
-							}
-							else{
-								console.warn(resp.message);
-							}
+			dojo.connect(mapGrid, "onApplyEdit", mapGrid, function(row){
+				console.log(this, row);
+				var oldaddy = mapGrid.cachedAddress;
+				var item = mapGrid.getItem(row);
+				dojo.xhrPost({
+					url:"/modules/anynode/email_media_manager/setMapping",
+					content:{
+						"oldaddress":oldaddy,
+						"address":item.address,
+						"queue":item.queue,
+						"client":item.client,
+						"skills":item.skills
+					},
+					handleAs:"json",
+					load:function(resp, ioargs){
+						if(resp.success){
+							mapGrid.store.save();
 						}
-					});
-				}
-				
-				ajax(mapGrid.cachedAddress, mapGrid.getItem(row));
+						else{
+							console.warn(resp.message);
+							mapGrid.store.revert();
+						}
+					}
+				});
 			});
 			
 			mapGrid.tabSelectSub = dojo.subscribe("emailMain-selectChild", function(kid){
@@ -252,11 +258,16 @@
 				queueOpt.push(queues.store.getValue(item, "name"));
 			}
 
-			queues.store.fetch({
-				query: {type:"queue"},
-				queryOptions:{deep:true},
-				onItem:onQueue
-			});
+			var queueGroups = queues.store.query({});
+			var i;
+			var j;
+			for(i = 0; i < queueGroups.length; i++){
+				for(j = 0; j < queueGroups[i].queues.length; j++){
+					(function(dahQ){
+						queueOpt.push(dahQ.name);
+					})(queueGroups[i].queues[j]);
+				}
+			}
 			
 			var onClient = function(item){
 				clientOpt.push(clients.store.getValue(item, "label"));
@@ -285,61 +296,63 @@
 		<div>
 		<button dojoType="dijit.form.Button" label="Add Mapping" id="mailMapAdd">
 			<script type="dojo/connect" event="onClick">
-				var count = 1;
-				var foundIt = function(item, request){
-					if(item.length > 0){
+				var count = 0;
+				var newAddress = "support@example.com";
+				var available = false;
+				var res;
+				var grid = dijit.byId("mapGrid");
+				do{
+					res = grid.store.objectStore.query({'address':newAddress});
+					if(res.length > 0){
 						count++;
-						mailMappings.fetch({
-							query:{"address":"support" + count + "@example.com"},
-							onComplete:foundIt
-						});
+						newAddress = 'support' + count + '@example.com';
+					} else {
+						available = true;
 					}
-					else{
-						var updateLocal = function(){
-							mailMappings.newItem({
-								"address":"support" + count + "@example.com",
-								"client":"undefined",
-								"queue":"default_queue",
-								"skills":""
-							});
-							mailMappings.save();
-						};
-						dojo.xhrPost({
-							url:"/modules/node/email_media_manager/new",
-							content:{
-								"address":"support" + count + "@example.com",
-								"client":"undefined",
-								"queue":"default_queue",
-								"skills":""
-							},
-							load:updateLocal
-						});
-					}
-				}
-				foundIt(["goober"]);
+				} while(available == false);
+				var updateLocal = function(){
+					var itemData = {
+						"address":newAddress,
+						"client":"undefined",
+						"queue":"default_queue",
+						"skills":""
+					};
+					grid.store.newItem(itemData);
+					grid.store.save();
+				};
+				dojo.xhrPost({
+					url:"/modules/node/email_media_manager/new",
+					content:{
+						"address":newAddress,
+						"client":"undefined",
+						"queue":"default_queue",
+						"skills":""
+					},
+					load:updateLocal
+				});
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" label="Drop Mapping" id="mailMapDrop">
 			<script type="dojo/connect" event="onClick">
-				var item = dijit.byId("mapGrid").selection.getSelected();
+				var grid = dijit.byId("mapGrid");
+				var item = grid.selection.getSelected();
 				if(item.length < 1){
-					//nothing
+					return;
 				}
-				else{
-					item = item[0];
-					if(item !== null){
-						dojo.xhrPost({
-							url:"/modules/node/email_media_manager/destroyMapping",
-							content:{
-								"address":mailMappings.getValue(item, "address")
-							},
-							handleAs:"json",
-							load:function(res, ioargs){
-								mailMappings.deleteItem(item);
-								mailMappings.save();
-							}
-						});
-					}
+				item = item[0];
+				if(item !== null){
+					dojo.xhrPost({
+						url:"/modules/node/email_media_manager/destroyMapping",
+						content:{
+							"address":grid.store.getValue(item, "address")
+						},
+						handleAs:"json",
+						load:function(res, ioargs){
+							grid.store.deleteItem(item);
+							grid.store.save();
+							//window.mailMappings.save();
+						}
+					});
 				}
 			</script>
 		</button>

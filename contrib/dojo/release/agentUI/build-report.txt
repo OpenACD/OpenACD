@@ -1,4 +1,4 @@
-Build started: Thu Nov 03 2011 16:59:18 GMT-0500 (CDT)
+Build started: Mon Nov 07 2011 16:04:14 GMT-0600 (CST)
 Build application version: 1.7.0dev (23930)
 Messages:
 message-id(100) Assumed module uses legacy loader API.
@@ -565,7 +565,6 @@ error(310) Non-i18n module found in nls tree (copied only).
 	module: agentUI/nls/ru/labels
 	module: agentUI/nls/uk/labels
 	module: agentUI/nls/en/emailPane
-	module: agentUI/nls/emailPane
 	module: agentUI/nls/es/labels
 	module: agentUI/nls/en/labels
 error(311) Missing dependency.
@@ -763,6 +762,6 @@ dojo/dojo:
 
 
 Process finished normally
-	errors: 13
+	errors: 12
 	warnings: 37
-	build time: 59.88 seconds
+	build time: 62.679 seconds

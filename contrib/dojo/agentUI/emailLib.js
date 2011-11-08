@@ -65,7 +65,7 @@ if(typeof(emailLib) === 'undefined'){
 		}
 		
 		var jpath = fetchObjs[0].path.join("/");
-		var fetchSubChan = 'emailLib/get_path/' + jpath + '/' + this.channel.channelId;
+		var fetchSubChan = 'emailLib/get_path/' + this.channel.channelId + '/' + jpath;
 		console.log("subbed to", fetchSubChan);
 		if(fetchObjs[0].mode === 'a'){
 			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';

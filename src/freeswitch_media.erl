@@ -78,7 +78,7 @@
 	handle_queue_transfer/5,
 	handle_wrapup/5,
 	handle_call/6,
-	handle_cast/3, 
+	handle_cast/5, 
 	handle_info/5,
 	terminate/5,
 	code_change/4]).
@@ -466,7 +466,7 @@ handle_cast(toggle_hold, _Statename, Call, _GenMediaState, #state{statename = on
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	{noreply, State#state{statename = oncall}};
 
-handle_cast({contact_3rd_party, _Args} = Cast, _Statename, Call, _GenMediaState, #state{statename = oncall_hold, cnode = Fnode} = State) ->
+handle_cast({contact_3rd_party, _Args} = Cast, Statename, Call, GenMediaState, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
 	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
@@ -476,7 +476,7 @@ handle_cast({contact_3rd_party, _Args} = Cast, _Statename, Call, _GenMediaState,
 			?INFO("Success result creating conferance and transfering call to it:  ~p", [Res]),
 			% okay, solidify the conference state change, and go on.
 			Newstate = State#state{conference_id = ConfId, statename = hold_conference},
-			handle_cast(Cast, Call, Newstate);
+			handle_cast(Cast, Statename, Call, GenMediaState, Newstate);
 		Else ->
 			?ERROR("Could not create conference:  ~p", [Else]),
 			{noreply, State}
@@ -536,9 +536,9 @@ handle_cast(toggle_hold, _Statename, Call, _GenMediaState, #state{statename = '3
 	freeswitch:api(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline"),
 	{noreply, State#state{statename = hold_conference_3rdparty}};
 
-handle_cast(retrieve_conference, _Statename, Call, _GenMediaState, #state{statename = '3rd_party'} = State) ->
+handle_cast(retrieve_conference, Statename, Call, GenMediaState, #state{statename = '3rd_party'} = State) ->
 	?INFO("Place 3rd party on hold, and go to the conference", []),
-	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
+	{noreply, MidState} = handle_cast(toggle_hold, Statename, Call, GenMediaState, State),
 	%handle_cast(retrieve_conference, Call, MidState#state{statename = in_conference});
 	{noreply, MidState#state{statename = in_conference_3rdparty}};
 
@@ -548,10 +548,10 @@ handle_cast(retrieve_3rd_party, _Statename, Call, _GenMediaState, #state{statena
 	freeswitch:api(Fnode, uuid_bridge, Thirdy ++ " " ++ Ringid),
 	{noreply, State#state{statename = '3rd_party'}};
 
-handle_cast(hangup_3rd_party, _Statename, Call, _GenMediaState, #state{statename = '3rd_party'} = State) ->
+handle_cast(hangup_3rd_party, Statename, Call, GenMediaState, #state{statename = '3rd_party'} = State) ->
 	?INFO("killing 3rd party channel while talking w/ them", []),
-	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
-	handle_cast(hangup_3rd_party, Call, MidState);
+	{noreply, MidState} = handle_cast(toggle_hold, Statename, Call, GenMediaState, State),
+	handle_cast(hangup_3rd_party, Statename, Call, GenMediaState, MidState);
 
 handle_cast({merge_3rd_party, _IncludeSelf}, _Statename, Call, _GenMediaState, #state{'3rd_party_id' = undefined} = State) ->
 	{noreply, State};
@@ -590,10 +590,10 @@ handle_cast(toggle_hold, _Statename, Call, _GenMediaState, #state{statename = 'i
 	freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
 	{{mediapush, hold_conference}, State#state{statename = hold_conference}};
 
-handle_cast({contact_3rd_party, _Targ} = Cast, _Statename, Call, _GenMediaState, #state{statename = 'in_conference'} = State) ->
+handle_cast({contact_3rd_party, _Targ} = Cast, Statename, Call, GenMediaState, #state{statename = 'in_conference'} = State) ->
 	?INFO("contact 3rd party, means place conference on hold first", []),
-	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
-	handle_cast(Cast, Call, MidState);
+	{noreply, MidState} = handle_cast(toggle_hold, Statename, Call, GenMediaState, State),
+	handle_cast(Cast, Statename, Call, GenMediaState, MidState);
 
 % any state.
 handle_cast({audio_level, Target, Level}, _Statename, Call, _GenMediaState, #state{statename = Statename} =
@@ -632,7 +632,7 @@ handle_cast({<<"retrieve_3rd_party">>, _}, Statename, Call, GenMediaState, State
 
 handle_cast({<<"contact_3rd_party">>, Args}, Statename, Call, GenMediaState, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),
-	handle_cast({contact_3rd_party, Destination}, Statename, Call, GenMediaSTate, State);
+	handle_cast({contact_3rd_party, Destination}, Statename, Call, GenMediaState, State);
 
 handle_cast({<<"retrieve_conference">>, _Args}, Statename, Call, GenMediaState, State) ->
 	handle_cast(retrieve_conference, Statename, Call, GenMediaState, State);
@@ -659,7 +659,7 @@ handle_cast({<<"audio_level">>, Arguments}, Statename, Call, GenMediaState, Stat
 
 handle_cast({<<"blind_transfer">>, Args}, Statename, Call, GenMediaState, State) ->
 	Dest = proplists:get_value("args", Args),
-	handle_cast({blind_transfer, Dest}, Call, State);
+	handle_cast({blind_transfer, Dest}, Statename, Call, GenMediaState, State);
 
 %% tcp api's
 handle_cast(Request, Statename, Call, GenMediaState, State) when is_record(Request, mediacommandrequest) ->
@@ -686,7 +686,7 @@ handle_cast(Request, Statename, Call, GenMediaState, State) when is_record(Reque
 			handle_cast(toggle_hold, Statename, Call, GenMediaState, State);
 		'CONTACT_3RD_PARTY' ->
 			case cpx_freeswitch_pb:get_extension(FixedRequest, contact_3rd_party) of
-				undefined -> handle_cast(contact_3rd_party, Call, State);
+				undefined -> handle_cast(contact_3rd_party, Statename, Call, GenMediaState, State);
 				{ok, #contact3rdpartyrequest{target = Target}} ->
 					handle_cast({contact_3rd_party, Target}, Statename, Call, GenMediaState, State)
 			end;

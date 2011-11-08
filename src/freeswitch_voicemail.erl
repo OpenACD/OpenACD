@@ -63,7 +63,7 @@
 	handle_queue_transfer/5,
 	handle_wrapup/5,
 	handle_call/6, 
-	handle_cast/3, 
+	handle_cast/5, 
 	handle_info/5,
 	handle_warm_transfer_begin/3,
 	terminate/5,
@@ -279,10 +279,10 @@ handle_call(Msg, _From, _, _Call, _, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({set_caseid, CaseID}, _Call, State) ->
+handle_cast({set_caseid, CaseID}, _, _Call, _, State) ->
 	{noreply, State#state{caseid = CaseID}};
 
-handle_cast(replay, _Call, #state{file = File} = State) ->
+handle_cast(replay, _, _Call, _, #state{file = File} = State) ->
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"event-lock", "true"},
@@ -291,11 +291,11 @@ handle_cast(replay, _Call, #state{file = File} = State) ->
 	{noreply, State};
 
 %% web api
-handle_cast({<<"replay">>, _}, Call, State) ->
-	handle_cast(replay, Call, State);
+handle_cast({<<"replay">>, _}, Statename, Call, Gmstate, State) ->
+	handle_cast(replay, Statename, Call, Gmstate, State);
 
 %% tcp api
-handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) ->
+handle_cast(Request, Statename, Call, Gmstate, State) when is_record(Request, mediacommandrequest) ->
 	FixedRequest = cpx_freeswitch_pb:decode_extensions(Request),
 	Hint = case cpx_freeswitch_pb:get_extension(FixedRequest, freeswitch_voicemail_request_hint) of
 		{ok, O} -> O;
@@ -303,13 +303,13 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 	end,
 	case Hint of
 		'REPLAY' ->
-			handle_cast(replay, Call, State);
+			handle_cast(replay, Statename, Call, Gmstate, State);
 		Else ->
 			?INFO("Invalid request hint:  ~p", [Else]),
 			{noreply, State}
 	end;
 
-handle_cast(_Msg, _Call, State) ->
+handle_cast(_Msg, _, _Call, _, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

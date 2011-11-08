@@ -194,8 +194,8 @@
 		{'answer', any(), state()} |
 		{'wrapup', any(), state()}).
 
--spec(handle_cast/3 :: (Request :: any(), Call :: #call{},
-	State :: state()) ->
+-spec(handle_cast/5 :: (Request::any(), Statename::gen_media_statename(),
+	Call :: #call{}, GenMediaState :: gen_media_state(), State :: state()) ->
 		{'noreply', state()} | 
 		{'noreply', state(),  gen_timeout()} | 
 		{'stop', any(), state()} | 

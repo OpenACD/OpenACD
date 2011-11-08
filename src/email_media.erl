@@ -68,7 +68,7 @@
 	init/1,
 	prepare_endpoint/2,
 	handle_call/6, 
-	handle_cast/3, 
+	handle_cast/5, 
 	handle_info/5,
 	terminate/5, 
 	code_change/4,
@@ -329,7 +329,7 @@ handle_call(Msg, _From, _Statename, Callrec, _GenMediaState, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({<<"send">>, Post}, Callrec, #state{sending_pid = undefined} = State) ->
+handle_cast({<<"send">>, Post}, _Statename, Callrec, _Gmstate, #state{sending_pid = undefined} = State) ->
 	{struct, Args} = proplists:get_value("args", Post),
 	?DEBUG("Starting Send (~p)", [Callrec#call.id]),
 	[{_, BaseTo}, {_, From}, _] = BaseHeaders = [
@@ -421,12 +421,12 @@ handle_cast({<<"send">>, Post}, Callrec, #state{sending_pid = undefined} = State
 	end;
 %	{noreply, State};
 %handle_cast({"send", _Post}, _Callrec, State) ->
-handle_cast(print_file_map, _Callrec, #state{file_map = Out} = State) ->
+handle_cast(print_file_map, _Statename, _Callrec, _Gmstate, #state{file_map = Out} = State) ->
 	io:format("Printing filemap: ~n~p", [Out]),
 	{noreply, State};
-handle_cast({set_caseid, CaseID}, _Callrec, State) ->
+handle_cast({set_caseid, CaseID}, _Statename, _Callrec, _Gmstate, State) ->
 	{noreply, State#state{caseid = CaseID}};
-handle_cast(Msg, Callrec, State) ->
+handle_cast(Msg, _Statename, Callrec, _Gmstate, State) ->
 	?WARNING("cast msg:  ~p (~p)", [Msg, Callrec#call.id]),
 	{noreply, State}.
 

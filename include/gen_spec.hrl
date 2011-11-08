@@ -181,8 +181,9 @@
 	GenMediaState :: gen_media_state(), State :: state()) ->
 		{'ok', state()} | {'hangup', state()}).
 
--spec(handle_call/4 :: (Event :: any(), From :: {pid(), any()},
-	Call :: #call{}, State :: state()) -> 
+-spec(handle_call/6 :: (Event :: any(), From :: {pid(), any()},
+	Statename :: gen_media_statename(), Call :: #call{},
+	GenMediaState :: gen_media_state(), State :: state()) ->
 		{'reply', any(), state()} | 
 		{'reply', any(), state(), gen_timeout()} | 
 		{'noreply', state()} | 

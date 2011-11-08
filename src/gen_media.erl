@@ -489,7 +489,7 @@ behaviour_info(callbacks) ->
 %		{handle_warm_transfer_cancel, 2},
 %		{handle_warm_transfer_complete, 2},
 		{handle_wrapup, 5},
-		{handle_call, 4},
+		{handle_call, 6},
 		{handle_cast, 3},
 		{handle_info, 5},
 		{terminate, 5},
@@ -1764,7 +1764,7 @@ handle_sync_event(Msg, From, StateName, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->
 	Return = Callback:handle_call(Msg, From, StateName, Call, Extra, BaseState#base_state.substate),
 	Wts = [warm_transfer_merged, warm_transfer_3rd_party, warm_transfer_hold],
-	case lists:memeber(StateName, Wts) of
+	case lists:member(StateName, Wts) of
 		true ->
 			handle_custom_wt_return(Return, StateName, reply, State);
 		false ->

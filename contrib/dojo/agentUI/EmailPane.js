@@ -237,7 +237,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 	_fetchPaths: function(skel){
 		var paths = emailLib.pathsToFetch(skel);
 		var disp = this.emailViewDiv;
-		disp.sub = dojo.subscribe("emailLib/fetchPaths/done/" + this.channelId, function(fetched){
+		disp.sub = dojo.subscribe("emailLib/fetchPaths/done" + this.channelId, function(fetched){
 			console.log('fetching of paths complete', fetched);
 			dojo.unsubscribe(disp.sub);
 			disp.innerHTML = fetched;
@@ -270,7 +270,6 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			}
 			emailLib.getFrom(_fetchFromCallback);
 		});
-		this.email.fetchPaths(paths);
 	},
 
 	_rebuildAttachmentList: function(filenames){

@@ -62,7 +62,7 @@
 	handle_agent_transfer/4,
 	handle_queue_transfer/5,
 	handle_wrapup/5,
-	handle_call/4, 
+	handle_call/6, 
 	handle_cast/3, 
 	handle_info/5,
 	handle_warm_transfer_begin/3,
@@ -259,18 +259,19 @@ handle_queue_transfer(_Queue, _Statename, _Call, _GenMediaState, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+
 %% @private
-handle_call(get_call, _From, Call, State) ->
+handle_call(get_call, _From, _, Call, _, State) ->
 	{reply, Call, State};
-handle_call(get_queue, _From, _Call, State) ->
+handle_call(get_queue, _From, _, _Call, _, State) ->
 	{reply, State#state.queue_pid, State};
-handle_call(get_agent, _From, _Call, State) ->
+handle_call(get_agent, _From, _, _Call, _, State) ->
 	{reply, State#state.agent_pid, State};
-handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
+handle_call({set_agent, Agent, Apid}, _From, _, _Call, _, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
-handle_call(dump_state, _From, _Call, State) ->
+handle_call(dump_state, _From, _, _Call, _, State) ->
 	{reply, State, State};
-handle_call(Msg, _From, _Call, State) ->
+handle_call(Msg, _From, _, _Call, _, State) ->
 	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
 

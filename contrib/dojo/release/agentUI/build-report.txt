@@ -1,4 +1,4 @@
-Build started: Tue Nov 01 2011 10:42:24 GMT-0500 (CDT)
+Build started: Thu Nov 03 2011 16:59:18 GMT-0500 (CDT)
 Build application version: 1.7.0dev (23930)
 Messages:
 message-id(100) Assumed module uses legacy loader API.
@@ -235,6 +235,7 @@ message-id(100) Assumed module uses legacy loader API.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/EmailPane
 	module: agentUI/MediaTab
 	module: agentUI/util
 info(101) Using dojo/loadInit plugin for module.
@@ -517,6 +518,7 @@ info(108) Interning strings.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/EmailPane
 	module: agentUI/MediaTab
 	module: agentUI/util
 warn(205) Module not tagged as pure AMD yet it contains AMD API applications.
@@ -571,6 +573,7 @@ error(311) Missing dependency.
 	module: dojox/gfx; dependency: ./gfx/renderer!
 	module: dojo/robot; dependency: doh/_browserRunner
 	module: dojo/robot; dependency: doh/robot
+	module: agentUI/EmailPane; dependency: dojo/i18n!agentUI/nls/EmailPane; error: Error: i18n resource (agentUI/nls/EmailPane) missing
 error(327) Multiple resources are destined for same filename.
 	source-1: /Users/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js; source-2: /Users/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js
 Layer Contents:
@@ -760,6 +763,6 @@ dojo/dojo:
 
 
 Process finished normally
-	errors: 12
+	errors: 13
 	warnings: 37
-	build time: 54.378 seconds
+	build time: 59.88 seconds

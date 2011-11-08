@@ -1,3 +1,6 @@
+//>>built
+// wrapped by build app
+define("agentUI/EmailPane", ["dojo","dijit","dojox","dojo/i18n!agentUI/nls/EmailPane","dojo/require!dojox/form/FileUploader,dojox/widget/Standby,dojox/html/styles,dijit/form/Textarea,dojo/io/iframe,dijit/_Widget,dijit/_Templated,agentUI/emailLib"], function(dojo,dijit,dojox){
 dojo.require("dojox.form.FileUploader");
 dojo.require("dojox.widget.Standby");
 dojo.require("dojox.html.styles");
@@ -14,7 +17,7 @@ dojo.requireLocalization("agentUI", "EmailPane");
 dojo.create('link', {rel:'stylesheet', href:'/tabs/email_media.css', type:'text/css'}, dojo.query('head')[0]);
 
 dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("agentUI","EmailPane.html"),
+	templateString:"<div style=\"width:100%; height: 100%\">\n\n<a href='/tabs/email_media_popout.html' target='_blank'>\n\t<img src='/images/popout.png' class='popout' />\n</a>\n\n<div dojoAttachPoint=\"emailView\">\n\t<table>\n\t\t<tr>\n\t\t\t<th class=\"translatecol\">TO</th>\n\t\t\t<td dojoAttachPoint=\"emailToSpan\"></td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<th class=\"translatecol\">FROM</th>\n\t\t\t<td dojoAttachPoint=\"emailFromSpan\"></td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<th class=\"translatecol\">SUBJECT</th>\n\t\t\t<td dojoAttachPoint=\"emailSubjectSpan\"></td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<th class=\"translatecol\">DATE</th>\n\t\t\t<td dojoAttachPoint=\"emailDateSpan\"></td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<th class=\"translatecol\">SHOW_HEADERS</th>\n\t\t\t<td>\n\t\t\t<button label='&rarr;' dojoType='dijit.form.Button' style=\"float:left;\" dojoAttachPoint=\"toggleRawHeaderButton\">\n\t\t\t</button>\n\t\t\t<span dojoAttachPoint='emailRawHeadersSpan' style='display:none'></span>\n\t\t\t</td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<th>&nbsp;</th>\n\t\t\t<td>\n\t\t\t<button label=\"REPLY\" dojoAttachPoint=\"emailReply\" dojoType=\"dijit.form.Button\">\n\t\t\t</button>\n\t\t\t</td>\n\t\t</tr>\n\t</table>\n\t<div dojoAttachPoint=\"emailViewDiv\" style=\"height: 250px; overflow: auto; border: grey solid 1px;\"></div>\n\t\n</div>\n\n<div dojoAttachPoint=\"emailReplyDiv\">\n\n\t<form dojoType=\"dijit.form.Form\" action=\"javascript:void(0)\" dojoAttachPoint=\"emailReplyForm\">\n\t\t<div style=\"width:59%; display:inline-block;\">\n\t\t\t<label class=\"translatecol narrow\">TO</label>\n\t\t\t<input dojoType=\"dijit.form.TextBox\" dojoAttachPoint=\"emailTo\" style=\"width: 30em;\"/><br/>\n\t\t\t<label class=\"translatecol narrow\">FROM</label>\n\t\t\t<input dojoType=\"dijit.form.TextBox\" dojoAttachPoint=\"emailFrom\" style=\"width: 30em;\"/><br/>\n\t\t\t<label class=\"translatecol narrow\">SUBJECT</label>\n\t\t\t<input dojoType=\"dijit.form.TextBox\" dojoAttachPoint=\"emailSubject\" style=\"width: 30em;\"/><br/>\n\t\t\t<label class=\"translatecol narrow\">CC</label>\n\t\t\t<textarea dojoType=\"dijit.form.Textarea\" dojoAttachPoint=\"emailCC\" name=\"emailCC\" cols=\"20\"></textarea><br/>\n\t\t\t<label class=\"translatecol narrow\">BCC</label>\n\t\t\t<textarea dojoType=\"dijit.form.Textarea\" dojoAttachPoint=\"emailBCC\" name=\"emailBCC\" cols=\"20\"></textarea><br/>\n\t\t\t<label class=\"translatecol narrow\">DATE</label>\n\t\t\t<span dojoAttachPoint=\"emailDateSpanReply\"></span><br/>\n\t\t\t<label class=\"narrow\">&nbsp;</label>\n\t\t\t<span dojoAttachPoint=\"attachmentList\"></span>\n\t\t\t<button label=\"UPLOAD\" dojoType=\"dijit.form.Button\" style=\"display:none\" dojoAttachPoint=\"emailUploadButton\">\n\t\t\t</button>\t\t\n\t\t\t<span dojoAttachPoint=\"attachmentListP\" style=\"display:none\">\n\t\t\t\t<label>&nbsp;</label>\n\t\t\t\t<ul style=\"list-style-type:none; display:inline-block\" dojoAttachPoint=\"attachedList\"></ul>\n\t\t\t</span>\n\t\t</div>\n\n\t\t<div>\n\t\t\t<div dojoAttachPoint=\"emailDisp\" style=\"width:100%;\" />\n\t\t</div>\n\t\t<div style=\"margin-left: auto; margin-right: auto; width: 20%;\">\n\t\t\t<button label=\"SUBMIT\" dojoType=\"dijit.form.Button\" dojoAttachPoint=\"emailSubmit\">\n\t\t\t</button>\n\t\t\t\n\t\t\t<button label=\"CANCEL\" dojoType=\"dijit.form.Button\" dojoAttachPoint=\"emailCancel\">\n\t\t\t</button>\n\t\t</div>\n\t</form>\n</div>\n\n</div>\n",
 	widgetsInTemplate: true,
 
 	constructor: function(args, srcNodeRef){
@@ -237,7 +240,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 	_fetchPaths: function(skel){
 		var paths = emailLib.pathsToFetch(skel);
 		var disp = this.emailViewDiv;
-		disp.sub = dojo.subscribe("emailLib/fetchPaths/done/" + this.channelId, function(fetched){
+		disp.sub = dojo.subscribe("emailLib/fetchPaths/done" + this.channelId, function(fetched){
 			console.log('fetching of paths complete', fetched);
 			dojo.unsubscribe(disp.sub);
 			disp.innerHTML = fetched;
@@ -270,7 +273,6 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 			}
 			emailLib.getFrom(_fetchFromCallback);
 		});
-		this.email.fetchPaths(paths);
 	},
 
 	_rebuildAttachmentList: function(filenames){
@@ -334,3 +336,5 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 	
 	emailLib.fetchPaths(paths);
 });*/
+
+});

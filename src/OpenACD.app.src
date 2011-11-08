@@ -1,6 +1,6 @@
 {application, 'OpenACD', [
 	{description, "Call queuing and routing system"},
-	{vsn, "0.9.5"},
+	{vsn, "1.0.0"},
 	{modules, []},
 	{registered, [
 		agent_connection_sup,

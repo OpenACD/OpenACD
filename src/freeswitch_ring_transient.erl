@@ -82,7 +82,7 @@ handle_call(_Msg, _From, _FsRef, State) ->
 %% =====
 %% handle_cast
 %% =====
-handle_cast({agent_state, oncall, #call{type = voice}}, _FsRef, State) ->
+handle_cast({agent_state, oncall, #call{type = IsVoice}}, _FsRef, State) when IsVoice =:= voice; IsVoice =:= voicemail ->
 	% bridging will happen, and all will be happy.
 	{noreply, State};
 handle_cast({agent_state, AState, _Data}, FsRef, State) ->
@@ -107,7 +107,7 @@ handle_info(_Msg, _FsRef, State) ->
 %% =====
 handle_event("CHANNEL_ANSWER", _Data, _FsRef, #state{call = undefined} = State) ->
 	{noreply, State};
-handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
+handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type = IsVoice} = Call} = State) when IsVoice =:= voice; IsVoice =:= voicemail ->
 	%% the freeswitch media will ask self() for some info,
 	%% so the needs to be spawned out.
 	Self = self(),

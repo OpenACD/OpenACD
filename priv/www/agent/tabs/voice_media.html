@@ -56,6 +56,10 @@
 						setVis(true, 'voiceDialBox', 'simpleHoldBox');
 						setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
 						break;
+					case 'in_conference_3rdparty':
+						setVis(true, 'merge3rdPartyBox', 'unhold3rdPartyBox','conferenceHoldBox');
+						setVis(false, 'joinConferenceBox','voiceDialBox','simpleHoldBox');
+						break;
 					default:
 						console.error('freeswitch event not handled', data['event']);
 				}

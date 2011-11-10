@@ -110,7 +110,7 @@
 	queue_transfer/2,
 	media_call/2, % conn asking the media stuff
 	media_cast/2, % conn telling media stuff
-	media_push/2, % media telling conn stuff
+	media_push/3, % media telling conn stuff
 	spy/2,
 	has_successful_ring/1,
 	has_failed_ring/1,
@@ -183,10 +183,10 @@ end_wrapup(Pid) ->
 
 %% @doc attmept to push data from the media connection to the agent.  It's up to
 %% the agent connection to interpret this correctly.
--spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
-media_push(Pid, Data) ->
+-spec(media_push/3 :: (Pid :: pid(), Callrec :: #call{}, Data :: any()) -> any()).
+media_push(Pid, Callrec, Data) ->
 	S = self(),
-	gen_fsm:send_event(Pid, {mediapush, S, Data}).
+	gen_fsm:send_event(Pid, {mediapush, S, Callrec, Data}).
 
 %% @doc Make the give `pid() Spy' spy on `pid() Target'.
 -spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok' | 'invalid').
@@ -409,9 +409,9 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 oncall(_Msg, _From, State) ->
 	{reply, {error, invalid}, oncall, State}.
 
-oncall({mediapush, From, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) when is_pid(Conn) ->
+oncall({mediapush, From, Callrec, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) when is_pid(Conn) ->
 	Self = self(),
-	gen_server:cast(Conn, {mediapush, Self, Data}),
+	gen_server:cast(Conn, {mediapush, Self, Callrec, Data}),
 	{next_state, oncall, State};
 oncall(_Msg, State) ->
 	{next_state, oncall, State}.

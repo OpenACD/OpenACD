@@ -426,6 +426,10 @@ handle_cast(print_file_map, _Statename, _Callrec, _Gmstate, #state{file_map = Ou
 	{noreply, State};
 handle_cast({set_caseid, CaseID}, _Statename, _Callrec, _Gmstate, State) ->
 	{noreply, State#state{caseid = CaseID}};
+
+handle_cast({agent_web_connection, <<"send">>, Opts}, Statename, Callrec, GmState, State) ->
+	handle_cast({<<"send">>, [{"args", Opts}]}, Statename, Callrec, GmState, State);
+
 handle_cast(Msg, _Statename, Callrec, _Gmstate, State) ->
 	?WARNING("cast msg:  ~p (~p)", [Msg, Callrec#call.id]),
 	{noreply, State}.
@@ -480,7 +484,7 @@ format_status(_, [_PDict, State]) ->
 %% gen_media specific callbacks
 handle_answer(Agent, _Statename, Call, _Gmstate, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	agent_channel:media_push(Agent, {mediaload, Call}),
+	agent_channel:media_push(Agent, Call, {mediaload, Call}),
 	%agent_channel:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 

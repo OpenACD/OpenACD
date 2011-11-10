@@ -1106,7 +1106,7 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
-handle_cast({mediapush, ChanPid, {mediaload, #call{source_module = email_media} = Call}}, State) ->
+handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = email_media} = Call}}, State) ->
 	Midstate = case State#state.current_call of
 		expect ->
 			State#state{current_call = Call};
@@ -1146,13 +1146,15 @@ handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
 	Json = {struct, lists:append(Base, Options)},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
-handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
+handle_cast({mediapush, Chanpid, #call{source_module = Mediatype}, Data}, State) ->
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
+	Chanid = list_to_binary(pid_to_list(Chanpid)),
 	case Mediatype of
-		email ->
+		email_media ->
 			case Data of
 				send_done ->
 					Json = {struct, [
+						{<<"channelid">>, Chanid},
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, email},
 						{<<"event">>, <<"send_complete">>},
@@ -1162,6 +1164,7 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 					{noreply, Newstate};
 				{send_fail, Error} ->
 					Json = {struct, [
+						{<<"channelid">>, Chanid},
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, email},
 						{<<"event">>, <<"send_complete">>},
@@ -1174,10 +1177,11 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
-		voice ->
+		freeswitch_media ->
 			case Data of
 				SimpleCommand when is_atom(SimpleCommand) ->
 					Json = {struct, [
+						{<<"channelid">>, Chanid},
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, voice},
 						{<<"event">>, SimpleCommand}

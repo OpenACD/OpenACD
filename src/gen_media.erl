@@ -2562,7 +2562,7 @@ agent_interact(Action, StateName, {BaseState, Internal}) ->
 agent_interact({mediapush, Data}, StateName, #base_state{
 		callrec = Call} = BaseState, Internal, {_, {_, Ocpid}}) ->
 	?DEBUG("Shoving ~p from ~p", [Data, Call#call.id]),
-	agent:media_push(Ocpid, Data),
+	agent_channel:media_push(Ocpid, Call, Data),
 	{StateName, {BaseState, Internal}};
 
 %agent_interact({mediapush, _Data}, #state{callrec = Call} = State) ->

@@ -143,7 +143,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 	},
 
 	submit: function(){
-		var coveredNode = this.email.domNode;
+		var coveredNode = this.domNode;
 		var standby = new dojox.widget.Standby({
 			target: coveredNode,
 			zIndex:1000
@@ -171,7 +171,7 @@ dojo.declare("agentUI.EmailPane", [dijit._Widget, dijit._Templated], {
 		var regex = /\,\s*|\,|\,?\s*\n/;
 		ccs = ccs.split(regex);
 		bccs = bccs.split(regex);
-		this.agentConnection.agent.agentApi('media_cast', {}, this.channelId, 'send', {
+		this.email.send({
 			'to':this.emailTo.attr('value'),
 			'from':this.emailFrom.attr('value'),
 			'subject':this.emailSubject.attr('value'),

@@ -125,6 +125,10 @@ if(typeof(emailLib) === 'undefined'){
 			}
 		}, this.channel.channelId, 'get_from', 'call');
 	};
+
+	emailLib.Email.prototype.send = function(sendArgs){
+		this.channel.agent.webApi(this.mode, 'media_cast', {}, this.channel.channelId, 'send', sendArgs);
+	};
 	
 	emailLib.pathsToFetch = function(skeleton, path, fetches){
 		if(! path){

@@ -1797,14 +1797,14 @@ handle_event({{'$gen_media', Command}, _}, StateName, State) ->
 handle_event(Msg, StateName, {BaseState, Internal} = State) ->
 	#base_state{callback = Callback, callrec = Call, substate = Sub} = BaseState,
 	Reply = Callback:handle_cast(Msg, StateName, Call, Internal, Sub),
-	Wts = [warm_transfer_hold, warm_transfer_3rd_party, warm_transfer_merged],
-	case lists:member(StateName, Wts) of
-		true ->
-			handle_custom_wt_return(Reply, StateName, reply, State);
-		false ->
-			handle_custom_return(Reply, StateName, reply, State)
-	end,
-	handle_custom_return(Reply, StateName, State, noreply).
+%	Wts = [warm_transfer_hold, warm_transfer_3rd_party, warm_transfer_merged],
+%	case lists:member(StateName, Wts) of
+%		true ->
+%			handle_custom_wt_return(Reply, StateName, reply, State);
+%		false ->
+%			handle_custom_return(Reply, StateName, reply, State)
+%	end,
+	handle_custom_return(Reply, StateName, noreply, State).
 
 %%--------------------------------------------------------------------
 %% handle_info

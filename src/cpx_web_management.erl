@@ -2978,7 +2978,9 @@ encode_recipe_conditions([{Prop, Comp, Val} | Tail], Acc) ->
 		Val when is_integer(Val) ->
 			Val;
 		Val when is_list(Val) ->
-			list_to_binary(Val)
+			list_to_binary(Val);
+		Val when is_atom(Val) ->
+			Val
 	end,
 	Jcond = {struct, [
 		{<<"property">>, encode_recipe_conditions_prop(Prop)},

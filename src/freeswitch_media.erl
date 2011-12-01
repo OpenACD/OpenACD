@@ -900,6 +900,11 @@ handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = Stat
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{ringchannel = undefined}};
+
+handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
+	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
+	{stop, noconnection, State};
+
 handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
@@ -956,6 +961,7 @@ handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename =
 
 handle_info(Info, Call, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
+	?DEBUG("unhandled state:  ~p", [State]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

@@ -4,8 +4,8 @@ Project Overview
 OpenACD is an opensource project aimed at providing a distributed, fault
 tolerant contact/call center platform. It's implemented in
 [Erlang](http://erlang.org), uses [Dojo](http://dojotoolkit.org) for
-its web UI and integrates tightly with [FreeSWITCH](http://freeswitch.org) for
-its VoIP components. The sister project
+its web UI and integrates tightly with [FreeSWITCH](http://freeswitch.org)
+for its VoIP components. The sister project
 [gen_smtp](http://github.com/Vagabond/gen_smtp) is used for email support.
 
 Feature Highlights
@@ -17,6 +17,7 @@ Feature Highlights
 + Supervisory interface for managing agents/call flow
 + Support for handling voice calls (inbound and outbound), voicemails and emails
 + Detailed CDRs and agent state recording
++ Extensible architecture for new media types, data collection, and agent interaction
 
 Participants
 ============
@@ -44,9 +45,13 @@ know why not. Also feel free to contribute documentation, translations or report
 Project Status
 ==============
 
-The project is (still) approaching a 1.0. The OpenACD developers are working
-with [eZuce](http://www.ezuce.com) and [KGB](http://kgb.com) to integrate OpenACD
-as the new sipXecs ACD.
+OpenACD current exists in two states:  version 1.0 which features all the
+above, and version 2.0, which adds multi-channel.  For the stable version 
+1.0, use the 'v1' branch.  Master is version 2, and is in heavy
+development.
+
+The OpenACD developers are working with [eZuce](http://www.ezuce.com) and 
+[KGB](http://kgb.com) to integrate OpenACD as the new sipXecs ACD.
 
 More Info
 =========

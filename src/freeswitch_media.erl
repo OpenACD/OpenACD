@@ -125,7 +125,7 @@
 	in_control = false :: boolean(),
 	queued = false :: boolean(),
 	allow_voicemail = false :: boolean(),
-	vm_priority_diff = 10 :: integer(),
+	vm_priority_diff = ?DEFAULT_VM_PRIORITY_DIFF :: integer(),
 	warm_transfer_uuid = undefined :: string() | 'undefined',
 	ivroption :: string() | 'undefined',
 	caseid :: string() | 'undefined',
@@ -1105,6 +1105,8 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		statename = Statename} = State) when
 		Statename == inqueue; Statename =/= inqueue_ringing ->
 
+	?DEBUG("Channel park rawcall: ~p", [Rawcall]),
+
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 	Client = proplists:get_value("variable_brand", Rawcall),
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
@@ -1114,10 +1116,10 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		MohMusak ->
 			MohMusak
 	end,
-	P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
-	
-	VMd = proplists:get_value("variable_vm_priority_diff", Rawcall,
-		integer_to_list(?DEFAULT_VM_PRIORITY_DIFF)),
+	Priority = get_rawcall_int("variable_queue_priority", 
+		Rawcall, ?DEFAULT_PRIORITY),
+	VMPriorityDiff = get_rawcall_int("variable_vm_priority_diff",
+		Rawcall, ?DEFAULT_VM_PRIORITY_DIFF),
 
 	Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 	SkillList = proplists:get_value("variable_skills", Rawcall, ""),
@@ -1132,18 +1134,6 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		end
 	end, [], util:string_split(SkillList, ",")),
 	
-	Priority = try list_to_integer(P) of
-		Pri -> Pri
-	catch
-		error:badarg -> ?DEFAULT_PRIORITY
-	end,
-
-	VMPriorityDiff = try list_to_integer(VMd) of
-		VMPri -> VMPri
-	catch
-		error:badarg -> ?DEFAULT_VM_PRIORITY_DIFF
-	end,
-
 	{Calleridname, Calleridnum} = get_caller_id(Rawcall),
 	Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
 	NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority, skills = Skills},
@@ -1325,3 +1315,16 @@ get_info(_, UUID, _) ->
 	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
 	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", ""}.
 
+get_rawcall_int(Key, Rawcall, Default) ->
+	case proplists:get_value(Key, Rawcall) of
+		undefined ->
+			Default;
+		ValStr ->
+			try list_to_integer(ValStr) of
+				ValInt -> ValInt
+			catch
+				error:badarg ->
+					?WARNING("Invalid value for ~s: ~p", [Key, ValStr]),
+					Default
+			end
+	end.

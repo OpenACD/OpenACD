@@ -1118,8 +1118,17 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	end,
 	Priority = get_rawcall_int("variable_queue_priority", 
 		Rawcall, ?DEFAULT_PRIORITY),
-	VMPriorityDiff = get_rawcall_int("variable_vm_priority_diff",
-		Rawcall, ?DEFAULT_VM_PRIORITY_DIFF),
+
+	VMPriorityDiff = 
+		case get_rawcall_int("variable_vm_priority_diff",
+				Rawcall, undefined) of
+			undefined ->
+				ClientRec = Callrec#call.client,
+				proplists:get_value(vm_priority_diff, ClientRec#client.options,
+				 	?DEFAULT_VM_PRIORITY_DIFF);
+			Val ->
+				Val
+		end,
 
 	Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 	SkillList = proplists:get_value("variable_skills", Rawcall, ""),

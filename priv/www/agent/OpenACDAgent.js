@@ -698,6 +698,14 @@ OpenACD.Agent.prototype.getAvailAgents = function(options) {
 };
 
 /**
+Get a list of the release options configured on the server.
+@param {Object} options Callbacks for success, failure, and error.
+*/
+OpenACD.Agent.prototype.getReleaseOpts = function(options) {
+	this.agentApi("get_release_opts", options);
+}
+
+/**
 Check if the agent is already logged in.  This allows an agent to reload the
 browser without trashing thier interface (provided the correct callbacks
 are in place.

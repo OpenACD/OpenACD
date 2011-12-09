@@ -1088,7 +1088,7 @@ dojo.addOnLoad(function(){
 			},
 			success:function(response, ioargs){
 				var items = [];
-				dojo.forEach(response.options, function(obj){
+				dojo.forEach(response, function(obj){
 					items.push(new dijit.MenuItem({
 						label: obj.label,
 						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }

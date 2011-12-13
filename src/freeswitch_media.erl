@@ -49,6 +49,7 @@
 -define(TIMEOUT, 10000).
 
 -define(DEFAULT_PRIORITY, 10).
+-define(DEFAULT_VM_PRIORITY_DIFF, 10).
 
 %% API
 -export([
@@ -123,6 +124,7 @@
 	in_control = false :: boolean(),
 	queued = false :: boolean(),
 	allow_voicemail = false :: boolean(),
+	vm_priority_diff = ?DEFAULT_VM_PRIORITY_DIFF :: integer(),
 	ivroption :: string() | 'undefined',
 	caseid :: string() | 'undefined',
 	moh = "moh" :: string() | 'none',
@@ -985,7 +987,20 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		MohMusak ->
 			MohMusak
 	end,
-	P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
+	Priority = get_rawcall_int("variable_queue_priority", 
+		Rawcall, ?DEFAULT_PRIORITY),
+
+	VMPriorityDiff = 
+		case get_rawcall_int("variable_vm_priority_diff",
+				Rawcall, undefined) of
+			undefined ->
+				ClientRec = Callrec#call.client,
+				proplists:get_value(vm_priority_diff, ClientRec#client.options,
+				 	?DEFAULT_VM_PRIORITY_DIFF);
+			Val ->
+				Val
+		end,
+
 	Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 	SkillList = proplists:get_value("variable_skills", Rawcall, ""),
 	Skills = lists:foldl(fun(X, Acc) ->
@@ -998,11 +1013,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 				Acc
 		end
 	end, [], util:string_split(SkillList, ",")),
-	Priority = try list_to_integer(P) of
-		Pri -> Pri
-	catch
-		error:badarg -> ?DEFAULT_PRIORITY
-	end,
+	
 	{Calleridname, Calleridnum} = get_caller_id(Rawcall),
 	Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
 	NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority, skills = Skills},
@@ -1029,7 +1040,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
 	%% tell gen_media to (finally) queue the media
-	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt, statename = inqueue}};
+	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, vm_priority_diff = VMPriorityDiff, moh=Moh, ivroption = Ivropt, statename = inqueue}};
 
 case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid = UUID} = State) ->
 	?DEBUG("Channel hangup ~p", [Callrec#call.id]),
@@ -1064,7 +1075,11 @@ case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid =
 				true ->
 					?NOTICE("~s left a voicemail", [UUID]),
 					Client = Callrec#call.client,
-					freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, Callrec#call.priority + 10, Client#client.id);
+
+					VMPriority = Callrec#call.priority +
+						State#state.vm_priority_diff,
+
+					freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, VMPriority, Client#client.id);
 				false ->
 					?NOTICE("~s hungup without leaving a voicemail", [UUID])
 			end
@@ -1175,3 +1190,16 @@ get_info(_, UUID, _) ->
 	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
 	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", ""}.
 
+get_rawcall_int(Key, Rawcall, Default) ->
+	case proplists:get_value(Key, Rawcall) of
+		undefined ->
+			Default;
+		ValStr ->
+			try list_to_integer(ValStr) of
+				ValInt -> ValInt
+			catch
+				error:badarg ->
+					?WARNING("Invalid value for ~s: ~p", [Key, ValStr]),
+					Default
+			end
+	end.

@@ -89,7 +89,8 @@
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()],
-	last_service = os:timestamp() ::{pos_integer(), pos_integer(), pos_integer()}
+	last_service = os:timestamp() ::{pos_integer(), pos_integer(), pos_integer()},
+	flag = undefined
 }).
 
 -type(state() :: #state{}).
@@ -100,10 +101,12 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -type(opt_name() :: 'weight' | 'recipe' | 'skills' | 'group').
--type(start_opt() :: {opt_name(), any()}).
+-type(start_opt() :: {opt_name(), any()} | 'default_queue').
 -type(opts() :: [start_opt()]).
-%% @doc Start a queue named `Name' with no link to the current process.  Sets the `recipe()' to `Recipe' and 
-%% `Weight' to pos_integer.
+
+%% @doc Start a queue named `Name' with no link to the current process.  
+%% Passing in `default_queue' as a flag means the queue cannot exit when
+%% empty.
 -spec(start/2 :: (Name :: string(), Opts :: opts()) -> {ok, pid()}).
 start(Name, Opts) -> % Start linked queue custom default recipe and weight
 	gen_server:start(?MODULE, [Name, Opts], []).
@@ -129,19 +132,22 @@ set_weight(Pid, Weight) ->
 get_weight(Pid) ->
 	gen_server:call(Pid, get_weight).
 
-%% @doc Add to the queue at `pid()' `Pid' a new call with `pos_integer()' `Priority', `pid()' Mediapid, 
-%% and `#call{}' Callrec.
+%% @doc Add to the queue at `pid()' `Pid' a new call with `pos_integer()' 
+%% `Priority', `pid()' Mediapid, and `#call{}' Callrec.
 -spec(add/4 :: (Pid :: pid(), Priority :: non_neg_integer(), Mediapid :: pid(), Callrec :: #call{}) -> ok).
 add(Pid, Priority, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), Priority >= 0, is_record(Callrec, call) ->
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
 
 %% @doc Add to the queue at `pid()' `Pid' a call with default values.
-%% Second paramter can be either `pos_integer()' `Priority' or `pid()' `Mediapid'.
-%% If the second parameter is `Priority', the 3rd parameter must be the `pid()' `Mediapid'.
-%% A new call is queued using the given `Priority', `Mediapid', and result of `gen_server:call(Mediapid, get_call)'.
+%% Second paramter can be either `pos_integer()' `Priority' or `pid()' 
+%% `Mediapid'.  If the second parameter is `Priority', the 3rd parameter 
+%% must be the `pid()' `Mediapid'.  A new call is queued using the given 
+%% `Priority', `Mediapid', and result of 
+%% `gen_server:call(Mediapid, get_call)'.
 %%
-%% If the second parameter is `Mediapid', the 3rd parameter must be `#call{}' `Callrec'.  
-%% A new call is queued using the default priority of 1.
+%% If the second parameter is `Mediapid', the 3rd parameter must be 
+%% `#call{}' `Callrec'.  A new call is queued using the default priority 
+%% of 1.
 %% @see add/4
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Mediapid :: pid()) -> ok;
 	(Pid :: pid(), Mediapid :: pid(), Calldata :: #call{}) -> ok).
@@ -160,14 +166,15 @@ add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 
-%% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid' with
-%% a given key `Key'.
+%% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid' 
+%% with a given key `Key'.
 -spec(add_at/3 :: (Pid :: pid(), Key :: call_key(), Mediapid :: pid()) -> ok).
 add_at(Pid, Key, Mediapid) ->
 	Callrec = gen_media:get_call(Mediapid),
 	gen_server:cast(Pid, {add_at, Key, Mediapid, Callrec}).
 
-%% @doc Query the queue at `pid()' `Pid' for a call with the ID `string()' or `pid()' of `Callid'.
+%% @doc Query the queue at `pid()' `Pid' for a call with the ID `string()' 
+%% or `pid()' of `Callid'.
 -spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> {key(), #queued_call{}} | 'none';
 	(Pid :: pid(), Callid :: string()) -> {key(), #queued_call{}} | 'none').
 get_call(Pid, Callid) when is_pid(Pid) ->
@@ -178,19 +185,23 @@ get_call(Pid, Callid) when is_pid(Pid) ->
 get_calls(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, get_calls).
 	
-%% @doc Return the first `{key(), #queued_call{}} call in the queue at `pid()' `Pid' that doesn't 
-%% have a dispatcher from this node already bound to it or `none'.
+%% @doc Return the first `{key(), #queued_call{}} call in the queue at 
+%% `pid()' `Pid' that doesn't have a dispatcher from this node already 
+%% bound to it or `none'.
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 ask(Pid) ->
 	gen_server:call(Pid, ask).
 
-%% @doc Bind to the first `{key, #queued_call{}} in the queue at `pid()' `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
+%% @doc Bind to the first `{key, #queued_call{}} in the queue at `pid()' 
+%% `Pid' that doesn't have a dispatcher from this node already bound to it 
+%% or `none'.
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 grab(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, grab).
 
-%% @doc Reverse of {@link grab/1}.  Releases the call identified by `pid()' or `string()' `Callid' from any 
-%% bound dispatchers at queue `pid()' `Pid'.  Returns `ok'.
+%% @doc Reverse of {@link grab/1}.  Releases the call identified by 
+%% `pid()' or `string()' `Callid' from any bound dispatchers at queue 
+%% `pid()' `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string() | pid()) -> 'ok').
 ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
 	#call{id = Cid} = gen_media:get_call(Mediapid),
@@ -198,8 +209,9 @@ ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
 ungrab(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {ungrab, Callid}).
 
-%% @doc Add `[atom(),...]' `Skills' to the call with the id of `string()' `Callid' or `pid()' `Mediapid' in the queue at `pid()' `Pid'. 
-%% Returns `ok' on success, `none' on failure.
+%% @doc Add `[atom(),...]' `Skills' to the call with the id of `string()' 
+%% `Callid' or `pid()' `Mediapid' in the queue at `pid()' `Pid'.  Returns 
+%% `ok' on success, `none' on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 	#call{id = Callid} = gen_media:get_call(Mediapid),
@@ -207,8 +219,9 @@ add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 add_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
 
-%% @doc Remove `[atom(),...] `Skills' from the call with the id of `string()' `Callid' or `pid()' `Mediapid' in the queue at `pid()' `Pid'. 
-%% Returns `ok' on success, `none' on failure.
+%% @doc Remove `[atom(),...] `Skills' from the call with the id of 
+%% `string()' `Callid' or `pid()' `Mediapid' in the queue at `pid()' 
+%% `Pid'.  Returns `ok' on success, `none' on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 	#call{id = Callid} = gen_media:get_call(Mediapid),
@@ -216,8 +229,10 @@ remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 remove_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
-%% @doc Alter the priority of the call with the id or media pid of `pid()' `Mediaid' in the queue at `pid()' `Pid' to `non_neg_integer()' `Priority'.
-%% Returns `ok' on success, `none' on failure (such as invalid `Priority').
+%% @doc Alter the priority of the call with the id or media pid of `pid()' 
+%% `Mediaid' in the queue at `pid()' `Pid' to `non_neg_integer()' 
+%% `Priority'.  Returns `ok' on success, `none' on failure (such as 
+%% invalid `Priority').
 -spec(set_priority/3 :: ( Pid :: pid(), Calldata :: string() | pid(), Priority :: non_neg_integer()) -> 'none' | 'ok').
 set_priority(Pid, Mediaid, Priority) when Priority >= 0 ->
 	gen_server:call(Pid, {set_priority, Mediaid, Priority});
@@ -234,8 +249,9 @@ to_list(Pid) ->
 dump(Pid) ->
 	gen_server:call(Pid, dump).
 
-%% @doc Remove the call with id `string()' of `Calldata' or `pid()' `Callpid' from the queue at `Pid'.  
-%% Returns `ok' on success, `none' on failure.
+%% @doc Remove the call with id `string()' of `Calldata' or `pid()' 
+%% `Callpid' from the queue at `Pid'.  Returns `ok' on success, `none' on 
+%% failure.
 -spec(remove/2 :: (Pid :: pid(), Callid :: pid() | string()) -> 'none' | 'ok').
 remove(Pid, Callpid) when is_pid(Pid), is_pid(Callpid) ->
 	gen_server:call(Pid, {remove, Callpid});
@@ -274,6 +290,13 @@ call_count_by_client(Pid, Client) ->
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
+
+%% @doc Have the queue exit when the last call is removed.  This also stops
+%% the queue from accepting new calls.  The default queue cannot be stopped
+%% this way.
+-spec(stop_when_empty/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+stop_when_empty(Pid) ->
+	gen_server:call(Pid, stop_when_empty).
 
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
@@ -370,7 +393,11 @@ init([Name, Opts]) ->
 		group = proplists:get_value(group, Opts, "Default"),
 		recipe = proplists:get_value(recipe, Opts, ?DEFAULT_RECIPE),
 		weight = proplists:get_value(weight, Opts, ?DEFAULT_WEIGHT),
-		call_skills = proplists:get_value(skills, Opts, [])
+		call_skills = proplists:get_value(skills, Opts, []),
+		flag = case proplists:get_value(default_queue, Opts) of
+			true -> default_queue;
+			_ -> undefined
+		end
 	},
 	set_cpx_mon(State, self()),
 	{ok, State}.
@@ -400,6 +427,8 @@ handle_call(get_weight, _From, State) ->
 	{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
+handle_call({add, _, _, _}, _From, #state{flag = exit_when_empty} = State) ->
+	{reply, invalid, State};
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
 	?INFO("adding call ~p to ~p request from ~p on node ~p", [Callrec#call.id, State#state.name, From, node(Callpid)]),
@@ -469,7 +498,15 @@ handle_call({remove, Callpid}, _From, State) ->
 			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
 			?INFO("Removed call ~p from queue ~p", [Qcall#queued_call.id, State#state.name]),
-			{reply, ok, State2}
+			case State#state.flag of
+				exit_when_empty ->
+					case gb_trees:size(State2#state.queue) of
+						0 -> {stop, normal, ok, State2};
+						_ -> {reply, ok, State2}
+					end;
+				_ ->
+					{reply, ok, State2}
+			end
 	end;
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
@@ -516,6 +553,18 @@ handle_call({call_count_by_client, Client}, _From, State) ->
 handle_call(selection_info, {From, _tag}, State) ->
 	{reply, {find_unbound(State#state.queue, From), State#state.weight, State#state.last_service}, State};
 
+handle_call(stop_when_empty, _From, #state{flag = default_queue} = State) ->
+	{reply, invalid, State};
+
+handle_call(stop_when_empty, _From, State) ->
+	case gb_trees:size(State#state.queue) of
+		0 ->
+			{stop, normal, ok, State};
+		_ ->
+			NewState = State#state{flag = exit_when_empty},
+			{reply, ok, NewState}
+	end;
+
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
@@ -536,7 +585,15 @@ handle_cast({remove, Callpid}, State) ->
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			?INFO("Removed ~p from ~p", [ID, State#state.name]),
-			{noreply, State2}
+			case State#state.flag of
+				exit_when_empty ->
+					case gb_trees:size(State2#state.queue) of
+						0 -> {stop, normal, State2};
+						_ -> {noreply, State2}
+					end;
+				_ ->
+					{noreply, State2}
+			end
 	end;
 handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
 	?INFO("adding call ~p to ~p on node ~p at position ~p", [Mediarec#call.id, State#state.name, node(Mediapid), Key]),
@@ -701,6 +758,42 @@ test_primer() ->
 	mnesia:create_schema([node()]),
 	mnesia:start().
 
+init_test_() ->
+	[{"setting default queue on start", fun() ->
+		{ok, TestState} = init(["QueueNom", [default_queue]]),
+		?assertEqual(default_queue, TestState#state.flag)
+	end}].
+
+handle_call_test_() ->
+	[{"Can't set default queue to stop_when_empty", fun() ->
+		{ok, State0} = init(["QueueNom", [default_queue]]),
+		Out = handle_call(stop_when_empty, "from", State0),
+		?assertMatch({reply, invalid, _NewState}, Out)
+	end},
+	{"Setting empty kills the queue if empty", fun() ->
+		{ok, State0} = init(["QueueNom", []]),
+		Out = handle_call(stop_when_empty, "from", State0),
+		?assertMatch({stop, normal, ok, _State1}, Out)
+	end},
+	{"stop when empty means no new call in", fun() ->
+		{ok, State0} = init(["QueueNom", []]),
+		CallPid = spawn(fun() -> ok end),
+		CallRec = #call{id = "call", source = CallPid},
+		{reply, ok, State1} = handle_call({add, 1, CallPid, CallRec}, "from", State0),
+		{reply, ok, State2} = handle_call(stop_when_empty, "from", State1),
+		{reply, Out, _State3} = handle_call({add, 1, CallPid, CallRec}, "from", State2),
+		?assertEqual(invalid, Out)
+	end},
+	{"stop when empty: last call leaves queue exits queue pid", fun() ->
+		{ok, State0} = init(["QueueNom", []]),
+		CallPid = spawn(fun() -> ok end),
+		CallRec = #call{id = "call", source = CallPid},
+		{reply, ok, State1} = handle_call({add, 1, CallPid, CallRec}, "from", State0),
+		{reply, ok, State2} = handle_call(stop_when_empty, "from", State1),
+		Out = handle_call({remove, CallPid}, "from", State2),
+		?assertMatch({stop, normal, ok, _State3}, Out)
+	end}].
+		
 call_in_out_grab_test_() ->
 	{
 		foreach,

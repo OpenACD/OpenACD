@@ -144,7 +144,8 @@ init(Agent) when is_record(Agent, agent) ->
 			agent = Agentname,
 			oldstate = State,
 			statedata = Statedata,
-			start = Now
+			start = Now,
+			profile = Profile
 		},
 		mnesia:dirty_write(Login),
 		mnesia:dirty_write(StateRow),
@@ -322,11 +323,40 @@ agent_init_test_() ->
 	Node = setup_node(agent_init_test_node),
 	{spawn, Node, {foreach,
 	fun() ->
-		setup_mnesia()
+		setup_mnesia(),
+		{ok, Pid} = cpx_monitor:make_mock(),
+		Pid
 	end,
-	[{"simple initialize", fun() ->
-			?assert(true)
-	end}]}}.
+	[fun(CpxMonPid) ->
+		{"simple initialize", fun() ->
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				#agent_state{id = Id, oldstate = Old, state = Current,
+					profile = Profile, start = Start, ended = End} = Info,
+				?assertEqual("testagent", Id),
+				?assertEqual(login, Old),
+				?assertEqual(default, Current),
+				?assertEqual("testprofile", Profile),
+				?assertEqual(Start, End),
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				#agent_state{id = Id, oldstate = Old, state = Current,
+					profile = Profile, start = Start, ended = End} = Info,
+				?assertEqual("testagent", Id),
+				?assertEqual(default, Old),
+				?assertEqual(undefined, Current),
+				?assertEqual("testprofile", Profile),
+				?assertNot(undefined =:= Start),
+				?assertEqual(undefined, End),
+				ok
+			end),
+			Agent = #agent{login = "testagent", id="testagent",
+				profile = "testprofile", release_data = default},
+			Out = init(Agent),
+			?assertEqual({ok, Agent}, Out),
+			cpx_monitor:assert_mock()
+		end}
+	end]}}.
 
 % agent channel tests:
 % agent channel init produces 1 event: current state

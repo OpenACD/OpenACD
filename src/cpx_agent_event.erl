@@ -378,6 +378,10 @@ agent_init(CpxMonPid, Agent) ->
 	gen_leader_mock:expect_leader_cast(CpxMonPid, fun(_,_,_) -> ok end),
 	init(Agent).
 
+agent_channel_init(CpxMonPid, Agent, ChanId, Statename, Statedata) ->
+	gen_leader_mock:expect_leader_cast(CpxMonPid, fun(_,_,_) -> ok end),
+	init([Agent, ChanId, Statename, Statedata]).
+
 %% -----
 %% Tests for handling agent changes
 %% -----
@@ -597,6 +601,46 @@ agent_channel_test_() ->
 			end),
 			Out = init([Agent, ChannelRef, prering, call_rec]),
 			?assertMatch({ok, {"agent_pid", ChannelRef}}, Out),
+			cpx_monitor:assert_mock()
+		end}
+	end,
+
+%% -----
+
+	fun(CpxMonPid) ->
+		{"state change", fun() ->
+			ChannelRef = erlang:make_ref(),
+			Agent = #agent{login = "testagent", id = "testid",
+				source = "agent_pid"},
+			State0 = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+					state = NState, start = Started, ended = Ended,
+					statedata = Statedata} = Info,
+				?assertEqual("testid", Aid),
+				?assertEqual(ChannelRef, Cid),
+				?assertEqual(prering, OState),
+				?assertEqual(ringing, NState),
+				?assertEqual("call_data", Statedata),
+				?assertNot(Started == undefined),
+				?assertNot(Ended == undefined),
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+					state = NState, start = Started, ended = Ended,
+					statedata = Statedata} = Info,
+				?assertEqual("testid", Aid),
+				?assertEqual(ChannelRef, Cid),
+				?assertEqual(ringing, OState),
+				?assertEqual(undefined, NState),
+				?assertEqual("new_call_data", Statedata),
+				?assertNot(Started == undefined),
+				?assertEqual(undefined, Ended),
+				ok
+			end),
+			Out = handle_event({change_agent_channel, ChannelRef, ringing, "new_call_data"}, State0),
+			?assertEqual({ok, State0}, Out),
 			cpx_monitor:assert_mock()
 		end}
 	end

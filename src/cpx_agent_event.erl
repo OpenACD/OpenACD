@@ -137,7 +137,28 @@ change_agent_channel(OldChannel, NewChannel) ->
 
 %% @private
 init([Agent, ChannelId, Statename, Statedata]) when is_reference(ChannelId) ->
-	{ok, {Agent, ChannelId}};
+	Now = util:now(),
+	AgentPid = Agent#agent.source,
+	Chanstate = #agent_channel_state{
+		agent_id = Agent#agent.id,
+		id = ChannelId,
+		oldstate = init,
+		state = Statename,
+		statedata = Statedata,
+		start = Now
+	},
+	TransactFun = fun() ->
+		mnesia:dirty_write(Chanstate),
+		cpx_monitor:info({agent_channel_state, Chanstate}),
+		ok
+	end,
+	case mnesia:async_dirty(TransactFun) of
+		ok ->
+			{ok, {AgentPid, ChannelId}};
+		Else ->
+			?WARNING("Storing initial agent channel event for ~p failed", [ChannelId]),
+			{ok, {AgentPid, ChannelId}}
+	end;
 
 init(Agent) when is_record(Agent, agent) ->
 	#agent{login = Agentname, skills = Skills, release_data = State,

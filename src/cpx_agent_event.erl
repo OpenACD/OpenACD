@@ -449,6 +449,71 @@ agent_test_() ->
 			?assertEqual({ok, NewAgent}, Out),
 			cpx_monitor:assert_mock()
 		end}
+	end,
+
+%% -----
+
+	fun(CpxMonPid) ->
+		{"auto detect change: profile", fun() ->
+			OldSkills = ['english', 'myspace', 'yahoo', 'pub'],
+			NewSkills = ['english', 'facebook', 'google', 'bar'],
+			StateAgent = #agent{login = "testagent", id = "testagent",
+				profile = "testprofile", skills = OldSkills, release_data = default},
+			{ok, State} = agent_init(CpxMonPid, StateAgent),
+			OldAgent = StateAgent,
+			NewAgent = OldAgent#agent{skills = NewSkills, profile = "newprofile"},
+			ExpectDropped = ['myspace', 'yahoo', 'pub'],
+			ExpectGained = ['facebook', 'google', 'bar'],
+			ExpectSkills = ['english', 'facebook', 'google', 'bar'],
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_profile, ProfileChange}}, _State, _Elec) ->
+				#agent_profile_change{old_profile = OP, new_profile = NP,
+					skills = S, dropped_skills = DS, gained_skills = GS, id = Id} = 						ProfileChange,
+				?assertEqual("testprofile", OP),
+				?assertEqual("newprofile", NP),
+				?assertEqual(ExpectSkills, S),
+				?assertEqual(ExpectDropped, DS),
+				?assertEqual(ExpectGained, GS),
+				?assertEqual("testagent", Id),
+				ok
+			end),
+			Out = handle_event({detect_change, OldAgent, NewAgent}, State),
+			?assertEqual({ok, NewAgent}, Out),
+			cpx_monitor:assert_mock()
+		end}
+	end,
+
+%% -----
+
+	fun(CpxMonPid) ->
+		{"auto detect change:  state", fun() ->
+			StateAgent = #agent{login = "testagent", id = "testagent",
+				profile = "testprofile", release_data = default},
+			{ok, State} = agent_init(CpxMonPid, StateAgent),
+			OldAgent = StateAgent,
+			NewReleaseData = {"rid", "rlabel", 0},
+			NewAgent = OldAgent#agent{release_data = NewReleaseData},
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				?assert(is_record(Info, agent_state)),
+				#agent_state{state = NewRelease, oldstate = OldRelease,
+					ended = Ended} = Info,
+				?assertEqual(NewReleaseData, NewRelease),
+				?assertEqual(default, OldRelease),
+				?assertNot(Ended == undefined),
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				?assert(is_record(Info, agent_state)),
+				#agent_state{state = NewRelease, oldstate = OldRelease,
+					ended = Ended} = Info,
+				?assertEqual(undefined, NewRelease),
+				?assertEqual(undefined, Ended),
+				?assertEqual(NewReleaseData, OldRelease),
+				ok
+			end),
+			Out = handle_event({detect_change, OldAgent, NewAgent}, State),
+			?assertEqual({ok, NewAgent}, Out),
+			cpx_monitor:assert_mock()
+		end}
 	end
 
 	]}}.

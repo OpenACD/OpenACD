@@ -40,6 +40,8 @@
 -type(skill() :: atom() | {atom(), any()}).
 -type(skill_list() :: [skill()]).
 
+%% Used as part of the internal state of the agent fsm, as well as often
+%% passed around as a representation of an agent.
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
 	id :: 'undefined' | string(),
@@ -84,6 +86,8 @@
 -type(security_level() :: 'agent' | 'supervisor' | 'admin').
 -type(statename() :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup').
 
+%% used by the agent_auth module to storing and retreiveing locally stored
+%% agent login information.
 -record(agent_auth, {
 	id :: string(),
 	login :: string(),
@@ -107,6 +111,7 @@
 	{'clients', [string()]} |
 	{'graphed', boolean()}).
 
+%% Used by the agent_auth module for storage of profiles.
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string() | 'error',
 	id :: 'undefined' | string(), %erlang:error({undefined, id}) :: string(),
@@ -116,6 +121,8 @@
 	timestamp = util:now() :: pos_integer()
 }).
 
+%% used by agent_manager to aid in finding available agents and thier
+%% eligibility for routing.
 -record(agent_cache, {
 	pid,
 	id,
@@ -125,6 +132,8 @@
 	endpoints
 }).
 
+%% used by agent_manager to rank agents in order of most routable to least
+%% routable
 -record(agent_key, {
 	rotations = 0,
 	has_all,
@@ -136,6 +145,7 @@
 
 -define(DEFAULT_RELEASE, {"default", default, -1}).
 
+%% used by agent_auth for storing release options.
 -record(release_opt, {
 	id :: pos_integer(),
 	label :: string(),
@@ -143,6 +153,8 @@
 	timestamp = util:now() :: pos_integer()
 	}).
 
+%% A general representation of an agent moving from one state to another.
+%% sent through cpx_monitor by cpx_agent_event.
 -record(agent_state, {
 	id :: string(),
 	agent :: string(),
@@ -156,6 +168,8 @@
 	nodes :: [atom()]
 }).
 
+%% A representation of an agent moving from one profile to another.  Sent
+%% through cpx_monitor by cpx_agent_event.
 -record(agent_profile_change, {
 	id :: string(),
 	agent :: string(),
@@ -166,6 +180,8 @@
 	gained_skills :: skill_list()
 }).
 
+%% A representation of an agent channel moving from one state to another.
+%% Sent through cpx_monitor by cpx_agent_event.
 -record(agent_channel_state, {
 	agent_id :: string(),
 	id :: reference(),

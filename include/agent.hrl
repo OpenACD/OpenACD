@@ -166,3 +166,14 @@
 	dropped_skills :: skill_list(),
 	gained_skills :: skill_list()
 }).
+
+-record(agent_channel_state, {
+	agent_id :: string(),
+	id :: reference(),
+	state :: statename() | 'init' | 'exit',
+	oldstate :: statename() | 'init' | 'exit',
+	statedata :: any(),
+	start :: integer(),
+	ended :: 'undefined' | integer(),
+	timestamp = util:now() :: integer()
+}).

@@ -185,8 +185,8 @@
 -record(agent_channel_state, {
 	agent_id :: string(),
 	id :: reference(),
-	state :: statename() | 'init' | 'exit',
 	oldstate :: statename() | 'init' | 'exit',
+	state :: statename() | 'init' | 'exit',
 	statedata :: any(),
 	start :: integer(),
 	ended :: 'undefined' | integer(),

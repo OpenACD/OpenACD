@@ -18,10 +18,11 @@
 	start/0,
 	start_link/0,
 	agent_init/1,
-	agent_channel_init/4,
 	change_profile/2,
 	change_state/2,
-	change_agent/2
+	change_agent/2,
+	agent_channel_init/4,
+	change_agent_channel/3
 ]).
 
 %% =====
@@ -122,10 +123,10 @@ agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 
 %% @doc Alert the appropriate handler that an agent channel has changed 
 %% in some way (usually state).
--spec(change_agent_channel/2 :: (OldChannel :: {atom(), any()},
-NewChannel :: {atom(), any()}) -> 'ok').
-change_agent_channel(OldChannel, NewChannel) ->
-	gen_event:notify(?MODULE, {change_agent_channel, OldChannel, NewChannel}).
+-spec(change_agent_channel/3 :: (Chanid :: reference(), Statename :: atom(),
+Statedata :: any()) -> 'ok').
+change_agent_channel(Chanid, Statename, Statedata) ->
+	gen_event:notify(?MODULE, {change_agent_channel, Chanid, Statename, Statedata}).
 
 %% =====
 %% gen_event callbacks
@@ -263,9 +264,42 @@ handle_event({detect_change, #agent{id = Id, profile = Profile} = OldAgent,
 handle_event({detect_change, Old, New}, Cur) ->
 	handle_event({change_profile, Old, New}, Cur);
 
+handle_event({change_agent_channel, ChanId, Statename, Statedata},
+{_, ChanId} = State) ->
+	Now = util:now(),
+	TransactFun = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(agent_channel_state),
+			X#agent_channel_state.id =:= ChanId,
+			X#agent_channel_state.ended =:= undefined
+		]),
+		[BaseRec | _] = Recs = qlc:e(QH),
+		[begin
+			mnesia:delete_object(Untermed),
+			Termed = Untermed#agent_channel_state{ended = Now, timestamp = Now},
+			cpx_monitor:info({agent_channel_state, Termed}),
+			mnesia:write(Termed)
+		end || Untermed <- Recs],
+		#agent_channel_state{state = Oldstate} = BaseRec,
+		Newrec = BaseRec#agent_channel_state{oldstate = Oldstate,
+			state = Statename, statedata = Statedata, start = Now,
+			ended = undefined, timestamp = Now
+		},
+		cpx_monitor:info({agent_channel_state, Newrec}),
+		mnesia:write(Newrec),
+		ok
+	end,
+	case mnesia:async_dirty(TransactFun) of
+		ok ->
+			{ok, State};
+		Res ->
+			?WARNING("res of the agent channel ~p state change ~p:~p log: ~p", [ChanId, Statename, Statedata, Res]),
+			{ok, State}
+	end;
+
 % ignore any event we can't handle.
 handle_event(Event, State) ->
-	?INFO("Unhandled event:  ~p", [Event]),
+	?INFO("Unhandled event:  ~p (~p)", [Event, State]),
 	{ok, State}.
 
 %% -----
@@ -612,15 +646,15 @@ agent_channel_test_() ->
 			ChannelRef = erlang:make_ref(),
 			Agent = #agent{login = "testagent", id = "testid",
 				source = "agent_pid"},
-			State0 = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),
+			{ok, State0} = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),
 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
 				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
 					state = NState, start = Started, ended = Ended,
 					statedata = Statedata} = Info,
 				?assertEqual("testid", Aid),
 				?assertEqual(ChannelRef, Cid),
-				?assertEqual(prering, OState),
-				?assertEqual(ringing, NState),
+				?assertEqual(init, OState),
+				?assertEqual(prering, NState),
 				?assertEqual("call_data", Statedata),
 				?assertNot(Started == undefined),
 				?assertNot(Ended == undefined),
@@ -632,8 +666,8 @@ agent_channel_test_() ->
 					statedata = Statedata} = Info,
 				?assertEqual("testid", Aid),
 				?assertEqual(ChannelRef, Cid),
-				?assertEqual(ringing, OState),
-				?assertEqual(undefined, NState),
+				?assertEqual(prering, OState),
+				?assertEqual(ringing, NState),
 				?assertEqual("new_call_data", Statedata),
 				?assertNot(Started == undefined),
 				?assertEqual(undefined, Ended),

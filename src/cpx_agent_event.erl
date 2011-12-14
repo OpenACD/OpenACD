@@ -20,7 +20,8 @@
 	agent_init/1,
 	agent_channel_init/2,
 	change_profile/2,
-	change_state/2
+	change_state/2,
+	change_agent/2
 ]).
 
 %% =====
@@ -224,8 +225,18 @@ handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
 			{ok, NewAgent}
 	end;
 
+handle_event({detect_change, #agent{id = Id, profile = Profile} = OldAgent,
+#agent{id = Id, profile = Profile} = NewAgent},
+#agent{id = Id} = CurAgent) ->
+	% most likely a state change.
+	handle_event({change_state, OldAgent, NewAgent}, CurAgent);
+
+handle_event({detect_change, Old, New}, Cur) ->
+	handle_event({change_profile, Old, New}, Cur);
+
 % ignore any event we can't handle.
 handle_event(Event, State) ->
+	?INFO("Unhandled event:  ~p", [Event]),
 	{ok, State}.
 
 %% -----

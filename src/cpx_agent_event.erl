@@ -110,6 +110,13 @@ is_record(NewAgent, agent) ->
 change_state(OldAgent, NewAgent) when is_record(OldAgent, agent),
 is_record(NewAgent, agent) ->
 	gen_event:notify(?MODULE, {change_state, OldAgent, NewAgent}).
+
+%% @doc An agent has changed in some way.  The handler will figure out
+%% how and send the correct state change or profile change
+-spec(change_agent/2 :: (OldAgent :: #agent{}, NewAgent :: #agent{}) -> 'ok').
+change_agent(OldAgent, NewAgent) when is_record(OldAgent, agent),
+is_record(NewAgent, agent) ->
+	gen_event:notify(?MODULE, {change_agent, OldAgent, NewAgent}).
 	
 %% =====
 %% gen_event callbacks
@@ -210,8 +217,11 @@ handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
 		ok
 	end,
 	case mnesia:async_dirty(TransactFun) of
-		ok -> {ok, NewAgent};
-		Res -> ?WARNING("res of agent ~p state change ~p log:  ~p", [Id, State, Res])
+		ok ->
+			{ok, NewAgent};
+		Res ->
+			?WARNING("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
+			{ok, NewAgent}
 	end;
 
 % ignore any event we can't handle.
@@ -308,6 +318,10 @@ build_tables(Nodes) ->
 % logout/exit produces N events where N is states unterminated
 % 	new state is logout
 
+%% -----
+%% utility functions
+%% -----
+
 setup_mnesia() ->
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
@@ -319,14 +333,28 @@ setup_node(Nodename) ->
 	util:start_testnode(),
 	util:start_testnode(Nodename).
 
-agent_init_test_() ->
+agent_init(CpxMonPid, Agent) ->
+	gen_leader_mock:expect_leader_cast(CpxMonPid, fun(_, _, _) -> ok end),
+	gen_leader_mock:expect_leader_cast(CpxMonPid, fun(_,_,_) -> ok end),
+	init(Agent).
+
+%% -----
+%% Tests for handling agent changes
+%% -----
+
+agent_test_() ->
 	Node = setup_node(agent_init_test_node),
 	{spawn, Node, {foreach,
 	fun() ->
 		setup_mnesia(),
-		{ok, Pid} = cpx_monitor:make_mock(),
-		Pid
+		case gen_leader_mock:start(cpx_monitor) of
+			{ok, O} -> O;
+			{error, {already_started, O}} -> O
+		end
 	end,
+
+%% -----
+
 	[fun(CpxMonPid) ->
 		{"simple initialize", fun() ->
 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
@@ -355,6 +383,39 @@ agent_init_test_() ->
 			Out = init(Agent),
 			?assertEqual({ok, Agent}, Out),
 			cpx_monitor:assert_mock()
+		end}
+	end,
+
+%% -----
+
+	fun(CpxMonPid) ->
+		{"simple state change", fun() ->
+			StateAgent = #agent{login = "testagent", id = "testagent",
+				profile = "testprofile", release_data = default},
+			{ok, State} = agent_init(CpxMonPid, StateAgent),
+			OldAgent = StateAgent,
+			NewReleaseData = {"rid", "rlabel", 0},
+			NewAgent = OldAgent#agent{release_data = NewReleaseData},
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				?assert(is_record(Info, agent_state)),
+				#agent_state{state = NewRelease, oldstate = OldRelease,
+					ended = Ended} = Info,
+				?assertEqual(NewReleaseData, NewRelease),
+				?assertEqual(default, OldRelease),
+				?assertNot(Ended == undefined),
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+				?assert(is_record(Info, agent_state)),
+				#agent_state{state = NewRelease, oldstate = OldRelease,
+					ended = Ended} = Info,
+				?assertEqual(undefined, NewRelease),
+				?assertEqual(undefined, Ended),
+				?assertEqual(NewReleaseData, OldRelease),
+				ok
+			end),
+			Out = handle_event({change_state, OldAgent, NewAgent}, State),
+			?assertEqual({ok, NewAgent}, Out)
 		end}
 	end]}}.
 

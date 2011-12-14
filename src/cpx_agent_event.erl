@@ -103,7 +103,7 @@ is_record(NewAgent, agent) ->
 	gen_event:notify(?MODULE, {change_agent, OldAgent, NewAgent}).
 	
 %% @doc Create a handler specifically for the given agent channel.
--spec(agent_channel_init/4 :: (Agent :: string(), ChannelId :: reference(),
+-spec(agent_channel_init/4 :: (Agent :: string(), ChannelId :: pid(),
 Statename :: atom(), Statedata :: any()) -> 'ok' | {atom(), any()}).
 agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 	try begin
@@ -123,7 +123,7 @@ agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 
 %% @doc Alert the appropriate handler that an agent channel has changed 
 %% in some way (usually state).
--spec(change_agent_channel/3 :: (Chanid :: reference(), Statename :: atom(),
+-spec(change_agent_channel/3 :: (Chanid :: pid(), Statename :: atom(),
 Statedata :: any()) -> 'ok').
 change_agent_channel(Chanid, Statename, Statedata) ->
 	gen_event:notify(?MODULE, {change_agent_channel, Chanid, Statename, Statedata}).
@@ -137,7 +137,7 @@ change_agent_channel(Chanid, Statename, Statedata) ->
 %% -----
 
 %% @private
-init([Agent, ChannelId, Statename, Statedata]) when is_reference(ChannelId) ->
+init([Agent, ChannelId, Statename, Statedata]) when is_pid(ChannelId) ->
 	Now = util:now(),
 	AgentPid = Agent#agent.source,
 	Chanstate = #agent_channel_state{
@@ -620,7 +620,7 @@ agent_channel_test_() ->
 
 	[fun(CpxMonPid) ->
 		{"simple initialize", fun() ->
-			ChannelRef = erlang:make_ref(),
+			ChannelRef = spawn(fun() -> ok end),
 			Agent = #agent{login = "testagent", id = "testagent", source = "agent_pid"},
 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
 				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
@@ -643,7 +643,7 @@ agent_channel_test_() ->
 
 	fun(CpxMonPid) ->
 		{"state change", fun() ->
-			ChannelRef = erlang:make_ref(),
+			ChannelRef = spawn(fun() -> ok end),
 			Agent = #agent{login = "testagent", id = "testid",
 				source = "agent_pid"},
 			{ok, State0} = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),

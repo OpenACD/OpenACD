@@ -70,7 +70,6 @@
 	log_pid :: 'undefined' | pid()
 }).
 	
-%% 10/10/2008 Micah
 %% statedata's structure is dependant on the state atom.
 %% proposed structures:
 %% idle :: {}

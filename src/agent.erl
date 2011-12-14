@@ -100,7 +100,7 @@
 	query_state/1, 
 	dump_state/1, 
 	register_rejected/1,
-	log_loop/4,
+	%log_loop/4,
 	set_connection/2,
 	set_endpoint/3,
 	set_endpoints/2,
@@ -337,6 +337,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 %			Agent2
 %	end,
 	%set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
+	cpx_agent_event:agent_init(Agent2),
 	{ok, StateName, #state{agent_rec = Agent2, original_endpoints = OriginalEnds}}.
 
 % ======================================================================
@@ -356,6 +357,7 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
 	set_cpx_monitor(NewAgent, [{released, true}, {reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	cpx_agent_event:change_agent(Agent, NewAgent),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
@@ -403,6 +405,7 @@ released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
 	set_cpx_monitor(NewAgent, [{released, false}]),
+	cpx_agent_event:change_agent(Agent, NewAgent),
 	inform_connection(Agent, {set_release, none, Now}),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
 
@@ -411,6 +414,7 @@ released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = A
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
 	set_cpx_monitor(NewAgent, [{released, true}, {reason, Label}, {bias, Bias}, {reason_id, Id}]),
+	cpx_agent_event:change_agent(Agent, NewAgent),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
 released(Msg, _From, State) ->
@@ -470,22 +474,22 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 				{skills, Newagent#agent.skills}
 			],
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
-			Agent#agent.log_pid ! {change_profile, Profile, StateName},
+			cpx_agent_event:change_agent(Agent, Newagent),
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			inform_connection(Agent, {change_profile, Profile}),
 			inform_connection(Agent, {set_release, Agent#agent.release_data, Agent#agent.last_change}),
-			DroppedSkills = OldSkills -- NewAgentSkills2,
-			GainedSkills = NewAgentSkills2 -- OldSkills,
-			ProfChangeRec = #agent_profile_change{
-				id = Agent#agent.id,
-				agent = Agent#agent.login,
-				old_profile = OldProfile,
-				new_profile = Profile,
-				skills = NewAgentSkills2,
-				dropped_skills = DroppedSkills,
-				gained_skills = GainedSkills
-			},
-			cpx_monitor:info({agent_profile, ProfChangeRec}),
+%			DroppedSkills = OldSkills -- NewAgentSkills2,
+%			GainedSkills = NewAgentSkills2 -- OldSkills,
+%			ProfChangeRec = #agent_profile_change{
+%				id = Agent#agent.id,
+%				agent = Agent#agent.login,
+%				old_profile = OldProfile,
+%				new_profile = Profile,
+%				skills = NewAgentSkills2,
+%				dropped_skills = DroppedSkills,
+%				gained_skills = GainedSkills
+%			},
+%			cpx_monitor:info({agent_profile, ProfChangeRec}),
 			{reply, ok, StateName, State#state{agent_rec = Newagent}};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -541,15 +545,15 @@ handle_event(_Msg, StateName, State) ->
 % HANDLE_INFO
 % ======================================================================
 
-handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
-	?INFO("Log pid ~w died due to ~p", [From, Reason]),
-	Nodes = case proplists:get_value(nodes, Agent#agent.start_opts) of
-		undefined -> [node()];
-		Else -> Else
-	end,
-	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-	Newagent = Agent#agent{log_pid = Pid},
-	{next_state, StateName, State#state{agent_rec = Newagent}};
+%handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
+%	?INFO("Log pid ~w died due to ~p", [From, Reason]),
+%	Nodes = case proplists:get_value(nodes, Agent#agent.start_opts) of
+%		undefined -> [node()];
+%		Else -> Else
+%	end,
+%	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
+%	Newagent = Agent#agent{log_pid = Pid},
+%	{next_state, StateName, State#state{agent_rec = Newagent}};
 
 handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connection = From} = _Agent} = State) ->
 	?WARNING("agent connection died while ~w", [StateName]),
@@ -881,113 +885,113 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 
 log_change(_) -> ok.
 
--spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
-log_loop(Id, Agentname, Nodes, ProfileTup) ->
-	process_flag(trap_exit, true),
-	Profile = case ProfileTup of
-		{Currentp, _Queuedp} ->
-			Currentp;
-		_ ->
-			ProfileTup
-	end,
-	receive
-		{Agentname, login, State, {Skills, Statedata}} ->
-			F = fun() ->
-				Now = util:now(),
-				Login = #agent_state{
-					id = Id, 
-					agent = Agentname, 
-					oldstate = login, 
-					state=State,
-					statedata = Skills,
-					start = Now, 
-					ended = Now, 
-					profile= Profile, 
-					nodes = Nodes
-				},
-				StateRow = #agent_state{
-					id = Id,
-					agent = Agentname,
-					oldstate = State,
-					statedata = Statedata,
-					start = Now,
-					nodes = Nodes
-				},
-				mnesia:dirty_write(Login),
-				mnesia:dirty_write(StateRow),
-				gen_cdr_dumper:update_notify(agent_state),
-				cpx_monitor:info({agent_state, Login}),
-				cpx_monitor:info({agent_state, StateRow}),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state login:  ~p", [Res]),
-			agent:log_loop(Id, Agentname, Nodes, ProfileTup);
-		{'EXIT', _Apid, _Reason} ->
-			F = fun() ->
-				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-				Recs = qlc:e(QH),
-				?DEBUG("Recs to loop through:  ~p", [Recs]),
-				lists:foreach(
-					fun(Untermed) ->
-						mnesia:delete_object(Untermed), 
-						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
-						cpx_monitor:info({agent_state, Termed}),
-						mnesia:write(Termed)
-					end,
-					Recs
-				),
-				gen_cdr_dumper:update_notify(agent_state),
-				%Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
-					%B =< A
-				%end,
-				%[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
-				%Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = State, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
-				%mnesia:write(Newrec),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state change log:  ~p", [Res]),
-			ok;
-		{change_profile, Newprofile, State} when State == idle; State == released ->
-			agent:log_loop(Id, Agentname, Nodes, Newprofile);
-		{change_profile, Newprofile, _State} ->
-			case ProfileTup of
-				{Current, _Queued} ->
-					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
-				Current ->
-					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
-			end;
-		{Agentname, State, _OldState, Statedata} ->
-			F = fun() ->
-				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-				Recs = qlc:e(QH),
-				lists:foreach(
-					fun(Untermed) -> 
-						mnesia:delete_object(Untermed),
-						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
-						cpx_monitor:info({agent_state, Termed}),
-						mnesia:write(Termed)
-					end,
-					Recs
-				),
-				gen_cdr_dumper:update_notify(agent_state),
-				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
-				cpx_monitor:info({agent_state, Newrec}),
-				mnesia:write(Newrec),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
-			case {State, ProfileTup} of
-				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
-					agent:log_loop(Id, Agentname, Nodes, Queued);
-				_ ->
-					agent:log_loop(Id, Agentname, Nodes, ProfileTup)
-			end
-	end.
+%-spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
+%log_loop(Id, Agentname, Nodes, ProfileTup) ->
+%	process_flag(trap_exit, true),
+%	Profile = case ProfileTup of
+%		{Currentp, _Queuedp} ->
+%			Currentp;
+%		_ ->
+%			ProfileTup
+%	end,
+%	receive
+%		{Agentname, login, State, {Skills, Statedata}} ->
+%			F = fun() ->
+%				Now = util:now(),
+%				Login = #agent_state{
+%					id = Id, 
+%					agent = Agentname, 
+%					oldstate = login, 
+%					state=State,
+%					statedata = Skills,
+%					start = Now, 
+%					ended = Now, 
+%					profile= Profile, 
+%					nodes = Nodes
+%				},
+%				StateRow = #agent_state{
+%					id = Id,
+%					agent = Agentname,
+%					oldstate = State,
+%					statedata = Statedata,
+%					start = Now,
+%					nodes = Nodes
+%				},
+%				mnesia:dirty_write(Login),
+%				mnesia:dirty_write(StateRow),
+%				gen_cdr_dumper:update_notify(agent_state),
+%				cpx_monitor:info({agent_state, Login}),
+%				cpx_monitor:info({agent_state, StateRow}),
+%				ok
+%			end,
+%			Res = mnesia:async_dirty(F),
+%			?DEBUG("res of agent state login:  ~p", [Res]),
+%			agent:log_loop(Id, Agentname, Nodes, ProfileTup);
+%		{'EXIT', _Apid, _Reason} ->
+%			F = fun() ->
+%				Now = util:now(),
+%				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
+%				Recs = qlc:e(QH),
+%				?DEBUG("Recs to loop through:  ~p", [Recs]),
+%				lists:foreach(
+%					fun(Untermed) ->
+%						mnesia:delete_object(Untermed), 
+%						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
+%						cpx_monitor:info({agent_state, Termed}),
+%						mnesia:write(Termed)
+%					end,
+%					Recs
+%				),
+%				gen_cdr_dumper:update_notify(agent_state),
+%				%Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
+%					%B =< A
+%				%end,
+%				%[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
+%				%Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = State, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
+%				%mnesia:write(Newrec),
+%				ok
+%			end,
+%			Res = mnesia:async_dirty(F),
+%			?DEBUG("res of agent state change log:  ~p", [Res]),
+%			ok;
+%		{change_profile, Newprofile, State} when State == idle; State == released ->
+%			agent:log_loop(Id, Agentname, Nodes, Newprofile);
+%		{change_profile, Newprofile, _State} ->
+%			case ProfileTup of
+%				{Current, _Queued} ->
+%					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
+%				Current ->
+%					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
+%			end;
+%		{Agentname, State, _OldState, Statedata} ->
+%			F = fun() ->
+%				Now = util:now(),
+%				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
+%				Recs = qlc:e(QH),
+%				lists:foreach(
+%					fun(Untermed) -> 
+%						mnesia:delete_object(Untermed),
+%						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
+%						cpx_monitor:info({agent_state, Termed}),
+%						mnesia:write(Termed)
+%					end,
+%					Recs
+%				),
+%				gen_cdr_dumper:update_notify(agent_state),
+%				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
+%				cpx_monitor:info({agent_state, Newrec}),
+%				mnesia:write(Newrec),
+%				ok
+%			end,
+%			Res = mnesia:async_dirty(F),
+%			?DEBUG("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
+%			case {State, ProfileTup} of
+%				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
+%					agent:log_loop(Id, Agentname, Nodes, Queued);
+%				_ ->
+%					agent:log_loop(Id, Agentname, Nodes, ProfileTup)
+%			end
+%	end.
 	
 -ifdef(TEST).
 

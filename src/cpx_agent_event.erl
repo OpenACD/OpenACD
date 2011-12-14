@@ -18,7 +18,9 @@
 	start/0,
 	start_link/0,
 	agent_init/1,
-	agent_channel_init/2
+	agent_channel_init/2,
+	change_profile/2,
+	change_state/2
 ]).
 
 %% =====
@@ -61,14 +63,15 @@ start_link(Nodes) ->
 
 %% @doc Create a handler specifically for the given agent.  Handles profile
 %% login, logout, profile changes, release, and idle states.
--spec(agent_init/1 :: (Agent :: string()) -> 'ok' | {atom(), any()}).
-agent_init(Agent) ->
+-spec(agent_init/1 :: (Agent :: #agent{}) -> 'ok' | {atom(), any()}).
+agent_init(Agent) when is_record(Agent, agent) ->
 	try begin
 		Handlers = gen_event:which_handlers(?MODULE),
-		Member = lists:member({?MODULE, Agent}, Handlers),
+		Id = Agent#agent.id,
+		Member = lists:member({?MODULE, Id}, Handlers),
 		case Member of
 			false ->
-				ok = gen_event:add_handler(?MODULE, {?MODULE, Agent}, Agent);
+				ok = gen_event:add_handler(?MODULE, {?MODULE, Id}, Agent);
 			_ ->
 				?INFO("Agent Event already initialized for ~s", [Agent])
 		end
@@ -96,6 +99,18 @@ agent_channel_init(Agent, ChannelId) ->
 			{What, Why}
 	end.
 
+%% @doc An agent has changed profiles
+-spec(change_profile/2 :: (OldAgent :: #agent{}, NewAgent :: #agent{}) -> 'ok').
+change_profile(OldAgent, NewAgent) when is_record(OldAgent, agent),
+is_record(NewAgent, agent) ->
+	gen_event:notify(?MODULE, {change_profile, OldAgent, NewAgent}).
+
+%% @doc An agent has changed state (idle <-> released)
+-spec(change_state/2 :: (OldAgent :: #agent{}, NewAgent :: #agent{}) -> 'ok').
+change_state(OldAgent, NewAgent) when is_record(OldAgent, agent),
+is_record(NewAgent, agent) ->
+	gen_event:notify(?MODULE, {change_state, OldAgent, NewAgent}).
+	
 %% =====
 %% gen_event callbacks
 %% =====
@@ -108,14 +123,97 @@ agent_channel_init(Agent, ChannelId) ->
 init([Agent, ChannelId]) when is_reference(ChannelId) ->
 	{ok, {Agent, ChannelId}};
 
-init(Agent) ->
-	{ok, {Agent}}.
+init(Agent) when is_record(Agent, agent) ->
+	#agent{login = Agentname, skills = Skills, release_data = State,
+		profile = Profile, id = Id} = Agent,
+	Statedata = State,
+	TransactFun = fun() ->
+		Now = util:now(),
+		Login = #agent_state{
+			id = Id, 
+			agent = Agentname, 
+			oldstate = login, 
+			state = State,
+			statedata = Skills,
+			start = Now, 
+			ended = Now, 
+			profile= Profile
+		},
+		StateRow = #agent_state{
+			id = Id,
+			agent = Agentname,
+			oldstate = State,
+			statedata = Statedata,
+			start = Now
+		},
+		mnesia:dirty_write(Login),
+		mnesia:dirty_write(StateRow),
+		cpx_monitor:info({agent_state, Login}),
+		cpx_monitor:info({agent_state, StateRow}),
+		ok
+	end,
+	case mnesia:async_dirty(TransactFun) of
+		ok ->
+			{ok, Agent};
+		Res ->
+			?WARNING("res of agent state login:  ~p", [Res]),
+			{ok, Agent}
+	end.
 
 %% -----
 %% handle_event
 %% -----
 
 %% @private
+handle_event({change_profile, #agent{id = Id} = OldAgent, NewAgent},
+#agent{id = Id} = CurrentAgent) ->
+	#agent{profile = OldProfile, skills = OldSkills} = OldAgent,
+	#agent{profile = NewProfile, skills = NewSkills} = NewAgent,
+	DroppedSkills = OldSkills -- NewSkills,
+	GainedSkills = NewSkills -- OldSkills,
+	ProfChangeRec = #agent_profile_change{
+		id = NewAgent#agent.id,
+		agent = NewAgent#agent.login,
+		old_profile = OldProfile,
+		new_profile = NewProfile,
+		skills = NewSkills,
+		dropped_skills = DroppedSkills,
+		gained_skills = GainedSkills
+	},
+	cpx_monitor:info({agent_profile, ProfChangeRec}),
+	{ok, NewAgent};
+	
+handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
+#agent{id = Id} = CurrentAgent) ->
+	#agent{login = Agentname, release_data = State,
+		profile = Profile} = NewAgent,
+	Statedata = State,
+	TransactFun = fun() ->
+		Now = util:now(),
+		QH = qlc:q([Rec ||
+			Rec <- mnesia:table(agent_state),
+			Rec#agent_state.id =:= Id,
+			Rec#agent_state.ended =:= undefined
+		]),
+		Recs = qlc:e(QH),
+		[begin
+			mnesia:delete_object(Untermed),
+			Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
+			cpx_monitor:info({agent_state, Termed}),
+			mnesia:write(Termed)
+		end || Untermed <- Recs],
+		Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State,
+			statedata = Statedata, profile = Profile, start = Now},
+		cpx_monitor:info({agent_state, Newrec}),
+		mnesia:write(Newrec),
+		ok
+	end,
+	case mnesia:async_dirty(TransactFun) of
+		ok -> {ok, NewAgent};
+		Res -> ?WARNING("res of agent ~p state change ~p log:  ~p", [Id, State, Res])
+	end;
+
+% ignore any event we can't handle.
 handle_event(Event, State) ->
 	{ok, State}.
 
@@ -132,6 +230,33 @@ handle_call(Request, State) ->
 %% -----
 
 %% @private
+handle_info({'EXIT', Apid, Reason}, #agent{source = Apid} = Agent) ->
+	#agent{id = Id} = Agent,
+	TransactFun = fun() ->
+		Now = util:now(),
+		QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
+		Recs = qlc:e(QH),
+		?DEBUG("Recs to loop through:  ~p", [Recs]),
+		[begin
+			mnesia:delete_object(Untermed), 
+			Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
+			cpx_monitor:info({agent_state, Termed}),
+			mnesia:write(Termed)
+		end || Untermed <- Recs],
+		%% TODO terminate items for agent_channels
+		ok
+	end,
+	case mnesia:async_dirty(TransactFun) of
+		ok ->
+			remove_handler;
+		Res ->
+			?WARNING("res of agent state change log:  ~p", [Res]),
+			remove_handler
+	end;
+
+% exit of channel
+
+
 handle_info(Info, State) ->
 	{ok, State}.
 
@@ -171,120 +296,43 @@ build_tables(Nodes) ->
 			{Agent, Channel}
 	end.
 
+-ifdef(TEST).
 %% =====
 %% Test
 %% =====
 
+% agent tests:
+% agent init produces 2 events:  login, and current state
+% state change produces 2 events, termination of old event, and new
+% logout/exit produces N events where N is states unterminated
+% 	new state is logout
 
--spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
-log_loop(Id, Agentname, Nodes, ProfileTup) ->
-	process_flag(trap_exit, true),
-	Profile = case ProfileTup of
-		{Currentp, _Queuedp} ->
-			Currentp;
-		_ ->
-			ProfileTup
+setup_mnesia() ->
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	build_tables([node()]).
+
+setup_node(Nodename) ->
+	util:start_testnode(),
+	util:start_testnode(Nodename).
+
+agent_init_test_() ->
+	Node = setup_node(agent_init_test_node),
+	{spawn, Node, {foreach,
+	fun() ->
+		setup_mnesia()
 	end,
-	receive
-		{Agentname, login, State, {Skills, Statedata}} ->
-			F = fun() ->
-				Now = util:now(),
-				Login = #agent_state{
-					id = Id, 
-					agent = Agentname, 
-					oldstate = login, 
-					state=State,
-					statedata = Skills,
-					start = Now, 
-					ended = Now, 
-					profile= Profile, 
-					nodes = Nodes
-				},
-				StateRow = #agent_state{
-					id = Id,
-					agent = Agentname,
-					oldstate = State,
-					statedata = Statedata,
-					start = Now,
-					nodes = Nodes
-				},
-				mnesia:dirty_write(Login),
-				mnesia:dirty_write(StateRow),
-				gen_cdr_dumper:update_notify(agent_state),
-				cpx_monitor:info({agent_state, Login}),
-				cpx_monitor:info({agent_state, StateRow}),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state login:  ~p", [Res]),
-			agent:log_loop(Id, Agentname, Nodes, ProfileTup);
-		{'EXIT', _Apid, _Reason} ->
-			F = fun() ->
-				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-				Recs = qlc:e(QH),
-				?DEBUG("Recs to loop through:  ~p", [Recs]),
-				lists:foreach(
-					fun(Untermed) ->
-						mnesia:delete_object(Untermed), 
-						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
-						cpx_monitor:info({agent_state, Termed}),
-						mnesia:write(Termed)
-					end,
-					Recs
-				),
-				gen_cdr_dumper:update_notify(agent_state),
-				%Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
-					%B =< A
-				%end,
-				%[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
-				%Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = State, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
-				%mnesia:write(Newrec),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state change log:  ~p", [Res]),
-			ok;
-		{change_profile, Newprofile, State} when State == idle; State == released ->
-			agent:log_loop(Id, Agentname, Nodes, Newprofile);
-		{change_profile, Newprofile, _State} ->
-			case ProfileTup of
-				{Current, _Queued} ->
-					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
-				Current ->
-					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
-			end;
-		{Agentname, State, _OldState, Statedata} ->
-			F = fun() ->
-				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-				Recs = qlc:e(QH),
-				lists:foreach(
-					fun(Untermed) -> 
-						mnesia:delete_object(Untermed),
-						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
-						cpx_monitor:info({agent_state, Termed}),
-						mnesia:write(Termed)
-					end,
-					Recs
-				),
-				gen_cdr_dumper:update_notify(agent_state),
-				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
-				cpx_monitor:info({agent_state, Newrec}),
-				mnesia:write(Newrec),
-				ok
-			end,
-			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
-			case {State, ProfileTup} of
-				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
-					agent:log_loop(Id, Agentname, Nodes, Queued);
-				_ ->
-					agent:log_loop(Id, Agentname, Nodes, ProfileTup)
-			end
-	end.
+	[{"simple initialize", fun() ->
+			?assert(true)
+	end}]}}.
 
+% agent channel tests:
+% agent channel init produces 1 event: current state
+% agent channel state change produces 2 events:  terminate of old and
+%		creation of new
+% agent channel state exit produces N events, where N is unterminated.
+%		state would be exit.
 
-
-
-
+-endif.

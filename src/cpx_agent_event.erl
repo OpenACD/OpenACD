@@ -18,7 +18,7 @@
 	start/0,
 	start_link/0,
 	agent_init/1,
-	agent_channel_init/2,
+	agent_channel_init/4,
 	change_profile/2,
 	change_state/2,
 	change_agent/2
@@ -82,24 +82,6 @@ agent_init(Agent) when is_record(Agent, agent) ->
 			{What, Why}
 	end.
 
-%% @doc Create a handler specifically for the given agent channel.
--spec(agent_channel_init/2 :: (Agent :: string(), ChannelId :: reference()) -> 'ok' | {atom(), any()}).
-agent_channel_init(Agent, ChannelId) ->
-	try begin
-		Handlers = gen_event:which_handlers(?MODULE),
-		Member = lists:member({?MODULE, ChannelId}, Handlers),
-		case Member of
-			false ->
-				ok = gen_event:add_handler(?MODULE, {?MODULE, ChannelId}, [Agent, ChannelId]);
-			_ ->
-				?INFO("Agent channel ~p already has event initialized", [ChannelId])
-		end
-	end catch
-		What:Why ->
-			?ERROR("Initialization failed for channel id ~s:~p due to ~p:~p", [Agent, ChannelId, What, Why]),
-			{What, Why}
-	end.
-
 %% @doc An agent has changed profiles
 -spec(change_profile/2 :: (OldAgent :: #agent{}, NewAgent :: #agent{}) -> 'ok').
 change_profile(OldAgent, NewAgent) when is_record(OldAgent, agent),
@@ -119,6 +101,32 @@ change_agent(OldAgent, NewAgent) when is_record(OldAgent, agent),
 is_record(NewAgent, agent) ->
 	gen_event:notify(?MODULE, {change_agent, OldAgent, NewAgent}).
 	
+%% @doc Create a handler specifically for the given agent channel.
+-spec(agent_channel_init/4 :: (Agent :: string(), ChannelId :: reference(),
+Statename :: atom(), Statedata :: any()) -> 'ok' | {atom(), any()}).
+agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
+	try begin
+		Handlers = gen_event:which_handlers(?MODULE),
+		Member = lists:member({?MODULE, ChannelId}, Handlers),
+		case Member of
+			false ->
+				ok = gen_event:add_handler(?MODULE, {?MODULE, ChannelId}, [Agent, ChannelId, Statename, Statedata]);
+			_ ->
+				?INFO("Agent channel ~p already has event initialized", [ChannelId])
+		end
+	end catch
+		What:Why ->
+			?ERROR("Initialization failed for channel id ~s:~p due to ~p:~p", [Agent, ChannelId, What, Why]),
+			{What, Why}
+	end.
+
+%% @doc Alert the appropriate handler that an agent channel has changed 
+%% in some way (usually state).
+-spec(change_agent_channel/2 :: (OldChannel :: {atom(), any()},
+NewChannel :: {atom(), any()}) -> 'ok').
+change_agent_channel(OldChannel, NewChannel) ->
+	gen_event:notify(?MODULE, {change_agent_channel, OldChannel, NewChannel}).
+
 %% =====
 %% gen_event callbacks
 %% =====
@@ -128,7 +136,7 @@ is_record(NewAgent, agent) ->
 %% -----
 
 %% @private
-init([Agent, ChannelId]) when is_reference(ChannelId) ->
+init([Agent, ChannelId, Statename, Statedata]) when is_reference(ChannelId) ->
 	{ok, {Agent, ChannelId}};
 
 init(Agent) when is_record(Agent, agent) ->
@@ -525,9 +533,11 @@ agent_test_() ->
 			?assertEqual({ok, NewAgent}, Out),
 			cpx_monitor:assert_mock()
 		end}
-	end
+	end]}}.
 
-	]}}.
+%% -----
+%% agent channel state tests
+%% -----
 
 % agent channel tests:
 % agent channel init produces 1 event: current state
@@ -535,5 +545,40 @@ agent_test_() ->
 %		creation of new
 % agent channel state exit produces N events, where N is unterminated.
 %		state would be exit.
+
+agent_channel_test_() ->
+	Node = setup_node(agent_channel_init_test_node),
+	{spawn, Node, {foreach,
+	fun() ->
+		setup_mnesia(),
+		case gen_leader_mock:start(cpx_monitor) of
+			{ok, O} -> O;
+			{error, {already_started, O}} -> O
+		end
+	end,
+
+%% -----
+
+	[fun(CpxMonPid) ->
+		{"simple initialize", fun() ->
+			ChannelRef = erlang:make_ref(),
+			Agent = #agent{login = "testagent", id = "testagent", source = "agent_pid"},
+			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+					state = State, start = Started, ended = Ended} = Info,
+				?assertEqual("testagent", Aid),
+				?assertEqual(ChannelRef, Cid),
+				?assertEqual(init, OState),
+				?assertEqual(prering, State),
+				?assertNot(Started == undefined),
+				?assertEqual(undefined, Ended),
+				ok
+			end),
+			Out = init([Agent, ChannelRef, prering, call_rec]),
+			?assertMatch({ok, {"agent_pid", ChannelRef}}, Out),
+			cpx_monitor:assert_mock()
+		end}
+	end
+	]}}.
 
 -endif.

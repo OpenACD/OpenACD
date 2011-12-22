@@ -1189,14 +1189,13 @@ from_idle_test_() ->
 		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
-		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
+		{ok, _} = gen_event:start({local, cpx_agent_event}),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			%gen_leader_mock:assert_expectations(Monmock),
 			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
-			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
@@ -1206,7 +1205,6 @@ from_idle_test_() ->
 			cpx_monitor = Monmock,
 			agent_manager = AMmock,
 			connection = Connmock,
-			logger = Logpid,
 			assert = Assertmocks
 		},
 		%?ERROR("reference:  ~p", [MockPids]),
@@ -1218,6 +1216,7 @@ from_idle_test_() ->
 		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(MockPids#mock_pids.connection),
 		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
+		gen_event:stop(cpx_agent_event),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
@@ -1235,7 +1234,6 @@ from_idle_test_() ->
 			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, true}, {reason, "label"}, {reason_id, "id"}, {bias, -1}], ignore}),
 			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", []}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Time}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
 			Self = self(),
 			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({end_avail, InPid}, _State) ->
 				InPid = Self,

@@ -22,7 +22,8 @@
 	change_state/2,
 	change_agent/2,
 	agent_channel_init/4,
-	change_agent_channel/3
+	change_agent_channel/3,
+	truncate/1
 ]).
 
 %% =====
@@ -127,6 +128,26 @@ agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 Statedata :: any()) -> 'ok').
 change_agent_channel(Chanid, Statename, Statedata) ->
 	gen_event:notify(?MODULE, {change_agent_channel, Chanid, Statename, Statedata}).
+
+%% @doc Purge all state information about an agent from mnesia, both 
+%% idleness and channel data.
+-spec(truncate/1 :: (AgentId :: string()) -> 'ok').
+truncate(AgentId) ->
+	Transfun = fun() ->
+		AgentQH = qlc:q([X || #agent_state{id = Agent} = X <- mnesia:table(agent_state), Agent =:= AgentId]),
+		ChannelQH = qlc:q([X || #agent_channel_state{agent_id = Agent} = X <- mnesia:table(agent_channel_state), Agent =:= AgentId]),
+		Agents = qlc:e(AgentQH),
+		Channels = qlc:e(ChannelQH),
+		[mnesia:delete_object(X) || X <- Agents],
+		[mnesia:delete_object(X) || X <- Channels],
+		{Agents, Channels}
+	end,
+	case mnesia:transaction(Transfun) of
+		{atomic, {Agents, Channels}} ->
+			signal_cpx_monitor_truncate(Agents, Channels);
+		{aborted, Else} ->
+			?WARNING("Could not truncate:  ~p", [Else])
+	end.
 
 %% =====
 %% gen_event callbacks
@@ -380,6 +401,35 @@ build_tables(Nodes) ->
 			?WARNING("One of the tables didn't build.  Agent:  ~p;  Channel:  ~p", [Agent, Channel]),
 			{Agent, Channel}
 	end.
+%% -----
+signal_cpx_monitor_truncate(Agents, Channels) ->
+	truncate_agents(Agents),
+	truncate_channels(Channels).
+%% -----
+truncate_agents([]) ->
+	ok;
+
+truncate_agents([#agent_state{ended = undefined} = A | Tail]) ->
+	Now = util:now(),
+	NewA = A#agent_state{ended = Now, state = logoout},
+	cpx_monitor:info({agent_state, NewA}),
+	truncate_agents(Tail);
+
+truncate_agents([_|Tail]) ->
+	truncate_agents(Tail).
+%% -----
+truncate_channels([]) ->
+	ok;
+
+truncate_channels([#agent_channel_state{ended = undefined} = A | Tail]) ->
+	Now = util:now(),
+	NewA = A#agent_channel_state{ended = Now},
+	ExitA = A#agent_channel_state{start = Now, oldstate = A#agent_channel_state.state, state = 'exit', statedata = undefined},
+	cpx_monitor:info({agent_channel_state, NewA}),
+	cpx_monitor:info({agent_channel_state, ExitA});
+
+truncate_channels([_|Tail]) ->
+	truncate_channels(Tail).
 
 -ifdef(TEST).
 %% =====

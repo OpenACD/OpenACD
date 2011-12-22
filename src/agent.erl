@@ -1119,14 +1119,13 @@ from_release_test_() ->
 		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
-		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
+		{ok, As} = gen_event:start({local, cpx_agent_event}),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			%gen_leader_mock:assert_expectations(Monmock),
 			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
-			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
@@ -1136,7 +1135,6 @@ from_release_test_() ->
 			cpx_monitor = Monmock,
 			agent_manager = AMmock,
 			connection = Connmock,
-			logger = Logpid,
 			assert = Assertmocks
 		},
 		%?ERROR("reference:  ~p", [MockPids]),
@@ -1144,10 +1142,10 @@ from_release_test_() ->
 	end,
 	fun(MockPids) ->
 		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
-		%gen_leader_mock:stop(Monmock),
 		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(MockPids#mock_pids.connection),
 		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
+		gen_event:stop(cpx_agent_event),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
@@ -1157,7 +1155,6 @@ from_release_test_() ->
 			#state{agent_rec = Agent} = State,
 			cpx_monitor:add_set({{agent, Agent#agent.id}, [{reason_id, "id"}, {reason, "label"}, {bias, -1}, {released, true}], ignore}),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Timestamp}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{release_data = {"id", "label", -1}}, _State) -> ok end),
 			Out = released({set_release, {"id", "label", -1}}, "from", State),
 			?assertMatch({reply, ok, released, _NewState}, Out),
 			AssertMocks()
@@ -1172,9 +1169,8 @@ from_release_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, none, _Time}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
 			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({set_avail, InPid}, _State) ->
+			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({now_avail, InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]}, _State) ->
 				InPid = Self,
 				ok
 			end),

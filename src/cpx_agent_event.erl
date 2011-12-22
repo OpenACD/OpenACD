@@ -17,6 +17,7 @@
 -export([
 	start/0,
 	start_link/0,
+	stop/0,
 	agent_init/1,
 	change_profile/2,
 	change_state/2,
@@ -63,6 +64,11 @@ start_link(Nodes) ->
 			?WARNING("Some tables didn't build, this may crash later. ~p", [Else])
 	end,
 	gen_event:start_link({local, ?MODULE}).
+
+%% @doc Stops the agent event server.
+-spec(stop/0 :: () -> 'ok').
+stop() ->
+	gen_event:stop(?MODULE).
 
 %% @doc Create a handler specifically for the given agent.  Handles profile
 %% login, logout, profile changes, release, and idle states.

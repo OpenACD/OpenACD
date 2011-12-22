@@ -45,7 +45,7 @@
 -include("agent.hrl").
 -include("gen_media.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete, call_end]).
 
 %% API
 -export([
@@ -88,7 +88,8 @@
 	handle_spy/3,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
-	handle_warm_transfer_complete/2
+	handle_warm_transfer_complete/2,
+	handle_end_call/2
 ]).
 
 -record(state, {
@@ -138,10 +139,11 @@
 	'ring_agent' | 
 	'voicemail' | 
 	'agent_transfer' | 
-	'spy'
+	'spy' |
+	'call_end'
 ).
 -type(fail_option() :: 'fail_once' | 'fail' | 'success').
--type(fail_item() :: failpoint() | {failpoint() , fail_option()}).
+-type(fail_item() :: failpoint() | {failpoint() , fail_option()} | {'call_end', 'deferred'}).
 -type(fail_options() :: 'success' | 'failure' | [fail_item()]).
 
 -spec(start_link/1 :: (Props :: start_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
@@ -261,7 +263,7 @@ init([Props, Fails]) ->
 					E when is_atom(E) ->
 						{E, fail};
 					_ ->
-						e
+						E
 				end
 			end,
 			lists:map(F, Fails)
@@ -571,6 +573,17 @@ handle_warm_transfer_complete(_Callrec, #state{fail = Fail} = State) ->
 			{error, DidFail, State#state{fail = Newfail}}
 	end.
 
+-spec(handle_end_call/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'error', any(), #state{}}).
+handle_end_call(_Callrec, #state{fail = Fail} = State) ->
+	case check_fail(call_end, Fail) of
+		{success, Newfail} ->
+			{ok, State#state{fail = Newfail}};
+		{deferred, Newfail} ->
+			{deferred, State#state{fail = Newfail}};
+		{DidFail, Newfail} ->
+			{error, DidFail, State#state{fail = Newfail}}
+	end.
+
 -spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).
 handle_spy({Spy, _AgentRec}, _Callrec, #state{fail = Fail} = State) ->
 	case check_fail(spy, Fail) of
@@ -637,7 +650,9 @@ check_fail(Key, Dict) ->
 		fail ->
 			{fail, Dict};
 		success ->
-			{success, Dict}
+			{success, Dict};
+		deferred when Key =:= call_end ->
+			{deferred, Dict}
 	end.
 
 -ifdef(TEST).

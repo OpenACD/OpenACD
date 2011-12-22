@@ -75,6 +75,8 @@
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	handle_end_call/4,
 	handle_agent_transfer/4,
 	handle_queue_transfer/5,
 	handle_wrapup/5,
@@ -273,6 +275,15 @@ handle_answer(Apid, StateName, Callrec, GenMediaState, State) when
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{error, Error, State}
 	end.
+
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+-spec(handle_end_call/4 :: (GMState :: atom(), Callrec :: #call{},
+GMStateData :: any(), State :: #state{}) -> {'ok', #state{}}).
+handle_end_call(_Gmstate, Callrec, _Gmstatedata, State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
+	{deferred, State}.
 
 handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),

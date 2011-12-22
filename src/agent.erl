@@ -1037,15 +1037,15 @@ block_channel_test_() ->
 	FullAvail = [dummy, dummy, voice, voice, visual, visual, slow_text,
 		slow_text, fast_text, fast_text],
 	% {TestName, Channel, BlocListDefs, Expected}
-	TestData = [{"blocks all", "nomatches", [{"nomatches", all}], {FullAvail, []}},
-	{"blocks none", "nomatches", [{"nomatches", none}], {[], FullAvail}},
-	{"blocks self", slow_text, ?default_category_blocks, {[slow_text], [dummy,
-		 dummy, voice, voice, visual, visual, fast_text, fast_text]}},
-	{"blocks others", fast_text, ?default_category_blocks, {[dummy, dummy,
-		voice, voice, visual, visual, slow_text, slow_text], [fast_text]}},
-	{"blocks specific", "channel", [{"channel", [visual, slow_text]}], {[
-		visual, visual, slow_text, slow_text], [dummy, dummy, voice, voice,
-		fast_text, fast_text]}}],
+	TestData = [
+		{"blocks all", nomatches, [{nomatches, all}], []},
+		{"blocks none", nomatches, [{nomatches, none}], FullAvail},
+		{"blocks self", slow_text, ?default_category_blocks, [dummy,
+			dummy, voice, voice, visual, visual, fast_text, fast_text]},
+		{"blocks others", fast_text, ?default_category_blocks, [fast_text]},
+		{"blocks specific", channel, [{channel, [visual, slow_text]}], 
+			[dummy, dummy, voice, voice, fast_text, fast_text]}
+	],
 	block_channel_test_gen(TestData).
 
 block_channel_test_gen([]) ->

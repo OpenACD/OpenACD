@@ -255,13 +255,13 @@ handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
 			{ok, NewAgent}
 	end;
 
-handle_event({detect_change, #agent{id = Id, profile = Profile} = OldAgent,
+handle_event({change_agent, #agent{id = Id, profile = Profile} = OldAgent,
 #agent{id = Id, profile = Profile} = NewAgent},
 #agent{id = Id} = CurAgent) ->
 	% most likely a state change.
 	handle_event({change_state, OldAgent, NewAgent}, CurAgent);
 
-handle_event({detect_change, Old, New}, Cur) ->
+handle_event({change_agent, Old, New}, Cur) ->
 	handle_event({change_profile, Old, New}, Cur);
 
 handle_event({change_agent_channel, ChanId, Statename, Statedata},
@@ -554,7 +554,7 @@ agent_test_() ->
 				?assertEqual("testagent", Id),
 				ok
 			end),
-			Out = handle_event({detect_change, OldAgent, NewAgent}, State),
+			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
 			?assertEqual({ok, NewAgent}, Out),
 			cpx_monitor:assert_mock()
 		end}
@@ -588,7 +588,7 @@ agent_test_() ->
 				?assertEqual(NewReleaseData, OldRelease),
 				ok
 			end),
-			Out = handle_event({detect_change, OldAgent, NewAgent}, State),
+			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
 			?assertEqual({ok, NewAgent}, Out),
 			cpx_monitor:assert_mock()
 		end}

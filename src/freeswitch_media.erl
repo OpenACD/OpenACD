@@ -73,6 +73,8 @@
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	handle_end_call/2,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
@@ -206,15 +208,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
-%handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
-%	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
-%	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
-%		{ok, _} ->
-%			handle_answer(Apid, Callrec#call{ring_path = outband}, State);
-%		{error, Error} ->
-%			?WARNING("Could not do answer:  ~p", [Error]),
-%			{invalid, State}
-%	end;
+
 handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
@@ -240,6 +234,14 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{invalid, State}
 	end.
+
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+-spec(handle_end_call/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
+handle_end_call(Callrec, State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
+	{deferred, State}.
 
 handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),

@@ -20,6 +20,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 		'<option value="deprioritize">DEPRIORITIZE</option>' +
 		'<option value="voicemail">SENDTOVOICEMAIL</option>' +
 		'<option value="announce">MEDIAANNOUCE</option>' +
+		'<option value="end_call">ENDCALL</option>' +
 		'<option value="add_recipe">ADDRECIPE</option>' +
 	'</select>' +
 	'<input dojoType="dijit.form.ValidationTextBox" dojoAttachPoint="numberWidget" regExp="[\\d]+" style="width:5em;display:none" />' +
@@ -127,6 +128,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._TemplatedMixin, dijit.
 				break;
 			case "prioritize":
 			case "deprioritize":
+			case "end_call":
 			case "voicemail":
 				//this.argumentsDiv.set('content', "");
 				this._nullArgsWidget();

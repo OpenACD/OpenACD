@@ -671,6 +671,12 @@ do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
 			list_to_tuple(Args);
 		announce ->
 			gen_media:announce(Callpid, Args),
+			ok;
+		%% TODO added for testing only (implemented with focus on real Calls - no other media)
+		end_call ->
+			?INFO("Recipte end_call for ~p recived~n",[Callpid]),
+			%% here should be the function call to hangup the qued call
+			gen_media:end_call(Callpid),
 			ok
 	end,
 	Newacc = case Out of

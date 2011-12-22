@@ -1073,7 +1073,7 @@ handle_sync_event_test_() ->
 		end,
 		fun({Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
-				Expected = [{dummy_media, inband} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end},

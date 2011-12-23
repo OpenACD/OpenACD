@@ -88,7 +88,7 @@
 
 %% other exports
 -export([
-	%start/1,
+	start/1,
 	start/2,
 	%start_link/1,
 	start_link/2,
@@ -129,6 +129,10 @@ start_link(Agent, Options) when is_record(Agent, agent) ->
 -spec(start/2 :: (Agent :: #agent{}, Options :: agent_opts()) -> {'ok', pid()}).
 start(Agent, Options) when is_record(Agent, agent) ->
 	gen_fsm:start(?MODULE, [Agent, Options], []).
+
+%% @doc Start an agent with default options.
+-spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
+start(Agent) -> start(Agent, []).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').

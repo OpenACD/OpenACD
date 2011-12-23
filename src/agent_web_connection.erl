@@ -1816,15 +1816,15 @@ poll_flushing_test_() ->
 			State1 = push_event(<<"string1">>, Seedstate),
 			State2 = push_event(<<"string2">>, State1),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string1">>, <<"string2">>]}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string3">>]}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string4">>, <<"string5">>]}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			HandleInfoState1 = State2#state{poll_pid = WebListener},
@@ -1930,12 +1930,14 @@ set_state_test_() ->
 		foreach,
 		fun() ->
 			%agent_manager:start([node()]),
+			gen_event:start({local, cpx_agent_event}),
 			gen_leader_mock:start(agent_manager),
 			gen_leader_mock:expect_leader_call(agent_manager, 
 				fun({exists, "testagent"}, _From, State, _Elec) -> 
 					{ok, Apid} = agent:start(#agent{login = "testagent"}),
 					{ok, {true, Apid}, State} 
 				end),
+			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
 			{Connpid}
 		end,
@@ -1948,27 +1950,12 @@ set_state_test_() ->
 			fun({Connpid}) ->
 				{"Set state valid",
 				fun() ->
-					Reply = gen_server:call(Connpid, {set_state, "idle"}),
-					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply),
-					Reply2 = gen_server:call(Connpid, {set_state, "released", "Default"}),
-					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply2)
-				end}
-			end,
-			fun({Connpid}) ->
-				{"Set state invalid",
-				fun() ->
-					Reply = gen_server:call(Connpid, {set_state, "wrapup"}),
-					ExpectedJson = mochijson2:encode({struct, [
-						{success, false},
-						{<<"status">>, invalid},
-						{<<"message">>, <<"invalid state change">>},
-						{<<"errcode">>, <<"INVALID_STATE_CHANGE">>}
-					]}),
-					?CONSOLE("Reply:  ~p;~nExpected:  ~p", [Reply, ExpectedJson]),
-					?assertEqual({200, [], ExpectedJson}, Reply),
-					Reply2 = gen_server:call(Connpid, {set_state, "wrapup", "garbage"}),
-					?CONSOLE("~p", [Reply2]),
-					?assertEqual({200, [], ExpectedJson}, Reply2)
+					gen_leader_mock:expect_cast(agent_manager, fun(_, _, _) -> ok end),
+					{200, [], Reply} = gen_server:call(Connpid, {set_release, <<"none">>}),
+					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply)),
+					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+					{200, [], Reply2} = gen_server:call(Connpid, {set_release, <<"default">>}),
+					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply2))
 				end}
 			end
 		]

@@ -14,16 +14,6 @@ do
 	fi
 done
 
-# hack for reltool
-#if [ ! -d ../deps/OpenACD ]; then
-#	mkdir deps/OpenACD
-#	ln -sf ../ebin deps/OpenACD/ebin
-#	ln -sf ../src deps/OpenACD/src
-#	ln -sf ../include deps/OpenACD/include
-#	ln -sf ../priv deps/OpenACD/priv
-#	ln -sf ../deps ../deps/OpenACD/deps
-#fi
-
 # record what commit/version openacd is at
 OPENACD_COMMIT=""
 if [ -d ".git" ]

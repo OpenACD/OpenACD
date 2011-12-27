@@ -15,14 +15,14 @@ do
 done
 
 # hack for reltool
-if [ ! -d OpenACD ]; then
-	mkdir OpenACD
-	ln -sf ../ebin OpenACD/ebin
-	ln -sf ../src OpenACD/src
-	ln -sf ../include OpenACD/include
-	ln -sf ../priv OpenACD/priv
-	ln -sf ../deps OpenACD/deps
-fi
+#if [ ! -d ../deps/OpenACD ]; then
+#	mkdir deps/OpenACD
+#	ln -sf ../ebin deps/OpenACD/ebin
+#	ln -sf ../src deps/OpenACD/src
+#	ln -sf ../include deps/OpenACD/include
+#	ln -sf ../priv deps/OpenACD/priv
+#	ln -sf ../deps ../deps/OpenACD/deps
+#fi
 
 # record what commit/version openacd is at
 OPENACD_COMMIT=""

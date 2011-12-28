@@ -477,7 +477,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 					{reply, invalid, idle, State}
 			end
 	end;
-idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
+idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) when is_record(Incall, call) ->
 	RingPid = case cpx:get_env(ring_manager) of
 		undefined ->
 			undefined;
@@ -1620,6 +1620,9 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 	
 -ifdef(TEST).
 
+dumb_spawn() ->
+	spawn(fun() -> receive stop -> exit(normal) end end).
+
 start_arbitrary_state_test() ->
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 	?assertEqual({ok, idle}, query_state(Pid)),
@@ -1632,7 +1635,7 @@ ring_oncall_mismatch_test() ->
 	application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
 	{ok, Fsmmm} = gen_server_mock:named({local, freeswitch_media_manager}),
 	gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _, State) ->
-		{ok, {ok, spawn(fun() -> ok end)}, State}
+		{ok, {ok, spawn(fun() -> ok end), both}, State}
 	end),
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
@@ -1721,16 +1724,19 @@ from_idle_tests() ->
 		fun() ->
 			{ok, Fsmmm} = gen_server_mock:named({local, freeswitch_media_manager}),
 			application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
-			gen_server_mock:expect_call(Fsmmm, fun({ring, {undefined, transient, sip_registration}, _EndPointData, _Callback, _Options}, _From, State) ->
-				{ok, {ok, spawn(fun() -> ok end)}, State}
+			gen_server_mock:expect_call(Fsmmm, fun({ring, _Agent, _Call}, _From, State) ->
+				{ok, {ok, dumb_spawn(), both}, State}
 			end),
 			Self = self(),
 			Call = #call{
 				id = "testcall",
-				source = Self
+				source = Self,
+				ring_path = inband,
+				media_path = inband
 			},
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) -> 
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) ->
+				?DEBUG("Call:  ~p\nIncall:  ~p", [Call, Incall]),
 				Call = Incall,
 				ok
 			end),
@@ -2509,12 +2515,13 @@ from_oncall_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = BaseAgent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = BaseAgent} = State, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup request from agent connection and inband media",
 		fun() ->
 			Basecall = BaseAgent#agent.statedata,
 			Callrec = Basecall#call{media_path = inband},
 			Agent = BaseAgent#agent{statedata = Callrec},
+			#agent{endpointtype = {Rchan, _, _}} = Agent,
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2527,16 +2534,24 @@ from_oncall_tests() ->
 			gen_server_mock:expect_call(Callrec#call.source, fun('$gen_media_wrapup', _From, _State) ->
 				ok
 			end),
-			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
+			gen_server_mock:expect_cast(Rchan, fun({agent_state, wrapup, _Callrec}, _State) ->
+				ok
+			end),
+			?DEBUG("Monmock:  ~p; Conmock:  ~p; Call: ~p; logpid: ~p; Dmock: ~p; AMmock: ~p;", [Monmock, Connmock, Callrec#call.source, Agent#agent.log_pid, Dmock, AMmock]),
+			{reply, ok, wrapup, OutState} = oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State#state{agent_rec = Agent}),
+			?DEBUG("Ootstate:  ~p", [OutState]),
+			?assertMatch(#state{agent_rec = #agent{endpointtype = {Rchan, transient, _}}}, OutState),
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = BaseAgent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = BaseAgent} = State, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup request from media and inband media",
 		fun() ->
 			Basecall = BaseAgent#agent.statedata,
 			Callrec = Basecall#call{media_path = inband},
 			Agent = BaseAgent#agent{statedata = Callrec},
+			#agent{endpointtype = {Rchan, _, _}} = Agent,
+			gen_server_mock:expect_cast(Rchan, fun({agent_state, wrapup}, _State) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2546,7 +2561,8 @@ from_oncall_tests() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
+			?DEBUG("Monmock:  ~p; Conmock:  ~p; Call: ~p; logpid: ~p; Dmock: ~p; AMmock: ~p; Rchan:  ~p", [Monmock, Connmock, Callrec#call.source, Agent#agent.log_pid, Dmock, AMmock, Rchan]),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {Rchan, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Assertmocks()
 		end}
 	end,
@@ -2590,18 +2606,20 @@ from_oncall_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = #agent{endpointtype = {RingChanPid, _, _}} = BaseAgent} = BaseState, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = #agent{endpointtype = {RingChanPid, _, _}} = BaseAgent} = BaseState, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup with persistent ring channel",
 		fun() ->
 			Agent = BaseAgent#agent{endpointtype = {RingChanPid, persistent, sip_registration}},
 			State = BaseState#state{agent_rec = Agent},
 			Call = Agent#agent.statedata,
+			gen_server_mock:expect_cast(RingChanPid, fun({agent_state, wrapup}, _) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			?DEBUG("Monmock:  ~p; Conmock:  ~p; Call: ~p; logpid: ~p; Dmock: ~p; AMmock: ~p; Rchan:  ~p", [Monmock, Connmock, Call#call.source, Agent#agent.log_pid, Dmock, AMmock, RingChanPid]),
 			Out = oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State),
 
 			?DEBUG("Das out:  ~p", [Out]),
@@ -2639,7 +2657,8 @@ from_oncall_tests() ->
 			Basecall = BaseAgent#agent.statedata,
 			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
 			Callrec = Basecall#call{client = Client, media_path = inband},
-			Agent = BaseAgent#agent{statedata = Callrec},
+			#agent{endpointtype = {RingChan, _, _}} = Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(RingChan, fun({agent_state, wrapup, _}, _) -> ok end),
 			gen_server_mock:expect_call(Callrec#call.source, fun('$gen_media_wrapup', _From, _State) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
@@ -3362,7 +3381,15 @@ handle_sync_event_test_() ->
 		{"setting end point doesn't corrupt state",
 		fun() ->
 			Seedstate = #state{agent_rec = #agent{login = "test"}},
-			?assertMatch({reply, ok, state, #state{agent_rec = #agent{endpointtype = {undefined, transient, "end point type"}, endpointdata = "end point data"} = _Agent} = _State}, handle_sync_event({set_endpoint, {"end point type", "end point data"}}, "from", state, Seedstate))
+			{reply, ok, state, OutState} = handle_sync_event({set_endpoint, "end point type", "end point data", transient}, "from", state, Seedstate),
+			?DEBUG("seedstate:  ~p", [Seedstate]),
+			?DEBUG("outstate:  ~p", [OutState]),
+			?assertMatch(#state{
+				agent_rec = #agent{
+					endpointtype = {undefined,transient, "end point type"},
+					endpointdata = "end point data"
+				} = _Agent
+			}, OutState)
 		end}
 	end]}.
 

@@ -316,10 +316,43 @@ destroy_queue(Queue) ->
 		mnesia:delete({call_queue, Queue})
 	end,
 	mnesia:transaction(F).
-	
-%% @doc Get the configuration for the passed `string()' `Queue' name.
+
+%% @doc Get the configuration for the passed `string()' `Queue' name.	
 -spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
-get_queue(Queue) ->
+get_queue(Name) ->
+	try integration:get_queue(Name) of
+		none ->
+			?DEBUG("integration has no such queue ~p", [Name]),
+			destroy_queue(Name),
+			noexists;
+		{ok, Name, Weight, Skills, Recipe, HoldMusic, Group} ->
+			?DEBUG("integration found queue ~p", [Name]),
+
+			CallQueue = #call_queue {
+				name = Name,
+				weight = Weight,
+				skills = Skills,
+				recipe = Recipe,
+				hold_music = HoldMusic,
+				group = Group,
+				timestamp = util:now()	
+			},
+
+			new_queue(CallQueue),
+			local_get_queue(Name);
+		{error, nointegration} ->
+			?DEBUG("No integration, falling back for ~p", [Name]),
+			local_get_queue(Name)
+	catch
+		throw:{badreturn, Err} ->
+			?WARNING("Integration failed with message:  ~p", [Err]),
+			local_get_queue(Name)
+	end.
+
+
+%% @doc Skips integration, goes right for the local cache using key as id.
+-spec(local_get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
+local_get_queue(Queue) ->
 	F = fun() -> 
 		mnesia:read({call_queue, Queue})
 	end,
@@ -481,9 +514,39 @@ new_queue_group(Name, Sort, Recipe) when is_integer(Sort) ->
 	Qgroup = #queue_group{name = Name, sort = Sort, recipe = Recipe},
 	new_queue_group(Qgroup).
 
+
 %% @doc get a `#queue_group{}' named `Name'
 -spec(get_queue_group/1 :: (Name :: string()) -> {'atomic', [#queue_group{}]}).
 get_queue_group(Name) ->
+	try integration:get_queue_group(Name) of
+		none ->
+			?DEBUG("integration has no such queue group ~p", [Name]),
+			destroy_queue_group(Name),
+			{atomic, []};
+		{ok, Name, Recipe, Skills, Sort, Protected} ->
+			?DEBUG("integration found queue group ~p", [Name]),
+			QueueGroup = #queue_group{
+				name = Name,
+				recipe = Recipe,
+				skills = Skills,
+				sort = Sort,
+				protected = Protected,
+				timestamp = util:now()
+			},
+			new_queue_group(QueueGroup),
+			local_get_queue_group(Name);
+		{error, nointegration} ->
+			?DEBUG("No integration, falling back for ~p", [Name]),
+			local_get_queue_group(Name)
+	catch
+		throw:{badreturn, Err} ->
+			?WARNING("Integration failed with message:  ~p", [Err]),
+			local_get_queue_group(Name)
+	end.
+
+%% @doc skip integration, get a `#queue_group{}' named `Name' directly
+-spec(local_get_queue_group/1 :: (Name :: string()) -> {'atomic', [#queue_group{}]}).
+local_get_queue_group(Name) ->
 	F = fun() ->
 		QH = qlc:q([begin
 			Oldrecipe =X#queue_group.recipe,
@@ -619,6 +682,8 @@ skill_exists(Skillname) when is_list(Skillname) ->
 	end.
 
 %% @doc get a single `#skill_rec{}'
+
+
 -spec(get_skill/1 :: (Skill :: atom() | string()) -> #skill_rec{} | 'undefined').
 get_skill(Skill) when is_list(Skill) ->
 	try list_to_existing_atom(Skill) of
@@ -629,6 +694,27 @@ get_skill(Skill) when is_list(Skill) ->
 			undefined
 	end;
 get_skill(Skill) when is_atom(Skill) ->
+	try integration:get_skill(Skill) of
+		none ->
+			?DEBUG("integration has no such skill ~p", [Skill]),
+			F = fun() -> mnesia:delete({skill_rec, Skill}) end,
+			{atomic, ok} = mnesia:transaction(F),
+			undefined;
+		{ok, Skillatom, Skillname, Skillprotected, Skilldesc, Group} ->
+			Rec = #skill_rec{atom = Skillatom, name = Skillname, protected = Skillprotected, description = Skilldesc, group = Group},
+			new_skill(Rec),
+			local_get_skill(Skill);
+		{error, nointegration} ->
+			?DEBUG("No integration, falling back for ~p", [Skill]),
+			local_get_skill(Skill)
+	catch
+		throw:{badreturn, Err} ->
+			?WARNING("Integration failed with message:  ~p", [Skill]),
+			local_get_skill(Skill)
+	end.
+
+-spec(local_get_skill/1 :: (Skill :: atom()) -> #skill_rec{} | 'undefined').
+local_get_skill(Skill) when is_atom(Skill) ->
 	F = fun() ->
 		mnesia:read({skill_rec, Skill})
 	end,
@@ -1010,7 +1096,7 @@ test_queue() ->
 	new_queue("test queue", 3, [testskill], Recipe, "Default"),
 	%Default = #call_queue{name = "goober"},
 	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
-	
+
 call_queue_test_() ->
 	{
 		foreach,
@@ -1197,6 +1283,68 @@ call_queue_test_() ->
 		]
 	}.
 
+call_queue_integration_test_() ->
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables(),
+			F = fun() -> 
+				mnesia:delete({call_queue, "default_queue"})
+			end,
+			mnesia:transaction(F),
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
+		end,
+		fun(Mock) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			unregister(integration),
+			gen_server_mock:stop(Mock),
+			ok
+		end,
+		[
+			fun(Mock) ->
+				{"Get existing queue from integration",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
+					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue"))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get non-existing queue from integration",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, none, State} end),
+					?assertEqual(noexists, get_queue("queue"))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get previously existing queue from integration",
+				fun() ->
+					Q = test_queue(),
+					Name = Q#call_queue.name,
+
+					gen_server_mock:expect_call(Mock, fun({get_queue, Name}, _, State) -> {ok, none, State} end),
+					?assertEqual(noexists, get_queue(Name)),
+					?assertEqual([], [X || X = #call_queue{name = Name} <- get_queues()])
+				end}
+			end,
+			fun(Mock) ->
+				{"Get updated queue",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
+					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "newgroup"}, State} end),
+
+					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue")),
+					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="newgroup", timestamp=_}, get_queue("queue"))
+				end}
+			end
+		]
+	}.
+
 queue_group_test_() ->
 	{
 		foreach,
@@ -1334,6 +1482,66 @@ queue_group_test_() ->
 					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], R)
 				end
 			}
+		]
+	}.
+
+
+queue_group_integration_test_() ->
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables(),
+
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
+		end,
+		fun(Mock) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			unregister(integration),
+			gen_server_mock:stop(Mock),
+			ok
+		end,
+		[
+			fun(Mock) ->
+				{"Get existing queue group from integration",
+				fun() ->
+					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
+					gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, {ok, "queuegroup", Recipe, [newskill], 10, false}, State} end),
+					?assertMatch(
+						{atomic, [#queue_group{name="queuegroup",
+							recipe=Recipe,
+							skills=[newskill],
+							sort = 10,
+							protected = false,
+							timestamp = _ }]}, get_queue_group("queuegroup"))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get non-existing queue group from integration",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, none, State} end),
+					?assertEqual({atomic, []}, get_queue_group("queuegroup"))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get previously existing queue group from integration",
+				fun() ->
+					Qgroup = #queue_group{name = "test group"},
+					
+					new_queue_group(Qgroup),
+
+					gen_server_mock:expect_call(Mock, fun({get_queue_group, "test group"}, _, State) -> {ok, none, State} end),
+
+					?assertEqual({atomic, []}, get_queue_group("test group")),
+					?assertEqual([], [X || X = #queue_group{name = "test group"} <- get_queue_groups()])
+				end}
+			end
+
 		]
 	}.
 
@@ -1505,6 +1713,63 @@ skill_rec_test_() ->
 						?assertEqual(undefined, get_skill(testskill))
 					end
 				}
+			end
+		]
+	}.
+
+skill_rec_integration_test_() ->
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables(),
+
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
+		end,
+		fun(Mock) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			unregister(integration),
+			gen_server_mock:stop(Mock),
+			ok
+		end,
+		[
+			fun(Mock) ->
+				{"Get existing skill from integration",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, {ok, skill, "skill", false, "desc", "misc"}, State} end),
+					?assertMatch(
+						#skill_rec{
+							atom = skill,
+							name = "skill",
+							protected = false,
+							description = "desc",
+							group = "misc",
+							timestamp = _
+						}, get_skill(skill))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get non-existing skill from integration",
+				fun() ->
+					gen_server_mock:expect_call(Mock, fun({get_skill, noskill}, _, State) -> {ok, none, State} end),
+					?assertEqual(undefined, get_skill(noskill))
+				end}
+			end,
+			fun(Mock) ->
+				{"Get previously existing skill from integration",
+				fun() ->
+					S = #skill_rec{name="Skill", atom=skill, protected=false, description="New Skill", group = "Misc"},
+					new_skill(S),
+
+					gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, none, State} end),
+					?assertEqual(undefined, get_skill(skill)),
+					?assertEqual([], [X || X = #skill_rec{atom=skill} <- get_skills()])
+				end}
 			end
 		]
 	}.

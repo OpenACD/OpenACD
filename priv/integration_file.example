@@ -1,19 +1,47 @@
-% This file is a list of agents and clients for use with integration_file.
+% This file is a list of agents, clients, queues, queue groups,
+% skills, and profiles for use with integration_file.
 % This is here only for referece, and the integration_file module is only
 % a reference implementation of the integration system.  See the 
 % documentation for the integration_file for more info.
 %
 % agent_tuple() :: {'agent', id(), name(), 
-%		password(), security(), profile(), options()}
-% client_typle() :: {'client', id(), name(), options()}
+%		password(), security(), profile(), options()}.
+% client_typle() :: {'client', id(), name(), options()}.
 % id(), name(), profile() :: string().
-% password() :: erlang:md5([name() ++ ":" ++ password()])
-% security() :: 'agent' | 'admin' | 'supervisor'
-% options() :: [option()]
+% password() :: erlang:md5([name() ++ ":" ++ password()]).
+% security() :: 'agent' | 'admin' | 'supervisor'.
+% options() :: [option()].
 % option() :: atom() | {any(), any()}.
 
 {agent, "1", "agent", <<164,177,31,84,5,102,95,166,47,125,235,102,137,17,101,21>>, agent, "Default", []}.
 {agent, "2", "administrator", <<128,215,69,86,213,17,109,62,23,93,49,178,80,75,223,106>>, admin, "Default", []}.
 {agent, "3", "supervisor", <<157,130,152,43,61,172,140,8,134,170,186,205,72,129,214,173>>, supervisor, "Default", []}.
+
+% client_tuple() :: {'client', id(), label(), options()}.
+% label() :: string().
+
 {client, "1", "Client1", []}.
 {client, "2", "Client2", []}.
+
+% queue_tuple() :: {'queue', name(), weight(), skills(), recipe(), hold_music(), group()}.
+% weight() :: non_neg_integer().
+% skills() :: [atom()].
+% hold_music() :: string() | undefined.
+% group() :: string().
+{queue, "Queue1", 10, [english], [], undefined, "QueueGroup1"}.
+{queue, "Queue2", 10, [german], [], undefined, "QueueGroup2"}.
+
+% queue_group_tuple() :: {'queue_group', name(), recipe(), skills(), sort(), protected()}.
+% sort() :: non_neg_integer().
+% protected() :: boolean().
+{queue_group, "QueueGroup1", [], [], 10, false}.
+{queue_group, "QueueGroup2", [], [], 20, false}.
+
+% skill_tuple() :: {'skill', atom(), name(), protected(), desc(), group()}.
+{skill, skill1, "New Skill 1", false, "Skill Desc 1", "SkillGroup"}.
+{skill, skill2, "New Skill 2", false, "Skill Desc 2", "SkillGroup"}.
+
+% profile_tuple() :: {'profile', name(), id(), order(), options()}.
+% order() :: pos_integer().
+{profile, "Profile 1", "p1", 10, [], [skill1]}.
+{profile, "Profile 2", "p2", 10, [], [skill2]}.

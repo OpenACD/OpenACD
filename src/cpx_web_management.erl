@@ -464,8 +464,8 @@ api(login, {_Reflist, undefined, _Conn}, _Post) ->
 api(login, {Reflist, Salt, _Login}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
-	try decrypt_password(Password) of
-		Decrypted ->
+	case util:decrypt_password(Password) of
+		{ok, Decrypted} ->
 			Salt = string:substr(Decrypted, 1, length(Salt)),
 			DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
 			%Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
@@ -477,10 +477,9 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
 				{allow, _id, _Skills, _Security, _Profile} ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})}
-			end
-	catch
-		error:decrypt_failed ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
+			end;
+	{error, decrypt_failed} ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
@@ -2622,20 +2621,6 @@ parse_posted_skills([Skill | Tail], Acc) ->
 		_ ->
 			parse_posted_skills(Tail, [Newatom | Acc])
 	end.
-
-decrypt_password(Password) ->
-	Key = util:get_keyfile(),
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
-	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
-	binary_to_list(Bar).
 
 encode_client(Client) ->
 	FirstOptionsList = encode_client_options(Client#client.options),

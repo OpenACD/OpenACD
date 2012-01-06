@@ -48,6 +48,7 @@
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	connection :: pid(),
 	profile = "Default" :: string() | 'error',
+	securitylevel = agent :: security_level(),
 	source :: pid(),
 	release_data :: release_code() | 'undefined',
 	available_channels = [dummy, voice, visual, slow_text, fast_text, fast_text, fast_text],

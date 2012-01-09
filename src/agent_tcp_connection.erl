@@ -456,7 +456,8 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 				profile=Profile, 
 				password=DecryptedPass,
 				endpointtype = Endpoint,
-				endpointdata = Endpointdata
+				endpointdata = Endpointdata,
+				security_level = Security
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
@@ -505,7 +506,8 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 								login = LoginRequest#loginrequest.username, 
 								skills = Skills, 
 								profile=Profile, 
-								password=DecryptedPass
+								password=DecryptedPass,
+								security_level = Security
 							},
 							case agent_manager:start_agent(Agent) of
 								{ok, Pid} ->

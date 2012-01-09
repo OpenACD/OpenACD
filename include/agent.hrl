@@ -61,7 +61,8 @@
 	% connection
 	endpointdata = undefined :: 'undefined' | string(),
 	start_opts = [] :: [any()],
-	log_pid :: 'undefined' | pid()
+	log_pid :: 'undefined' | pid(),
+	security_level = agent :: 'agent' | 'supervisor' | 'admin'
 }).
 	
 %% 10/10/2008 Micah

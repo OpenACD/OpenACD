@@ -109,8 +109,8 @@
 
 %% API
 -export([
-	start_link/2,
-	start/2,
+	start_link/1,
+	start/1,
 	stop/1,
 	api/2,
 	dump_agent/1,
@@ -432,14 +432,14 @@ is_web_api(Func, Arity) ->
 	lists:member({Func, Arity}, Api).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Agent, Security) ->
-	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Agent) ->
+	gen_server:start_link(?MODULE, [Agent], [{timeout, 10000}]).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Agent, Security) ->
-	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Agent) ->
+	gen_server:start(?MODULE, [Agent], [{timeout, 10000}]).
 
 %% @doc Stops the passed Web connection process.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -536,7 +536,7 @@ api(Pid, Apicall) ->
 	gen_server:call(Pid, Apicall).
 
 %% @doc Dump the state of agent associated with the passed connection.
--spec(dump_agent/1 :: (Pid :: pid()) -> {#agent{}, 'agent' | 'supervisor' | 'admin'}).
+-spec(dump_agent/1 :: (Pid :: pid()) -> #agent{}).
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
 
@@ -623,7 +623,8 @@ encode_statedata({}) ->
 %%--------------------------------------------------------------------
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Agent, Security]) ->
+init([Agent]) ->
+	#agent{security_level = Security} = Agent,
 	?DEBUG("web_connection init ~p with security ~w", [Agent, Security]),
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(Agent) of
@@ -724,7 +725,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
-	{reply, {Astate, State#state.securitylevel}, State};
+	{reply, Astate, State};
 handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
 	handle_call({agent_transfer, Agentname}, From, State);

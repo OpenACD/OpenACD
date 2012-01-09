@@ -267,6 +267,10 @@ handle_cast({blab, Text}, State) ->
 	},
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
+handle_cast({plugin_event, Binary}, State) ->
+	send(State#state.socket, Binary, State#state.radix),
+	{noreply, State};
+
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled msg:  ~p", [Msg]),
 	{noreply, State}.
@@ -347,11 +351,10 @@ server_event(Socket, Record, Radix) ->
 	},
 	send(Socket, Outrec, Radix).
 
-send({Mod, Socket}, Record, Radix) ->
+send(Target, Record, Radix) when is_record(Record, servermessage) ->
 	Bin = cpx_agent_pb:encode(Record),
-	%Size = list_to_binary(integer_to_list(size(Bin))),
-	%?DEBUG("Das size:  ~p", [Size]),
-	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
+	send(Target, Bin, Radix);
+send({Mod, Socket}, Bin, Radix) when is_binary(Bin) ->
 	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
 	ok = Mod:send(Socket, Outbin).
 
@@ -369,10 +372,10 @@ service_request(Bin, State) when is_binary(Bin) ->
 		success = false
 	},
 	{NewReply, NewState} = service_request(Request, BaseReply, State),
-	Message = #servermessage{
-		type_hint = 'REPLY',
-		reply = NewReply
-	},
+	Message = if
+		is_binary(NewReply) -> NewReply;
+		true -> #servermessage{ type_hint = 'REPLY', reply = NewReply }
+	end,
 	send(State#state.socket, Message, State#state.radix),
 	NewState.
 
@@ -856,6 +859,26 @@ service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{
 			}
 	end,
 	{Reply, State};
+service_request(#agentrequest{request_hint = 'PLUGIN_CALL', plugin_app = Plugin} = Request, BaseReply, State) when Plugin =/= undefined ->
+	RunningApps = application:which_applications(),
+	Apps = [App || {App, _, _} <- RunningApps, atom_to_list(App) =:= Plugin],
+	case Apps of
+		[] ->
+			BaseReply#serverreply{
+				error_message = "No such plugin to call to",
+				error_code = "PLUGIN_NOEXISTS"
+			};
+		[App | _] ->
+			case application:get_env(App, agent_tcp_handler) of
+				undefined ->
+					BaseReply#serverreply{
+						error_message = "Plugin doesn't handle tcp",
+						error_code = "PLUGIN_NON_TCP"
+					};
+				{Mod, Func} ->
+					erlang:apply(Mod, Func, [State#state.agent_fsm, Request, BaseReply])
+			end
+	end;
 service_request(_, BaseReply, State) ->
 	Reply = BaseReply#serverreply{
 		error_message = "request not implemented",

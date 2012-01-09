@@ -501,7 +501,7 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
-		{<<"securityLevel">>, Agent#agent.security_level},
+		{<<"securityLevel">>, Agentrec#agent.security_level},
 		{<<"state">>, Agentrec#agent.state},
 		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
 		{<<"statetime">>, Agentrec#agent.lastchange},
@@ -737,7 +737,7 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 								password=DecryptedPassword,
 								endpointtype = Endpoint,
 								endpointdata = Endpointdata,
-								securit_level = Security
+								security_level = Security
 							},
 							case agent_web_connection:start(Agent) of
 								{ok, Pid} ->

@@ -604,6 +604,16 @@ OpenACD.Agent.prototype.mediaPush = function(data, options){
 };
 
 /**
+Attempt to send a request to a plugin running on the server (in OpenACD).
+@param {String} Name of plugin expected to handle request.
+@param data to forward to the plugin.  See documentation for the plugin.
+@param {Object} [options] Callbacks
+*/
+OpenACD.Agent.prototype.pluginCall = function(plugin, data, options){
+	this.agentApi("plugin_call", options, plugin, data);
+};
+
+/**
 Set a message to appear to the agent after a time.  Nagging is cleared auto-
 matically when an agent goes idle.
 @param {String} message What to tell the agent.

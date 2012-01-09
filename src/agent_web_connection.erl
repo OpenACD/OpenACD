@@ -147,7 +147,8 @@
 	queue_transfer/3,
 	init_outbound/3,
 	set_endpoint/4,
-	logout/1
+	logout/1,
+	plugin_call/3
 ]).
 
 -web_api_functions([
@@ -170,6 +171,7 @@
 	{queue_transfer, 3},
 	{init_outbound, 3},
 	{set_endpoint, 4},
+	{plugin_call, 3},
 	{poll, 2},
 	{logout, 1}
 ]).
@@ -413,6 +415,13 @@ set_endpoint(Conn, Endpoint, Data, Persist) ->
 load_media(Conn) ->
 	gen_server:call(Conn, mediaload).
 
+%% @doc {@web} Forward the request to the given plugin_app.  If the app
+%% is missing, or the call fails, expect an error.  Results will vary
+%% from plugin to plugin.
+-spec(plugin_call/3 :: (Conn :: pid(), Plugin :: string(), Args :: [any()]) -> any()).
+plugin_call(Conn, Plugin, Args) ->
+	gen_server:call(Conn, {plugin_call, Plugin, Args}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -525,6 +534,15 @@ stop(Pid) ->
 %% 		and this is the final result.  The media will likely add more 
 %% 		properties.  No response is expected from the client.</td>
 %% 	</tr>
+%%  <tr>
+%%  	<td>pluginevent</td>
+%%		<td><ul>
+%%  		<li>"plugin_app": string()</li>
+%%  		<li>"event":  any()</li>
+%%  	</ul></td>
+%%  	<td>A Plugin can send events to specific agents.  Very plugin
+%%  	Specific.  Check the plugin documentation for details.</td>
+%%  </tr>
 %% </table>
 -spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
 poll(Pid, Frompid) ->
@@ -826,6 +844,30 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_r
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}, {<<"errcode">>, <<"BAD_REQUEST">>}]})}, State}
+	end;
+handle_call({plugin_call, Plugin, Args}, _From, State) ->
+	Apps = [Appname || {Appname, _, _} <- application:which_applications(),
+		atom_to_list(Appname) =:= Plugin],
+	case Apps of
+		[] ->
+			{reply, ?reply_err(<<"No such plugin">>, <<"PLUGIN_NOEXIST">>), State};
+		[App | _] ->
+			case application:get_env(App, agent_web_handler) of
+				undefined ->
+					{reply, ?reply_err(<<"Plugin doesn't handle web">>, <<"PLUGIN_NON_WEB">>), State};
+				{Mod, Func} ->
+					Reply = erlang:apply(Mod, Func, [State#state.agent_fsm, Args]),
+					case Reply of
+						{error, {Msg, Code}} when is_binary(Msg), is_binary(Code) ->
+							{reply, ?reply_err(Msg, Code), State};
+						{error, Else} ->
+							Msg = io_lib:format("~p", [Else]),
+							Msg0 = list_to_binary(Msg),
+							{reply, ?reply_err(Msg0, <<"UNKNOWN_ERROR">>), State};
+						{ok, Json} ->
+							{reply, ?reply_success(Json), State}
+					end
+			end
 	end;
 handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),

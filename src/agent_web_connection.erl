@@ -856,7 +856,7 @@ handle_call({plugin_call, Plugin, Args}, _From, State) ->
 				undefined ->
 					{reply, ?reply_err(<<"Plugin doesn't handle web">>, <<"PLUGIN_NON_WEB">>), State};
 				{Mod, Func} ->
-					Reply = erlang:apply(Mod, Func, [State#state.agent_fsm, Args]),
+					Reply = erlang:apply(Mod, Func, [State#state.agent_fsm, {struct, []}, Args]),
 					case Reply of
 						{error, {Msg, Code}} when is_binary(Msg), is_binary(Code) ->
 							{reply, ?reply_err(Msg, Code), State};

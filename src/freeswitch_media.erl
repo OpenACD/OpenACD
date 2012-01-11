@@ -48,6 +48,7 @@
 -define(TIMEOUT, 10000).
 
 -define(DEFAULT_PRIORITY, 10).
+-define(DEFAULT_VM_PRIORITY_DIFF, 10).
 
 %% API
 -export([
@@ -72,6 +73,8 @@
 	handle_voicemail/3,
 	handle_spy/3,
 	handle_announce/3,
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	handle_end_call/2,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
@@ -124,6 +127,7 @@
 	in_control = false :: boolean(),
 	queued = false :: boolean(),
 	allow_voicemail = false :: boolean(),
+	vm_priority_diff = ?DEFAULT_VM_PRIORITY_DIFF :: integer(),
 	warm_transfer_uuid = undefined :: string() | 'undefined',
 	ivroption :: string() | 'undefined',
 	caseid :: string() | 'undefined',
@@ -204,15 +208,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
-%handle_answer(Apid, #call{ring_path = inband} = Callrec, State) ->
-%	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
-%	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
-%		{ok, _} ->
-%			handle_answer(Apid, Callrec#call{ring_path = outband}, State);
-%		{error, Error} ->
-%			?WARNING("Could not do answer:  ~p", [Error]),
-%			{invalid, State}
-%	end;
+
 handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 	UUID = freeswitch_ring:get_uuid(State#state.ringchannel),
 	case freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ UUID) of
@@ -238,6 +234,14 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{invalid, State}
 	end.
+
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+-spec(handle_end_call/2 :: (Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
+handle_end_call(Callrec, State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
+	{deferred, State}.
 
 handle_ring(Apid, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -691,10 +695,10 @@ handle_cast(retrieve_conference, Call, #state{statename = '3rd_party'} = State) 
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(retrieve_conference, Call, MidState);
 
-handle_cast(hangup_3rdparty, Call, #state{statename = '3rd_party'} = State) ->
+handle_cast(hangup_3rd_party, Call, #state{statename = '3rd_party'} = State) ->
 	?INFO("killing 3rd party channel while talking w/ them", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
-	handle_cast(hangup_3rdparty, Call, MidState);
+	handle_cast(hangup_3rd_party, Call, MidState);
 
 handle_cast({merge_3rd_party, _IncludeSelf}, Call, #state{'3rd_party_id' = undefined} = State) ->
 	{noreply, State};
@@ -721,11 +725,11 @@ handle_cast(retrieve_3rd_party, Call, #state{statename = hold_conference_3rdpart
 	freeswitch:bgapi(Fnode, uuid_bridge, Thirdpid ++ " " ++ Ringid),
 	{noreply, State#state{statename = '3rd_party'}};
 
-handle_cast(hangup_3rdparty, Call, #state{statename = 'hold_conference_3rdparty'} = State) ->
+handle_cast(hangup_3rd_party, Call, #state{statename = 'hold_conference_3rdparty'} = State) ->
 	?INFO("hangling up on 3rd party", []),
 	#state{cnode = Fnode, '3rd_party_id' = Thirdid} = State,
 	freeswitch:bgapi(Fnode, uuid_kill, Thirdid),
-	{noreply, State#state{statename = 'hold_conference', '3rd_party_id' = undefined}};
+	{noreply, State#state{statename = 'hold_conference'}};
 
 % in_conference -> '3rdparty' | 'conference_hold'
 handle_cast(toggle_hold, Call, #state{statename = 'in_conference'} = State) ->
@@ -900,6 +904,11 @@ handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = Stat
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	{stop_ring, State#state{ringchannel = undefined}};
+
+handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
+	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
+	{stop, noconnection, State};
+
 handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
@@ -956,6 +965,7 @@ handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename =
 
 handle_info(Info, Call, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
+	?DEBUG("unhandled state:  ~p", [State]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -1088,10 +1098,17 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 	cdr:media_custom(Callrec, 'oncall_hold', ?cdr_states, []),
 	{{mediapush, caller_hold}, State};
 
+case_event_name("CHANNEL_DESTROY", UUID, Rawcall, Callrec, #state{
+		'3rd_party_id' = UUID, statename = Statename} = State) ->
+	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
+
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		uuid = UUID, queued = false, warm_transfer_uuid = undefined,
 		statename = Statename} = State) when
 		Statename == inqueue; Statename =/= inqueue_ringing ->
+
+	?DEBUG("Channel park rawcall: ~p", [Rawcall]),
+
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 	Client = proplists:get_value("variable_brand", Rawcall),
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
@@ -1101,7 +1118,20 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		MohMusak ->
 			MohMusak
 	end,
-	P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
+	Priority = get_rawcall_int("variable_queue_priority", 
+		Rawcall, ?DEFAULT_PRIORITY),
+
+	VMPriorityDiff = 
+		case get_rawcall_int("variable_vm_priority_diff",
+				Rawcall, undefined) of
+			undefined ->
+				ClientRec = Callrec#call.client,
+				proplists:get_value(vm_priority_diff, ClientRec#client.options,
+				 	?DEFAULT_VM_PRIORITY_DIFF);
+			Val ->
+				Val
+		end,
+
 	Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 	SkillList = proplists:get_value("variable_skills", Rawcall, ""),
 	Skills = lists:foldl(fun(X, Acc) ->
@@ -1114,11 +1144,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 				Acc
 		end
 	end, [], util:string_split(SkillList, ",")),
-	Priority = try list_to_integer(P) of
-		Pri -> Pri
-	catch
-		error:badarg -> ?DEFAULT_PRIORITY
-	end,
+	
 	{Calleridname, Calleridnum} = get_caller_id(Rawcall),
 	Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
 	NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority, skills = Skills},
@@ -1145,7 +1171,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
 	%% tell gen_media to (finally) queue the media
-	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt, statename = inqueue}};
+	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, vm_priority_diff = VMPriorityDiff, moh=Moh, ivroption = Ivropt, statename = inqueue}};
 
 case_event_name("CHANNEL_HANGUP", UUID, _Rawcall, Callrec, #state{uuid = UUID} = State)  when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->
 	?NOTICE("caller hung up while agent was talking to third party ~p", [Callrec#call.id]),
@@ -1190,7 +1216,11 @@ case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid =
 				true ->
 					?NOTICE("~s left a voicemail", [UUID]),
 					Client = Callrec#call.client,
-					freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, Callrec#call.priority + 10, Client#client.id);
+
+					VMPriority = Callrec#call.priority +
+						State#state.vm_priority_diff,
+
+					freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, VMPriority, Client#client.id);
 				false ->
 					?NOTICE("~s hungup without leaving a voicemail", [UUID])
 			end
@@ -1296,3 +1326,16 @@ get_info(_, UUID, _) ->
 	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
 	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", ""}.
 
+get_rawcall_int(Key, Rawcall, Default) ->
+	case proplists:get_value(Key, Rawcall) of
+		undefined ->
+			Default;
+		ValStr ->
+			try list_to_integer(ValStr) of
+				ValInt -> ValInt
+			catch
+				error:badarg ->
+					?WARNING("Invalid value for ~s: ~p", [Key, ValStr]),
+					Default
+			end
+	end.

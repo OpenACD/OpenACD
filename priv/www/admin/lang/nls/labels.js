@@ -46,6 +46,7 @@ define({root:
 	DEPRIORITIZE: "Deprioritize",
 	SENDTOVOICEMAIL: "Send to voicemail",
 	MEDIAANNOUCE: "Media Annouce",
+	ENDCALL: "End Call",
 	ADDRECIPE: "Add Recipe",
 	RUNONCE: "Run Once",
 	RUNMANY: "Run Many",

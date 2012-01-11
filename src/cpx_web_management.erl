@@ -464,8 +464,8 @@ api(login, {_Reflist, undefined, _Conn}, _Post) ->
 api(login, {Reflist, Salt, _Login}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
-	try decrypt_password(Password) of
-		Decrypted ->
+	case util:decrypt_password(Password) of
+		{ok, Decrypted} ->
 			Salt = string:substr(Decrypted, 1, length(Salt)),
 			DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
 			%Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
@@ -477,10 +477,9 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
 				{allow, _id, _Skills, _Security, _Profile} ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})}
-			end
-	catch
-		error:decrypt_failed ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
+			end;
+	{error, decrypt_failed} ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
@@ -2623,20 +2622,6 @@ parse_posted_skills([Skill | Tail], Acc) ->
 			parse_posted_skills(Tail, [Newatom | Acc])
 	end.
 
-decrypt_password(Password) ->
-	Key = util:get_keyfile(),
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
-	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
-	binary_to_list(Bar).
-
 encode_client(Client) ->
 	FirstOptionsList = encode_client_options(Client#client.options),
 	Optionslist = case proplists:get_value(autowrapup, FirstOptionsList) of
@@ -2855,6 +2840,9 @@ decode_recipe_actions([{struct, Proplist} | Tail], Acc) ->
 			{voicemail, decode_recipe_args(voicemail, Argbin)};
 		<<"announce">> ->
 			{announce, decode_recipe_args(announce, Argbin)};
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+		<<"end_call">> ->
+			{end_call, []};
 		<<"add_recipe">> ->
 			{add_recipe, decode_recipe_args(add_recipe, Argbin)}
 	end,
@@ -2878,6 +2866,9 @@ decode_recipe_args(set_priority, Args) ->
 decode_recipe_args(prioritize, _Args) ->
 	[];
 decode_recipe_args(deprioritize, _Args) ->
+	[];
+	%% TODO added for testing only (implemented with focus on real Calls - no other media)
+decode_recipe_args(end_call, _Args) ->
 	[];
 decode_recipe_args(voicemail, Args) ->
 	binary_to_list(Args);
@@ -3022,6 +3013,9 @@ encode_recipe_actions([{Operation, Args} | Tail], Acc) ->
 			list_to_binary(Args);
 		add_recipe ->
 			% TODO:  more encoding
+			<<"">>;
+		%% TODO added for testing only (implemented with focus on real Calls - no other media)
+		end_call ->
 			<<"">>
 	end,
 	Head = {struct, [

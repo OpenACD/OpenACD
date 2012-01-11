@@ -1052,6 +1052,15 @@ handle_cast({mediaload, #call{type = voice}, Options}, State) ->
 	Json = {struct, lists:append(Base, Options)},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
+handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
+	Base = [
+		{<<"command">>, <<"mediaload">>},
+		{<<"media">>, <<"voicemail">>},
+		{<<"fullpane">>, false}
+	],
+	Json = {struct, lists:append(Base, Options)},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
 handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
 	case Mediatype of

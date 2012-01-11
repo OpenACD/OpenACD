@@ -1933,7 +1933,7 @@ set_state_test_() ->
 					{ok, Apid} = agent:start(#agent{login = "testagent"}),
 					{ok, {true, Apid}, State} 
 				end),
-			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
+			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
 			{Connpid}
 		end,
 		fun({Connpid}) ->

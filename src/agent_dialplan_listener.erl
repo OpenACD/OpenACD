@@ -115,9 +115,10 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 						id = AgentAuth#agent_auth.id,
 						login = AgentAuth#agent_auth.login,
 						skills = lists:umerge(lists:sort(AgentAuth#agent_auth.skills), lists:sort(['_agent', '_node'])),
-						profile = AgentAuth#agent_auth.profile
+						profile = AgentAuth#agent_auth.profile,
+						security_level = AgentAuth#agent_auth.securitylevel
 					},
-					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel, proplists:get_value(unavailable_timeout, State#state.start_opts)) of
+					case agent_dialplan_connection:start(Agent, proplists:get_value(unavailable_timeout, State#state.start_opts)) of
 						{ok, Pid} ->
 							?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),

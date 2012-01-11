@@ -87,7 +87,7 @@
 	weight = 1 :: non_neg_integer(),
 	skills = [english, '_node'] :: [atom()],
 	recipe = ?DEFAULT_RECIPE :: recipe(),
-	hold_music :: string(),
+	hold_music :: string() | undefined,
 	group = "Default" :: string(),
 	timestamp = util:now() :: pos_integer()
 }).

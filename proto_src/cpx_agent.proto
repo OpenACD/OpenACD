@@ -65,6 +65,7 @@ enum AgentRequestHint {
 	DEPRICATED_MEDIA_ANSWER = 25;
 	SET_ENDPOINT = 26;
 	AGENT_CHANNEL_REQUEST = 27;
+	PLUGIN_CALL = 26;
 }
 
 // The wrapper for agent requests.  These are sent by the agent,
@@ -86,6 +87,8 @@ message AgentRequest {
 	optional AgentClientVersion agent_client_version = 12;
 	optional SetEndpointRequest set_endpoint_request = 13;
 	optional AgentChannelRequest agent_channel_request = 14;
+	optional string plugin_app = 15;
+	extensions 2000 to max;
 }
 
 message AgentClientVersion {
@@ -274,6 +277,7 @@ enum ServerCommand {
 	ACHANNEL_STATE = 6;
 	ACHANNEL_MEDIA_EVENT = 7;
 	ACHANNEL_DOWN = 8;
+	PLUGIN_EVENT = 9;
 }
 
 // Events the agent did not ask about, like going ringing.
@@ -292,6 +296,8 @@ message ServerEvent {
 	optional AgentChannelStateChange agent_channel_state_change = 13;
 	optional AgentChannelMediaEvent media_event = 14;
 	optional string agent_channel_down = 15; //when command == ACHANNEL_DOWN
+	optional string plugin_app = 16;
+	extenstions 2000 to max;
 }
 
 message URLPopEvent {

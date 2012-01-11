@@ -999,14 +999,6 @@ log_change(_) -> ok.
 	
 -ifdef(TEST).
 
-%start_arbitrary_state_test() ->
-%	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
-%	?assertEqual({ok, idle}, query_state(Pid)),
-%	agent:stop(Pid).		
-
-make_agent() ->
-	make_agent([]).
-
 make_agent(Opts) ->
 	Fields = record_info(fields, agent),
 	BaseAgent = #agent{

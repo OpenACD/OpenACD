@@ -67,12 +67,29 @@
 %%		<td>`{get_client, label, Label :: string()}'</td>
 %%		<td>`none | {ok, Id :: string(), Label :: string(), Options :: [any()]}'</td>
 %%	</tr>
+%%	<tr>
+%%		<td>`{get_queue, Queue :: string()}'</td>
+%%		<td>`none | {ok, Name :: string(), Weight :: non_neg_integer(), Skills :: [skill()], HoldMusic :: string() | undefined, Group :: string()}'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{get_queue_group, QueueGroup :: string()}'</td>
+%%		<td>`none | {ok, Name :: string(), Recipe :: recipe(), Skills :: [skill()], Sort :: non_neg_integer(), Protected :: boolean()}'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{get_skill, Skill :: atom()}'</td>
+%%		<td>`none | {ok, SkillAtom :: atom(), Name :: string(), Protected :: boolean(), Desc :: string(), Group :: string()}'</td>
+%%	</tr>
+%%	<tr>
+%%		<td>`{get_profile, Name :: string()}'</td>
+%%		<td>`none | {ok, Name :: string(), Id :: string(), Order :: non_neg_integer(), Skills :: [skill()]}'</td>
+%%	</tr>
 %% </table>
 
 -module(integration).
 -author(micahw).
 
 -include("log.hrl").
+-include("queue.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -83,7 +100,11 @@
 	agent_auth/3,
 	client_exists/1,
 	client_exists/2,
-	get_client/2
+	get_client/2,
+	get_queue/1,
+	get_queue_group/1,
+	get_skill/1,
+	get_profile/1
 ]).
 
 %% @doc Returns `true' if an agent with the loging `Agent' exists, `false'
@@ -156,6 +177,61 @@ get_client(Key, Value) ->
 	end,
 	check_return(Out, Test).
 
+%% @doc Retrieve a queue by name
+-spec(get_queue/1 :: (Name :: string()) -> 'none' | {ok, string(), non_neg_integer(), [atom()], recipe() | undefined, string()} | {error, nointegration}).
+get_queue(Queue) ->
+	Out = do_call({get_queue, Queue}),
+	Test = fun
+		(none) ->
+			true;
+		({ok, _Name, _Weight, _Skills, _Recipe, _HoldMusic, _Group}) ->
+			true;
+		(_Else) ->
+			false
+	end,
+	check_return(Out, Test).
+
+%% @doc Retrieve a queue by name
+-spec(get_queue_group/1 :: (Name :: string()) -> 'none' | {ok, string(), recipe(), [atom()], boolean()} | {error, nointegration}).
+get_queue_group(QueueGroup) ->
+	Out = do_call({get_queue_group, QueueGroup}),
+	Test = fun
+		(none) ->
+			true;
+		({ok, _Name, _Recipe, _Skills, _Sort, _Protected}) ->
+			true;
+		(_Else) ->
+			false
+	end,
+	check_return(Out, Test).
+
+%% @doc Retrieve a skill
+-spec(get_skill/1 :: (Atom :: atom()) -> 'none' | {ok, atom(), string(), boolean(), string(), string()}).
+get_skill(Skill) ->
+	Out = do_call({get_skill, Skill}),
+	Test = fun
+		(none) ->
+			true;
+		({ok, _Skillatom, _Skillname, _Skillprotected, _Skilldesc, _Skillgroup}) ->
+			true;
+		(_Else) ->
+			false
+	end,
+	check_return(Out, Test).
+
+%% @doc Retrieve a profile (agent group)
+get_profile(Profile) ->
+	Out = do_call({get_profile, Profile}),
+	Test = fun
+		(none) ->
+			true;
+		({ok, _Name, _Id, _Order, _Options, _Skills}) ->
+			true;
+		(_Else) ->
+			false
+	end,
+	check_return(Out, Test).
+
 do_call(Message) ->
 	try gen_server:call(integration, Message, 4000) of
 		Reply ->
@@ -184,7 +260,10 @@ no_integration_test_() ->
 	?_assertEqual({error, nointegration}, get_client(label, "a_client")),
 	?_assertEqual({error, nointegration}, client_exists(comboid, "00010001")),
 	?_assertEqual({error, nointegration}, agent_auth("agent", "password", [])),
-	?_assertEqual({error, nointegration}, agent_exists("agent"))].
+	?_assertEqual({error, nointegration}, agent_exists("agent")),
+	?_assertEqual({error, nointegration}, get_queue("queue")),
+	?_assertEqual({error, nointegration}, get_queue_group("queuegroup")),
+	?_assertEqual({error, nointegration}, get_skill("skill"))].
 
 bad_integration_test_() ->
 	{foreach,
@@ -201,6 +280,10 @@ bad_integration_test_() ->
 	?_assertThrow({badreturn, gooberpants}, client_exists(label, "a_client")),
 	?_assertThrow({badreturn, gooberpants}, agent_auth("agent", "password", [])),
 	?_assertThrow({badreturn, gooberpants}, agent_exists("agent")),
+	?_assertThrow({badreturn, gooberpants}, get_queue("queue")),
+	?_assertThrow({badreturn, gooberpants}, get_queue_group("queuegroup")),
+	?_assertThrow({badreturn, gooberpants}, get_skill("skill")),
+	?_assertThrow({badreturn, gooberpants}, get_profile("profile")),
 	fun(Mock) ->
 		{"integration hits timeout",
 		fun() ->
@@ -278,6 +361,62 @@ good_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) -> {ok, none, State} end),
 			?assertEqual(none, get_client(label, "client"))
 		end}
-	end]}.	
-		
+	end,
+	fun(Mock) ->
+		{"can get queue",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "name", 10, [], [], undefined, "group"}, State} end),
+			?assertEqual({ok, "name", 10, [], [], undefined, "group"}, get_queue("queue"))
+		end}
+	end,
+	fun(Mock) ->
+		{"can't get queue",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, none, State} end),
+			?assertEqual(none, get_queue("queue"))
+		end}
+	end,
+	fun(Mock) ->
+		{"can get queue group",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, {ok, "queuegroup", [], [], 10, true}, State} end),
+			?assertEqual({ok, "queuegroup", [], [], 10, true}, get_queue_group("queuegroup"))
+		end}
+	end,
+	fun(Mock) ->
+		{"can't get queue group",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, none, State} end),
+			?assertEqual(none, get_queue_group("queuegroup"))
+		end}
+	end,
+	fun(Mock) ->
+		{"can get skill",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, {ok, skill, "skill", true, "desc", "misc"}, State} end),
+			?assertEqual({ok, skill, "skill", true, "desc", "misc"}, get_skill(skill))
+		end}
+	end,
+	fun(Mock) ->
+		{"can't get skill",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, none, State} end),
+			?assertEqual(none, get_skill(skill))
+		end}
+	end,
+	fun(Mock) ->
+		{"can get profile",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_profile, "profile"}, _, State) -> {ok, {ok, "profile", "id", 10, [{option, a}], [skill]}, State} end),
+			?assertEqual({ok, "profile", "id", 10, [{option, a}], [skill]}, get_profile("profile"))
+		end}
+	end,
+	fun(Mock) ->
+		{"can't get profile",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_profile, profile}, _, State) -> {ok, none, State} end),
+			?assertEqual(none, get_profile(profile))
+		end}
+	end
+	]}.	
 -endif.

@@ -97,6 +97,7 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([dummy_plugin/3]).
 -endif.
 
 -include("log.hrl").
@@ -109,8 +110,8 @@
 
 %% API
 -export([
-	start_link/2,
-	start/2,
+	start_link/1,
+	start/1,
 	stop/1,
 	api/2,
 	dump_agent/1,
@@ -153,7 +154,8 @@
 	queue_transfer/3,
 	init_outbound/3,
 	set_endpoint/4,
-	logout/1
+	logout/1,
+	plugin_call/3
 ]).
 
 -web_api_functions([
@@ -182,6 +184,7 @@
 	{queue_transfer, 3},
 	{init_outbound, 3},
 	{set_endpoint, 4},
+	{plugin_call, 3},
 	{poll, 2},
 	{logout, 1}
 ]).
@@ -472,6 +475,13 @@ set_endpoint(Conn, Endpoint, Data, Persist) ->
 load_media(Conn) ->
 	gen_server:call(Conn, mediaload).
 
+%% @doc {@web} Forward the request to the given plugin_app.  If the app
+%% is missing, or the call fails, expect an error.  Results will vary
+%% from plugin to plugin.
+-spec(plugin_call/3 :: (Conn :: pid(), Plugin :: string(), Args :: [any()]) -> any()).
+plugin_call(Conn, Plugin, Args) ->
+	gen_server:call(Conn, {plugin_call, Plugin, Args}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -491,14 +501,14 @@ is_web_api(Func, Arity) ->
 	lists:member({Func, Arity}, Api).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Agent, Security) ->
-	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Agent) ->
+	gen_server:start_link(?MODULE, [Agent], [{timeout, 10000}]).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Agent, Security) ->
-	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Agent) ->
+	gen_server:start(?MODULE, [Agent], [{timeout, 10000}]).
 
 %% @doc Stops the passed Web connection process.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -584,6 +594,15 @@ stop(Pid) ->
 %% 		and this is the final result.  The media will likely add more 
 %% 		properties.  No response is expected from the client.</td>
 %% 	</tr>
+%%  <tr>
+%%  	<td>pluginevent</td>
+%%		<td><ul>
+%%  		<li>"plugin_app": string()</li>
+%%  		<li>"event":  any()</li>
+%%  	</ul></td>
+%%  	<td>A Plugin can send events to specific agents.  Very plugin
+%%  	Specific.  Check the plugin documentation for details.</td>
+%%  </tr>
 %% </table>
 -spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
 poll(Pid, Frompid) ->
@@ -595,7 +614,7 @@ api(Pid, Apicall) ->
 	gen_server:call(Pid, Apicall).
 
 %% @doc Dump the state of agent associated with the passed connection.
--spec(dump_agent/1 :: (Pid :: pid()) -> {#agent{}, 'agent' | 'supervisor' | 'admin'}).
+-spec(dump_agent/1 :: (Pid :: pid()) -> #agent{}).
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
 
@@ -683,7 +702,8 @@ encode_statedata({}) ->
 %%--------------------------------------------------------------------
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Agent, Security]) ->
+init([Agent]) ->
+	#agent{security_level = Security} = Agent,
 	?DEBUG("web_connection init ~p with security ~w", [Agent, Security]),
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(Agent) of
@@ -814,7 +834,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 %	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
-	{reply, {Astate, State#state.securitylevel}, State};
+	{reply, Astate, State};
 handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
 	handle_call({agent_transfer, Agentname}, From, State);
@@ -897,6 +917,30 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_r
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}, {<<"errcode">>, <<"BAD_REQUEST">>}]})}, State}
+	end;
+handle_call({plugin_call, Plugin, Args}, _From, State) ->
+	Apps = [Appname || {Appname, _, _} <- application:which_applications(),
+		atom_to_list(Appname) =:= Plugin],
+	case Apps of
+		[] ->
+			{reply, ?reply_err(<<"No such plugin">>, <<"PLUGIN_NOEXISTS">>), State};
+		[App | _] ->
+			case application:get_env(App, agent_web_handler) of
+				undefined ->
+					{reply, ?reply_err(<<"Plugin doesn't handle web">>, <<"PLUGIN_NON_WEB">>), State};
+				{ok, {Mod, Func}} ->
+					Reply = erlang:apply(Mod, Func, [State#state.agent_fsm, {struct, []}, Args]),
+					case Reply of
+						{error, {Msg, Code}} when is_binary(Msg), is_binary(Code) ->
+							{reply, ?reply_err(Msg, Code), State};
+						{error, Else} ->
+							Msg = io_lib:format("~p", [Else]),
+							Msg0 = list_to_binary(Msg),
+							{reply, ?reply_err(Msg0, <<"UNKNOWN_ERROR">>), State};
+						{ok, Json} ->
+							{reply, ?reply_success(Json), State}
+					end
+			end
 	end;
 handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),
@@ -1761,7 +1805,7 @@ poll_flushing_test_() ->
 		gen_server_mock:expect_cast(WebListener, fun({linkto, _P}, _) ->
 			ok
 		end),
-		{ok, Seedstate} = init([Agent, agent]),
+		{ok, Seedstate} = init([Agent]),
 		AssertMocks = fun() ->
 			gen_server_mock:assert_expectations(WebListener),
 			gen_leader_mock:assert_expectations(AgentManMock)
@@ -1938,7 +1982,7 @@ set_state_test_() ->
 					{ok, {true, Apid}, State} 
 				end),
 			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
-			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
+			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
 			{Connpid}
 		end,
 		fun({Connpid}) ->
@@ -1960,6 +2004,75 @@ set_state_test_() ->
 			end
 		]
 	}.
+
+dummy_plugin(_AgentPid, _ReplyBase, <<"success">>) ->
+	{ok, <<"success">>};
+dummy_plugin(_AgentPid, _ReplyBase, [Msg, Code]) ->
+	{error, {Msg, Code}};
+dummy_plugin(_AgentPid, _ReplyBase, Error) ->
+	{error, Error}.
+
+simplify_web_response({reply, HttpData, _State}) ->
+	simplify_web_response(HttpData);
+
+simplify_web_response({200, _Headers, Json}) ->
+	simplify_web_response(Json);
+
+simplify_web_response({StatusCode, _Headers, _Content}) ->
+	{error, {bad_status, StatusCode}};
+
+simplify_web_response({struct, Props}) ->
+	case proplists:get_value(<<"success">>, Props, false) of
+		false ->
+			Msg = proplists:get_value(<<"message">>, Props, <<"missing_msg">>),
+			Code = proplists:get_value(<<"errcode">>, Props, <<"missing_code">>),
+			{error, {Code, Msg}};
+		true ->
+			Res = proplists:get_value(result, Props),
+			{ok, Res}
+	end;
+
+simplify_web_response(Json) ->
+	Decoded = mochijson2:decode(Json),
+	simplify_web_response(Decoded).
+
+plugin_call_test_() ->
+	{setup,
+	fun() ->
+		meck:new(application, [unstick, passthrough]),
+		meck:expect(application, which_applications, fun() ->
+			[{'OpenACD', "OpenACD", "1.0.0"},
+			{kernel, "ERTS  CXC 138 10", "2.14.5"}]
+		end),
+		application:set_env('OpenACD', agent_web_handler, {agent_web_connection, dummy_plugin}),
+		#state{}
+	end,
+	fun(_) ->
+		application:unset_env('OpenACD', agent_web_handler),
+		meck:unload(application)
+	end,
+	fun(State) -> [
+		{"no plugin", fun() ->
+			GRes = handle_call({plugin_call, "missing_app", "any"}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {error, {<<"PLUGIN_NOEXISTS">>, <<"No such plugin">>}},
+			?assertEqual(Expected, SimpleRes)
+		end},
+		{"Plugin isn't responding to web", fun() ->
+			GRes = handle_call({plugin_call, "kernel", "any"}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {error,
+				{<<"PLUGIN_NON_WEB">>, <<"Plugin doesn't handle web">>}
+			},
+			?assertEqual(Expected, SimpleRes)
+		end},
+		{"Plugin simple success", fun() ->
+			GRes = handle_call({plugin_call, "OpenACD", <<"success">>}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {ok, undefined},
+			?assertEqual(Expected, SimpleRes)
+		end}
+	] end}.
 
 %extract_groups_test() ->
 %	Rawlist = [

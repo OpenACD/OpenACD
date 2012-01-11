@@ -257,6 +257,39 @@ destroy_profile(Name) ->
 %% @doc Gets the proflie `string() Name'
 -spec(get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
 get_profile(Name) ->
+	try integration:get_profile(Name) of
+		none ->
+			?DEBUG("integration has no such profile ~p", [Name]),
+			destroy_profile(Name),
+			undefined;
+		{ok, Name, Id, Order, Options, Skills} ->
+			?DEBUG("integration found profile ~p", [Name]),
+
+			Rec = #agent_profile{
+				name = Name,
+				id = Id,
+				order = Order,
+				options = Options,
+				skills = Skills,
+				timestamp = util:now()
+			},
+
+			F = fun() -> mnesia:write(Rec) end,
+			{atomic, ok} = mnesia:transaction(F),
+			
+			local_get_profile(Name);
+		{error, nointegration} ->
+			?DEBUG("No integration, falling back for ~p", [Name]),
+			local_get_profile(Name)
+	catch
+		throw:{badreturn, Err} ->
+			?WARNING("Integration failed with message:  ~p", [Err]),
+			local_get_profile(Name)
+	end.
+
+
+-spec(local_get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
+local_get_profile(Name) ->
 	F = fun() ->
 		mnesia:read({agent_profile, Name})
 	end,
@@ -1231,7 +1264,42 @@ profile_test_() ->
 			#agent_profile{name = "C", skills = [testskill]}], 
 			get_profiles())
 	end}]}}.
-	
+
+profile_integration_test_() ->
+	util:start_testnode(),
+	N = util:start_testnode(agent_auth_profile_test),
+	{spawn, N, {foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+
+		{ok, Mock} = gen_server_mock:named({local, integration}),
+		Mock
+	end,
+	fun(Mock) -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		unregister(integration),
+		gen_server_mock:stop(Mock),
+		ok
+	end,
+	[{"Get a profile in integration", fun(Mock) ->
+		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", [testskill], []}} end),
+		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", [testskill], []}} end),
+
+		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}, get_profile("test profile")),
+		?assertEqual(#agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}, get_profile("test profile"))
+
+	end},
+	{"Get a non-existing profile in integration", fun(Mock) ->
+		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none} end),
+		?assertEqual(undefined, get_profile("test profile"))
+	end}
+	]}}.	
+
 diff_recs_test_() ->
 	[{"agent_auth records",
 	fun() ->

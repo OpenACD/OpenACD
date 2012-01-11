@@ -636,6 +636,19 @@ handle_cast({blind_transfer, Destination}, _Statename, Call, _GenMediaState, #st
 	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " 'm:^:bridge:" ++ Dialstring ++ "' inline"),
 	{wrapup, State#state{statename = 'blind_transfered'}};
 
+handle_cast({play_dtmf, []}, _Statename, _Call, _GenMediaState, State) ->
+	?DEBUG("Dtmf not played due to no digits", []),
+	{noreply, State};
+
+handle_cast({play_dtmf, Digits}, Statename, Call, GenMediaState, State) when is_binary(Digits) ->
+	handle_cast({play_dtmf, binary_to_list(Digits)}, Statename, Call, GenMediaState, State);
+
+handle_cast({play_dtmf, Digits}, _Statename, Call, _GenMediaState, #state{statename = oncall} = State) ->
+	#state{cnode = Fnode} = State,
+	#call{id = UUID} = Call,
+	freeswitch:bgapi(Fnode, uuid_send_dtmf, UUID ++ " " ++ Digits),
+	{noreply, State};
+
 %% web api's
 handle_cast({<<"toggle_hold">>, _}, Statename, Call, GenMediaState, State) ->
 	handle_cast(toggle_hold, Statename, Call, GenMediaState, State);
@@ -673,6 +686,13 @@ handle_cast({<<"audio_level">>, Arguments}, Statename, Call, GenMediaState, Stat
 handle_cast({<<"blind_transfer">>, Args}, Statename, Call, GenMediaState, State) ->
 	Dest = proplists:get_value("args", Args),
 	handle_cast({blind_transfer, Dest}, Statename, Call, GenMediaState, State);
+
+handle_cast({<<"play_dtmf">>, Args}, Statename, Call, GMState, State) ->
+	Digits = case proplists:get_value("args", Args, []) of
+		X when is_integer(X) -> integer_to_list(X);
+		X -> X
+	end,
+	handle_cast({play_dtmf, Digits}, Statename, Call, GMState, State);
 
 %% tcp api's
 handle_cast(Request, Statename, Call, GenMediaState, State) when is_record(Request, mediacommandrequest) ->
@@ -721,6 +741,17 @@ handle_cast(Request, Statename, Call, GenMediaState, State) when is_record(Reque
 					handle_cast({blind_transfer, Dest}, Statename, Call, GenMediaState, State);
 				BTIgnored ->
 					?DEBUG("blind transfer ignored:  ~p", [BTIgnored]),
+					{noreply, State}
+			end;
+		'PLAY_DTMF' ->
+			case cpx_freeswitch_pb:get_extension(FixedRequest, dtmf_string) of
+				{ok, []} ->
+					?DEBUG("dtmf request ignored due to lack of digits", []),
+					{noreply, State};
+				{ok, Dtmf} ->
+					handle_cast({send_dtmf, Dtmf}, Statename, Call, GenMediaState, State);
+				DtmfIgnored ->
+					?DEBUG("dtmf request ignored:  ~p", [DtmfIgnored]),
 					{noreply, State}
 			end;
 		FullReqIgnored ->

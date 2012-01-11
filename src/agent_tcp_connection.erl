@@ -876,7 +876,7 @@ service_request(#agentrequest{request_hint = 'PLUGIN_CALL', plugin_app = Plugin}
 						error_code = "PLUGIN_NON_TCP"
 					};
 				{Mod, Func} ->
-					erlang:apply(Mod, Func, [State#state.agent_fsm, Request, BaseReply])
+					erlang:apply(Mod, Func, [State#state.agent_fsm, BaseReply, Request])
 			end
 	end;
 service_request(_, BaseReply, State) ->

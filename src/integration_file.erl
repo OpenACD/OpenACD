@@ -40,6 +40,7 @@
 -include("call.hrl").
 -include("cpx.hrl").
 -include("agent.hrl").
+-include("queue.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -128,7 +129,7 @@ import_loop([]) ->
 import_loop([{client, ID, Label, Options} | Tail]) ->
 	call_queue_config:destroy_client(id, ID),
 	call_queue_config:destroy_client(label, Label),
-	call_queue_config:set_client(#client{
+	call_queue_config:new_client(#client{
 		id = ID,
 		label = Label,
 		options = Options
@@ -146,8 +147,51 @@ import_loop([{agent, Id, Login, Password, Security, Profile, Props} | Tail]) ->
 		profile = Profile,
 		extended_props = Props
 	}),
+	import_loop(Tail);
+import_loop([{queue, Name, Weight, Skills, Recipe, HoldMusic, Group} | Tail]) ->
+	call_queue_config:destroy_queue(Name),
+	call_queue_config:new_queue(#call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Skills,
+		recipe = Recipe,
+		hold_music = HoldMusic,
+		group = Group}),
+	queue_manager:load_queue(Name),
+	import_loop(Tail);
+import_loop([{queue_group, Name, Recipe, Skills, Sort, Protected} | Tail]) ->
+	call_queue_config:destroy_queue_group(Name),
+	call_queue_config:new_queue_group(#queue_group{
+		name = Name,
+		recipe = Recipe,
+		skills = Skills,
+		sort = Sort,
+		protected = Protected
+	}),
+	import_loop(Tail);
+import_loop([{skill, Atom, Name, Protected, Desc, Group} | Tail]) ->
+	call_queue_config:destroy_skill(Atom),
+	call_queue_config:new_skill(#skill_rec{
+		atom = Atom,
+		name = Name,
+		protected = Protected,
+		description = Desc,
+		group = Group
+	}),
+	import_loop(Tail);
+import_loop([{profile, Name, Id, Order, Options, Skills} | Tail]) ->
+	agent_auth:destroy_profile(Name),
+	agent_auth:new_profile(#agent_profile{
+		name = Name,
+		id = Id,
+		order = Order,
+		options = Options,
+		skills = Skills
+	}),
+	import_loop(Tail);
+import_loop([Integ | Tail]) ->
+	?WARNING("Unknown integration: ~p", [Integ]),
 	import_loop(Tail).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -216,6 +260,39 @@ handle_call({get_client, label, Value}, _From, State) ->
 		[{client, Id, Value, Props}] ->
 			{reply, {ok, Id, Value, Props}, State}
 	end;
+handle_call({get_queue, Val}, _From, State) ->
+	{ok, Terms} = file:consult(State#state.file),
+	case [X || {queue, Name, _, _, _, _, _} = X <- Terms, Name =:= Val] of
+		[] ->
+			{reply, none, State};
+		[{queue, Name, Weight, Skills, Recipe, HoldMusic, Group}] ->
+			{reply, {ok, Name, Weight, Skills, Recipe, HoldMusic, Group}, State}
+	end;
+handle_call({get_queue_group, Val}, _From, State) ->
+	{ok, Terms} = file:consult(State#state.file),
+	case [X || {queue_group, Name, _, _, _, _} = X <- Terms, Name =:= Val] of
+		[] ->
+			{reply, none, State};
+		[{queue_group, Name, Recipe, Skills, Sort, Protected}] ->
+			{reply, {ok, Name, Recipe, Skills, Sort, Protected}, State}
+	end;
+handle_call({get_skill, Val}, _From, State) ->
+	{ok, Terms} = file:consult(State#state.file),
+	case [X || {skill, Atom, _, _, _, _} = X <- Terms, Atom =:= Val] of
+		[] ->
+			{reply, none, State};
+		[{skill, Atom, Name, Protected, Desc, Group}] ->
+			{reply, {ok, Atom, Name, Protected, Desc, Group}, State}
+	end;
+handle_call({get_profile, Val}, _From, State) ->
+	{ok, Terms} = file:consult(State#state.file),
+	case [X || {profile, Name, _, _, _, _} = X <- Terms, Name =:= Val] of
+		[] ->
+			{reply, none, State};
+		[{profile, Name, Id, Order, Options, Skills}] ->
+			{reply, {ok, Name, Id, Order, Options, Skills}, State}
+	end;
+
 handle_call(_Request, _From, State) ->
     Reply = invalid,
     {reply, Reply, State}.

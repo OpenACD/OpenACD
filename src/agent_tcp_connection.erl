@@ -490,7 +490,7 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginRequest}, BaseReply, State) ->
 	Salt = State#state.salt,
 	CryptedPass = list_to_binary(LoginRequest#loginrequest.password),
-	case decrypt_password(CryptedPass) of
+	case util:decrypt_password(CryptedPass) of
 		{ok, Decrypted} ->
 			case string:substr(Decrypted, 1, length(Salt)) of
 				Salt ->
@@ -885,25 +885,6 @@ service_request(_, BaseReply, State) ->
 		error_code = "INVALID_REQUEST"
 	},
 	{Reply, State}.
-
-decrypt_password(Password) ->
-	Key = util:get_keyfile(),
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
-	try crypto:rsa_private_decrypt(Password, PrivKey, rsa_pkcs1_padding) of
-		Bar ->
-			{ok, binary_to_list(Bar)}
-	catch
-		error:decrypt_failed ->
-			{error, decrypt_failed}
-	end.
 
 state_to_pb(idle) ->
 	'IDLE';

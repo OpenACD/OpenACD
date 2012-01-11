@@ -97,6 +97,7 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([dummy_plugin/3]).
 -endif.
 
 -include("log.hrl").
@@ -850,12 +851,12 @@ handle_call({plugin_call, Plugin, Args}, _From, State) ->
 		atom_to_list(Appname) =:= Plugin],
 	case Apps of
 		[] ->
-			{reply, ?reply_err(<<"No such plugin">>, <<"PLUGIN_NOEXIST">>), State};
+			{reply, ?reply_err(<<"No such plugin">>, <<"PLUGIN_NOEXISTS">>), State};
 		[App | _] ->
 			case application:get_env(App, agent_web_handler) of
 				undefined ->
 					{reply, ?reply_err(<<"Plugin doesn't handle web">>, <<"PLUGIN_NON_WEB">>), State};
-				{Mod, Func} ->
+				{ok, {Mod, Func}} ->
 					Reply = erlang:apply(Mod, Func, [State#state.agent_fsm, {struct, []}, Args]),
 					case Reply of
 						{error, {Msg, Code}} when is_binary(Msg), is_binary(Code) ->
@@ -1969,6 +1970,75 @@ set_state_test_() ->
 			end
 		]
 	}.
+
+dummy_plugin(_AgentPid, _ReplyBase, <<"success">>) ->
+	{ok, <<"success">>};
+dummy_plugin(_AgentPid, _ReplyBase, [Msg, Code]) ->
+	{error, {Msg, Code}};
+dummy_plugin(_AgentPid, _ReplyBase, Error) ->
+	{error, Error}.
+
+simplify_web_response({reply, HttpData, _State}) ->
+	simplify_web_response(HttpData);
+
+simplify_web_response({200, _Headers, Json}) ->
+	simplify_web_response(Json);
+
+simplify_web_response({StatusCode, _Headers, _Content}) ->
+	{error, {bad_status, StatusCode}};
+
+simplify_web_response({struct, Props}) ->
+	case proplists:get_value(<<"success">>, Props, false) of
+		false ->
+			Msg = proplists:get_value(<<"message">>, Props, <<"missing_msg">>),
+			Code = proplists:get_value(<<"errcode">>, Props, <<"missing_code">>),
+			{error, {Code, Msg}};
+		true ->
+			Res = proplists:get_value(result, Props),
+			{ok, Res}
+	end;
+
+simplify_web_response(Json) ->
+	Decoded = mochijson2:decode(Json),
+	simplify_web_response(Decoded).
+
+plugin_call_test_() ->
+	{setup,
+	fun() ->
+		meck:new(application, [unstick, passthrough]),
+		meck:expect(application, which_applications, fun() ->
+			[{'OpenACD', "OpenACD", "1.0.0"},
+			{kernel, "ERTS  CXC 138 10", "2.14.5"}]
+		end),
+		application:set_env('OpenACD', agent_web_handler, {agent_web_connection, dummy_plugin}),
+		#state{}
+	end,
+	fun(_) ->
+		application:unset_env('OpenACD', agent_web_handler),
+		meck:unload(application)
+	end,
+	fun(State) -> [
+		{"no plugin", fun() ->
+			GRes = handle_call({plugin_call, "missing_app", "any"}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {error, {<<"PLUGIN_NOEXISTS">>, <<"No such plugin">>}},
+			?assertEqual(Expected, SimpleRes)
+		end},
+		{"Plugin isn't responding to web", fun() ->
+			GRes = handle_call({plugin_call, "kernel", "any"}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {error,
+				{<<"PLUGIN_NON_WEB">>, <<"Plugin doesn't handle web">>}
+			},
+			?assertEqual(Expected, SimpleRes)
+		end},
+		{"Plugin simple success", fun() ->
+			GRes = handle_call({plugin_call, "OpenACD", <<"success">>}, "from", State),
+			SimpleRes = simplify_web_response(GRes),
+			Expected = {ok, undefined},
+			?assertEqual(Expected, SimpleRes)
+		end}
+	] end}.
 
 %extract_groups_test() ->
 %	Rawlist = [

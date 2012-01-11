@@ -1758,7 +1758,7 @@ poll_flushing_test_() ->
 		gen_server_mock:expect_cast(WebListener, fun({linkto, _P}, _) ->
 			ok
 		end),
-		{ok, Seedstate} = init([Agent, agent]),
+		{ok, Seedstate} = init([Agent]),
 		AssertMocks = fun() ->
 			gen_server_mock:assert_expectations(WebListener),
 			gen_leader_mock:assert_expectations(AgentManMock)
@@ -1813,15 +1813,15 @@ poll_flushing_test_() ->
 			State1 = push_event(<<"string1">>, Seedstate),
 			State2 = push_event(<<"string2">>, State1),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string1">>, <<"string2">>]}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string3">>]}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"data">>, [<<"string4">>, <<"string5">>]}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
+				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
 				ok
 			end),
 			HandleInfoState1 = State2#state{poll_pid = WebListener},

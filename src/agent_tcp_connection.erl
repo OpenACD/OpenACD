@@ -60,22 +60,26 @@
 %-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
 -type(socket_module() :: 'gen_tcp' | 'ssl').
 -type(socket_type() :: 'gen_tcp' | 'ssl_upgrade').
+-type(chan_state() :: atom()).
+-type(chan_state_data() :: any()).
+-type(chan_mediaload() :: any()).
+-record(chan_dict_entry, {
+	state :: chan_state(),
+	statedata :: chan_state_data(),
+	mediaload :: chan_mediaload()
+}).
 -record(state, {
 		salt :: pos_integer(),
 		socket :: {socket_module(), port()},
 		radix :: integer(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
-		%send_queue = [] :: [string()],
-		%counter = 1 :: pos_integer(),
-		%unacked = [] :: [unacked_event()],
-		%resent = [] :: [unacked_event()],
-		%resend_counter = 0 :: non_neg_integer(),
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-		state,
-		statedata,
-		mediaload,
-		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade'
+		agent_state,
+		agent_statedata,
+		%mediaload,
+		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade',
+		channels = dict:new()
 	}).
 
 -type(state() :: #state{}).
@@ -176,31 +180,6 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 handle_cast({change_state, Statename, Statedata}, State) ->
 	Statechange = case Statename of
 		idle -> #statechange{ agent_state = 'IDLE'};
-		ringing -> #statechange{
-			agent_state = 'RINGING',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		oncall -> #statechange{
-			agent_state = 'ONCALL',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		wrapup -> #statechange{
-			agent_state = 'WRAPUP',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		warmtransfer -> #statechange{
-			agent_state = 'WARMTRANSFER',
-			call_record = protobuf_util:call_to_protobuf(element(2, Statedata)),
-			warm_transfer_number = element(4, Statedata)
-		};
-		precall -> #statechange{
-			agent_state = 'PRECALL',
-			client = protobuf_util:call_to_protobuf(Statedata)
-		};
-		outgoing -> #statechange{
-			agent_state = 'OUTGOING',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
 		released -> #statechange{
 			agent_state = 'RELEASED',
 			release = protobuf_util:release_to_protobuf(Statedata)
@@ -211,7 +190,7 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	{noreply, State#state{state = Statename, statedata = Statedata}};
+	{noreply, State#state{agent_state = Statename, agent_statedata = Statedata}};
 handle_cast({change_state, Statename}, State) ->
 	Statechange = #statechange{
 		agent_state = protobuf_util:statename_to_enum(Statename)
@@ -221,14 +200,51 @@ handle_cast({change_state, Statename}, State) ->
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	{noreply, State#state{state = Statename}};
-handle_cast({mediaload, Callrec}, State) ->
-	% TODO implement
-	?INFO("mediaload nyi (~p)", [Callrec]),
-	{noreply, State#state{mediaload = []}};
-handle_cast({mediaload, _Callrec, Options}, State) ->
-	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, Callrec, Data}, State) ->
+	{noreply, State#state{agent_state = Statename}};
+
+handle_cast({set_channel, Pid, StateName, Statedata}, #state{channels = AChannels} = State) ->
+	NewDict = case dict:find(Pid, AChannels) of
+		{ok, Data} ->
+			NewData = Data#chan_dict_entry{state = StateName, statedata = Statedata},
+			dict:store(Pid, NewData);
+		error ->
+			NewData = #chan_dict_entry{state = StateName, statedata = Statedata},
+			dict:store(Pid, NewData)
+	end,
+	ChanStateChange = #agentchannelstatechange{
+		statename = biggify_atom(StateName),
+		channel_id = pid_to_list(Pid),
+		call_record = case is_record(call, Statedata) of true -> Statedata; _ -> undefined end
+	},
+	Command = #serverevent{
+		command = 'ACHANNEL_STATE',
+		agent_channel_state_change = ChanStateChange
+	},
+	server_event(State#state.socket, Command, State#state.radix),
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({channel_died, Pid, NewAvail}, #state{channels = AChannels} = State) ->
+	NewDict = dict:erase(Pid, AChannels),
+	Command = #serverevent{
+		command = 'ACHANNEL_DOWN',
+		agent_channel_down = pid_to_list(Pid)
+	},
+	server_event(State#state.socket, Command, State#state.radix),
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({mediapush, ChanPid, _Callrec, {mediaload, Callrec}}, State) ->
+	#state{channels = ChanDict} = State,
+	NewDict = case dict:find(ChanPid, ChanDict) of
+		{ok, ChanData} ->
+			NewChanData = ChanData#chan_dict_entry{mediaload = Callrec},
+			dict:store(ChanPid, NewChanData);
+		error ->
+			NewChanData = #chan_dict_entry{mediaload = Callrec},
+			dict:store(ChanPid, NewChanData)
+	end,
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({mediapush, ChanPid, Callrec, Data}, State) ->
 	Newpush = translate_media_push(Callrec, Data, State),
 	case Newpush of
 		false -> 
@@ -253,10 +269,10 @@ handle_cast({change_profile, Profile}, State) ->
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
 handle_cast({url_pop, Url, Name}, State) ->
+	PopRec = #urlpopevent{ url = Url, window_id = Name },
 	Command = #serverevent{
 		command = 'AURLPOP',
-		url = Url,
-		url_window = Name
+    url_pop_event = PopRec
 	},
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
@@ -315,6 +331,16 @@ code_change(_OldVsn, State, _Extra) ->
 % =====
 % Internal functions
 % =====
+
+biggify_atom(Atom) ->
+	biggify_atom(Atom, list_to_existing_atom).
+
+biggify_atom(Atom, unsafe) ->
+	biggify_atom(Atom, list_to_atom);
+biggify_atom(Atom, safe) ->
+	biggify_atom(Atom, list_to_existing_atom);
+biggify_atom(Atom, ToAtom) ->
+	ToAtom(string:to_upper(atom_to_list(Atom))).
 
 translate_media_push(#call{type = voice} = Callrec, Data, State) when is_atom(Data) ->
 	NewData = case Data of
@@ -416,51 +442,16 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			{Reply, State};
 		{allow, Id, Skills, Security, Profile} ->
-			EndpointType = case LoginRequest#loginrequest.voipendpoint of
-				'SIP' -> sip;
-				'SIP_REGISTRATION' -> sip_registration;
-				'IAX' -> iax;
-				'H323' -> h323;
-				'PSTN' -> pstn
-			end,
-			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
-			Persistance = LoginRequest#loginrequest.use_persistent_ring,
-			Persisty = case LoginRequest#loginrequest.use_persistent_ring of
-				true -> persistent;
-				_ -> transient
-			end,
 			Username = LoginRequest#loginrequest.username,
-			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
-				{undefined, _, true} ->
-					%{{persistent, sip_registration}, Username};
-					{{undefined, persistent, sip_registration}, Username};
-				{undefined, _, _} ->
-					%{sip_registration, Username};
-					{{undefined, transient, sip_registration}, Username};
-				{sip_registration, undefined, true} ->
-					%{{persistent, sip_registration}, Username};
-					{{undefined, persistent, sip_registration}, Username};
-				{sip_registration, undefined, false} ->
-					%{sip_registration, Username};
-					{{undefined, transient, sip_registration}, Username};
-				{EndpointType, _, true} ->
-					{{undefined, persistent, EndpointType}, ProtoEndpointdata};
-				{EndpointType, _, _} ->
-					{{undefined, transient, EndpointType}, ProtoEndpointdata}
-			end,
 			Agent = #agent{
 				id = Id, 
-				defaultringpath = outband, 
 				login = LoginRequest#loginrequest.username, 
 				skills = Skills, 
-				profile=Profile, 
-				password=DecryptedPass,
-				endpointtype = Endpoint,
-				endpointdata = Endpointdata
+				profile=Profile
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
-					agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
+					%agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),
@@ -501,11 +492,9 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 						{allow, Id, Skills, Security, Profile} ->
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = outband, 
 								login = LoginRequest#loginrequest.username, 
 								skills = Skills, 
-								profile=Profile, 
-								password=DecryptedPass
+								profile=Profile
 							},
 							case agent_manager:start_agent(Agent) of
 								{ok, Pid} ->
@@ -619,7 +608,7 @@ service_request(#agentrequest{request_hint = 'GET_PROFILES'}, BaseReply, State) 
 service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, State) ->
 	RawAgents = agent_manager:list(),
 	AgentStates = [agent:dump_state(Pid) || {_K, {Pid, _Id, _Time, _Skills}} <- RawAgents],
-	Agents = [{availagent, X#agent.login, X#agent.profile, state_to_pb(X#agent.state)} || X <- AgentStates],
+	Agents = [{availagent, X#agent.login, X#agent.profile} || X <- AgentStates],
 	Reply = BaseReply#serverreply{
 		success = true,
 		agents = Agents
@@ -633,81 +622,45 @@ service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, Sta
 		release_opts = [protobuf_util:release_to_protobuf(default) | Opts]
 	},
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
-	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "invalid state change",
-				error_code = "INVALID_STATE_CHANGE"
-			};
-		ok ->
-			BaseReply#serverreply{
-				success = true
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
-	Reply = case whereis(freeswitch_media_manager) of
-		undefined ->
-			BaseReply#serverreply{
-				error_message = "freeswtich isn't available",
-				error_code = "MEDIA_NOEXISTS"
-			};
-		_Pid ->
-			case agent:dump_state(State#state.agent_fsm) of
-				#agent{state = released} = AgentRec ->
-					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
-					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
-						{ok, _} ->
-							BaseReply#serverreply{success = true};
-						{error, Error} ->
-							BaseReply#serverreply{
-								error_message = io_lib:format("ring test failed:  ~p", [Error]),
-								error_code = "UNKNOWN_ERROR"
-							}
-					end;
-				_ ->
-					BaseReply#serverreply{
-						error_message = "must be released to do a ring test",
-						error_code = "INVALID_STATE"
-					}
-			end
-	end,
-	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
-%	Number = WarmTransRequest#warmtransferrequest.number,
-%	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
+%service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+%	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
 %		invalid ->
 %			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
+%				error_message = "invalid state change",
+%				error_code = "INVALID_STATE_CHANGE"
+%			};
+%		ok ->
+%			BaseReply#serverreply{
+%				success = true
 %			}
 %	end,
 %	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
-%	Call = State#state.statedata,
-%	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
-%		invalid ->
+%service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
+%	Reply = case whereis(freeswitch_media_manager) of
+%		undefined ->
 %			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
-%			}
-%	end,
-%	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
-%	Call = State#state.statedata,
-%	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
-%		invalid ->
-%			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
-%			}
+%				error_message = "freeswtich isn't available",
+%				error_code = "MEDIA_NOEXISTS"
+%			};
+%		_Pid ->
+%			case agent:dump_state(State#state.agent_fsm) of
+%				#agent{release_data = undefined} ->
+%					BaseReply#serverreply{
+%						error_message = "must be released to do a ring test",
+%						error_code = "INVALID_STATE"
+%					};
+%				AgentRec ->
+%					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
+%					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
+%						{ok, _} ->
+%							BaseReply#serverreply{success = true};
+%						{error, Error} ->
+%							BaseReply#serverreply{
+%								error_message = io_lib:format("ring test failed:  ~p", [Error]),
+%								error_code = "UNKNOWN_ERROR"
+%							}
+%					end
+%			end
 %	end,
 %	{Reply, State};
 service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
@@ -715,33 +668,93 @@ service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
 	%% TODO Not a very elegant shutdown from this point onward...
 	Reply = BaseReply#serverreply{success = true},
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, BaseReply, #state{state = precall} = State) ->
-	Call = State#state.statedata,
-	Reply = case Call#call.direction of
-		outbound ->
-			case gen_media:call(Call#call.source, {dial, Number}) of
-				ok ->
-					BaseReply#serverreply{success = true};
-				{error, Error} ->
-					?NOTICE("Outbound call error ~p", [Error]),
-					BaseReply#serverreply{
-						error_message = io_lib:format("Error:  ~p", [Error]),
-						error_code = "UNKNOWN_ERROR"
-					}
-			end;
-		_ ->
-			BaseReply#serverreply{
-				error_message = "invalid call direction",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'AGENT_TRANSFER', agent_transfer = Transfer}, BaseReply, #state{state = oncall, statedata = Call} = State) ->
+%service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, BaseReply, #state{state = precall} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case Call#call.direction of
+%		outbound ->
+%			case gen_media:call(Call#call.source, {dial, Number}) of
+%				ok ->
+%					BaseReply#serverreply{success = true};
+%				{error, Error} ->
+%					?NOTICE("Outbound call error ~p", [Error]),
+%					BaseReply#serverreply{
+%						error_message = io_lib:format("Error:  ~p", [Error]),
+%						error_code = "UNKNOWN_ERROR"
+%					}
+%			end;
+%		_ ->
+%			BaseReply#serverreply{
+%				error_message = "invalid call direction",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+service_request(#agentrequest{request_hint = 'AGENT_CHANNEL_REQUEST',
+	agent_channel_request = ChanReq}, BaseReply, State) when
+	is_record(ChanReq, agentchannelrequest) ->
+		service_channel_request(ChanReq, BaseReply, State);
+%service_request(
+%	#agentrequest{request_hint = 'INIT_OUTBOUND', 
+%		init_outbound_request = Request}, 
+%	BaseReply, 
+%	#state{state = S} = State) when S =:= released; S =:= idle ->
+%	Reply = case Request#initoutboundrequest.media_type of
+%		"freeswitch" ->
+%			case whereis(freeswitch_media_manager) of
+%				undefined ->
+%					BaseReply#serverreply{
+%						error_message = "freeswitch not available",
+%						error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+%					};
+%				Pid ->
+%					case freeswitch_media_manager:make_outbound_call(Request#initoutboundrequest.client_id, State#state.agent_fsm, State#state.agent_login) of
+%						{ok, Pid} ->
+%							Call = gen_media:get_call(Pid),
+%							% yes, This should die horribly if it fails.
+%							ok = agent:set_state(State#state.agent_fsm, precal, Call),
+%							BaseReply#serverreply{success = true};
+%						{error, Reason} ->
+%							BaseReply#serverreply{
+%								error_message = io_lib:format("initializing outbound call failed (~p)", [Reason]),
+%								error_code = "UNKNOWN_ERROR"
+%							}
+%					end
+%			end;
+%		OtherMedia ->
+%			?INFO("Media ~s not yet available for outboundiness.", [OtherMedia]),
+%			BaseReply#serverreply{
+%				error_message = "Media not available for outbound",
+%				error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{state = ringing} = State) ->
+%	Reply = case agent:set_state(State#state.agent_fsm, oncall) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "invalid state change",
+%				error_code = "INVALID_STATE_CHANGE"
+%			}
+%	end,
+%	{Reply, State};
+service_request(_, BaseReply, State) ->
+	Reply = BaseReply#serverreply{
+		error_message = "request not implemented",
+		error_code = "INVALID_REQUEST"
+	},
+	{Reply, State}.
+
+service_channel_request(#agentchannelrequest{request_hint = 'AGENT_TRANSFER', agent_transfer_request = Transfer} = ChanReq, BaseReply, State)
+		when is_record(Transfer, agenttransferrequest) ->
+	%% TODO use the channel id to do this.
 	case Transfer#agenttransferrequest.other_data of
 		undefined ->
 			ok;
 		Caseid ->
-			gen_media:cast(Call#call.source, {set_caseid, Caseid})
+			%gen_media:cast(Call#call.source, {set_caseid, Caseid})
+			ok
 	end,
 	Reply = case agent_manager:query_agent(Transfer#agenttransferrequest.agent_id) of
 		{true, Target} ->
@@ -761,15 +774,15 @@ service_request(#agentrequest{request_hint = 'AGENT_TRANSFER', agent_transfer = 
 			}
 	end,
 	{Reply, State};
-service_request(
-	#agentrequest{
-		request_hint = 'MEDIA_COMMAND', 
-		media_command_request = Command}, 
-	BaseReply, 
-	#state{statedata = C} = State) when is_record(C, call) ->
+
+service_channel_request(#agentchannelrequest{request_hint =
+		'MEDIA_COMMAND', media_command_request = Command} = ChanReq,
+		BaseReply, State) when is_record(Command, mediacommandrequest) ->
+	% TODO kinda useless w/o pulling out the channel id.
 	Reply = case Command#mediacommandrequest.need_reply of
 		true ->
-			try gen_media:call(C#call.source, Command) of
+			%try gen_media:call(C#call.source, Command) of
+			try invalid of
 				invalid ->
 					BaseReply#serverreply{
 						error_message = "invalid media call",
@@ -789,15 +802,19 @@ service_request(
 					}
 			end;
 		false ->
-			gen_media:cast(C#call.source, Command),
+			%gen_media:cast(C#call.source, Command),
 			BaseReply#serverreply{success = true}
 	end,
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+
+service_channel_request(#agentchannelrequest{request_hint =
+		'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, State)
+		when is_record(Trans, queuetransferrequest) ->
+	% TODO use the channel id.
 	TransOpts = Trans#queuetransferrequest.transfer_options,
-	gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
+	%gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
 	Skills = convert_skills(TransOpts#queuetransferoptions.skills),
-	gen_media:add_skills(C#call.source, Skills),
+	%gen_media:add_skills(C#call.source, Skills),
 	Reply = case agent:queue_transfer(State#state.agent_fsm, Trans#queuetransferrequest.queue_name) of
 		ok ->
 			BaseReply#serverreply{success = true};
@@ -807,59 +824,8 @@ service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_re
 				error_code = "INVALID_STATE_CHANGE"
 			}
 	end,
-	{Reply, State};
-service_request(
-	#agentrequest{request_hint = 'INIT_OUTBOUND', 
-		init_outbound_request = Request}, 
-	BaseReply, 
-	#state{state = S} = State) when S =:= released; S =:= idle ->
-	Reply = case Request#initoutboundrequest.media_type of
-		"freeswitch" ->
-			case whereis(freeswitch_media_manager) of
-				undefined ->
-					BaseReply#serverreply{
-						error_message = "freeswitch not available",
-						error_code = "MEDIA_TYPE_NOT_AVAILABLE"
-					};
-				Pid ->
-					case freeswitch_media_manager:make_outbound_call(Request#initoutboundrequest.client_id, State#state.agent_fsm, State#state.agent_login) of
-						{ok, Pid} ->
-							Call = gen_media:get_call(Pid),
-							% yes, This should die horribly if it fails.
-							ok = agent:set_state(State#state.agent_fsm, precal, Call),
-							BaseReply#serverreply{success = true};
-						{error, Reason} ->
-							BaseReply#serverreply{
-								error_message = io_lib:format("initializing outbound call failed (~p)", [Reason]),
-								error_code = "UNKNOWN_ERROR"
-							}
-					end
-			end;
-		OtherMedia ->
-			?INFO("Media ~s not yet available for outboundiness.", [OtherMedia]),
-			BaseReply#serverreply{
-				error_message = "Media not available for outbound",
-				error_code = "MEDIA_TYPE_NOT_AVAILABLE"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{state = ringing} = State) ->
-	Reply = case agent:set_state(State#state.agent_fsm, oncall) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "invalid state change",
-				error_code = "INVALID_STATE_CHANGE"
-			}
-	end,
-	{Reply, State};
-service_request(_, BaseReply, State) ->
-	Reply = BaseReply#serverreply{
-		error_message = "request not implemented",
-		error_code = "INVALID_REQUEST"
-	},
 	{Reply, State}.
+% TODO add media_load and media_hangup handlings.
 
 decrypt_password(Password) ->
 	Key = util:get_keyfile(),

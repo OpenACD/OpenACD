@@ -371,12 +371,6 @@ handle_cast({to_queue, Queue, Skills, Options}, #state{socket = {Mod, Socket}} =
 	ok = Mod:send(Socket, Bin),
 	NewRequests = [{NewId, 'QUEUE_TRANSFER'} | State#state.requests],
 	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
-handle_cast({to_other, Other}, #state{socket = {Mod, Socket}} = State) ->
-	Request = #warmtransferrequest{number = Other},
-	{NewId, Bin} = make_bin(Request, State#state.last_req_id),
-	ok = Mod:send(Socket, Bin),
-	NewRequests = [{NewId, 'WARM_TRANSFER_BEGIN'} | State#state.requests],
-	{noreply, State#state{last_req_id = NewId, requests = NewRequests}};
 handle_cast({do_request, Request}, #state{last_req_id = OldId, socket = {Mod, Socket}} = State) ->
 	{NewId, Bin} = make_bin(Request, OldId),
 	ok = Mod:send(Socket, Bin),
@@ -487,8 +481,13 @@ make_bin(Record, LastReqId) when is_record(Record, agenttransferrequest) ->
 	ReqId = make_req_id(LastReqId),
 	Request = #agentrequest{
 		request_id = ReqId,
-		request_hint = 'AGENT_TRANSFER',
-		agent_transfer = Record
+		request_hint = 'AGENT_CHANNEL_REQUEST',
+		agent_channel_request = #agentchannelrequest{
+			request_hint = 'AGENT_TRANSFER',
+			%% TODO chan id needed.
+			channel_id = "goober",
+			agent_transfer_request = Record
+		}
 	},
 	NetBin = make_netstring(Request),
 	{ReqId, NetBin};
@@ -496,8 +495,12 @@ make_bin(Record, LastReqId) when is_record(Record, queuetransferrequest) ->
 	ReqId = make_req_id(LastReqId),
 	Request = #agentrequest{
 		request_id = ReqId,
-		request_hint = 'QUEUE_TRANSFER',
-		queue_transfer_request = Record
+		request_hint = 'AGENT_CHANNEL_REQUEST',
+		agent_channel_request = #agentchannelrequest{
+			request_hint = 'QUEUE_TRANSFER',
+			channel_id = "goober",
+			queue_transfer_request = Record
+		}
 	},
 	NetBin = make_netstring(Request),
 	{ReqId, NetBin};
@@ -618,14 +621,9 @@ handle_server_message(#serverreply{request_hinted = Hint} = Reply, #state{socket
 					crypto:rsa_public_encrypt(list_to_binary(Salt ++ Options#options.password), [crypto:mpint(list_to_integer(E)), crypto:mpint(list_to_integer(N))], rsa_pkcs1_padding)
 			end,
 			Username = Options#options.username,
-			VoipEndPointData = Options#options.voipendpoint_data,
-			Voipendpoint = Options#options.voipendpoint,
 			LoginRequest = #loginrequest{
 				username = Username,
-				password = Password,
-				voipendpoint = Voipendpoint,
-				voipendpointdata = VoipEndPointData,
-				use_persistent_ring = Options#options.persistent_ring
+				password = Password
 			},
 			{NewId, Bin} = make_bin(LoginRequest, State#state.last_req_id),
 			ok = Mod:send(Socket, Bin),
@@ -679,7 +677,7 @@ handle_server_message(Event, #state{socket = {_Mod, Socket}} = State) ->
 			?INFO("Blab:  ~s", [Event#serverevent.text_message]),
 			State;
 		'AURLPOP' ->
-			?INFO("Url pop ~s in window ~s", [Event#serverevent.url, Event#serverevent.url_window]),
+			?INFO("Url pop ~p", [Event#serverevent.url_pop_event]),
 			State;
 		'MEDIA_EVENT' ->
 			?INFO("Media event:  ~p", [Event#serverevent.media_event]),

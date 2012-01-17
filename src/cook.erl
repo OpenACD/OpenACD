@@ -225,7 +225,7 @@ handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	{noreply, State2};
 handle_info(grab, #state{qpid = Qpid} = State) ->
 	% TODO - we should wait to see if more nodes want to bind to make distributed delivery fairer
-	?DEBUG("a dispatcher grabbed the call", []),
+	%?DEBUG("a dispatcher grabbed the call", []),
 	case do_route(State#state.ringstate, Qpid, State#state.call) of
 		nocall ->
 			{stop, {call_not_queued, State#state.call}, State};
@@ -350,13 +350,13 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
-				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
+				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				%dispatcher:regrab(Dpid),
 				[];
 			{unknown_call, get_agents} ->
 				[];
 			Ag ->
-				[{K, {Apid, Aid, Askills, node(Dpid)}} || {K, {Apid, Aid, Askills}} <- Ag]
+				[{K, {Apid, Aid, Askills, node(Dpid)}} || {K, #agent_cache{pid = Apid, id = Aid, skills = Askills}} <- Ag]
 		catch
 			What:Why ->
 				?INFO("Caught:  ~p:~p", [What, Why]),
@@ -367,9 +367,6 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	Agents2 = lists:flatten(Agents),
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
 	agent_manager:sort_agents_by_elegibility(Agents2).
-	%Out = agent_manager:rotate_based_on_list_count(Agents3),
-	%?DEBUG("The out:  ~p", [Out]),
-	%Out.
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
@@ -1085,9 +1082,9 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
+		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+			#agent{login = "agent2", id = "agent2", skills = ['_all']},
+			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
 		Outlist = [begin
 			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
 				ok
@@ -1168,9 +1165,9 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
+		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+			#agent{login = "agent2", id = "agent2", skills = ['_all']},
+			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
 		List = [begin
 			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
 				ok

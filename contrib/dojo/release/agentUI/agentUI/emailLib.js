@@ -7,34 +7,123 @@ dojo.require("agentUI.util");
 dojo.provide("agentUI.emailLib");
 
 if(typeof(emailLib) === 'undefined'){
+	dojo.create('script', {type:'text/javascript', src:'/html-sanitizer-minified.js'}, dojo.query('head')[0], 'last');
+	
 	emailLib = function(){
 		throw new Error("emailLib is a lib, and so can't be instantiated");
 	};
+
+	emailLib.Email = function(agentChannel, mode){
+		this.channel = agentChannel;
+		if(mode == 'supervisor'){
+			this.mode = 'supervisor';
+		} else {
+			this.mode = 'api';
+		}
+	};
+
+	emailLib.Email.prototype.getSkeleton = function(){
+		var pubChan = 'emailLib/get_skeleton/' + this.channel.channelId;
+		var chanId = this.channel.channelId;
+		this.channel.agent.webApi(this.mode, 'media_call', {
+			success:function(res){
+				dojo.publish(pubChan, [res]);
+			}
+		}, chanId, 'get_skeleton');
+	};
 	
-	dojo.create('script', {type:'text/javascript', src:'/html-sanitizer-minified.js'}, dojo.query('head')[0], 'last');
-	
-	emailLib.getSkeleton = function(){
+	/*emailLib.getSkeleton = function(){
 		// yay globals!
 		window.agentConnection.webApi('api', 'media_command', {
 			success:function(res){
 				dojo.publish('emailLib/get_skeleton', [res]);
 			}
 		}, 'get_skeleton', 'call');
-	};
+	};*/
 	
-	emailLib.getPath = function(path){
-		window.agentConnection.webApi('api', 'media_command', {
+	emailLib.Email.prototype.getPath = function(path){
+		var pubChan = 'emailLib/get_path/' + this.channel.channelId;
+		this.channel.agent.webApi(this.mode, 'media_call', {
 			success:function(res){
-				dojo.publish("emailLib/get_path/" + path, [res]);
+				dojo.publish(pubChan + '/' + path, [res]);
 			},
 			error:function(err, ioxhr){
 				//console.error('getPath error', arguments);
-				dojo.publish("emailLib/get_path/" + path, [ioxhr.xhr.responseText]);
+				dojo.publish(pubChan + "/" + path, [ioxhr.xhr.responseText]);
 			},
 			failure:function(code, msg){
 				console.warn('getPath failure', code, msg);
 			}
-		}, 'get_path', 'call', [path]);
+		}, this.channel.channelId, 'get_path', [path]);
+	};
+
+	emailLib.Email.prototype.fetchPaths = function(fetchObjs, fetched){
+		console.log(["fetchPaths", fetchObjs[0]]);
+		if(this.fetchSub){
+			return false;
+		}
+		
+		if(! fetched){
+			fetched = "";
+		}
+		
+		var jpath = fetchObjs[0].path.join("/");
+		var fetchSubChan = 'emailLib/get_path/' + jpath + '/' + this.channel.channelId;
+		console.log("subbed to", fetchSubChan);
+		if(fetchObjs[0].mode === 'a'){
+			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
+		}
+		else if(fetchObjs[0].mode === 'img'){
+			fetched += '<img src="/' + jpath + '" />';
+		}
+		else if(fetchObjs[0].mode === 'fetch'){
+			this.fetchSub = dojo.subscribe(fetchSubChan, this, function(res){
+				console.log("sub hit", fetchSubChan, res);
+				dojo.unsubscribe(this.fetchSub);
+				this.fetchSub = false;
+				if(fetchObjs[0].textType){
+					if(fetchObjs[0].textType === 'html'){
+						fetched += html_sanitize(res, emailLib.urlSanitize, emailLib.nameIdSanitize);
+					}else{
+						res = emailLib.scrubString(res).replace(/\n/g, '<br />');
+						fetched += '<span style="font-family:monospace;">' + replaceUrls(res) + '</span>';
+					}
+				}
+				else{
+					fetched += res;
+				}
+				fetchObjs.shift();
+				if(fetchObjs.length > 0){
+					this.fetchPaths(fetchObjs, fetched);
+				}
+				else{
+					dojo.publish("emailLib/fetchPaths/done/" + this.channel.channelId, [fetched]);
+				}
+			});			
+			this.getPath(fetchObjs[0].path);
+			return;
+		}
+		fetchObjs.shift();
+		if(fetchObjs.length > 0){
+			this.fetchPaths(fetchObjs, fetched);
+		}
+		else{
+			dojo.publish("emailLib/fetchPaths/done/" + this.channel.channelId, [fetched]);
+		}
+	};
+
+	emailLib.Email.prototype.getFrom = function(callback){
+		this.channel.agent.webApi(this.mode, 'media_call', {
+			success:function(res){
+				callback(res);
+			},
+			failure:function(code, msg){
+				console.warn("getFrom failed", code, msg);
+			},
+			error:function(err){
+				console.error("err getFrom", err);
+			}
+		}, this.channel.channelId, 'get_from', 'call');
 	};
 	
 	emailLib.pathsToFetch = function(skeleton, path, fetches){
@@ -54,7 +143,7 @@ if(typeof(emailLib) === 'undefined'){
 			return out;
 		};
 		
-		debug(["pathsToFetch", skeleton, path]);
+		console.log(["pathsToFetch", skeleton, path]);
 		var tpath;
 		var i = 0;
 		if( (skeleton.type === "multipart") && (skeleton.subtype === "alternative") ){
@@ -93,7 +182,7 @@ if(typeof(emailLib) === 'undefined'){
 				}
 			}
 			
-			debug(["fetches", fetches]);
+			console.log("fetches", fetches);
 			return fetches;
 		}
 		
@@ -154,60 +243,6 @@ if(typeof(emailLib) === 'undefined'){
 		return fetches;
 	};
 	
-	emailLib.fetchPaths = function(fetchObjs, fetched){
-		debug(["fetchPaths", fetchObjs[0]]);
-		if(emailLib.fetchSub){
-			return false;
-		}
-		
-		if(! fetched){
-			fetched = "";
-		}
-		
-		var jpath = fetchObjs[0].path.join("/");
-		
-		console.log("subbed to", "emailLib/get_path/" + fetchObjs[0].path.join("/"));
-		if(fetchObjs[0].mode === 'a'){
-			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
-		}
-		else if(fetchObjs[0].mode === 'img'){
-			fetched += '<img src="/' + jpath + '" />';
-		}
-		else if(fetchObjs[0].mode === 'fetch'){
-			emailLib.fetchSub = dojo.subscribe("emailLib/get_path/" + jpath, function(res){
-				console.log("sub hit", "emailLib/get_path/" + jpath, res);
-				dojo.unsubscribe(emailLib.fetchSub);
-				emailLib.fetchSub = false;
-				if(fetchObjs[0].textType){
-					if(fetchObjs[0].textType === 'html'){
-						fetched += html_sanitize(res, emailLib.urlSanitize, emailLib.nameIdSanitize);
-					}else{
-						res = emailLib.scrubString(res).replace(/\n/g, '<br />');
-						fetched += '<span style="font-family:monospace;">' + replaceUrls(res) + '</span>';
-					}
-				}
-				else{
-					fetched += res;
-				}
-				fetchObjs.shift();
-				if(fetchObjs.length > 0){
-					emailLib.fetchPaths(fetchObjs, fetched);
-				}
-				else{
-					dojo.publish("emailLib/fetchPaths/done", [fetched]);
-				}
-			});			
-			emailLib.getPath(fetchObjs[0].path);
-			return;
-		}
-		fetchObjs.shift();
-		if(fetchObjs.length > 0){
-			emailLib.fetchPaths(fetchObjs, fetched);
-		}
-		else{
-			dojo.publish("emailLib/fetchPaths/done", [fetched]);
-		}
-	};
 	
 	//scrub &, <, and > so it's displayable via html
 	emailLib.scrubString = function(instr){
@@ -248,19 +283,6 @@ if(typeof(emailLib) === 'undefined'){
 		return "santizationPrefix-" + name;
 	};
 
-	emailLib.getFrom = function(callback){
-		window.agentConnection.webApi('api', 'media_command', {
-			success:function(res){
-				callback(res);
-			},
-			failure:function(code, msg){
-				console.warn("getFrom failed", code, msg);
-			},
-			error:function(err){
-				console.error("err getFrom", err);
-			}
-		}, 'get_from', 'call');
-	};
 }
 
 });

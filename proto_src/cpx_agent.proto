@@ -31,10 +31,14 @@ import "cpx_base.proto";
 
 package openacd.agent;
 
+/////////////////////////////////////////////////////////////////////////
+// Agent requests
+/////////////////////////////////////////////////////////////////////////
+
 // The list of requests the server supports.
 // Media commands are forwarded to media modules,
 // thus they are not defined here.
-enum RequestHint {
+enum AgentRequestHint {
 	CHECK_VERSION = 1;
 	GET_SALT = 2;
 	LOGIN = 3;
@@ -45,8 +49,8 @@ enum RequestHint {
 	GET_PROFILES = 8;
 	GET_AVAIL_AGENTS = 9;
 	GO_IDLE = 10;
-	LOAD_MEDIA = 11;
-	MEDIA_HANGUP = 12;
+	DEPRICATED_LOAD_MEDIA = 11;
+	DEPRICATED_MEDIA_HANGUP = 12;
 	RING_TEST = 13;
 	DEPRICATED_WARM_TRANSFER_BEGIN = 14;
 	DEPRICATED_WARM_TRANSFER_COMPLETE = 15;
@@ -54,11 +58,13 @@ enum RequestHint {
 	GO_RELEASED = 17;
 	LOGOUT = 18;
 	DIAL = 19;
-	AGENT_TRANSFER = 20;
-	MEDIA_COMMAND = 21;
-	QUEUE_TRANSFER = 23;
+	DEPRICATED_AGENT_TRANSFER = 20;
+	DEPRICATED_MEDIA_COMMAND = 21;
+	DEPRICATED_QUEUE_TRANSFER = 23;
 	INIT_OUTBOUND = 24;
-	MEDIA_ANSWER = 25;
+	DEPRICATED_MEDIA_ANSWER = 25;
+	SET_ENDPOINT = 26;
+	AGENT_CHANNEL_REQUEST = 27;
 }
 
 // The wrapper for agent requests.  These are sent by the agent,
@@ -68,106 +74,23 @@ message AgentRequest {
 	// reference number used by the server when replying.
 	required int64 request_id = 1;
 	// type of request
-	required RequestHint request_hint = 2;
+	required AgentRequestHint request_hint = 2;
 	optional LoginRequest login_request = 3;
-	optional AgentTransferRequest agent_transfer = 4;
+	optional AgentTransferRequest DEPRICATED_agent_transfer = 4;
 	optional string dial_request = 5;
 	optional InitOutboundRequest init_outbound_request = 6;
-	optional MediaCommandRequest media_command_request = 7;
-	optional QueueTransferRequest queue_transfer_request = 8;
-	optional WarmTransferRequest DEPRICATED_warm_transfer_request = 9;
+	optional MediaCommandRequest DEPRICATED_media_command_request = 7;
+	optional QueueTransferRequest DEPRICATED_queue_transfer_request = 8;
+	optional DEPRICATED_WarmTransferRequest DEPRICATED_warm_transfer_request = 9;
 	optional GoReleasedRequest go_released_request = 11;
 	optional AgentClientVersion agent_client_version = 12;
-}
-
-// The wrapper for messages coming from the server to the client.
-// Since message can either be in reply to a request (see above)
-// or concerning new events (like an agent starts ringing), the 
-// type hint here is event vs reply.
-message ServerMessage {
-	enum TypeHint {
-		REPLY = 1;
-		EVENT = 2;
-	}
-	required  TypeHint type_hint = 1;
-	optional ServerReply reply = 2;
-	optional ServerEvent event = 3;
-}
-
-// This message is in reference to a request made by an agent earlier.
-message ServerReply {
-	// The id the agent provided for it's request.
-	required int64 request_id = 1;
-	// the request hint the agent provided.
-	required RequestHint request_hinted = 2;
-	// if the request was successfuly carried out.
-	required bool success = 3;
-	// if there was problem, this is the english human message.
-	optional string error_message = 4; //default english error message
-	// A localization type code on what the error is.
-	// May lack the details the error_message has.
-	optional string error_code = 5;
-	repeated Release release_opts = 6;
-	repeated AvailAgent agents = 7;
-	repeated SimpleKeyValue queues = 8;
-	repeated SimpleKeyValue brands = 9;
-	repeated string profiles = 10;
-	optional QueueTransferOptions queue_transfer_opts = 11;
-	// Very media dependant.
-	optional MediaCommandReply media_command_reply = 12;
-	optional SaltReply salt_and_key = 13;
-	// Very media dependant
-	optional MediaEvent media_event = 14;
-}
-
-// An agent client MUST at least understand the A* commands.  Event 
-// media_event, because those will only occur while the agent is oncall.
-// If the agent could not handle that media inband, it should not have 
-// answered the call.
-enum ServerCommand {
-	ASTATE = 1;
-	APROFILE = 2;
-	ABLAB = 3;
-	AURLPOP = 4;
-	MEDIA_EVENT = 5;
-}
-
-message AvailAgent {
-	required string name = 1;
-	required string profile = 2;
-	required AgentState state = 3;
-}
-
-// Events the agent did not ask about, like going ringing.
-message ServerEvent {
-	required ServerCommand command = 1;
-	optional string profile = 2;
-	optional StateChange state_change = 3;
-	optional CallRecord call_data = 4;
-	optional string text_message = 6;
-	optional string number_dialed = 7;
-	optional ClientRecord client = 8;
-	optional string url = 9;
-	optional string url_window = 10;
-	optional MediaEvent media_event = 11;
-}
-
-message MediaCommandRequest {
-	required bool need_reply = 1;
-	extensions 2000 to max;
-}
-
-message MediaCommandReply {
-	extensions 2000 to max;
-}
-
-message MediaEvent {
-	extensions 2000 to max;
+	optional SetEndpointRequest set_endpoint_request = 13;
+	optional AgentChannelRequest agent_channel_request = 14;
 }
 
 message AgentClientVersion {
-	required int32 major = 1 [default=0];
-	required int32 minor = 2 [default=2];
+	required int32 major = 1 [default=2];
+	required int32 minor = 2 [default=0];
 }
 
 message LoginRequest {
@@ -180,10 +103,68 @@ message LoginRequest {
 	}
 	required string username = 1;
 	required string password = 2;
-	optional VoipEndpoint voipendpoint = 3 [default=SIP];
-	optional string voipendpointdata = 4;
-	optional bool use_outband_ring = 5;
-	optional bool use_persistent_ring = 6;
+	optional VoipEndpoint DEPRICATED_voipendpoint = 3 [default=SIP];
+	optional string DEPRICATED_voipendpointdata = 4;
+	optional bool DEPRICATED_use_outband_ring = 5;
+	optional bool DEPRICATED_use_persistent_ring = 6;
+	repeated MediaEndpoint media_endpoints = 7;
+}
+
+message SetEndpointRequest {
+	required string module_name = 1;
+	optional MediaEndpointData endpoint_data = 2;
+}
+
+message MediaEndpointData {
+	extensions 2000 to max;
+}
+
+message MediaEndpoint {
+	required string module_name = 1;
+	extensions 2000 to max;
+}
+
+message GoReleasedRequest {
+	optional bool use_default = 1 [default=false];
+	optional Release release_opt = 2;
+}
+
+message StateChange {
+	required AgentState agent_state = 1;
+	optional CallRecord call_record = 2;
+	optional Release release = 3;
+	optional ClientRecord client = 4;
+	optional string warm_transfer_number = 5;
+	optional bool ssl_upgrade = 6 [default=false];
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Agent Channel requests
+/////////////////////////////////////////////////////////////////////////
+
+enum AgentChannelRequestHint {
+	MEDIA_ANSWER = 1;
+	LOAD_MEDIA = 2;
+	AGENT_TRANSFER = 3;
+	QUEUE_TRANSFER = 4;
+	MEDIA_COMMAND = 5;
+	MEDIA_HANGUP = 6;
+}
+
+message AgentChannelRequest {
+	required AgentChannelRequestHint request_hint = 1;
+	required string channel_id = 2;
+	// media answer has no arguments/options.
+	// load_media hs no arguments/options
+	optional AgentTransferRequest agent_transfer_request = 3;
+	optional QueueTransferRequest queue_transfer_request = 4;
+	optional MediaCommandRequest media_command_request = 5;
+	// media hangup has no arguments/options
+}
+
+message MediaCommandRequest {
+	required bool need_reply = 1;
+	extensions 2000 to max;
 }
 
 message AgentTransferRequest {
@@ -204,18 +185,57 @@ message QueueTransferRequest {
 	required QueueTransferOptions transfer_options = 2;
 }
 
-message QueueTransferOptions {
-	repeated SimpleKeyValue options = 1;
-	repeated Skill skills = 2;
+/////////////////////////////////////////////////////////////////////////
+// Server messages
+/////////////////////////////////////////////////////////////////////////
+
+// The wrapper for messages coming from the server to the client.
+// Since message can either be in reply to a request (see above)
+// or concerning new events (like an agent starts ringing), the 
+// type hint here is event vs reply.
+message ServerMessage {
+	enum TypeHint {
+		REPLY = 1;
+		EVENT = 2;
+	}
+	required  TypeHint type_hint = 1;
+	optional ServerReply reply = 2;
+	optional ServerEvent event = 3;
 }
 
-message WarmTransferRequest {
-	required string number = 1;
-}
+/////////////////////////////////////////////////////////////////////////
+// Server replies
+/////////////////////////////////////////////////////////////////////////
 
-message GoReleasedRequest {
-	optional bool use_default = 1 [default=false];
-	optional Release release_opt = 2;
+// This message is in reference to a request made by an agent earlier.
+message ServerReply {
+	// The id the agent provided for it's request.
+	required int64 request_id = 1;
+	// the request hint the agent provided.
+	required AgentRequestHint request_hinted = 2;
+	// if the request was successfuly carried out.
+	required bool success = 3;
+	// if there was problem, this is the english human message.
+	optional string error_message = 4; //default english error message
+	// A localization type code on what the error is.
+	// May lack the details the error_message has.
+	optional string error_code = 5;
+	// response to get release opts
+	repeated Release release_opts = 6;
+	// repsonse to get available agents, useful to get before agent transfer
+	repeated AvailAgent agents = 7;
+	// response to getting list of queues, useful to get before queue transfer
+	repeated SimpleKeyValue queues = 8;
+	// response to getting list of clients/brands, useful before precall
+	repeated SimpleKeyValue brands = 9;
+	// response to getting list of profiles; useful to supervisor for blab.
+	repeated string profiles = 10;
+	// response to getting queue transfer options.
+	optional QueueTransferOptions queue_transfer_opts = 11;
+	// Very media dependant, response to agent_channel request for media.
+	optional MediaCommandReply media_command_reply = 12;
+	// response for get salt during login procedure.
+	optional SaltReply salt_and_key = 13;
 }
 
 message SaltReply {
@@ -224,11 +244,81 @@ message SaltReply {
 	required string pubkey_n = 3;
 }
 
-message StateChange {
-	required AgentState agent_state = 1;
-	optional CallRecord call_record = 2;
-	optional Release release = 3;
-	optional ClientRecord client = 4;
-	optional string warm_transfer_number = 5;
-	optional bool ssl_upgrade = 6 [default=false];
+message AvailAgent {
+	required string name = 1;
+	required string profile = 2;
+	required AgentState state = 3;
+}
+
+message MediaCommandReply {
+	extensions 2000 to max;
+}
+
+message QueueTransferOptions {
+	repeated SimpleKeyValue options = 1;
+	repeated Skill skills = 2;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Server Events
+/////////////////////////////////////////////////////////////////////////
+
+// An agent client MUST understand the commands below; at least the ones
+// not marked as depricated.
+enum ServerCommand {
+	ASTATE = 1;
+	APROFILE = 2;
+	ABLAB = 3;
+	AURLPOP = 4;
+	DEPRICATED_MEDIA_EVENT = 5;
+	ACHANNEL_STATE = 6;
+	ACHANNEL_MEDIA_EVENT = 7;
+	ACHANNEL_DOWN = 8;
+}
+
+// Events the agent did not ask about, like going ringing.
+message ServerEvent {
+	required ServerCommand command = 1;
+	optional string profile = 2; // when command == APROFILE
+	optional StateChange state_change = 3; // when command == ASTATE
+	optional CallRecord DEPRICATED_call_data = 4;
+	optional string text_message = 6; // when command == ABLAB
+	optional string DEPRICATED_number_dialed = 7;
+	optional ClientRecord DEPRICATED_client = 8;
+	optional string DEPRICATED_url = 9; 
+	optional string DEPRICATED_url_window = 10;
+	optional MediaEvent DEPRICATED_media_event = 11;
+	optional URLPopEvent url_pop_event = 12; // when command == AURLPOP
+	optional AgentChannelStateChange agent_channel_state_change = 13;
+	optional AgentChannelMediaEvent media_event = 14;
+	optional string agent_channel_down = 15; //when command == ACHANNEL_DOWN
+}
+
+message URLPopEvent {
+	required string url = 1;
+	// if set, try to reuse a window/tab with the given name.
+	optional string window_id = 2;
+}
+
+message AgentChannelMediaEvent {
+	required string channel_id = 2;
+	optional MediaEvent media_event = 4;
+}
+
+message AgentChannelStateChange {
+	required AgentChannelState statename = 1;
+	required string channel_id = 2;
+	optional CallRecord call_record = 3; // ringing, oncall, wrapup
+}
+	
+message MediaEvent {
+	extensions 2000 to max;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Deprication will end us all.
+/////////////////////////////////////////////////////////////////////////
+
+message DEPRICATED_WarmTransferRequest {
+	required string number = 1;
 }

@@ -637,71 +637,6 @@ api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
 
 %% =====
-%% agents -> spiceintegration
-%% =====
-api({agents, "spiceintegration", "get"}, ?COOKIE, _Post) ->
-	Settings = case cpx_supervisor:get_conf(spicecsm_integration) of
-		undefined ->
-			{struct, [{<<"spiceIntegrationEnabled">>, false}]};
-		#cpx_conf{start_args = [Args | _]} = Conf ->
-			?DEBUG("conf:  ~p", [Conf]),
-			{struct, [
-				{<<"spiceIntegrationEnabled">>, true},
-				{<<"server">>, list_to_binary(proplists:get_value(server, Args))},
-				{<<"username">>, list_to_binary(proplists:get_value(username, Args, ""))},
-				{<<"password">>, list_to_binary(proplists:get_value(password, Args, ""))}
-			]}
-	end,
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, Settings}]})};
-api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
-	case proplists:get_value("spiceIntegrationEnabled", Post) of
-		undefined ->
-			cpx_supervisor:destroy(spicecsm_integration),
-			{200, [], mochijson2:encode({struct, [{success, true}]})};
-		_Else ->
-			case proplists:get_value("server", Post) of
-				undefined ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Server required">>}]})};
-				Server ->
-					Username = proplists:get_value("username", Post, ""),
-					Password = proplists:get_value("password", Post, ""),
-					case proplists:get_value("spiceIntegratoinImport", Post) of
-						undefined ->
-							Conf = #cpx_conf{
-								id = spicecsm_integration,
-								module_name = spicecsm_integration,
-								start_function = start_link,
-								supervisor = agent_sup,
-								start_args = [[
-									{server, Server},
-									{username, Username},
-									{password, Password}
-								]]},
-							Addres = cpx_supervisor:update_conf(spicecsm_integration, Conf),
-							case Addres of
-								{atomic, _} ->
-									{200, [], mochijson2:encode({struct, [{success, true}]})};
-								Else ->
-									?WARNING("Could not start spicecsm integration:  ~p", [Else]),
-									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"service errored on start">>}]})}
-							end;
-						"spiceIntegrationImport" ->
-							Args = [
-								{server, Server},
-								{username, Username},
-								{password, Password},
-								add_conf
-							],
-							F = fun() ->
-								spicecsm_integration:import(Args)
-							end,
-							spawn(F),
-							{200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"import in progress">>}]})}
-					end
-			end
-	end;
-						
-%% =====
 %% agents -> profiles
 %% =====
 api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
@@ -794,7 +729,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 			?DEBUG("Updating password", []),
 			agent_auth:set_agent(Agent, [
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(proplists:get_value("password", Post)))},
+				{password, proplists:get_value("password", Post)},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
@@ -821,7 +756,7 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			Fixedskills = parse_posted_skills(Postedskills),
 			agent_auth:add_agent([
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(Confirmpw))},
+				{password, Confirmpw},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
@@ -2525,8 +2460,6 @@ parse_path(Path) ->
 					end;
 				["", "agents", "modules", Action] ->
 					{api, {agents, "modules", Action}};
-				["", "agents", "spiceintegration", Action] ->
-					{api, {agents, "spiceintegration", Action}};
 				["", "agents", "profiles", Action] ->
 					{api, {agents, "profiles", Action}};
 				["", "agents", "profiles", Profile, Action] ->

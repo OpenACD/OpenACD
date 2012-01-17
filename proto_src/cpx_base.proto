@@ -34,13 +34,21 @@ package openacd;
 enum AgentState {
 	PRELOGIN = 1;
 	IDLE = 2;
-	RINGING = 3;
-	PRECALL = 4;
-	ONCALL = 5;
-	OUTGOING = 6;
+	DEPRICATED_RINGING = 3;
+	DEPRICATED_PRECALL = 4;
+	DEPRICATED_ONCALL = 5;
+	DEPRICATED_OUTGOING = 6;
 	RELEASED = 7;
-	WARMTRANSFER = 8;
-	WRAPUP = 9;
+	DEPRICATED_WARMTRANSFER = 8;
+	DEPRICATED_WRAPUP = 9;
+}
+
+enum AgentChannelState {
+	PRERING = 1;
+	RINGING = 2;
+	PRECALL = 3;
+	ONCALL = 4;
+	WRAPUP = 5;
 }
 
 // use this repeated to make a proplist.
@@ -89,6 +97,8 @@ message CallRecord {
 	}
 	optional Direction direction = 8 [default=INBOUND];
 	optional string node = 9;
+	required string module_source = 10;
+	repeated SimpleKeyValue arbitrary = 11;
 }
 
 message Release {

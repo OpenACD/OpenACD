@@ -1,0 +1,135 @@
+<div style="width:100%; height: 100%" class="mediaTab">
+<div dojoType="dijit.layout.BorderContainer" design="sidbar" gutters="true" liveSplitters="true" style="width:100%;height:100%" dojoAttachPoint="topNode">
+	<div dojoType="dojox.layout.ContentPane" region="center" splitter="true" dojoAttachPoint="mediaPane">This is where media data will go.</div>
+	<div dojoType="dijit.layout.ContentPane" region="trailing" style="text-align:right; width:300px" splitter="true" dojoAttachPoint="controlBar">
+
+			<p>
+				<label for="state" class="narrow">STATE</label>
+				<span dojoAttachPoint="agentStateNode"></span>
+			</p>
+			<p>
+				<label for="brand" class="narrow">BRAND</label>
+				<span dojoAttachPoint="agentBrandNode"></span>
+			</p>
+			<p>
+				<label for="callerid" class="narrow">CALLERID</label>
+				<span dojoAttachPoint="calleridNode"></span>
+			</p>
+			<p>
+				<label for="calltype" class="narrow">MEDIATYPE</label>
+				<span dojoAttachPoint="callTypeNode"></span>
+			</p>
+		<select dojoAttachPoint="outboundcallSelect"></select>
+
+		<div dojoType="dijit.form.DropDownButton" dojoAttachPoint="startTransferDropDown" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").TRANSFERTOMENU);
+			</script>
+			<span>TRANSFERTOMENU</span>
+			<div dojoType="dijit.Menu" dojoAttachPoint="transfertoMenu">
+				<div dojoType="dijit.PopupMenuItem" dojoAttachPoint="transferToAgentMenu">
+					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").AGENT);
+					</script>
+					<script type="dojo/connect" event="onMouseEnter">
+						//window.agentConnection.getAvailAgents();
+					</script>
+					<span>AGENT</span>
+					<div dojoType="dijit.Menu" dojoAttachPoint="transferToAgentMenuDyn">
+					</div>
+				</div>
+				<div dojoType="dijit.PopupMenuItem" dojoAttachPoint="transferToQueueMenu">
+					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").QUEUE);
+					</script>
+					<span>QUEUE</span>
+					<div dojoType="dijit.Menu" dojoAttachPoint="transferToQueueMenuDyn">
+					</div>
+				</div>
+				<div dojoType="dijit.MenuItem" label="Transfer to 3rd Party">
+					<script type="dojo/connect" event="onClick">
+					//onclick="Agent.warmtransfer('2440131');">
+						// TODO das fix
+						//dojo.byId('foo').style.display = 'inline';
+						dijit.byId('wtcancel').attr('style', 'display:inline');
+						dijit.byId('wtdial').attr('style', 'display:inline');
+						dijit.byId('btransfer').attr('style', 'display:none');
+					</script>
+				</div>
+			</div>
+		</div>
+
+		<!-- was id=foo 
+		<div id="foo" style="clear:both;">-->
+			<input type="text" value="" dojoType="dijit.form.ValidationTextBox" 
+				regExp="[\d]+" invalidMessage="Invalid number - no spaces, parentheses or dashes" purpose="dialbox" />
+		<!--</div>-->
+		<button dojoType="dijit.form.Button" dojoAttachPoint="warmtransferDialbutton" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").DIAL);
+			</script>
+			<!--<script type="dojo/connect" event="onClick">
+				dijit.byId('wtcancel').suppressHide = true;
+				window.agentConnection.warmtransfer(dijit.byId('dialbox').attr('value'));
+			</script>-->
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="warmtransferCompleteButton" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").COMPLETE);
+			</script>
+			<!--<script type="dojo/connect" event="onClick">
+				window.agentConnection.warmtransfercomplete();
+			</script>-->
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="warmtransferCancelButton" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
+			</script>
+			<!--<script type="dojo/connect" event="onClick">
+				dojo.byId('foo').style.display = 'none';
+				dijit.byId('wtcancel').attr('style', 'display:none');
+				dijit.byId('wtcomplete').attr('style', 'display:none');
+				dijit.byId('wtdial').attr('style', 'display:none');
+				dijit.byId('btransfer').attr('style', 'display:inline');
+				window.agentConnection.warmtransfercancel();
+			</script>-->
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="dialButton" style="display:none"><!-- onclick=window.agentConnection.dial()>-->
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").DIAL);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="cancelButton" style="display:none"><!-- onclick=window.agentConnection.setState("idle")>-->
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="answerButton">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="hangupButton" style="display:none"><!-- onclick=window.agentConnection.setState("wrapup")>-->
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" dojoAttachPoint="endWrapupButton" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").ENDWRAPUP);
+			</script>
+		</button>
+	</div>
+</div>
+</div>

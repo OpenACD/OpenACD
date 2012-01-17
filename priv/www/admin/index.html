@@ -254,43 +254,6 @@ dojo.addOnLoad(init);
 		
 		<div dojoType="dijit.layout.StackContainer" region="center" id="agentsMain">		
 			<div dojoType="dijit.layout.ContentPane" id="agentModuleSettings">
-				<form dojoType="dijit.form.Form" id="editSpicecsmIntegration" action="javascript:void(0)" method="post">
-					<p>
-						<label for="spiceIntegrationEnabled">&nbsp;</label>
-						<input id="spiceIntegrationEnabled" name="spiceIntegrationEnabled" dojoType="dijit.form.CheckBox" value="spiceIntegrationsEnabled" onChange='dojo.publish("agent/modules/spicecsm_integration/enabled_changed", [dijit.byId("spiceIntegrationEnabled").checked]);'>
-						</input>
-						<span class="translate">ENABLESPICEINTEGRATION</span>
-					</p>
-					<p>
-						<label for="spiceIntegrationImport">&nbsp;</label>
-						<span style="width:1em;display:inline-block"></span>
-						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").set("disabled", ! data) } );' />
-						<span class="translate">IMPORTSPICEINTEGRATION</span>
-					<p>
-						<label for="spiceServer" class="translatecol">SERVER</label>
-						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").set("disabled", ! data) });'>
-						</input>
-					</p>
-					<p>
-						<label for="spiceUsername" class="translatecol">USERNAME</label>
-						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").set("disabled", ! data) });' />
-					</p>
-					<p>
-						<label for="spicePassword" class="translatecol">PASSWORD</label>
-						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").set("disabled", ! data) });' />
-					</p>
-					<p>
-						<label>&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="SUBMIT" id="spiceIntegrationSubmit">
-							<script type="dojo/connect" event="onClick">
-								agents.setSpiceIntegration('editSpicecsmIntegration');
-							</script>
-							<script type="dojo/method" event="postCreate">
-								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
-							</script>
-						</button>
-					</p>
-				</form>
 				<iframe src="/loadAgents.html" name="loadAgetsFromFileFrame" id="loadAgetsFromFileFrame" frameborder="0" width="100%" height="650px"></iframe>
 			</div>
 			

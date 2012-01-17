@@ -52,6 +52,7 @@
 ]).
 -endif.
 
+-include_lib("public_key/include/OTP-PUB-KEY.hrl").
 -export([
 	string_split/3,
 	string_split/2,
@@ -83,7 +84,8 @@
 	run_dir/0,
 	get_pubkey/0,
 	get_keyfile/0,
-	get_certfile/0
+	get_certfile/0,
+	decrypt_password/1
 ]).
 %% time tracking util functions
 -export([
@@ -561,16 +563,12 @@ get_keyfile() ->
 			filename:join(run_dir(), Keyfile)
 	end.
 
+-spec(get_pubkey/0 :: () -> [non_neg_integer()]).
 get_pubkey() ->
 	Key = get_keyfile(),
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	{ok, PemBin} = file:read_file(Key),
+	[Entry] = public_key:pem_decode(PemBin),
+	#'RSAPrivateKey'{modulus=N, publicExponent=E} = public_key:pem_entry_decode(Entry),
 	[E, N].
 
 get_certfile() ->
@@ -580,6 +578,21 @@ get_certfile() ->
 			Certfile;
 		_ ->
 			filename:join(run_dir(), Certfile)
+	end.
+
+-spec(decrypt_password/1 :: (Password :: string()) -> {ok, string()} | {error, decrypt_failed}).
+decrypt_password(Password) ->
+	Key = get_keyfile(),
+	{ok, PemBin} = file:read_file(Key),
+	[Entry] = public_key:pem_decode(PemBin),
+	PrivKey = public_key:pem_entry_decode(Entry),
+	try public_key:decrypt_private(util:hexstr_to_bin(Password),
+			PrivKey, [{rsa_pad, rsa_pkcs1_padding}]) of
+		Bar ->
+			{ok, binary_to_list(Bar)}
+	catch
+		error:decrypt_failed ->
+			{error, decrypt_failed}
 	end.
 
 -ifdef(TEST).

@@ -59,6 +59,7 @@ enum RequestHint {
 	QUEUE_TRANSFER = 23;
 	INIT_OUTBOUND = 24;
 	MEDIA_ANSWER = 25;
+	PLUGIN_CALL = 26;
 }
 
 // The wrapper for agent requests.  These are sent by the agent,
@@ -78,6 +79,8 @@ message AgentRequest {
 	optional WarmTransferRequest DEPRICATED_warm_transfer_request = 9;
 	optional GoReleasedRequest go_released_request = 11;
 	optional AgentClientVersion agent_client_version = 12;
+	optional string plugin_app = 13;
+	extensions 2000 to max;
 }
 
 // The wrapper for messages coming from the server to the client.
@@ -118,6 +121,7 @@ message ServerReply {
 	optional SaltReply salt_and_key = 13;
 	// Very media dependant
 	optional MediaEvent media_event = 14;
+	extensions 2000 to max;
 }
 
 // An agent client MUST at least understand the A* commands.  Event 
@@ -130,6 +134,7 @@ enum ServerCommand {
 	ABLAB = 3;
 	AURLPOP = 4;
 	MEDIA_EVENT = 5;
+	PLUGIN_EVENT = 6;
 }
 
 message AvailAgent {
@@ -150,6 +155,8 @@ message ServerEvent {
 	optional string url = 9;
 	optional string url_window = 10;
 	optional MediaEvent media_event = 11;
+	optional string plugin_app = 12;
+	extensions 2000 to max;
 }
 
 message MediaCommandRequest {

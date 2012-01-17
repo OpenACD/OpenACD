@@ -773,6 +773,19 @@ handle_cast({blind_transfer, Destination}, Call, #state{statename = oncall} = St
 	freeswitch:bgapi(Fnode, uuid_transfer, UUID ++ " 'm:^:bridge:" ++ Dialstring ++ "' inline"),
 	{wrapup, State#state{statename = 'blind_transfered'}};
 
+handle_cast({play_dtmf, []}, Call, State) ->
+	?DEBUG("Dtmf not played due to no digits", []),
+	{noreply, State};
+
+handle_cast({play_dtmf, Digits}, Call, State) when is_binary(Digits) ->
+	handle_cast({play_dtmf, binary_to_list(Digits)}, Call, State);
+
+handle_cast({play_dtmf, Digits}, Call, #state{statename = oncall} = State) ->
+	#state{cnode = Fnode} = State,
+	#call{id = UUID} = Call,
+	freeswitch:bgapi(Fnode, uuid_send_dtmf, UUID ++ " " ++ Digits),
+	{noreply, State};
+
 %% web api's
 handle_cast({<<"toggle_hold">>, _}, Call, State) ->
 	handle_cast(toggle_hold, Call, State);
@@ -810,6 +823,13 @@ handle_cast({<<"audio_level">>, Arguments}, Call, State) ->
 handle_cast({<<"blind_transfer">>, Args}, Call, State) ->
 	Dest = proplists:get_value("args", Args),
 	handle_cast({blind_transfer, Dest}, Call, State);
+
+handle_cast({<<"play_dtmf">>, Args}, Call, State) ->
+	Digits = case proplists:get_value("args", Args, []) of
+		X when is_integer(X) -> integer_to_list(X);
+		X -> X
+	end,
+	handle_cast({play_dtmf, Digits}, Call, State);
 
 %% tcp api's
 handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) ->
@@ -855,6 +875,17 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 					handle_cast({blind_transfer, Dest}, Call, State);
 				BTIgnored ->
 					?DEBUG("blind transfer ignored:  ~p", [BTIgnored]),
+					{noreply, State}
+			end;
+		'PLAY_DTMF' ->
+			case cpx_freeswitch_pb:get_extension(FixedRequest, dtmf_string) of
+				{ok, []} ->
+					?DEBUG("dtmf request ignored due to lack of digits", []),
+					{noreply, State};
+				{ok, Dtmf} ->
+					handle_cast({send_dtmf, Dtmf}, Call, State);
+				DtmfIgnored ->
+					?DEBUG("dtmf request ignored:  ~p", [DtmfIgnored]),
 					{noreply, State}
 			end;
 		FullReqIgnored ->

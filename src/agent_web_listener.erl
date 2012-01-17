@@ -492,7 +492,7 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 -spec(check_cookie/1 :: (Cookie :: cookie_res()) -> web_reply()).
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
-	{Agentrec, Security} = agent_web_connection:dump_agent(Conn),
+	Agentrec = agent_web_connection:dump_agent(Conn),
 	{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
 	Peristence = case PersistAtom of
 		persistent -> true;
@@ -501,7 +501,7 @@ check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
-		{<<"securityLevel">>, Security},
+		{<<"securityLevel">>, Agentrec#agent.security_level},
 		{<<"state">>, Agentrec#agent.state},
 		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
 		{<<"statetime">>, Agentrec#agent.lastchange},
@@ -692,8 +692,8 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 		_ ->
 			inband
 	end,
-	try decrypt_password(Password) of
-		Decrypted ->
+	case util:decrypt_password(Password) of
+		{ok, Decrypted} ->
 			try
 				Salt = string:substr(Decrypted, 1, length(Salt)),
 				string:substr(Decrypted, length(Salt) + 1)
@@ -736,15 +736,16 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 								profile=Profile, 
 								password=DecryptedPassword,
 								endpointtype = Endpoint,
-								endpointdata = Endpointdata
+								endpointdata = Endpointdata,
+								security_level = Security
 							},
-							case agent_web_connection:start(Agent, Security) of
+							case agent_web_connection:start(Agent) of
 								{ok, Pid} ->
 									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 									%agent:set_endpoint(Pid, Endpoint, Endpointdata, Persistantness),
 									gen_server:call(Pid, {set_endpoint, Endpoint, Endpointdata, Persistantness}),
 									linkto(Pid),
-									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
@@ -768,10 +769,9 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 				error:{badmatch, _} ->
 					?NOTICE("authentication failure for ~p using salt ~p (expected ~p)", [Username, string:substr(Decrypted, 1, length(Salt)), Salt]),
 					?reply_err(<<"Invalid salt">>, <<"NO_SALT">>)
-			end
-	catch
-		error:decrypt_failed ->
-			?reply_err(<<"Password decryption failed">>, <<"DECRYPT_FAILED">>)
+			end;
+	{error, decrypt_failed} ->
+		?reply_err(<<"Password decryption failed">>, <<"DECRYPT_FAILED">>)
 	end.
 
 %% @doc {@web} Returns a list of queues configured in the system.  Useful
@@ -968,20 +968,6 @@ parse_path(Path) ->
 					end
 			end
 	end.
-
-decrypt_password(Password) ->
-	Key = util:get_keyfile(),
-	% TODO - this is going to break again for R15A, fix before then
-	Entry = case public_key:pem_to_der(Key) of
-		{ok, [Ent]} ->
-			Ent;
-		[Ent] ->
-			Ent
-	end,
-	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
-	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
-	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
-	binary_to_list(Bar).
 
 -ifdef(TEST).
 

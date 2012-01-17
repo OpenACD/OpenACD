@@ -44,8 +44,7 @@
 }).
 
 %% API
--export([start/2, start/3, start_link/2, start_link/3, logout/1,
-	go_released/1, go_available/1]).
+-export([start/2, start_link/2, logout/1, go_released/1, go_available/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -58,21 +57,13 @@
 -type(security_atom() :: 'agent' | 'supervisor' | 'admin').
 
 %% API
--spec(start/2 :: (AgentRec :: #agent{}, Security :: security_atom()) -> {'ok', pid()}).
-start(AgentRec, Security) ->
-	start(AgentRec, Security, undefined).
+-spec(start/2 :: (AgentRec :: #agent{}, SelfKillTime :: 'undefined' | non_neg_integer()) -> {'ok', pid()}).
+start(AgentRec, SelfKillTime) ->
+	gen_server:start(?MODULE, [AgentRec, SelfKillTime], []).
 
--spec(start/3 :: (AgentRec :: #agent{}, Security :: security_atom(), SelfKillTime :: 'undefined' | integer()) -> {'ok', pid()}).
-start(AgentRec, Security, SelfKillTime) ->
-	gen_server:start(?MODULE, [AgentRec, Security, SelfKillTime], []).
-
--spec(start_link/2 :: (AgentRec :: #agent{}, Security :: 'agent' | 'supervisor' | 'admin') -> {'ok', pid()}).
-start_link(AgentRec, Security) ->
-	start_link(AgentRec, Security, undefined).
-
--spec(start_link/3 :: (AgentRec :: #agent{}, Security :: security_atom(), SelfKillTime :: 'undefined' | integer()) -> {'ok', pid()}).
-start_link(AgentRec, Security, SelfKillTime) ->
-	gen_server:start_link(?MODULE, [AgentRec, Security, SelfKillTime], []).
+-spec(start_link/2 :: (AgentRec :: #agent{}, SelfKillTime :: 'undefined' | non_neg_integer()) -> {'ok', pid()}).
+start_link(AgentRec, SelfKillTime) ->
+	gen_server:start_link(?MODULE, [AgentRec, SelfKillTime], []).
 
 -spec(logout/1 :: (Pid :: pid()) -> 'ok').
 logout(Pid) ->
@@ -87,7 +78,7 @@ go_available(Pid) ->
 	gen_server:call(Pid, go_available).
 
 %% gen_server API
-init([AgentRec, _Security, SelfKillTime]) -> % TODO if not used, why is it here?
+init([AgentRec, SelfKillTime]) ->
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(AgentRec) of
 		{ok, Apid} ->

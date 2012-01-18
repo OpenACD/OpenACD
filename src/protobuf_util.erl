@@ -84,7 +84,7 @@ call_to_protobuf(Call) ->
 			outbound -> 'OUTBOUND'
 		end,
 		node = atom_to_list(node(Call#call.source)),
-		module_source = Call#call.source_module
+		module_source = atom_to_list(Call#call.source_module)
 	}.
 
 %% @doc From `#client{}' to protobuf friendly `#clientrecord{}'.

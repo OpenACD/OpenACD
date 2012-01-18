@@ -894,6 +894,33 @@ inqueue({{'$gen_meida', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 			end
 	end;
 
+inqueue({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
+		callrec = #call{cook = Cook}} = BaseState, InqueueState}) ->
+	#base_state{callback = Callback, substate = InSubstate,
+		callrec = Call} = BaseState,
+	case erlang:function_exported(Callback, handle_end_call, 4) of
+		true ->
+			case Callback:handle_end_call(inqueue, Call, InqueueState, InSubstate) of
+				{ok, Substate} ->
+					% stop agent ringing, kill self
+					?INFO("Ending Call for ~p", [Call#call.id]),
+					NewState0 = BaseState#base_state{substate = Substate},
+					{Out, NewState} = handle_stop(hangup, inqueue, NewState0, InqueueState),
+					{stop, Out, ok, NewState};
+				{deferred, Substate} ->
+					?INFO("Ending Call deferred for ~p", [Call#call.id]),
+					% up to the media to kill self.
+					NewBase = BaseState#base_state{substate = Substate},
+					{reply, ok, {NewBase, InqueueState}};
+				{error, Err, Substate} ->
+					?INFO("Ending Call for ~p errored:  ~p", [Call#call.id, Err]),
+					NewBase = BaseState#base_state{substate = Substate},
+					{reply, invalid, {NewBase, InqueueState}}
+			end;
+		false ->
+			{reply, invalid, {BaseState, InqueueState}}
+	end;
+
 inqueue({{'$gen_media', set_queue}, Qpid}, _From, {BaseState, 
 		#inqueue_state{queue_pid = {Queue, _}} = Internal}) ->
 	#base_state{callrec = Call} = BaseState,
@@ -1114,6 +1141,33 @@ inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, QCall, Timeout}} = Req, F
 	Cook = QCall#queued_call.cook,
 	{next_state, inqueue, MidState} = inqueue_ringing({{'$gen_media', stop_ring}, Cook}, State),
 	inqueue(Req, From, MidState);
+
+inqueue_ringing({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
+		callrec = #call{cook = Cook}} = BaseState, InternalState}) ->
+	#base_state{callback = Callback, substate = InSubstate,
+		callrec = Call} = BaseState,
+	case erlang:function_exported(Callback, handle_end_call, 4) of
+		true ->
+			case Callback:handle_end_call(inqueue_ringing, Call, InternalState, InSubstate) of
+				{ok, Substate} ->
+					% stop agent ringing, kill self
+					?INFO("Ending Call for ~p", [Call#call.id]),
+					NewState0 = BaseState#base_state{substate = Substate},
+					{Out, NewState} = handle_stop(hangup, inqueue_ringing, NewState0, InternalState),
+					{stop, Out, ok, NewState};
+				{deferred, Substate} ->
+					?INFO("Ending Call deferred for ~p", [Call#call.id]),
+					% up to the media to kill self.
+					NewBase = BaseState#base_state{substate = Substate},
+					{reply, ok, {NewBase, InternalState}};
+				{error, Err, Substate} ->
+					?INFO("Ending Call for ~p errored:  ~p", [Call#call.id, Err]),
+					NewBase = BaseState#base_state{substate = Substate},
+					{reply, invalid, {NewBase, InternalState}}
+			end;
+		false ->
+			{reply, invalid, {BaseState, InternalState}}
+	end;
 
 inqueue_ringing({{'$gen_media', Command}, _}, _From, State) ->
 	?DEBUG("Invalid command ~s while inqueue_ringing", [Command]),

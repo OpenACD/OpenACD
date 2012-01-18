@@ -16,7 +16,7 @@ enum FreeswitchEvent {
 	IN_CONFERENCE_3RDPARTY = 7;
 }
 
-enum FreeswitchRequest {
+enum FreeswitchRequestHint {
 	SET_AUDIO_LEVEL = 1;
 	TOGGLE_HOLD = 2;
 	CONTACT_3RD_PARTY = 3;
@@ -25,6 +25,7 @@ enum FreeswitchRequest {
 	BLIND_TRANSFER = 6;
 	RETRIEVE_3RD_PARTY = 7;
 	HANGUP_3RD_PARTY = 8;
+	PLAY_DTMF = 9;
 }
 
 enum FreeswitchVoicemailRequest {
@@ -53,12 +54,13 @@ message BlindTransferRequest {
 }
 
 extend MediaCommandRequest {
-	optional FreeswitchRequest freeswitch_request_hint = 3000;
+	optional FreeswitchRequestHint freeswitch_request_hint = 3000;
 	optional AudioLevelRequest audio_level_request = 3001;
 	optional Contact3rdPartyRequest contact_3rd_party = 3002;
 	optional Merge3rdPartyRequest merge_3rd_party = 3003;
 	optional BlindTransferRequest blind_transfer = 3004;
 	optional FreeswitchVoicemailRequest freeswitch_voicemail_request_hint = 3005;
+	optional string dtmf_string = 3006;
 }
 
 extend MediaEvent {

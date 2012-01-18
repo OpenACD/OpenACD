@@ -48,6 +48,7 @@
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	connection :: pid(),
 	profile = "Default" :: string() | 'error',
+	securitylevel = agent :: security_level(),
 	source :: pid(),
 	release_data :: release_code() | 'undefined',
 	available_channels = [dummy, voice, visual, slow_text, fast_text, fast_text, fast_text],
@@ -69,7 +70,8 @@
 	% connection
 	%endpointdata = undefined :: 'undefined' | string(),
 	start_opts = [] :: [any()],
-	log_pid :: 'undefined' | pid()
+	log_pid :: 'undefined' | pid(),
+	security_level = agent :: 'agent' | 'supervisor' | 'admin'
 }).
 	
 %% statedata's structure is dependant on the state atom.

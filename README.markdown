@@ -57,6 +57,6 @@ More Info
 =========
 
 More information can be found on the
-[github wiki](http://wiki.github.com/Vagabond/OpenACD/).
+[github wiki](http://wiki.github.com/OpenACD/OpenACD/).
 Please feel free to contribute
 additional information on the wiki if you have it.

@@ -88,7 +88,7 @@
 
 %% other exports
 -export([
-	%start/1,
+	start/1,
 	start/2,
 	%start_link/1,
 	start_link/2,
@@ -129,6 +129,10 @@ start_link(Agent, Options) when is_record(Agent, agent) ->
 -spec(start/2 :: (Agent :: #agent{}, Options :: agent_opts()) -> {'ok', pid()}).
 start(Agent, Options) when is_record(Agent, agent) ->
 	gen_fsm:start(?MODULE, [Agent, Options], []).
+
+%% @doc Start an agent with default options.
+-spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
+start(Agent) -> start(Agent, []).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -995,14 +999,6 @@ log_change(_) -> ok.
 	
 -ifdef(TEST).
 
-%start_arbitrary_state_test() ->
-%	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
-%	?assertEqual({ok, idle}, query_state(Pid)),
-%	agent:stop(Pid).		
-
-make_agent() ->
-	make_agent([]).
-
 make_agent(Opts) ->
 	Fields = record_info(fields, agent),
 	BaseAgent = #agent{
@@ -1037,15 +1033,15 @@ block_channel_test_() ->
 	FullAvail = [dummy, dummy, voice, voice, visual, visual, slow_text,
 		slow_text, fast_text, fast_text],
 	% {TestName, Channel, BlocListDefs, Expected}
-	TestData = [{"blocks all", "nomatches", [{"nomatches", all}], {FullAvail, []}},
-	{"blocks none", "nomatches", [{"nomatches", none}], {[], FullAvail}},
-	{"blocks self", slow_text, ?default_category_blocks, {[slow_text], [dummy,
-		 dummy, voice, voice, visual, visual, fast_text, fast_text]}},
-	{"blocks others", fast_text, ?default_category_blocks, {[dummy, dummy,
-		voice, voice, visual, visual, slow_text, slow_text], [fast_text]}},
-	{"blocks specific", "channel", [{"channel", [visual, slow_text]}], {[
-		visual, visual, slow_text, slow_text], [dummy, dummy, voice, voice,
-		fast_text, fast_text]}}],
+	TestData = [
+		{"blocks all", nomatches, [{nomatches, all}], []},
+		{"blocks none", nomatches, [{nomatches, none}], FullAvail},
+		{"blocks self", slow_text, ?default_category_blocks, [dummy,
+			dummy, voice, voice, visual, visual, fast_text, fast_text]},
+		{"blocks others", fast_text, ?default_category_blocks, [fast_text]},
+		{"blocks specific", channel, [{channel, [visual, slow_text]}], 
+			[dummy, dummy, voice, voice, fast_text, fast_text]}
+	],
 	block_channel_test_gen(TestData).
 
 block_channel_test_gen([]) ->
@@ -1073,7 +1069,7 @@ handle_sync_event_test_() ->
 		end,
 		fun({Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
-				Expected = [{dummy_media, inband} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end},
@@ -1093,7 +1089,7 @@ handle_sync_event_test_() ->
 				end},
 
 			{"adding arbitary data endpoint", fun() ->
-				Expected = [{dummy_media, inband} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end}
@@ -1119,14 +1115,13 @@ from_release_test_() ->
 		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
-		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
+		{ok, As} = gen_event:start({local, cpx_agent_event}),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			%gen_leader_mock:assert_expectations(Monmock),
 			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
-			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
@@ -1136,7 +1131,6 @@ from_release_test_() ->
 			cpx_monitor = Monmock,
 			agent_manager = AMmock,
 			connection = Connmock,
-			logger = Logpid,
 			assert = Assertmocks
 		},
 		%?ERROR("reference:  ~p", [MockPids]),
@@ -1144,10 +1138,10 @@ from_release_test_() ->
 	end,
 	fun(MockPids) ->
 		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
-		%gen_leader_mock:stop(Monmock),
 		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(MockPids#mock_pids.connection),
 		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
+		gen_event:stop(cpx_agent_event),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
@@ -1157,7 +1151,6 @@ from_release_test_() ->
 			#state{agent_rec = Agent} = State,
 			cpx_monitor:add_set({{agent, Agent#agent.id}, [{reason_id, "id"}, {reason, "label"}, {bias, -1}, {released, true}], ignore}),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Timestamp}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{release_data = {"id", "label", -1}}, _State) -> ok end),
 			Out = released({set_release, {"id", "label", -1}}, "from", State),
 			?assertMatch({reply, ok, released, _NewState}, Out),
 			AssertMocks()
@@ -1172,9 +1165,8 @@ from_release_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, none, _Time}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
 			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({set_avail, InPid}, _State) ->
+			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({now_avail, InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]}, _State) ->
 				InPid = Self,
 				ok
 			end),
@@ -1193,14 +1185,13 @@ from_idle_test_() ->
 		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
-		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
+		{ok, _} = gen_event:start({local, cpx_agent_event}),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			%gen_leader_mock:assert_expectations(Monmock),
 			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
-			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
@@ -1210,7 +1201,6 @@ from_idle_test_() ->
 			cpx_monitor = Monmock,
 			agent_manager = AMmock,
 			connection = Connmock,
-			logger = Logpid,
 			assert = Assertmocks
 		},
 		%?ERROR("reference:  ~p", [MockPids]),
@@ -1222,6 +1212,7 @@ from_idle_test_() ->
 		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(MockPids#mock_pids.connection),
 		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
+		gen_event:stop(cpx_agent_event),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
@@ -1239,7 +1230,6 @@ from_idle_test_() ->
 			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, true}, {reason, "label"}, {reason_id, "id"}, {bias, -1}], ignore}),
 			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", []}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Time}, _State) -> ok end),
-			gen_server_mock:expect_info(Mocks#mock_pids.logger, fun(#agent{id = "testid"}, _State) -> ok end),
 			Self = self(),
 			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({end_avail, InPid}, _State) ->
 				InPid = Self,

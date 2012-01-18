@@ -186,6 +186,9 @@ enum_to_statename(Enum) ->
 	(Atom :: atom()) -> #skill{}).
 skill_to_protobuf({Atom, Expanded}) when is_list(Expanded) ->
 	#skill{atom = atom_to_list(Atom), expanded = Expanded};
+skill_to_protobuf({Atom, Expanded}) when is_atom(Expanded) ->
+	Expanded0 = atom_to_list(Expanded),
+	skill_to_protobuf({Atom, Expanded0});
 skill_to_protobuf(Atom) when is_atom(Atom) ->
 	#skill{atom = atom_to_list(Atom)}.
 
@@ -281,7 +284,8 @@ proplist_to_protobuf_test_() ->
 
 skill_to_protobuf_test_() ->
 	[?_assertEqual(#skill{atom = "skill1"}, skill_to_protobuf(skill1)),
-	?_assertEqual(#skill{atom = "_skill1", expanded = "Expanded"}, skill_to_protobuf({'_skill1', "Expanded"}))].
+	?_assertEqual(#skill{atom = "_skill1", expanded = "Expanded"}, skill_to_protobuf({'_skill1', "Expanded"})),
+	?_assertEqual(#skill{atom = "_skill1", expanded = "atom"}, skill_to_protobuf({'_skill1', 'atom'}))].
 
 statename_enum_translates_test_() ->
 	TransTable = [

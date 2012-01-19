@@ -47,7 +47,9 @@
 	proplist_to_protobuf/1,
 	release_to_protobuf/1,
 	statename_to_enum/1,
+	channel_statename_to_enum/1,
 	enum_to_statename/1,
+	enum_to_channel_statename/1,
 	skill_to_protobuf/1,
 	bin_to_netstring/1,
 	bin_to_netstring/2,
@@ -155,13 +157,13 @@ release_to_protobuf({Id, RawLabel, Bias}) ->
 statename_to_enum(Statename) ->
 	case Statename of
 		idle -> 'IDLE';
-		ringing -> 'RINGING';
-		precall -> 'PRECALL';
-		oncall -> 'ONCALL';
-		outgoing -> 'OUTGOING';
+		%ringing -> 'RINGING';
+		%precall -> 'PRECALL';
+		%oncall -> 'ONCALL';
+		%outgoing -> 'OUTGOING';
 		released -> 'RELEASED';
-		warmtransfer -> 'WARMTRANSFER';
-		wrapup -> 'WRAPUP';
+		%warmtransfer -> 'WARMTRANSFER';
+		%wrapup -> 'WRAPUP';
 		_ -> undefined
 	end.
 
@@ -171,14 +173,33 @@ enum_to_statename(Enum) ->
 	case Enum of
 		'PRELOGIN' -> prelogin;
 		'IDLE' -> idle;
-		'RINGING' -> ringing;
-		'PRECALL' -> precall;
-		'ONCALL' -> oncall;
-		'OUTGOING' -> outgoing;
+		%'RINGING' -> ringing;
+		%'PRECALL' -> precall;
+		%'ONCALL' -> oncall;
+		%'OUTGOING' -> outgoing;
 		'RELEASED' -> released;
-		'WARMTRANSFER' -> warmtransfer;
-		'WRAPUP' -> wrapup;
+		%'WARMTRANSFER' -> warmtransfer;
+		%'WRAPUP' -> wrapup;
 		_ -> undefined
+	end.
+
+-define(channel_states, [{'PRERING', 'prering'}, {'RINGING', 'ringing'},
+	{'PRECALL', 'precall'}, {'ONCALL', 'oncall'}, {'WRAPUP', 'wrapup'},
+	{'INIT', 'init'}, {'EXIT', 'exit'}]).
+
+%% @doc Turns a protobuf enum to an agnet channel statename into the 
+%% internal atom.
+-spec(enum_to_channel_statename/1 :: (Enum :: atom()) -> atom()).
+enum_to_channel_statename(Enum) ->
+	proplists:get_value(Enum, ?channel_states).
+
+%% @doc Turns an agnet channel statname into a protobuf enum.
+-spec(channel_statename_to_enum/1 :: (State :: atom()) -> atom()).
+channel_statename_to_enum(State) ->
+	List = [X || {X, S} <- ?channel_states, S == State],
+	case List of
+		[] -> undefined;
+		[Out | _] -> Out
 	end.
 
 %% @doc Turn a skill tuple or atom into a protobuf friendly `#skill{}'.

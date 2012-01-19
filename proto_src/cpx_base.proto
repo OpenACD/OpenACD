@@ -49,6 +49,8 @@ enum AgentChannelState {
 	PRECALL = 3;
 	ONCALL = 4;
 	WRAPUP = 5;
+	INIT = 6;
+	EXIT = 7;
 }
 
 // use this repeated to make a proplist.

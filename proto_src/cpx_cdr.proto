@@ -113,15 +113,26 @@ message AgentStateChange {
 	optional bool is_logout = 4;
 	optional AgentState new_state = 5;
 	optional AgentState old_state = 6;
-	optional CallRecord call_record = 7;
-	optional ClientRecord client_record = 8;
+	optional CallRecord DEPRICATED_call_record = 7;
+	optional ClientRecord DEPRICATED_client_record = 8;
 	optional Release released = 9;
 	optional int32 start_time = 10;
 	optional int32 stop_time = 11;
 	optional string profile = 12;
-	optional string dialed_number = 13;
+	optional string DEPREICATED_dialed_number = 13;
 	repeated Skill skills = 14;
 	optional string node = 15;
+}
+
+message AgentStateChannelChange {
+	required string agent_id = 1;
+	required string id = 2;
+	optional AgentChannelState oldstate = 3;
+	optional AgentChannelState state = 4;
+	optional CallRecord call_record = 5;
+	optional string exit_cause = 6;
+	optional int32 start_time = 7;
+	optional int32 stop_time = 8;
 }
 
 message AgentProfileChange {

@@ -80,9 +80,9 @@ agent_init(Agent) when is_record(Agent, agent) ->
 		Member = lists:member({?MODULE, Id}, Handlers),
 		case Member of
 			false ->
-				ok = gen_event:add_handler(?MODULE, {?MODULE, Id}, Agent);
+				ok = gen_event:add_sup_handler(?MODULE, {?MODULE, Id}, Agent);
 			_ ->
-				?INFO("Agent Event already initialized for ~s", [Agent])
+				?INFO("Agent Event already initialized for ~s", [Agent#agent.login])
 		end
 	end catch
 		What:Why ->
@@ -118,7 +118,7 @@ agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 		Member = lists:member({?MODULE, ChannelId}, Handlers),
 		case Member of
 			false ->
-				ok = gen_event:add_handler(?MODULE, {?MODULE, ChannelId}, [Agent, ChannelId, Statename, Statedata]);
+				ok = gen_event:add_sup_handler(?MODULE, {?MODULE, ChannelId}, [Agent, ChannelId, Statename, Statedata]);
 			_ ->
 				?INFO("Agent channel ~p already has event initialized", [ChannelId])
 		end
@@ -189,9 +189,12 @@ init([Agent, ChannelId, Statename, Statedata]) when is_pid(ChannelId) ->
 	end;
 
 init(Agent) when is_record(Agent, agent) ->
-	#agent{login = Agentname, skills = Skills, release_data = State,
+	#agent{login = Agentname, skills = Skills, release_data = Statedata,
 		profile = Profile, id = Id} = Agent,
-	Statedata = State,
+	State = case Statedata of
+		{_, _, _} -> released;
+		_ -> idle
+	end,
 	TransactFun = fun() ->
 		Now = util:now(),
 		Login = #agent_state{
@@ -251,23 +254,27 @@ handle_event({change_profile, #agent{id = Id} = OldAgent, NewAgent},
 	
 handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
 #agent{id = Id} = CurrentAgent) ->
-	#agent{login = Agentname, release_data = State,
+	#agent{login = Agentname, release_data = Statedata,
 		profile = Profile} = NewAgent,
-	Statedata = State,
+	State = case Statedata of
+		{_, _, _} -> released;
+		_ -> idle
+	end,
+	Now = util:now(),
 	TransactFun = fun() ->
-		Now = util:now(),
-		QH = qlc:q([Rec ||
-			Rec <- mnesia:table(agent_state),
-			Rec#agent_state.id =:= Id,
-			Rec#agent_state.ended =:= undefined
-		]),
-		Recs = qlc:e(QH),
-		[begin
-			mnesia:delete_object(Untermed),
-			Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
-			cpx_monitor:info({agent_state, Termed}),
-			mnesia:write(Termed)
-		end || Untermed <- Recs],
+		terminate_states(Id, Now),
+%		QH = qlc:q([Rec ||
+%			Rec <- mnesia:table(agent_state),
+%			Rec#agent_state.id =:= Id,
+%			Rec#agent_state.ended =:= undefined
+%		]),
+%		Recs = qlc:e(QH),
+%		[begin
+%			mnesia:delete_object(Untermed),
+%			Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
+%			cpx_monitor:info({agent_state, Termed}),
+%			mnesia:write(Termed)
+%		end || Untermed <- Recs],
 		Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State,
 			statedata = Statedata, profile = Profile, start = Now},
 		cpx_monitor:info({agent_state, Newrec}),
@@ -295,18 +302,19 @@ handle_event({change_agent_channel, ChanId, Statename, Statedata},
 {_, ChanId} = State) ->
 	Now = util:now(),
 	TransactFun = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(agent_channel_state),
-			X#agent_channel_state.id =:= ChanId,
-			X#agent_channel_state.ended =:= undefined
-		]),
-		[BaseRec | _] = Recs = qlc:e(QH),
-		[begin
-			mnesia:delete_object(Untermed),
-			Termed = Untermed#agent_channel_state{ended = Now, timestamp = Now},
-			cpx_monitor:info({agent_channel_state, Termed}),
-			mnesia:write(Termed)
-		end || Untermed <- Recs],
+		BaseRec = terminate_states(ChanId, Now),
+%		QH = qlc:q([X ||
+%			X <- mnesia:table(agent_channel_state),
+%			X#agent_channel_state.id =:= ChanId,
+%			X#agent_channel_state.ended =:= undefined
+%		]),
+%		[BaseRec | _] = Recs = qlc:e(QH),
+%		[begin
+%			mnesia:delete_object(Untermed),
+%			Termed = Untermed#agent_channel_state{ended = Now, timestamp = Now},
+%			cpx_monitor:info({agent_channel_state, Termed}),
+%			mnesia:write(Termed)
+%		end || Untermed <- Recs],
 		#agent_channel_state{state = Oldstate} = BaseRec,
 		Newrec = BaseRec#agent_channel_state{oldstate = Oldstate,
 			state = Statename, statedata = Statedata, start = Now,
@@ -326,7 +334,6 @@ handle_event({change_agent_channel, ChanId, Statename, Statedata},
 
 % ignore any event we can't handle.
 handle_event(Event, State) ->
-	?INFO("Unhandled event:  ~p (~p)", [Event, State]),
 	{ok, State}.
 
 %% -----
@@ -342,34 +349,9 @@ handle_call(Request, State) ->
 %% -----
 
 %% @private
-handle_info({'EXIT', Apid, Reason}, #agent{source = Apid} = Agent) ->
-	#agent{id = Id} = Agent,
-	TransactFun = fun() ->
-		Now = util:now(),
-		QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-		Recs = qlc:e(QH),
-		?DEBUG("Recs to loop through:  ~p", [Recs]),
-		[begin
-			mnesia:delete_object(Untermed), 
-			Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
-			cpx_monitor:info({agent_state, Termed}),
-			mnesia:write(Termed)
-		end || Untermed <- Recs],
-		%% TODO terminate items for agent_channels
-		ok
-	end,
-	case mnesia:async_dirty(TransactFun) of
-		ok ->
-			remove_handler;
-		Res ->
-			?WARNING("res of agent state change log:  ~p", [Res]),
-			remove_handler
-	end;
-
-% exit of channel
-
 
 handle_info(Info, State) ->
+	?DEBUG("Some info:  ~p", [Info]),
 	{ok, State}.
 
 %% ----
@@ -377,7 +359,37 @@ handle_info(Info, State) ->
 %% -----
 
 %% @private
-terminate(Why, State) -> ok.
+terminate({stop, Reason}, {_AgentId, ChanPid}) ->
+	?DEBUG("Seems the channel ~p stopped:  ~p", [ChanPid, Reason]),
+	Now = util:now(),
+	Transfun = fun() ->
+		BaseRec = terminate_states(ChanPid, Now),
+		#agent_channel_state{state = Oldstate} = BaseRec,
+		Newrec = BaseRec#agent_channel_state{oldstate = Oldstate,
+			state = exit, start = Now, ended = Now, timestamp = Now,
+			statedata = Reason},
+		cpx_monitor:info({agent_channel_state, Newrec}),
+		mnesia:write(Newrec),
+		ok
+	end,
+	mnesia:async_dirty(Transfun);
+
+terminate({stop, Reason}, #agent{id = AgentId} = Agent) ->
+	?DEBUG("Agent ~s stopped:  ~p", [Agent#agent.login, Reason]),
+	Now = util:now(),
+	Transfun = fun() ->
+		Basestate = terminate_states(AgentId, Now),
+		Newrec = #agent_state{id = AgentId, agent = Agent#agent.login,
+			oldstate = Basestate#agent_state.state, state = logout,
+			statedata = Reason, start = Now, ended = Now, timestamp = Now},
+		mnesia:write(Newrec),
+		ok
+	end,
+	mnesia:async_dirty(Transfun);
+
+terminate(Why, State) ->
+	?INFO("Some other exit:  %p", [Why]),
+	ok.
 
 %% -----
 %% code_change
@@ -391,14 +403,50 @@ code_change(OldVsn, State, Extra) ->
 %% Internal
 %% =====
 
+terminate_states(ChanId, Now) when is_pid(ChanId) ->
+	QH = qlc:q([X ||
+		X <- mnesia:table(agent_channel_state),
+		X#agent_channel_state.id =:= ChanId,
+		X#agent_channel_state.ended =:= undefined
+	]),
+	[BaseRec | _] = Recs = qlc:e(QH),
+	[begin
+		mnesia:delete_object(Untermed),
+		Termed = Untermed#agent_channel_state{ended = Now, timestamp = Now},
+		cpx_monitor:info({agent_channel_state, Termed}),
+		mnesia:write(Termed)
+	end || Untermed <- Recs],
+	BaseRec;
+
+terminate_states(Id, Now) when is_list(Id) ->
+	QH = qlc:q([Rec ||
+		Rec <- mnesia:table(agent_state),
+		Rec#agent_state.id =:= Id,
+		Rec#agent_state.ended =:= undefined
+	]),
+	[Base | _] = Recs = qlc:e(QH),
+	[begin
+		mnesia:delete_object(Untermed),
+		Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = login},
+		cpx_monitor:info({agent_state, Termed}),
+		mnesia:write(Termed)
+	end || Untermed <- Recs],
+	Base.
+
+%% -----
+
 build_tables(Nodes) ->
 	Agent = util:build_table(agent_state, [
 		{attributes, record_info(fields, agent_state)},
-		{disc_copies, Nodes}
+		{disc_copies, Nodes},
+		{type, bag},
+		{index, [agent, profile]}
 	]),
 	Channel = util:build_table(agent_channel_state, [
 		{attributes, record_info(fields, agent_channel_state)},
-		{disc_copies, Nodes}
+		{disc_copies, Nodes},
+		{type, bag},
+		{index, [id]}
 	]),
 	Successes = [exists, copied, {atomic, ok}],
 	case {lists:member(Agent, Successes), lists:member(Channel, Successes)} of
@@ -407,6 +455,7 @@ build_tables(Nodes) ->
 			?WARNING("One of the tables didn't build.  Agent:  ~p;  Channel:  ~p", [Agent, Channel]),
 			{Agent, Channel}
 	end.
+
 %% -----
 signal_cpx_monitor_truncate(Agents, Channels) ->
 	truncate_agents(Agents),

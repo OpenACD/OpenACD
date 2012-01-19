@@ -579,7 +579,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 					case whereis(agent_manager) of
 						undefined ->
 							agent_manager_exit(Reason, StateName, State);
-						From when is_pid(From) ->
+						From when is_pid(From), From =:= Pid ->
 							agent_manager_exit(Reason, StateName, State);
 						_Else ->
 							?INFO("unknown exit from ~p", [Pid]),
@@ -612,6 +612,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 					ok
 			end,
 			inform_connection(Agent, {channel_died, Pid, NewAvail}),
+			cpx_agent_event:change_agent_channel(Pid, exit, exit),
 			{next_state, StateName, State#state{agent_rec = NewAgent}}
 	end.
 

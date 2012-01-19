@@ -124,7 +124,7 @@ message AgentStateChange {
 	optional string node = 15;
 }
 
-message AgentStateChannelChange {
+message AgentChannelStateChange {
 	required string agent_id = 1;
 	required string id = 2;
 	optional AgentChannelState oldstate = 3;
@@ -150,6 +150,7 @@ enum CdrDumpMessageHint {
 	CDR_REC = 2;
 	AGENT_STATE = 3;
 	AGENT_PROFILE = 4;
+	AGENT_CHANNEL_STATE = 5;
 }
 
 message CdrDumpMessage {
@@ -159,6 +160,7 @@ message CdrDumpMessage {
 	optional CpxCdrRecord cdr_rec = 4;
 	optional AgentStateChange agent_state_change = 5;
 	optional AgentProfileChange agent_profile_change = 6;
+	optional AgentChannelStateChange agent_channel_state_change = 7;
 }
 
 message CdrDumpAck {

@@ -393,13 +393,15 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
-handle_wrapup(_From, _StateName, #call{ring_path = inband, media_path = inband} = Call, _GenMediaState, State) ->
+handle_wrapup(_From, _StateName, #call{media_path = inband} = Call, _GenMediaState, State) ->
+	?DEBUG("Handling wrapup request", []),
 	% TODO This could prolly stand to be a bit more elegant.
 	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
 	{hangup, State};
 handle_wrapup(_From, _StateName, _Call, _GenMediaState, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent
+	?DEBUG("Not doing wrapup request", []),
 	{ok, State}.
 	
 handle_queue_transfer(_Queue, _StateName, Call, _GenMediaState, #state{cnode = Fnode} = State) ->

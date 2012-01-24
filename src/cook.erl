@@ -547,7 +547,10 @@ check_conditions([{caller_id, Comparison, RegEx} | Conditions], Ticked, Qpid, Ca
 				_ ->
 					check_conditions(Conditions, Ticked, Qpid, Call)
 			end
-	end.
+	end;
+check_conditions([_ | Conditions], Ticked, Qpid, Call) ->
+	check_conditions(Conditions, Ticked, Qpid, Call).
+
 
 %% @private
 -spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> recipe()).
@@ -677,6 +680,9 @@ do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
 			?INFO("Recipte end_call for ~p recived~n",[Callpid]),
 			%% here should be the function call to hangup the qued call
 			gen_media:end_call(Callpid),
+			ok;
+		_Op ->
+			?WARNING("ignoring unknown operation ~p", [_Op]), 
 			ok
 	end,
 	Newacc = case Out of
@@ -1011,6 +1017,13 @@ do_operation_test_() ->
 			end),
 			gen_server_mock:expect_call(QPid, fun({remove_skills, "c1", [remove_skills]}, _From, _State) -> ok end),
 			?assertEqual([], do_operation([{add_skills, [add_skills]}, {remove_skills, [remove_skills]}], QPid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+		{"unknown op",
+		fun() ->
+			?assertEqual([], do_operation([{unknown_op, "something"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end]}.
@@ -1610,8 +1623,11 @@ check_conditions_test_() ->
 			?assert(check_conditions([{caller_id, '!=', "^Number"}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
-	end]}}
-	].
+	end]}},
+	{"unknown condition",
+	fun() ->
+		?assert(check_conditions([{unknown_cond, '=', "something"}], "doesn't matter", foo, bar))
+	end}].
 
 tick_manipulation_test_() ->
 	{foreach,

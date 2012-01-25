@@ -1752,44 +1752,44 @@ handle_custom_return({stop, Reason, NewState}, StateName, _Reply,
 	{NewStop, {NewBase, NewInternal}} = handle_stop(Reason, StateName, BaseState, Internal),
 	{stop, NewStop, {NewBase#base_state{substate = NewState}, Internal}};
 
-handle_custom_return({outgoing, Agent, NewState}, StateName, Reply,
+handle_custom_return({outgoing, AgentChannel, NewState}, StateName, Reply,
 		{#base_state{callrec = Call} = BaseState, InternalState}) when 
 		is_record(BaseState#base_state.callrec, call) ->
-	handle_custom_return({outgoing, Agent, Call, NewState}, StateName, Reply, {BaseState, InternalState});
+	handle_custom_return({outgoing, AgentChannel, Call, NewState}, StateName, Reply, {BaseState, InternalState});
 
-handle_custom_return({outgoing, Agent, Call, NewState}, StateName, Reply,
+handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, StateName, Reply,
 		{BaseState, InternalState}) when is_record(Call, call) ->
-	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
-	Response = case agent_manager:query_agent(Agent) of
-		{true, Apid} ->
-			agent:set_state(Apid, outgoing, BaseState#base_state.callrec),
-			cdr:oncall(BaseState#base_state.callrec, Agent),
-			{ok, {Agent, Apid}};
-		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
-			{error, {noagent, Agent}}
-	end,
-	case Response of
-		{error, _} = Err ->
-			exit(Err);
-		{ok, {InAgent, InApid}} ->
-			Mon = erlang:monitor(process, InApid),
-			NewInternal = #oncall_state{
-				oncall_pid = {InAgent, InApid},
-				oncall_mon = Mon
-			},
+	?INFO("Told to set ~s (~p) to outgoing for ~p", [AgentName, AgentChannel, Call#call.id]),
+	Response = set_agent_state(AgentChannel, [oncall, Call]),
+	State0 = case Response of
+		ok ->
+			cdr:oncall(Call, AgentName),
 			NewBase = BaseState#base_state{
-				callrec = Call,
-				substate = NewState
+				substate = NewState,
+				callrec = Call
 			},
-			case Reply of
-				reply ->
-					{reply, ok, oncall, {NewBase, NewInternal}};
-				noreply ->
-					{next_state, oncall, {NewBase, NewInternal}}
-			end
+			NewInternal = #oncall_state{
+				oncall_pid = {AgentName, AgentChannel},
+				oncall_mon = erlang:monitor(process, AgentChannel)
+			},
+			set_cpx_mon({NewBase, NewInternal}, [{agent, AgentName}]),
+			{NewBase, NewInternal};
+		Else ->
+			{BaseState, InternalState}
+	end,
+	case {Response, Reply} of
+		{ok, noreply} ->
+			{next_state, oncall, State0};
+		{ok, reply} ->
+			{reply, ok, oncall, State0};
+		{Err, noreply} ->
+			?WARNING("Could not set ~p oncall:  ~p", [AgentName, Err]),
+			{stop, Err, State0};
+		{Err, reply} ->
+			?WARNING("Could not set ~p oncall:  ~p", [AgentName, Err]),
+			{stop, Err, invalid, State0}
 	end;
-
+			
 handle_custom_return({reply, Reply, NewState}, State, reply, {BaseState, Internal}) ->
 	NewBase = BaseState#base_state{substate = NewState},
 	{reply, Reply, State, {NewBase, Internal}};
@@ -2289,7 +2289,7 @@ url_pop_test_() ->
 	end}.
 
 %% TODO Fix tests.
-init_test_() ->
+init_test_d() ->
 	util:start_testnode(),
 	N = util:start_testnode(gen_media_init_tests),
 	{spawn, N, {foreach,
@@ -2359,7 +2359,7 @@ init_test_() ->
 	make_state
 }).
 
-handle_state_changes_test_() ->
+handle_state_changes_test_d() ->
 	util:start_testnode(),
 	N = util:start_testnode(gen_media_state_changes_tests),
 	{spawn, N, {setup,
@@ -3765,60 +3765,102 @@ handle_state_changes_test_() ->
 %		end}
 %	end]}}.
 
+dpid() -> spawn(fun() -> ok end).
+
 priv_queue_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_priv_queue_tests),
-	{spawn, N, {foreach,
-	fun() ->
-		{ok, QMpid} = gen_leader_mock:start(queue_manager),
-		{ok, Qpid} = gen_server_mock:new(),
+	{setup, fun() ->
+		meck:new(queue_manager),
+		meck:new(call_queue),
 		Callrec = #call{id = "testcall", source = self()},
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMpid),
-			gen_server_mock:assert_expectations(Qpid)
+		Validator = fun() ->
+			?assert(meck:validate(queue_manager)),
+			?assert(meck:validate(call_queue))
 		end,
-		{QMpid, Qpid, Callrec, Assertmocks}
+		{Callrec, Validator}
 	end,
-	fun({QMpid, Qpid, _Callrec, _Mocks}) ->
-		gen_leader_mock:stop(QMpid),
-		gen_server_mock:stop(Qpid),
-		timer:sleep(10),
-		ok
+	fun(_) ->
+		meck:unload(queue_manager),
+		meck:unload(call_queue)
 	end,
-	[fun({QMpid, Qpid, Callrec, Mocks}) ->
-		{"All is well",
-		fun() ->
-			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-				{ok, Qpid, State}
-			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
+	fun({Callrec, Validator}) -> [
+
+		{"All is well", fun() ->
+			Qpid = dpid(),
+			meck:expect(queue_manager, get_queue, fun(_) -> Qpid end),
+			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
 			?assertEqual(Qpid, priv_queue("testqueue", Callrec, "doesn't matter")),
-			Mocks()
-		end}
-	end,
-	fun({QMpid, _Qpid, Callrec, Mocks}) ->
-		{"failover is false",
-		fun() ->
-			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-				{ok, undefined, State}
-			end),
+			Validator()
+		end},
+
+		{"failover is false", fun() ->
+			meck:expect(queue_manager, get_queue, fun(_) -> undefined end),
 			?assertEqual(invalid, priv_queue("testqueue", Callrec, false)),
-			Mocks()
-		end}
-	end,
-	fun({QMpid, Qpid, Callrec, Mocks}) ->
-		{"failover is true",
-		fun() ->
-			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-				{ok, undefined, State}
+			Validator()
+		end},
+
+		{"failover is true", fun() ->
+			Qpid = dpid(),
+			meck:expect(queue_manager, get_queue, fun(QuNom) ->
+				case QuNom of
+					"testqueue" -> undefined;
+					"default_queue" -> Qpid
+				end
 			end),
-			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
-				{ok, Qpid, State}
-			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
+			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
-			Mocks()
+			Validator()
 		end}
-	end]}}.
+
+	] end}.
+
+outbound_call_flow_test_() ->
+	{setup, fun() ->
+		meck:new(media_callback),
+		meck:new(agent_channel),
+		meck:new(cdr),
+		meck:expect(media_callback, init, fun(_) ->
+			{ok, {undefined, undefined}}
+		end),
+		{ok, InitState, GmState} = init([media_callback, undefined]),
+		?DEBUG("initstate:  ~p, ~p", [InitState, GmState]),
+		Validator = fun() ->
+			meck:validate(media_callback),
+			meck:validate(agent_channel),
+			meck:validate(cdr)
+		end,
+		{GmState, Validator}
+	end,
+	fun(_) ->
+		meck:unload(media_callback),
+		meck:unload(agent_channel),
+		meck:unload(cdr)
+	end,
+	fun({GmState, Validator}) -> [
+
+		{"callback is a success (handle_info)", fun() ->
+			Call = #call{source = dpid(), id = "testcall"},
+			meck:expect(media_callback, handle_info, fun(doit, _, _, _, _) ->
+				{outgoing, {"agent", dpid()}, Call, undefined}
+			end),
+			meck:expect(agent_channel, set_state, fun(_, _, _) -> ok end),
+			meck:expect(cdr, oncall, fun(_, _) -> ok end),
+			Out = handle_info(doit, inivr, GmState),
+			?assertMatch({next_state, oncall, _Whatever}, Out),
+			Validator()
+		end},
+
+		{"callback is a success (handle_call)", fun() ->
+			Call = #call{source = dpid(), id = "testcall"},
+			meck:expect(media_callback, handle_call, fun(doit, _, _, _, _, _) ->
+				{outgoing, {"agent", dpid()}, Call, undefined}
+			end),
+			meck:expect(agent_channel, set_state, fun(_, _, _) -> ok end),
+			meck:expect(cdr, oncall, fun(_, _) -> ok end),
+			Out = handle_sync_event(doit, {dpid(), "from"}, inivr, GmState),
+			?assertMatch({reply, ok, oncall, _Whatever}, Out),
+			Validator()
+		end}
+
+	] end}.
 
 -endif.

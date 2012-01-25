@@ -1752,44 +1752,44 @@ handle_custom_return({stop, Reason, NewState}, StateName, _Reply,
 	{NewStop, {NewBase, NewInternal}} = handle_stop(Reason, StateName, BaseState, Internal),
 	{stop, NewStop, {NewBase#base_state{substate = NewState}, Internal}};
 
-handle_custom_return({outgoing, Agent, NewState}, StateName, Reply,
+handle_custom_return({outgoing, AgentChannel, NewState}, StateName, Reply,
 		{#base_state{callrec = Call} = BaseState, InternalState}) when 
 		is_record(BaseState#base_state.callrec, call) ->
-	handle_custom_return({outgoing, Agent, Call, NewState}, StateName, Reply, {BaseState, InternalState});
+	handle_custom_return({outgoing, AgentChannel, Call, NewState}, StateName, Reply, {BaseState, InternalState});
 
-handle_custom_return({outgoing, Agent, Call, NewState}, StateName, Reply,
+handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, StateName, Reply,
 		{BaseState, InternalState}) when is_record(Call, call) ->
-	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
-	Response = case agent_manager:query_agent(Agent) of
-		{true, Apid} ->
-			agent:set_state(Apid, outgoing, BaseState#base_state.callrec),
-			cdr:oncall(BaseState#base_state.callrec, Agent),
-			{ok, {Agent, Apid}};
-		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
-			{error, {noagent, Agent}}
-	end,
-	case Response of
-		{error, _} = Err ->
-			exit(Err);
-		{ok, {InAgent, InApid}} ->
-			Mon = erlang:monitor(process, InApid),
-			NewInternal = #oncall_state{
-				oncall_pid = {InAgent, InApid},
-				oncall_mon = Mon
-			},
+	?INFO("Told to set ~s to outbound for ~p", [AgentChannel, Call#call.id]),
+	Response = agent_channel:set_state(AgentChannel, oncall, Call),
+	State0 = case Response of
+		ok ->
+			cdr:oncall(Call, AgentName),
 			NewBase = BaseState#base_state{
-				callrec = Call,
-				substate = NewState
+				substate = NewState,
+				callrec = Call
 			},
-			case Reply of
-				reply ->
-					{reply, ok, oncall, {NewBase, NewInternal}};
-				noreply ->
-					{next_state, oncall, {NewBase, NewInternal}}
-			end
+			NewInternal = #oncall_state{
+				oncall_pid = {AgentName, AgentChannel},
+				oncall_mon = erlang:monitor(process, AgentChannel)
+			},
+			set_cpx_mon({NewBase, NewInternal}, [{agent, AgentName}]),
+			{NewBase, NewInternal};
+		Else ->
+			{BaseState, InternalState}
+	end,
+	case {Response, Reply} of
+		{ok, noreply} ->
+			{next_state, oncall, State0};
+		{ok, reply} ->
+			{reply, ok, oncall, State0};
+		{Err, noreply} ->
+			?WARNING("Could not set ~p oncall:  ~p", [AgentName, Err]),
+			{stop, Err, State0};
+		{Err, reply} ->
+			?WARNING("Could not set ~p oncall:  ~p", [AgentName, Err]),
+			{stop, Err, invalid, State0}
 	end;
-
+			
 handle_custom_return({reply, Reply, NewState}, State, reply, {BaseState, Internal}) ->
 	NewBase = BaseState#base_state{substate = NewState},
 	{reply, Reply, State, {NewBase, Internal}};

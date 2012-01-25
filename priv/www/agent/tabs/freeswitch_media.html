@@ -26,7 +26,7 @@ function freeswitchChannelInit(chan, topNode){
 			dojo.query(nodeidList.join(), topNode).style('display', visible);
 		},
 		lastEvent:'caller_offhold',
-		masterSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/mediaevent/voice', function(data){
+		masterSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/voice/mediaevent', function(data){
 			dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'hidden');
 			var setVis = topNode.fs.setVisible;
 			// boxs:  voiceDialBox, merge3rdPartyBox, unhold3rdPartyBox
@@ -67,7 +67,8 @@ function freeswitchChannelInit(chan, topNode){
 					console.error('freeswitch event not handled', data['event']);
 			}
 		}),
-		onHoldButtonSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/mediaevent/voice', function(data){
+		onHoldButtonSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/voice/mediaevent', function(data){
+			console.log("onhold stuff", topNode.fs.onHoldButton, data);
 			var onHoldb = dijit.byId(topNode.fs.onHoldButton);
 			if(! onHoldb){
 				topNode.fs.onHoldButton = false;
@@ -89,48 +90,63 @@ function freeswitchChannelInit(chan, topNode){
 		}
 	};
 
+	console.log('connecting UI elements');
 	// And now the connection of the events to UI elements
 	dijit.byNode(dojo.query('.micBoost', topNode)[0]).onChange = function(){
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'audio_level', ['write', this.attr('value')]);
 	};
+	console.log('micboost connected');
 
 	dijit.byNode(dojo.query('.speakerBoost', topNode)[0]).onChange = function(){
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'audio_level', ['read', this.attr('value')]);
 	};
+	console.log('speaker boost connected');
 
-	var holdbtmp = dijit.byNode(dojo.query('.simpleHoldBox .dijitButton', topNode)[0]).onClick = function(){
+	var holdbtmp = dijit.byNode(dojo.query('.simpleHoldBox .dijitButton', topNode)[0])
+	holdbtmp.onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'toggle_hold');
 	};
 	topNode.fs.onHoldButton = holdbtmp.id;
+	console.log('hold caller connected');
 	
-	var jconftmp = dijit.byNode(dojo.query('.joinConferenceBox .dijitButton', topNode)[0]).onClick = function(){
+	var jconftmp = dijit.byNode(dojo.query('.joinConferenceBox .dijitButton', topNode)[0])
+	jconftmp.onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'retrieve_conference');
 	};
 	topNode.fs.connectConferenceButton = jconftmp.id;
+	console.log('retrieve conference connected');
 
-	var unhold3rdtmp = dijit.byNode(dojo.query('.unhold3rdPartyBox .dijitButton', topNode)[0]).onClick = function(){
+	var unhold3rdtmp = dijit.byNode(dojo.query('.unhold3rdPartyBox .dijitButton', topNode)[0])
+	unhold3rdtmp.onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'retrieve_3rd_party');
 	};
 	topNode.fs.connect3rdPartyButton = unhold3rdtmp.id;
+	console.log('retreive 3rd party connected');
 
-	var merge3rdtmp = dijit.byNode(dojo.query('.merge3rdPartyBox .dijitButton', topNode)[0]).onClick = function(){
+	var merge3rdtmp = dijit.byNode(dojo.query('.merge3rdPartyBox .dijitButton', topNode)[0])
+	merge3rdtmp.onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'merge_3rd_party');
 	};
 	topNode.fs.conference3rdPartyButton = merge3rdtmp.id;
+	console.log('merge 3rd party connected');
 	
 	dijit.byNode(dojo.query('.merge3rdPartyBox .dijitButton', topNode)[1]).onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		chan.agent.agentApi('media_cast', {}, chan.channelId, 'merge_3rd_party', [true]);
 	};
+	console.log('merge all connected');
 
 	dijit.byNode(dojo.query('.voiceDialBox .dijitButton', topNode)[0]).onClick = function(){
 		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
 		topNode.fs.dial();
 	};
+	console.log('dial connected');
+
+	console.log('finishined init for voice channel', topNode.fs);
 }
 </script>
 

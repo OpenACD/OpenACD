@@ -3847,6 +3847,18 @@ outbound_call_flow_test_() ->
 			Out = handle_info(doit, inivr, GmState),
 			?assertMatch({next_state, oncall, _Whatever}, Out),
 			Validator()
+		end},
+
+		{"callback is a success (handle_call)", fun() ->
+			Call = #call{source = dpid(), id = "testcall"},
+			meck:expect(media_callback, handle_call, fun(doit, _, _, _, _, _) ->
+				{outgoing, {"agent", dpid()}, Call, undefined}
+			end),
+			meck:expect(agent_channel, set_state, fun(_, _, _) -> ok end),
+			meck:expect(cdr, oncall, fun(_, _) -> ok end),
+			Out = handle_sync_event(doit, {dpid(), "from"}, inivr, GmState),
+			?assertMatch({reply, ok, oncall, _Whatever}, Out),
+			Validator()
 		end}
 
 	] end}.

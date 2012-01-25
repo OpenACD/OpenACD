@@ -1,0 +1,209 @@
+<script type="text/javascript">
+	dojo.require("dijit.form.HorizontalSlider");
+	dojo.require("dijit.form.HorizontalRule");
+	dojo.require("dijit.form.HorizontalRuleLabels");
+	dojo.require("dijit.form.VerticalSlider");
+	dojo.require("dijit.form.VerticalRule");
+	dojo.require("dijit.form.VerticalRuleLabels");
+
+function freeswitchChannelInit(chan, topNode){
+	chan = window.agentConnection.channels[chan];
+	console.log('init for freeswitch channel', chan.channelId, chan, topNode);
+	topNode.fs = {
+		setVisible: function(visible){
+			var nodeidList = [];
+			dojo.forEach(arguments, function(item, index){
+				if(index == 0){
+					return;
+				}
+				nodeidList[index - 1] = '.' + item;
+			});
+			if(visible){
+				visible = 'inline';
+			} else {
+				visible = 'none';
+			}
+			dojo.query(nodeidList.join(), topNode).style('display', visible);
+		},
+		lastEvent:'caller_offhold',
+		masterSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/voice/mediaevent', function(data){
+			dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'hidden');
+			var setVis = topNode.fs.setVisible;
+			// boxs:  voiceDialBox, merge3rdPartyBox, unhold3rdPartyBox
+			// 	joinConferenceBox, simpleHoldBox
+			topNode.fs.lastEvent = data['event'];
+			switch(data['event']){
+				case 'caller_hold':
+					setVis(true, 'simpleHoldBox', 'voiceDialBox');
+					setVis(false, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
+					break;
+				case 'caller_offhold':
+					setVis(true, 'simpleHoldBox','voiceDialBox');
+					setVis(false, 'joinConferenceBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+					break;
+				case '3rd_party':
+					setVis(true, 'merge3rdPartyBox', 'joinConferenceBox', 'simpleHoldBox');
+					setVis(false, 'unhold3rdPartyBox', 'voiceDialBox');
+					var onHoldb = dijit.byId(topNode.fs.onHoldButton);
+					onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
+					break;
+				case 'hold_conference_3rdparty':
+					setVis(true, 'unhold3rdPartyBox', 'joinConferenceBox', 'merge3rdPartyBox');
+					setVis(false, 'simpleHoldBox', 'voiceDialBox');
+					break;
+				case 'hold_conference':
+					setVis(true, 'voiceDialBox','conferenceHoldBox', 'joinConferenceBox');
+					setVis(false, 'simpleHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+					break;
+				case 'in_conference':
+					setVis(true, 'voiceDialBox', 'simpleHoldBox');
+					setVis(false, 'joinConferenceBox', 'conferenceHoldBox', 'merge3rdPartyBox', 'unhold3rdPartyBox');
+					break;
+				case 'in_conference_3rdparty':
+					setVis(true, 'merge3rdPartyBox', 'unhold3rdPartyBox','conferenceHoldBox');
+					setVis(false, 'joinConferenceBox','voiceDialBox','simpleHoldBox');
+					break;
+				default:
+					console.error('freeswitch event not handled', data['event']);
+			}
+		}),
+		onHoldButtonSub: dojo.subscribe('OpenACD/AgentChannel/' + chan.channelId + '/voice/mediaevent', function(data){
+			console.log("onhold stuff", topNode.fs.onHoldButton, data);
+			var onHoldb = dijit.byId(topNode.fs.onHoldButton);
+			if(! onHoldb){
+				topNode.fs.onHoldButton = false;
+				return;
+			}
+			if(data['event'] == 'caller_hold'){
+				onHoldb.set('label', '<span class="loss">&bull;</span> Unhold');
+			} else {
+				onHoldb.set('label', '<span class="profit">&bull;</span> Hold');
+			}
+		}),
+		dial: function(){
+			var num = dijit.byId(dojo.query('.voiceDialBox input[name=dialNumber]', topNode)[0].id).get('value');
+			var command = 'contact_3rd_party';
+			if(topNode.fs.lastEvent == 'caller_offhold'){
+				command = 'blind_transfer';
+			}
+			chan.agent.agentApi('media_cast', {}, chan.channelId, command, [num]);
+		}
+	};
+
+	console.log('connecting UI elements');
+	// And now the connection of the events to UI elements
+	dijit.byNode(dojo.query('.micBoost', topNode)[0]).onChange = function(){
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'audio_level', ['write', this.attr('value')]);
+	};
+	console.log('micboost connected');
+
+	dijit.byNode(dojo.query('.speakerBoost', topNode)[0]).onChange = function(){
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'audio_level', ['read', this.attr('value')]);
+	};
+	console.log('speaker boost connected');
+
+	var holdbtmp = dijit.byNode(dojo.query('.simpleHoldBox .dijitButton', topNode)[0])
+	holdbtmp.onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'toggle_hold');
+	};
+	topNode.fs.onHoldButton = holdbtmp.id;
+	console.log('hold caller connected');
+	
+	var jconftmp = dijit.byNode(dojo.query('.joinConferenceBox .dijitButton', topNode)[0])
+	jconftmp.onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'retrieve_conference');
+	};
+	topNode.fs.connectConferenceButton = jconftmp.id;
+	console.log('retrieve conference connected');
+
+	var unhold3rdtmp = dijit.byNode(dojo.query('.unhold3rdPartyBox .dijitButton', topNode)[0])
+	unhold3rdtmp.onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'retrieve_3rd_party');
+	};
+	topNode.fs.connect3rdPartyButton = unhold3rdtmp.id;
+	console.log('retreive 3rd party connected');
+
+	var merge3rdtmp = dijit.byNode(dojo.query('.merge3rdPartyBox .dijitButton', topNode)[0])
+	merge3rdtmp.onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'merge_3rd_party');
+	};
+	topNode.fs.conference3rdPartyButton = merge3rdtmp.id;
+	console.log('merge 3rd party connected');
+	
+	dijit.byNode(dojo.query('.merge3rdPartyBox .dijitButton', topNode)[1]).onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		chan.agent.agentApi('media_cast', {}, chan.channelId, 'merge_3rd_party', [true]);
+	};
+	console.log('merge all connected');
+
+	dijit.byNode(dojo.query('.voiceDialBox .dijitButton', topNode)[0]).onClick = function(){
+		dojo.query('.freeswitchBusyBox', topNode).style('visibility', 'visible');
+		topNode.fs.dial();
+	};
+	console.log('dial connected');
+
+	console.log('finishined init for voice channel', topNode.fs);
+}
+</script>
+
+<div dojoType="dijit.layout.ContentPane" style="padding-left:10px; padding-top:5px;" init="freeswitchChannelInit">
+	<span style="float:left">
+		<img src="/images/mic.png" 		width="15px" style="display:block;padding: 2px 2px 2px 0px" />
+		<img src="/images/speaker.png" 	width="15px" style="display:block;padding: 2px 0px 2px 2px" />
+	</span>
+	<div class="micBoost" dojoType="dijit.form.HorizontalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="width:200px;">
+		<div dojoType="dijit.form.HorizontalRule" container="bottomDecoration" count="9" style="width:5px"></div>
+		<ol dojoType="dijit.form.HorizontalRuleLabels" container="bottomDecoration"
+			style="font-size:75%;color:gray;">
+			<li>
+			-4
+			</li>
+			<li>
+			0
+			</li>
+			<li>
+			4
+			</li>
+	</div>
+	<p></p>
+	<div class="speakerBoost" dojoType="dijit.form.HorizontalSlider" value="0" minimum="-4" maximum="4" discreteValues="9" intermediateChanges="false" showButtons="false" style="width:200px;">
+		<div dojoType="dijit.form.VerticalRule" container="topDecoration" count="9" style="width:5px"></div>
+	</div>
+
+	<p>
+	<img src="/dojo/dijit/icons/images/loadingAnimation_rtl.gif" style="float:left;visibility:hidden" class="freeswitchBusyBox" />
+	<span class="simpleHoldBox">
+	<button dojoType="dijit.form.Button">
+		<span class="profit">&bull;</span> Hold
+	</button>
+	</span>
+
+	<span class="joinConferenceBox" style="display:none">
+	<button dojoType="dijit.form.Button">Join Conference
+	</button>
+	</span>
+
+	<span class="unhold3rdPartyBox" style="display:none">
+	<button dojoType="dijit.form.Button">Unhold 3rd Party
+	</button>
+	</span>
+
+	<span class="merge3rdPartyBox" style="display:none">
+	<button dojoType="dijit.form.Button">Conference 3rd Party
+	</button>
+
+	<button dojoType="dijit.form.Button">Conference All
+	</button>
+	</span>
+
+	<span class="voiceDialBox" style="display:inline">
+		<input name="dialNumber" dojoType="dijit.form.TextBox"></input>
+		<button dojoType="dijit.form.Button">-&gt;
+		</button>
+	</span>
+	</p>
+</div>

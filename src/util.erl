@@ -933,5 +933,11 @@ list_index_test_() ->
 		?assertEqual(2, list_index(F, {a, b}, [{c, d}, {a, f}, {g, h}])),
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
-	
+
+floor_test_() -> [
+	?_assertEqual(0, floor(0.5)),
+	?_assertEqual(33, floor(33.8766)),
+	?_assertEqual(-27, floor(-26.449))
+].
+
 -endif.

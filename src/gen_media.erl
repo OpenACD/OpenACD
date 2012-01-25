@@ -1759,8 +1759,8 @@ handle_custom_return({outgoing, AgentChannel, NewState}, StateName, Reply,
 
 handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, StateName, Reply,
 		{BaseState, InternalState}) when is_record(Call, call) ->
-	?INFO("Told to set ~s to outbound for ~p", [AgentChannel, Call#call.id]),
-	Response = agent_channel:set_state(AgentChannel, oncall, Call),
+	?INFO("Told to set ~s (~p) to outgoing for ~p", [AgentName, AgentChannel, Call#call.id]),
+	Response = set_agent_state(AgentChannel, [oncall, Call]),
 	State0 = case Response of
 		ok ->
 			cdr:oncall(Call, AgentName),
@@ -3808,6 +3808,44 @@ priv_queue_test_() ->
 			end),
 			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
+			Validator()
+		end}
+
+	] end}.
+
+outbound_call_flow_test_() ->
+	{setup, fun() ->
+		meck:new(media_callback),
+		meck:new(agent_channel),
+		meck:new(cdr),
+		meck:expect(media_callback, init, fun(_) ->
+			{ok, {undefined, undefined}}
+		end),
+		{ok, InitState, GmState} = init([media_callback, undefined]),
+		?DEBUG("initstate:  ~p, ~p", [InitState, GmState]),
+		Validator = fun() ->
+			meck:validate(media_callback),
+			meck:validate(agent_channel),
+			meck:validate(cdr)
+		end,
+		{GmState, Validator}
+	end,
+	fun(_) ->
+		meck:unload(media_callback),
+		meck:unload(agent_channel),
+		meck:unload(cdr)
+	end,
+	fun({GmState, Validator}) -> [
+
+		{"callback is a success (handle_info)", fun() ->
+			Call = #call{source = dpid(), id = "testcall"},
+			meck:expect(media_callback, handle_info, fun(doit, _, _, _, _) ->
+				{outgoing, {"agent", dpid()}, Call, undefined}
+			end),
+			meck:expect(agent_channel, set_state, fun(_, _, _) -> ok end),
+			meck:expect(cdr, oncall, fun(_, _) -> ok end),
+			Out = handle_info(doit, inivr, GmState),
+			?assertMatch({next_state, oncall, _Whatever}, Out),
 			Validator()
 		end}
 

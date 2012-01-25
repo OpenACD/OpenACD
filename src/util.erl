@@ -199,9 +199,9 @@ list_map_with_index(Fun, [H|T], Counter, Acc) ->
 %% @doc Find the key(s) in the dictory by it's value.  Return's `error' if 
 %% the value is not in the dictionary.
 -spec(dict_find_by_value/2 :: (Value :: any(), Dict :: dict()) -> 'error' | {'ok', [any()]}).
-dict_find_by_value(Value, Dict) ->
+dict_find_by_value(InValue, Dict) ->
 	List = dict:to_list(Dict),
-	Found = [K || {K, Value} <- List],
+	Found = [K || {K, Value} <- List, Value == InValue],
 	case Found of
 		[] -> error;
 		_ -> {ok, Found}
@@ -933,5 +933,28 @@ list_index_test_() ->
 		?assertEqual(2, list_index(F, {a, b}, [{c, d}, {a, f}, {g, h}])),
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
-	
+
+floor_test_() -> [
+	?_assertEqual(0, floor(0.5)),
+	?_assertEqual(33, floor(33.8766)),
+	?_assertEqual(-27, floor(-26.449))
+].
+
+dict_find_by_value_test_() ->
+	{setup, fun() ->
+		List = [
+			{a, 1},
+			{b, "goober"},
+			{"woot", a},
+			{"keyber", a}
+		],
+		dict:from_list(List)
+	end,
+	fun(Dict) -> [
+		?_assertEqual({ok, [a]}, dict_find_by_value(1, Dict)),
+		?_assertEqual({ok, ["woot", "keyber"]}, dict_find_by_value(a, Dict)),
+		?_assertEqual({ok, [b]}, dict_find_by_value("goober", Dict)),
+		?_assertEqual(error, dict_find_by_value("Dave's not here man", Dict))
+	] end}.
+
 -endif.

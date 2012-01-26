@@ -90,7 +90,6 @@
 -export([
 	start/1,
 	start/2,
-	%start_link/1,
 	start_link/2,
 	stop/1,
 	set_release/2,
@@ -100,7 +99,6 @@
 	query_state/1, 
 	dump_state/1, 
 	register_rejected/1,
-	%log_loop/4,
 	set_connection/2,
 	set_endpoint/3,
 	set_endpoints/2,
@@ -154,26 +152,6 @@ set_connection(Pid, Socket) ->
 register_rejected(Pid) ->
 	gen_fsm:send_event(Pid, register_rejected).
 
-%% @doc When the media wants to cast to the connnection.
-%-spec(conn_cast/2 :: (Apid :: pid(), Request :: any()) -> 'ok').
-%conn_cast(Apid, Request) ->
-%	gen_fsm:send_event(Apid, {conn_cast, Request}).
-
-%% @doc When the media wants to call to the connection.
-%-spec(conn_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
-%conn_call(Apid, Request) ->
-%	gen_fsm:sync_send_event(Apid, {conn_call, Request}).
-%	
-%% @doc The connection can request to call to the agent's media when oncall.
-%-spec(media_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
-%media_call(Apid, Request) ->
-%	gen_fsm:sync_send_event(Apid, {mediacall, Request}).
-
-%% @doc To cast to the media while oncall, use this.
-%-spec(media_cast/2 :: (Apid :: pid(), Request :: any()) -> 'ok').
-%media_cast(Apid, Request) ->
-%	gen_fsm:send_event(Apid, {mediacast, Request}).
-
 % actual functions we'll call
 %% @private
 -spec(expand_magic_skills/2 :: (State :: #agent{}, Skills :: [atom()]) -> [atom()]).
@@ -213,38 +191,10 @@ change_profile(Apid, Profile) ->
 query_state(Pid) -> 
 	gen_fsm:sync_send_all_state_event(Pid, query_state).
 
-%% @doc Attempt to set the state of agent at `Pid' to `State'.
-%-spec(set_state/2 :: (Pid :: pid(), State :: atom()) -> 'ok' | 'invalid').
-%set_state(Pid, State) ->
-%	gen_fsm:sync_send_event(Pid, State, infinity).
-
-%% @doc Attempt to set the state of the agent at `Pid' to `State' with data `Data'.  `Data' is related to the `State' the agent is going into.  
-%% Often `Data' will be `#call{} or a callid of type `string()'.
-%-spec(set_state/3 :: (Pid :: pid(), State :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'warmtransfer' | 'wrapup', Data :: any()) -> 'ok' | 'invalid';
-%                     (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
-%set_state(Pid, State, Data) ->
-%	gen_fsm:sync_send_event(Pid, {State, Data}, infinity).
-
-%% @doc attmept to push data from the media connection to the agent.  It's up to
-%% the agent connection to interpret this correctly.
-%-spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
-%media_push(Pid, Data) ->
-%	S = self(),
-%	gen_fsm:send_event(Pid, {mediapush, S, Data}).
-
-%-spec(url_pop/3 :: (Pid :: pid(), Data :: list(), Name :: string()) -> any()).
-%url_pop(Pid, Data, Name) ->
-%	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Data, Name}).
-
 %% @doc Send a message to the human agent.  If there's no connection, it black-holes.
 -spec(blab/2 :: (Pid :: pid(), Text :: string()) -> 'ok').
 blab(Pid, Text) ->
 	gen_fsm:send_all_state_event(Pid, {blab, Text}).
-
-%% @doc Make the give `pid() Spy' spy on `pid() Target'.
-%-spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok' | 'invalid').
-%spy(Spy, Target) ->
-%	gen_fsm:sync_send_event(Spy, {spy, Target}).
 
 %% @doc Get the endpoint for a given module from the agent record.
 -spec(get_endpoint/2 :: (Module :: atom(), Agent :: #agent{}) -> {'ok', any()} | 'inband' | {'error', any()}).
@@ -783,48 +733,6 @@ block_channels([Chan | Tail], InBlockables, BlocklistDefs) ->
 			block_channels(Tail, NewBlockables, BlocklistDefs)
 	end.
 		
-
-%
-%block_channels(Channels, Blockables, BlocklistDefs) ->
-%	block_channesl(Channels, Blockables, BlocklistDefs, []).
-%
-%block_channels(_Channels, [], _BlocklistDefs, Acc) ->
-%	Acc;
-%block_channels([], Blockabls
-%block_channels(_Channels, [], _BlocklistDefs) ->
-%	[];
-%block_channels([], Blockables, _BlocklistDefs) ->
-%	
-%block_channels(Channel, CurrentAvail, BlocklistDefs) ->
-%	Blocklist = proplists:get_value(Channel, BlocklistDefs, []),
-%	TrueAvail = lists:delete(Channel, CurrentAvail),
-%	block_channels(Channel, TrueAvail, Blocklist, [], []).
-%
-%block_channels(_Channel, CurrentAvail, none, _, _) ->
-%	{[], CurrentAvail};
-%block_channels(_Channel, CurrentAvail, all, _, _) ->
-%	{CurrentAvail, []};
-%block_channels(_Channel, [], _What, AccBlocked, AccAvail) ->
-%	{lists:reverse(AccBlocked), lists:reverse(AccAvail)};
-%block_channels(Channel, [Channel | Tail], self, AccBlocked, Avail) ->
-%	NewBlocked = [Channel | AccBlocked],
-%	block_channels(Channel, Tail, self, NewBlocked, Avail);
-%block_channels(Channel, [Channel | Tail], others, Blocked, AccAvail) ->
-%	NewAvail = [Channel | AccAvail],
-%	block_channels(Channel, Tail, others, Blocked, NewAvail);
-%block_channels(Channel, [Other | Tail], self, Blocked, AccAvail) ->
-%	NewAvail = [Other | AccAvail],
-%	block_channels(Channel, Tail, self, Blocked, NewAvail);
-%block_channels(Channel, [Other | Tail], others, AccBlocked, Avail) ->
-%	NewBlocked = [Other | AccBlocked],
-%	block_channels(Channel, Tail, others, NewBlocked, Avail);
-%block_channels(Channel, [Other | Tail], ToBlock, AccBlocked, AccAvail) ->
-%	{NewBlocked, NewAvail} = case lists:member(Other, ToBlock) of
-%		true -> {[Other | AccBlocked], AccAvail};
-%		false -> {AccBlocked, [Other | AccAvail]}
-%	end,
-%	block_channels(Channel, Tail, ToBlock, NewBlocked, NewAvail).
-
 %% @private
 -spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 agent_manager_exit(Reason, StateName, State) ->
@@ -871,7 +779,6 @@ set_cpx_monitor(State, Otherdeatils)->
 	set_cpx_monitor(State, Otherdeatils, ignore).
 
 set_cpx_monitor(State, Otherdeatils, Watch) ->
-	log_change(State),
 	Deatils = lists:append([
 		{profile, State#agent.profile}, 
 		{login, State#agent.login}, 
@@ -879,125 +786,6 @@ set_cpx_monitor(State, Otherdeatils, Watch) ->
 	Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Deatils, Watch).
 
-%log_change(#agent{log_pid = undefined}) ->
-%	ok;
-%log_change(#agent{log_pid = Pid, state = login} = State) when is_pid(Pid) ->
-%	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, {State#agent.skills, State#agent.statedata}},
-%	ok;
-%log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
-%	Pid ! State,
-%	ok.
-
-log_change(_) -> ok.
-
-%-spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
-%log_loop(Id, Agentname, Nodes, ProfileTup) ->
-%	process_flag(trap_exit, true),
-%	Profile = case ProfileTup of
-%		{Currentp, _Queuedp} ->
-%			Currentp;
-%		_ ->
-%			ProfileTup
-%	end,
-%	receive
-%		{Agentname, login, State, {Skills, Statedata}} ->
-%			F = fun() ->
-%				Now = util:now(),
-%				Login = #agent_state{
-%					id = Id, 
-%					agent = Agentname, 
-%					oldstate = login, 
-%					state=State,
-%					statedata = Skills,
-%					start = Now, 
-%					ended = Now, 
-%					profile= Profile, 
-%					nodes = Nodes
-%				},
-%				StateRow = #agent_state{
-%					id = Id,
-%					agent = Agentname,
-%					oldstate = State,
-%					statedata = Statedata,
-%					start = Now,
-%					nodes = Nodes
-%				},
-%				mnesia:dirty_write(Login),
-%				mnesia:dirty_write(StateRow),
-%				gen_cdr_dumper:update_notify(agent_state),
-%				cpx_monitor:info({agent_state, Login}),
-%				cpx_monitor:info({agent_state, StateRow}),
-%				ok
-%			end,
-%			Res = mnesia:async_dirty(F),
-%			?DEBUG("res of agent state login:  ~p", [Res]),
-%			agent:log_loop(Id, Agentname, Nodes, ProfileTup);
-%		{'EXIT', _Apid, _Reason} ->
-%			F = fun() ->
-%				Now = util:now(),
-%				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-%				Recs = qlc:e(QH),
-%				?DEBUG("Recs to loop through:  ~p", [Recs]),
-%				lists:foreach(
-%					fun(Untermed) ->
-%						mnesia:delete_object(Untermed), 
-%						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = logout},
-%						cpx_monitor:info({agent_state, Termed}),
-%						mnesia:write(Termed)
-%					end,
-%					Recs
-%				),
-%				gen_cdr_dumper:update_notify(agent_state),
-%				%Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
-%					%B =< A
-%				%end,
-%				%[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
-%				%Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = State, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
-%				%mnesia:write(Newrec),
-%				ok
-%			end,
-%			Res = mnesia:async_dirty(F),
-%			?DEBUG("res of agent state change log:  ~p", [Res]),
-%			ok;
-%		{change_profile, Newprofile, State} when State == idle; State == released ->
-%			agent:log_loop(Id, Agentname, Nodes, Newprofile);
-%		{change_profile, Newprofile, _State} ->
-%			case ProfileTup of
-%				{Current, _Queued} ->
-%					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
-%				Current ->
-%					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
-%			end;
-%		{Agentname, State, _OldState, Statedata} ->
-%			F = fun() ->
-%				Now = util:now(),
-%				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
-%				Recs = qlc:e(QH),
-%				lists:foreach(
-%					fun(Untermed) -> 
-%						mnesia:delete_object(Untermed),
-%						Termed = Untermed#agent_state{ended = Now, timestamp = Now, state = State},
-%						cpx_monitor:info({agent_state, Termed}),
-%						mnesia:write(Termed)
-%					end,
-%					Recs
-%				),
-%				gen_cdr_dumper:update_notify(agent_state),
-%				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
-%				cpx_monitor:info({agent_state, Newrec}),
-%				mnesia:write(Newrec),
-%				ok
-%			end,
-%			Res = mnesia:async_dirty(F),
-%			?DEBUG("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
-%			case {State, ProfileTup} of
-%				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
-%					agent:log_loop(Id, Agentname, Nodes, Queued);
-%				_ ->
-%					agent:log_loop(Id, Agentname, Nodes, ProfileTup)
-%			end
-%	end.
-	
 -ifdef(TEST).
 
 make_agent(Opts) ->

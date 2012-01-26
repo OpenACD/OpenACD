@@ -45,7 +45,9 @@
 -include("agent.hrl").
 -include("gen_media.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete, call_end]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail,
+	announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin,
+	warm_transfer_cancel, warm_transfer_complete, call_end]).
 
 %% API
 -export([

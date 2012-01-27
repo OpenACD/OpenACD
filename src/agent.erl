@@ -499,16 +499,6 @@ handle_event(_Msg, StateName, State) ->
 % HANDLE_INFO
 % ======================================================================
 
-%handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
-%	?INFO("Log pid ~w died due to ~p", [From, Reason]),
-%	Nodes = case proplists:get_value(nodes, Agent#agent.start_opts) of
-%		undefined -> [node()];
-%		Else -> Else
-%	end,
-%	Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-%	Newagent = Agent#agent{log_pid = Pid},
-%	{next_state, StateName, State#state{agent_rec = Newagent}};
-
 handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connection = From} = _Agent} = State) ->
 	?WARNING("agent connection died while ~w", [StateName]),
 	Stopwhy = case Reason of

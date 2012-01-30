@@ -35,12 +35,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--include("log.hrl").
--include("queue.hrl").
--include("call.hrl").
--include("agent.hrl").
-%-include("gen_media.hrl").
--include("cpx_freeswitch_pb.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/queue.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
+%-include_lib("OpenACD/include/gen_media.hrl").
+-include_lib("OpenACD/include/cpx_freeswitch_pb.hrl").
 
 -define(TIMEOUT, 10000).
 
@@ -89,7 +89,7 @@
 
 -type(state() :: #state{}).
 -define(GEN_MEDIA, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 %%====================================================================
 %% API

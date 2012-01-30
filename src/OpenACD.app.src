@@ -27,5 +27,6 @@
 	{mod, {cpx, []}},
 	{env, []},
 	{applications, [kernel, stdlib, mnesia, crypto, public_key]}, %, mochiweb, gen_smtp]},
-	{start_phases, []}
+	{start_phases, []},
+	{included_applications, [oacd_freeswitch]}
 ]}.

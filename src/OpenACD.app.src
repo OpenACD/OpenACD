@@ -28,5 +28,5 @@
 	{env, []},
 	{applications, [kernel, stdlib, mnesia, crypto, public_key]}, %, mochiweb, gen_smtp]},
 	{start_phases, []},
-	{included_applications, [oacd_freeswitch]}
+	{included_applications, [oacd_freeswitch, oacd_dummy]}
 ]}.

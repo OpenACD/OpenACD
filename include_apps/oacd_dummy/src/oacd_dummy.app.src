@@ -1,0 +1,13 @@
+{application, oacd_dummy, [
+	{description, "Dummy media plugin for OpenACD"},
+	{vsn, "2.0.0"},
+	{modules, []},
+	{registered, [
+		dummy_media_manager
+	]},
+	{mod, {oacd_dummy_app, []}},
+	{env, []},
+	{applications, [kernel, stdlib, 'OpenACD']},
+	{start_phases, []},
+	{included_applications, []}
+]}.

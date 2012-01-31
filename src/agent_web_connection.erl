@@ -1103,6 +1103,26 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 			?ERROR("request to fetch ~p from ~p ~p by ~p", [Path, Call#call.id, Call#call.source, State#state.agent_fsm]),
 			{reply, {404, [], <<"path not found">>}, State}
 	end;
+handle_call({undefined, Path, Post}, _From, State) ->
+	?DEBUG("Forwarding to hooks for handling:  ~p", [Path]),
+	case cpx_hooks:trigger_hooks(agent_web_path, [Path, Post, State#state.current_call]) of
+		{ok, Binary} when is_binary(Binary) ->
+			{reply, {200, [], Binary}, State};
+		{ok, {Status, Headers, Binary} = Out} when is_integer(Status), is_list(Headers), is_binary(Binary) ->
+			{reply, Out, State};
+		{ok, ok} ->
+			{reply, ?simple_success(), State};
+		{ok, {json, Json}} ->
+			{reply, ?reply_success(Json), State};
+		{ok, {Errcode, ErrMsg}} ->
+			{reply, ?reply_err(ErrMsg, Errcode), State};
+		{error, unhandled} ->
+			{reply, {404, [], <<"not_found">>}, State};
+		{error, Err} ->
+			Msg = list_to_binary(io_lib:format("~p", [Err])),
+			{reply, ?reply_err(Msg, <<"UNKNOWN_ERROR">>), State}
+	end;
+
 handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};
 handle_call(dump_state, _From, State) ->

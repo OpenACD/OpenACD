@@ -43,7 +43,7 @@
 -include_lib("OpenACD/include/queue.hrl").
 -include_lib("OpenACD/include/call.hrl").
 -include_lib("OpenACD/include/agent.hrl").
--include_lib("OpenACD/include/cpx_freeswitch_pb.hrl").
+-include("cpx_freeswitch_pb.hrl").
 %-include_lib("OpenACD/include/gen_media.hrl").
 
 -define(TIMEOUT, 10000).

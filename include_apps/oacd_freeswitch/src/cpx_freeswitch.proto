@@ -1,4 +1,5 @@
-import "cpx_agent.proto";
+import "../../proto_src/cpx_base.proto";
+import "../../proto_src/cpx_agent.proto";
 
 package openacd.agent.freeswitch;
 

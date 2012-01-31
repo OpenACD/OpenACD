@@ -1151,6 +1151,7 @@ handle_cast({poll, Frompid}, State) ->
 			{noreply, Newstate}
 	end;
 handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = email_media} = Call}}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Midstate = case State#state.current_call of
 		expect ->
 			State#state{current_call = Call};
@@ -1165,6 +1166,7 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = ema
 	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate#state{mediaload = []}};
 handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = freeswitch_media} = Call, _}}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
 		{<<"channelid">>, list_to_binary(pid_to_list(ChanPid))},
@@ -1172,37 +1174,36 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = fre
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
-handle_cast({mediaload, #call{type = voice}}, State) ->
-	Json = {struct, [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voice">>},
-		{<<"fullpane">>, false}
-	]},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
-handle_cast({mediaload, #call{type = voice}, Options}, State) ->
-	Base = [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voice">>},
-		{<<"fullpane">>, false}
-	],
-	Json = {struct, lists:append(Base, Options)},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
-handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
-	Base = [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voicemail">>},
-		{<<"fullpane">>, false}
-	],
-	Json = {struct, lists:append(Base, Options)},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
-handle_cast({mediapush, Chanpid, #call{source_module = Mediatype}, Data}, State) ->
-	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
+%handle_cast({mediaload, #call{type = voice}}, State) ->
+%	Json = {struct, [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voice">>},
+%		{<<"fullpane">>, false}
+%	]},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
+%handle_cast({mediaload, #call{type = voice}, Options}, State) ->
+%	Base = [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voice">>},
+%		{<<"fullpane">>, false}
+%	],
+%	Json = {struct, lists:append(Base, Options)},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
+%handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
+%	Base = [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voicemail">>},
+%		{<<"fullpane">>, false}
+%	],
+%	Json = {struct, lists:append(Base, Options)},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
+% TODO agent_web_connection should not interfere
+handle_cast({mediapush, Chanpid, #call{source_module = email_media}, Data}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Chanid = list_to_binary(pid_to_list(Chanpid)),
-	case Mediatype of
-		email_media ->
 			case Data of
 				send_done ->
 					Json = {struct, [
@@ -1229,22 +1230,35 @@ handle_cast({mediapush, Chanpid, #call{source_module = Mediatype}, Data}, State)
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
-		freeswitch_media ->
-			case Data of
-				SimpleCommand when is_atom(SimpleCommand) ->
-					Json = {struct, [
-						{<<"channelid">>, Chanid},
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, SimpleCommand}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate}
-			end;
-		Else ->
-			?INFO("Currently no for media pushings: ~p", [Else]),
-			{noreply, State}
+handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media}, Data} = Call, State) ->
+	?WARNING("Media specific mediapush handling!", []),
+	Mediatype = Call#call.type,
+	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
+	Chanid = list_to_binary(pid_to_list(Chanpid)),
+	case Data of
+		SimpleCommand when is_atom(SimpleCommand) ->
+			Json = {struct, [
+				{<<"channelid">>, Chanid},
+				{<<"command">>, <<"mediaevent">>},
+				{<<"media">>, voice},
+				{<<"event">>, SimpleCommand}
+			]},
+			Newstate = push_event(Json, State),
+			{noreply, Newstate}
 	end;
+
+handle_cast({mediapush, Chanpid, Call, {Command, Call, Data} = Fd}, State) ->
+	?DEBUG("mediapush unmolested by agent web connection: ~p", [Fd]),
+	Chanid = list_to_binary(pid_to_list(Chanpid)),
+	Json = {struct, [
+		{<<"channelid">>, Chanid},
+		{<<"command">>, Command},
+		{<<"media">>, Call#call.type},
+		{<<"event">>, Data}
+	]},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
+
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 

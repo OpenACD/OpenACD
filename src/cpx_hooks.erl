@@ -12,7 +12,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	code_change/3]).
 % api
--export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2]).
+-export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2,
+	trigger_hooks/3]).
 
 %% =================================================================
 %% API
@@ -33,12 +34,18 @@ drop_hook(Id) ->
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
 
 trigger_hooks(Hook, Args) ->
+	trigger_hooks(Hook, Args, first).
+
+trigger_hooks(Hook, Args, StopWhen) ->
 	Hooks = qlc:e(qlc:q([{P, M, F, A, Id} || 
 		{Id, EHook, M, F, A, P} <- ets:table(cpx_hooks),
 		EHook == Hook
 	])),
 	Hooks0 = lists:sort(Hooks),
-	run_hooks(Hooks0, Args).
+	case StopWhen of
+		first -> run_hooks(Hooks0, Args, first);
+		all -> run_hooks(Hooks0, Args, [])
+	end.
 
 stop() ->
 	gen_server:call(?MODULE, stop).
@@ -106,23 +113,28 @@ code_change(_OldVsn, Ets, _Extra) ->
 %% internal
 %% =================================================================
 
-run_hooks([], _Args) ->
+run_hooks([], _Args, first) ->
 	{error, unhandled};
 
-run_hooks([{_P, M, F, A, Id} | Tail], Args) ->
+run_hooks([], _Args, Out) ->
+	{ok, Out};
+
+run_hooks([{_P, M, F, A, Id} | Tail], Args, StopWhen) ->
 	Args0 = lists:append(Args, A),
-	try apply(M, F, Args0) of
-		{ok, Val} ->
+	try {apply(M, F, Args0), StopWhen} of
+		{{ok, Val}, first} ->
 			?DEBUG("hook ~p supplied value", [Id]),
 			{ok, Val};
-		Else ->
+		{{ok, Val}, Acc} ->
+			run_hooks(Tail, Args, [Val | Acc]);
+		{Else, _} ->
 			?DEBUG("Hook ~p gave back a weird value:  ~p", [Id, Else]),
-			run_hooks(Tail, Args)
+			run_hooks(Tail, Args, StopWhen)
 	catch
 		What:Why ->
 			?NOTICE("Hook ~p failed with ~p:~p", [Id, What, Why]),
 			drop_hook(Id),
-			run_hooks(Tail, Args)
+			run_hooks(Tail, Args, StopWhen)
 	end.
 
 
@@ -139,7 +151,7 @@ hook_test_() ->
 		{ok, P} = start_link(),
 		P
 	end,
-	fun(P) ->
+	fun(_P) ->
 		meck:unload(hook_tester),
 		stop(),
 		timer:sleep(100)
@@ -180,6 +192,25 @@ hook_test_() ->
 				trigger_hooks(hook, []),
 				Out = qlc:e(qlc:q([X || X <- ets:table(cpx_hooks)])),
 				?assertEqual([], Out)
+			end}
+		end,
+
+		fun(_) ->
+			{"hook fold works", fun() ->
+				meck:expect(hook_tester, callback, fun(Action) ->
+					case Action of
+						$i -> {ok, $i};
+						$h -> {ok, $h};
+						{error, Err} -> erlang:error(Err);
+						Else -> Else
+					end
+				end),
+				set_hook(first, hook, hook_tester, callback, [$i], 1),
+				set_hook(second, hook, hook_tester, callback, [{error, donotwant}], 2),
+				set_hook(third, hook, hook_tester, callback, [jelly], 3),
+				set_hook(forth, hook, hook_tester, callback, [$h], 4),
+				Out = trigger_hooks(hook, [], all),
+				?assertEqual({ok, "hi"}, Out)
 			end}
 		end
 

@@ -1860,6 +1860,19 @@ handle_custom_return({{hangup, Who}, NewState}, wrapup, noreply,
 	% leaving it up to the media whether it should stop or not.
 	{next_state, wrapup, {BaseState#base_state{substate = NewState}, Internal}};
 
+handle_custom_return({mutate, NewCallback, NewState}, State, noreply,
+		{BaseState, Internal}) ->
+	?INFO("mutating to ~p from ~p", [NewCallback, BaseState#base_state.callback]),
+	NewBase = BaseState#base_state{callback = NewCallback, substate = NewState},
+	{next_state, State, {NewBase, Internal}};
+
+handle_custom_return({mutate, Reply, NewCallback, NewState}, State, reply, 
+		{BaseState, Internal}) ->
+	?INFO("mutating to ~p from ~p", [NewCallback, BaseState#base_state.callback]),
+	NewBase = BaseState#base_state{callback = NewCallback,
+		substate = NewState},
+	{reply, Reply, State, {NewBase, Internal}};
+
 handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
 		StateTuple) when State =:= oncall;
 		State =:= oncall_ringing;
@@ -3809,6 +3822,40 @@ priv_queue_test_() ->
 			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
 			Validator()
+		end}
+
+	] end}.
+
+mutate_return_test_() ->
+	{setup, fun() ->
+		meck:new(first_module),
+		meck:new(second_module),
+		#base_state{callback = first_module}
+	end,
+	fun(_) ->
+		meck:unload(first_module),
+		meck:unload(second_module)
+	end,
+	fun(Base) -> [
+
+		{"mutate from handle info", fun() ->
+			meck:expect(first_module, handle_info, fun(mutate, "gm state", undefined, _GMStateRec, undefined) ->
+				{mutate, second_module, "new callback state"}
+			end),
+			{next_state, "gm state", {NewBase, "gm state rec"}} = handle_info(mutate, "gm state", {Base, "gm state rec"}),
+			?assertEqual(second_module, NewBase#base_state.callback),
+			?assertEqual("new callback state", NewBase#base_state.substate),
+			meck:validate(first_module),
+			meck:validate(second_module)
+		end},
+
+		{"mutate from call", fun() ->
+			meck:expect(first_module, handle_call, fun(mutate, "from", "gm statename", undefined, "gm state data", undefined) ->
+				{mutate, {ok, "goober"}, second_module, "new callback state"}
+			end),
+			{reply, {ok, "goober"}, "gm statename", {NewBase, "gm state data"}} = handle_sync_event(mutate, "from", "gm statename", {Base, "gm state data"}),
+			?assertEqual(second_module, NewBase#base_state.callback),
+			?assertEqual("new callback state", NewBase#base_state.substate)
 		end}
 
 	] end}.

@@ -3813,6 +3813,29 @@ priv_queue_test_() ->
 
 	] end}.
 
+mutate_return_test_() ->
+	{setup, fun() ->
+		meck:new(first_module),
+		meck:new(second_module),
+		#base_state{callback = first_module}
+	end,
+	fun(_) ->
+		meck:unload(first_module),
+		meck:unload(second_module)
+	end,
+	fun(Base) -> [
+
+		{"mutate from handle info", fun() ->
+			meck:expect(first_module, handle_info, fun(mutate, "gm state", undefined, _GMStateRec, undefined) ->
+				{mutate, second_module, "new callback state"}
+			end),
+			{next_state, "gm state", {NewBase, undefined}} = handle_info(mutate, "gm state", {Base, "gm state rec"}),
+			?assertEqual(second_moudle, NewBase#base_state.callback),
+			?assertEqual("new callback state", NewBase#base_state.substate)
+		end}
+
+	] end}.
+
 outbound_call_flow_test_() ->
 	{setup, fun() ->
 		meck:new(media_callback),

@@ -153,7 +153,7 @@
 	warm_transfer_cancel/1,
 	queue_transfer/3,
 	init_outbound/3,
-	set_endpoint/4,
+	set_endpoint/3,
 	logout/1,
 	plugin_call/3
 ]).
@@ -183,7 +183,8 @@
 	{warm_transfer_cancel, 1},
 	{queue_transfer, 3},
 	{init_outbound, 3},
-	{set_endpoint, 4},
+	{get_endpoint, 2},
+	{set_endpoint, 3},
 	{plugin_call, 3},
 	{poll, 2},
 	{logout, 1}
@@ -440,32 +441,83 @@ queue_transfer(Conn, Queue, {struct, Opts}) ->
 init_outbound(Conn, Client, Type) ->
 	gen_server:call(Conn, {init_outbound, binary_to_list(Client), binary_to_list(Type)}).
 
+%% @doc {@web} Get the agent's endpoint data.
+-spec(get_endpoint/2 :: (Conn :: pid(), Type :: bin_string()) -> any()).
+get_endpoint(Conn, TypeBin) ->
+	case catch erlang:binary_to_existing_atom(TypeBin, utf8) of
+		{'EXIT', {badarg, _}} ->
+			err_resp(<<"INVALID_ENDPOINT_TYPE">>, <<"invalid endpoint type">>);
+		Type ->
+			case gen_server:call(Conn, {get_endpoint, Type}) of
+				{ok, Data} ->
+					?reply_success(endpoint_to_struct(Type, Data));
+				{error, notfound} ->
+					?reply_success(null)
+			end
+	end.
+
 %% @doc {@web} Sets the agent's endpoint data to the given, well, data.
 %% Particularly useful if the flash phone is used, as all of the connection
 %% data will not be available for that until it is started on in the 
 %% browser.
--spec(set_endpoint/4 :: (Conn :: pid(), Endpoint :: bin_string(), Data :: bin_string(), Persist :: 'true' | 'false') -> any()).
-set_endpoint(Conn, Endpoint, Data, Persist) ->
-	case catch list_to_existing_atom(binary_to_list(Endpoint)) of
-		{'EXIT', {badarg, _}} ->
-			{200, [], mochijson2:encode({struct, [{success, false},{<<"message">>, <<"invalid endpoint type">>}, {<<"errcode">>, <<"INVALID_ENDPOINT_TYPE">>}]})};
-		EndpointType ->
-			EndpointData = binary_to_list(Data),
-			Persisty = case Persist of
-				true -> persistent;
-				false -> transient
-			end,
-			case gen_server:call(Conn, {set_endpoint, EndpointType, EndpointData, Persisty}) of
-				ok -> {200, [], mochijson2:encode({struct, [{success, true}]})};
-				{ok, _Pid} -> {200, [], mochijson2:encode({stuct, [{success, true}]})};
-				{error, Error} ->
-					{200, [], mochijson2:encode({struct, [
-						{success, false},
-						{<<"message">>, list_to_binary(io_lib:format("Error setting endpoint:  ~p", [Error]))},
-						{<<"errcode">>, <<"INVALID_ENDPOINT">>}
-					]})}
-			end
-	end.
+-spec(set_endpoint/3 :: (Conn :: pid(), Endpoint :: bin_string(), Data :: bin_string()) -> any()).
+set_endpoint(Conn, <<"freeswitch_media">>, Struct) ->
+	set_endpoint_int(Conn, freeswitch_media, Struct, fun(Data) ->
+		FwType = case proplists:get_value(<<"type">>, Data) of
+			%<<"rtmp">> -> rtmp;
+			<<"sip_registration">> -> sip_registration;
+			<<"sip">> -> sip;
+			<<"iax">> -> iax;
+			<<"h323">> -> h323;
+			<<"pstn">> -> pstn;
+			_ -> undefined
+		end,
+
+		case FwType of
+			undefined ->
+				{error, unknown_fw_type};
+			_ ->
+				FwData = binary_to_list(proplists:get_value(<<"data">>, 
+					Data, <<>>)),
+				Persistant = case proplists:get_value(<<"persistant">>, 
+					Data) of
+						true -> true;
+						_ -> undefined
+				end,
+
+				[{type, FwType}, {data, FwData}, {persistant, Persistant}]
+		end
+	end);
+set_endpoint(Conn, <<"email_media">>, _Struct) ->
+	set_endpoint_int(Conn, email_media, {struct, []}, fun(_) -> ok end);
+
+set_endpoint(Conn, <<"dummy_media">>, Struct) ->
+	set_endpoint_int(Conn, dummy_media, Struct, fun(Data) ->
+		case proplists:get_value(<<"dummyMediaEndpoint">>, Data) of
+			<<"ring_channel">> ->  ring_channel;
+			<<"inband">> -> inband;
+			<<"outband">> -> outband;
+			<<"persistant">> -> persistant;
+			_ -> {error, unknown_dummy_endpoint}
+		end
+	end);
+set_endpoint(_Conn, _Type, _Struct) ->
+	err_resp(<<"INVALID_ENDPOINT">>, <<"unknwon endpoint">>).
+
+% set_endpoint(Conn, Endpoint, Data, Persist) ->
+% 			EndpointData = binary_to_list(Data),
+% 			Z = gen_server:call(Conn, {set_endpoint, EndpointType, EndpointData, Persisty}),
+% 			case Z of
+% 				ok -> {200, [], mochijson2:encode({struct, [{success, true}]})};
+% 				{ok, _Pid} -> {200, [], mochijson2:encode({stuct, [{success, true}]})};
+% 				{error, Error} ->
+% 					{200, [], mochijson2:encode({struct, [
+% 						{success, false},
+% 						{<<"message">>, list_to_binary(io_lib:format("Error setting endpoint:  ~p", [Error]))},
+% 						{<<"errcode">>, <<"INVALID_ENDPOINT">>}
+% 					]})}
+% 			end
+% 	end.
 
 %% @doc {@web} If the media set anything to be loaded at call start, 
 %% retreive it.  This is useful if the client (such as web browser) needs 
@@ -809,8 +861,15 @@ handle_call({end_wrapup, Channel}, _From, #state{agent_channels = Channels} = St
 			end
 	end;
 
-handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) -> 
-	{reply, agent:set_endpoint(Apid, freeswitch, Endpoint), State};
+handle_call({get_endpoint, Type}, _From, #state{agent_fsm = Apid} = State) ->
+	Agent = agent:dump_state(Apid),
+	Reply = case agent:get_endpoint(Type, Agent) of
+		R = {error, notfound} -> R;
+		{ok, {InitOpts, _}} -> {ok, InitOpts}
+	end,
+	{reply, Reply, State};
+handle_call({set_endpoint, Type, Data}, _From, #state{agent_fsm = Apid} = State) ->
+	{reply, agent:set_endpoint(Apid, Type, Data), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]})}, State};
 %	AgentRec = agent:dump_state(AgentPid),
@@ -1359,6 +1418,9 @@ handle_cast({blab, Text}, State) when is_binary(Text) ->
 	]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
+handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
+	%% TODO update media in poll
+	{noreply, State};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.
@@ -1777,8 +1839,44 @@ encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
 	Newacc = [Struct | Acc],
 	encode_queue_list(Tail, Newacc).
 
+err_resp(ErrCode, Message) ->
+	{200, [], mochijson2:encode({struct, [
+						{success, false},
+						{<<"errcode">>, ErrCode},
+						{<<"message">>, Message}
+					]})}.
 
-		
+err_resp_fmt(ErrCode, Fmt, Params) ->
+	err_resp(ErrCode, iolist_to_binary(io_lib:format(Fmt, Params))).
+
+endpoint_to_struct(freeswitch_media, Data) ->
+	FwType = proplists:get_value(type, Data, null), %% atom()
+	FwData = case proplists:get_value(data, Data) of
+		undefined -> null;
+		Dat -> list_to_binary(Dat)
+	end,
+	Persistant = proplists:get_value(persistant, Data),
+	{struct, [{type, FwType}, {data, FwData}, {persistant, Persistant}]};
+endpoint_to_struct(email_media, _Data) ->
+	{struct, []};
+endpoint_to_struct(dummy_media, Opt) ->
+	{struct, [{endpoint, Opt}]}.
+
+set_endpoint_int(Conn, Type, {struct, Data}, DataToOptsFun) ->
+	case DataToOptsFun(Data) of
+		{error, Error} ->
+			err_resp_fmt(<<"INVALID_ENDPOINT">>,
+				"error with input: ~p", [Error]);
+		Opts ->
+			case gen_server:call(Conn, {set_endpoint, Type, Opts}) of
+				ok ->
+					?simple_success();
+				{error, Error2} ->
+					err_resp_fmt(<<"INVALID_ENDPOINT">>,
+						"error setting endpoint: ~p", [Error2])
+			end
+	end.
+
 
 -ifdef(TEST).
 
@@ -2028,7 +2126,7 @@ simplify_web_response({struct, Props}) ->
 			Code = proplists:get_value(<<"errcode">>, Props, <<"missing_code">>),
 			{error, {Code, Msg}};
 		true ->
-			Res = proplists:get_value(result, Props),
+			Res = proplists:get_value(<<"result">>, Props),
 			{ok, Res}
 	end;
 
@@ -2069,10 +2167,187 @@ plugin_call_test_() ->
 		{"Plugin simple success", fun() ->
 			GRes = handle_call({plugin_call, "OpenACD", <<"success">>}, "from", State),
 			SimpleRes = simplify_web_response(GRes),
-			Expected = {ok, undefined},
+			Expected = {ok, <<"success">>},
 			?assertEqual(Expected, SimpleRes)
 		end}
 	] end}.
+
+get_endpoint_test_() ->
+	{
+		foreach,
+		fun() ->
+			gen_event:start({local, cpx_agent_event}),
+			gen_server_mock:named({local, freeswitch_media_manager}),
+
+			gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(agent_manager, 
+				fun({exists, "testagent"}, _From, State, _Elec) -> 
+					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+					{ok, {true, Apid}, State} 
+				end),
+			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
+
+
+			Connpid
+		end,
+		fun(Connpid) ->
+			%stop(Connpid),
+			%gen_server_mock:stop(FMMPid)
+			ok
+		end,
+		[
+			fun(Connpid) ->
+				{"Get freeswitch endpoint",
+
+				fun() ->
+					meck:new(freeswitch_ring),
+					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
+
+					gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _From, State) -> {ok, 
+						{'freeswitch@127.0.0.1', "dialstring", "dest"}, State} end),
+
+					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+					AgentPid = (dump_state(Connpid))#state.agent_fsm,
+					agent:set_endpoint(AgentPid, freeswitch_media, [{type, sip}, {data, "foobar"}, {persistant, true}]),
+					
+					{ok, {struct, Props}} = simplify_web_response(get_endpoint(Connpid, <<"freeswitch_media">>)),
+
+					?debugVal(Props),
+
+					?assertEqual(<<"sip">>, proplists:get_value(<<"type">>, Props)),
+					?assertEqual(<<"foobar">>, proplists:get_value(<<"data">>, Props)),
+					?assertEqual(true, proplists:get_value(<<"persistant">>, Props)),
+
+					?assert(meck:validate(freeswitch_ring)),
+					meck:unload(freeswitch_ring)
+				end}
+			end,
+			fun(Connpid) ->
+				{"Get email endpoint",
+				fun() ->
+					AgentPid = (dump_state(Connpid))#state.agent_fsm,
+					agent:set_endpoint(AgentPid, email_media, null),
+					?assertEqual({ok, null}, simplify_web_response(
+						get_endpoint(Connpid, <<"email_media">>)))
+				end}
+			end
+		]
+	}.
+
+set_endpoint_test_() ->
+	{
+		foreach,
+		fun() ->
+			gen_event:start({local, cpx_agent_event}),
+			gen_server_mock:named({local, freeswitch_media_manager}),
+
+			gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(agent_manager, 
+				fun({exists, "testagent"}, _From, State, _Elec) -> 
+					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+					{ok, {true, Apid}, State} 
+				end),
+			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
+
+
+			Connpid
+		end,
+		fun(Connpid) ->
+			%stop(Connpid),
+			%gen_server_mock:stop(FMMPid)
+			ok
+		end,
+		[
+			fun(Connpid) ->
+				{"Set unknown endpoint",
+				fun() ->
+					?assertEqual(
+						{error,{<<"INVALID_ENDPOINT">>,
+                                    <<"unknwon endpoint">>}},
+						simplify_web_response(
+						set_endpoint(Connpid, <<"blabla">>, {struct, []})))
+				end}
+			end,
+			fun(Connpid) ->
+				{"Set freeswitch endpoint",
+				fun() ->
+					meck:new(freeswitch_ring),
+					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
+
+					[test_valid_set_fw_endpoint(Connpid, TypeIn, <<"somedata">>, PersistantIn, Type, "somedata", Persistant) ||
+						{TypeIn, Type} <- 
+							[{<<"sip_registration">>, sip_registration},
+							{<<"sip">>, sip},
+							{<<"iax">>, iax},
+							{<<"h323">>, h323},
+							{<<"pstn">>, pstn}],
+						{PersistantIn, Persistant} <-
+							[{true, true}, {false, undefined}, {undefined, undefined}]],
+					
+					?assert(meck:validate(freeswitch_ring)),
+					meck:unload(freeswitch_ring)
+				end}
+			end,
+			fun(Connpid) ->
+				{"Set email endpoint",
+				fun() ->
+					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+					?assertEqual(
+						{ok, undefined},
+						simplify_web_response(
+						set_endpoint(Connpid, <<"email_media">>, null)))
+					?assertNotMatch({error, _}, agent:get_endpoint(	
+						email_media, dump_agent(Connpid)))
+				end}
+			end,
+			fun(Connpid) ->
+				{"Set dummy endpoint",
+				fun() ->
+					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+					?assertEqual(
+						{ok, undefined},
+						simplify_web_response(
+						set_endpoint(Connpid, <<"email_media">>, null)))
+				end}
+			end
+		]
+	}.
+
+
+
+test_valid_set_fw_endpoint(Connpid, TypeIn, DataIn, PersistantIn, Type, Data, Persistant) ->
+
+	gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _From, State) -> {ok, 
+		{'freeswitch@127.0.0.1', "dialstring", "dest"}, State} end),
+
+	gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+	?assertEqual(
+		{ok, undefined},
+		simplify_web_response(
+		set_endpoint(Connpid, <<"freeswitch_media">>,
+			{struct, [
+				{<<"type">>, TypeIn},
+				{<<"data">>, DataIn},
+				{<<"persistant">>, PersistantIn}
+			]}))),
+	Agent = dump_agent(Connpid),
+	{ok, {Opts, _}} = agent:get_endpoint(freeswitch_media,
+	 	Agent),
+	
+	?assertEqual(Type,
+	 	proplists:get_value(type, Opts)),
+	?assertEqual(Data,
+		proplists:get_value(data, Opts)),
+	?assertEqual(Persistant,
+		proplists:get_value(persistant, Opts)).
 
 %extract_groups_test() ->
 %	Rawlist = [

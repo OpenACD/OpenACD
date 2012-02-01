@@ -1862,9 +1862,16 @@ handle_custom_return({{hangup, Who}, NewState}, wrapup, noreply,
 
 handle_custom_return({mutate, NewCallback, NewState}, State, noreply,
 		{BaseState, Internal}) ->
-	?INFO("mutating from ~p to ~p", [NewCallback, BaseState#base_state.callback]),
+	?INFO("mutating to ~p from ~p", [NewCallback, BaseState#base_state.callback]),
 	NewBase = BaseState#base_state{callback = NewCallback, substate = NewState},
 	{next_state, State, {NewBase, Internal}};
+
+handle_custom_return({mutate, Reply, NewCallback, NewState}, State, reply, 
+		{BaseState, Internal}) ->
+	?INFO("mutating to ~p from ~p", [NewCallback, BaseState#base_state.callback]),
+	NewBase = BaseState#base_state{callback = NewCallback,
+		substate = NewState},
+	{reply, Reply, State, {NewBase, Internal}};
 
 handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
 		StateTuple) when State =:= oncall;

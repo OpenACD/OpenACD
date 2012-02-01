@@ -3837,6 +3837,17 @@ mutate_return_test_() ->
 			end),
 			{next_state, "gm state", {NewBase, "gm state rec"}} = handle_info(mutate, "gm state", {Base, "gm state rec"}),
 			?assertEqual(second_module, NewBase#base_state.callback),
+			?assertEqual("new callback state", NewBase#base_state.substate),
+			meck:validate(first_module),
+			meck:validate(second_module)
+		end},
+
+		{"mutate from call", fun() ->
+			meck:expect(first_module, handle_call, fun(mutate, "from", "gm statename", undefined, "gm state data", undefined) ->
+				{mutate, {ok, "goober"}, second_module, "new callback state"}
+			end),
+			{reply, {ok, "goober"}, "gm statename", {NewBase, "gm state data"}} = handle_sync_event(mutate, "from", "gm statename", {Base, "gm state data"}),
+			?assertEqual(second_module, NewBase#base_state.callback),
 			?assertEqual("new callback state", NewBase#base_state.substate)
 		end}
 

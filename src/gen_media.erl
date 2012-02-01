@@ -1860,6 +1860,12 @@ handle_custom_return({{hangup, Who}, NewState}, wrapup, noreply,
 	% leaving it up to the media whether it should stop or not.
 	{next_state, wrapup, {BaseState#base_state{substate = NewState}, Internal}};
 
+handle_custom_return({mutate, NewCallback, NewState}, State, noreply,
+		{BaseState, Internal}) ->
+	?INFO("mutating from ~p to ~p", [NewCallback, BaseState#base_state.callback]),
+	NewBase = BaseState#base_state{callback = NewCallback, substate = NewState},
+	{next_state, State, {NewBase, Internal}};
+
 handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
 		StateTuple) when State =:= oncall;
 		State =:= oncall_ringing;
@@ -3829,8 +3835,8 @@ mutate_return_test_() ->
 			meck:expect(first_module, handle_info, fun(mutate, "gm state", undefined, _GMStateRec, undefined) ->
 				{mutate, second_module, "new callback state"}
 			end),
-			{next_state, "gm state", {NewBase, undefined}} = handle_info(mutate, "gm state", {Base, "gm state rec"}),
-			?assertEqual(second_moudle, NewBase#base_state.callback),
+			{next_state, "gm state", {NewBase, "gm state rec"}} = handle_info(mutate, "gm state", {Base, "gm state rec"}),
+			?assertEqual(second_module, NewBase#base_state.callback),
 			?assertEqual("new callback state", NewBase#base_state.substate)
 		end}
 

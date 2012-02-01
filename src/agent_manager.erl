@@ -1224,13 +1224,13 @@ multi_node_test_() ->
 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
 		receive after 100 -> ok end,
 		List = rpc:call(Master, ?MODULE, list, []),
-		?assertMatch([{"agent", #agent_cache{pid = Apid, id="agent", skills = [], channels = [], endpoints = []}}], List)
+		?assertMatch([{"agent", #agent_cache{pid = Apid, id="agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List)
 	end} end,
 	fun(TestState) -> {"Master removes agents from dead node", fun() ->
 		Agent = #agent{id = "agent", login = "agent", skills = []},
 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
 		List = rpc:call(Master, ?MODULE, list, []),
-		?assertMatch([{"agent", #agent_cache{pid = Apid, id = "agent", skills = [], channels = [], endpoints = []}}], List),
+		?assertMatch([{"agent", #agent_cache{pid = Apid, id = "agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List),
 		rpc:call(Slave, erlang, exit, [TestState#multi_node_test_state.slave_am, kill]),
 		receive after 100 -> ok end
 		% TODO enable this at some point.

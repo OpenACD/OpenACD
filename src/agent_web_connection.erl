@@ -1223,6 +1223,14 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = ema
 	]},
 	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate#state{mediaload = []}};
+handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = freeswitch_media} = Call, _}}, State) ->
+	Json = {struct, [
+		{<<"command">>, <<"mediaload">>},
+		{<<"channelid">>, list_to_binary(pid_to_list(ChanPid))},
+		{<<"media">>, Call#call.source_module}
+	]},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
 handle_cast({mediaload, #call{type = voice}}, State) ->
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},

@@ -1,3 +1,30 @@
+%% @doc Manager for plugins to OpenACD.  Sometimes it is useful for OpenACD
+%% to be able to get information from other sources, or to allow other
+%% sources to provide some information when a particular event occurs.
+%% This module allows callback functions to be set when certain events
+%% occur.  See the documentation of other modules to see what hooks they
+%% trigger, what arguments they send, and the mode they use.  
+%%
+%% Plugins may also trigger hooks, though it is ill-advised to trigger 
+%% system hooks, or hooks defined by other plugins.
+%%
+%% When a hook is triggered, the arguments for a callback are appended to
+%% the arugments passed in when the hook was triggered.  Thus, the arity of
+%% the callback function must be equal to the length of the trigger's
+%% arguments plus the length of the hook's arguments.
+%%
+%% Hooks are called in order of priority going from lowest number to 
+%% highest.
+%%
+%% A hook can be triggered in one oftwo modes:  first or all.  If a hook is
+%% triggered in 'first' mode, the first callback to return `{ok, Term}' 
+%% stops other hooks from being called, and `{ok, Term}' is returned.  If
+%% no callback returns `{ok, Term}', `{error, not_handled}' is returned.
+%% In 'all' mode, each callback that returns `{ok, Term}' is collected in
+%% a list, and `{ok, [Term]}' is returned.
+%%
+%% If a callback errors, it is removed from the list no matter which mode
+%% the hook was triggered in.
 -module(cpx_hooks).
 -behavior(gen_server).
 
@@ -19,23 +46,38 @@
 %% API
 %% =================================================================
 
+%% @doc Creates the hooks ets table.
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, {}, []).
 
+%% @doc Add a new hook to the trigger event `Hook'.
+-spec(set_hook/3 :: (Id :: any(), Hook :: atom(), {M :: atom(), F :: atom(),
+	A :: [any()]}) -> 'true').
 set_hook(Id, Hook, {M, F, A}) ->
 	set_hook(Id, Hook, M, F, A, 100).
 
+%% @doc Add a new hook to the trigger event `Hook'.
+-spec(set_hook/6 :: (Id :: any(), Hook :: atom(), M :: atom(), F :: atom(),
+	A :: [any()], Priority :: integer()) -> 'true').
 set_hook(Id, Hook, M, F, A, Priority) when is_list(A) ->
 	ets:insert(cpx_hooks, {Id, Hook, M, F, A, Priority}).
-	%gen_server:cast(?MODULE, {set_hook, Id, Hook, M, F, A, Priority}).
 
+%% @doc Remove a hook from being triggered.
+-spec(drop_hook/1 :: (Id :: any()) -> 'true').
 drop_hook(Id) ->
 	ets:delete(cpx_hooks, Id).
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
 
+%% @doc Begin calling the callbacks for trigger event `Hook' in the `first'
+%% mode.
+-spec(trigger_hooks/2 :: (Hook :: atom(), Args :: [any()]) -> {'ok', any()}
+	| {'error', 'not_handled'}).
 trigger_hooks(Hook, Args) ->
 	trigger_hooks(Hook, Args, first).
 
+%% @doc Begin calling the callbacks for trigger event `Hook'.
+-spec(trigger_hooks/3 :: (Hook :: atom(), Args :: [any()], StopWhen ::
+	'first' | 'all') -> {'ok', any()} | {'error', 'not_handled'}).
 trigger_hooks(Hook, Args, StopWhen) ->
 	Hooks = qlc:e(qlc:q([{P, M, F, A, Id} || 
 		{Id, EHook, M, F, A, P} <- ets:table(cpx_hooks),
@@ -47,6 +89,8 @@ trigger_hooks(Hook, Args, StopWhen) ->
 		all -> run_hooks(Hooks0, Args, [])
 	end.
 
+%% @doc Stop the hooks module, thus removing the ets table that backs the
+%% system.
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -58,6 +102,7 @@ stop() ->
 %% init
 %% -----------------------------------------------------------------
 
+%% @private
 init(_) ->
 	Ets = ets:new(cpx_hooks, [named_table, public]),
 	{ok, Ets}.
@@ -66,6 +111,7 @@ init(_) ->
 %% handle_call
 %% -----------------------------------------------------------------
 
+%% @private
 handle_call(stop, _, Ets) ->
 	{stop, normal, ok, Ets};
 
@@ -77,6 +123,7 @@ handle_call(_, _, Ets) ->
 %% handle_cast
 %% -----------------------------------------------------------------
 
+%% @private
 handle_cast({set_hook, Id, Hook, M, F, A, Priority} = H, Ets) ->
 	?DEBUG("Setting ~p", [H]),
 	ets:insert(Ets, {Id, Hook, M, F, A, Priority}),
@@ -91,6 +138,7 @@ handle_cast({drop_hook, Id}, Ets) ->
 %% handle_info
 %% -----------------------------------------------------------------
 
+%% @private
 handle_info(_, Ets) ->
 	{noreply, Ets}.
 
@@ -99,6 +147,7 @@ handle_info(_, Ets) ->
 %% terminate
 %% -----------------------------------------------------------------
 
+%% @private
 terminate(_Reason, Ets) ->
 	Ets.
 
@@ -106,6 +155,7 @@ terminate(_Reason, Ets) ->
 %% code_change
 %% -----------------------------------------------------------------
 
+%% @private
 code_change(_OldVsn, Ets, _Extra) ->
 	{ok, Ets}.
 

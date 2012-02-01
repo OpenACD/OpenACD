@@ -446,7 +446,7 @@ init_outbound(Conn, Client, Type) ->
 get_endpoint(Conn, TypeBin) ->
 	case catch erlang:binary_to_existing_atom(TypeBin, utf8) of
 		{'EXIT', {badarg, _}} ->
-			err_resp(<<"INVALID_ENDPOINT_TYPE">>, <<"invalid endpoint type">>);
+			?reply_err(<<"invalid endpoint type">>, <<"INVALID_ENDPOINT_TYPE">>);
 		Type ->
 			case gen_server:call(Conn, {get_endpoint, Type}) of
 				{ok, Data} ->
@@ -502,7 +502,7 @@ set_endpoint(Conn, <<"dummy_media">>, Struct) ->
 		end
 	end);
 set_endpoint(_Conn, _Type, _Struct) ->
-	err_resp(<<"INVALID_ENDPOINT">>, <<"unknwon endpoint">>).
+	?reply_err(<<"unknwon endpoint">>, <<"INVALID_ENDPOINT">>).
 
 % set_endpoint(Conn, Endpoint, Data, Persist) ->
 % 			EndpointData = binary_to_list(Data),
@@ -1847,16 +1847,6 @@ encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
 	Newacc = [Struct | Acc],
 	encode_queue_list(Tail, Newacc).
 
-err_resp(ErrCode, Message) ->
-	{200, [], mochijson2:encode({struct, [
-						{success, false},
-						{<<"errcode">>, ErrCode},
-						{<<"message">>, Message}
-					]})}.
-
-err_resp_fmt(ErrCode, Fmt, Params) ->
-	err_resp(ErrCode, iolist_to_binary(io_lib:format(Fmt, Params))).
-
 endpoint_to_struct(freeswitch_media, Data) ->
 	FwType = proplists:get_value(type, Data, null), %% atom()
 	FwData = case proplists:get_value(data, Data) of
@@ -1873,15 +1863,13 @@ endpoint_to_struct(dummy_media, Opt) ->
 set_endpoint_int(Conn, Type, {struct, Data}, DataToOptsFun) ->
 	case DataToOptsFun(Data) of
 		{error, Error} ->
-			err_resp_fmt(<<"INVALID_ENDPOINT">>,
-				"error with input: ~p", [Error]);
+			?reply_err(iolist_to_binary(io_lib:format("error with input: ~p", [Error])), <<"INVALID_ENDPOINT">>);
 		Opts ->
 			case gen_server:call(Conn, {set_endpoint, Type, Opts}) of
 				ok ->
 					?simple_success();
 				{error, Error2} ->
-					err_resp_fmt(<<"INVALID_ENDPOINT">>,
-						"error setting endpoint: ~p", [Error2])
+					?reply_err(iolist_to_binary(io_lib:format("error setting endpoint: ~p", [Error2])), <<"INVALID_ENDPOINT">>)
 			end
 	end.
 

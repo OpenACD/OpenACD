@@ -27,10 +27,51 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Handles the internal (cpx interaction) part of an
-%%  agent web connection.
+%% @doc Handles the internal (cpx interaction) part of an agent web
+%% connection.
 %% 
-%% {@web}
+%% == Hooks ==
+%%
+%% This module can trigger the following {@link cpx_hooks. hooks}:
+%%
+%% === agent_web_path ===
+%%
+%%	When the agent_web_connection gets an http request for a path that
+%% is not handled internally or by the media (if the agent is oncall).
+%% 
+%% ==== Arguments ====
+%% 
+%% 	<ul>
+%%		<li>Path :: string() - Path portion of URL requested</li>
+%%		<li>Post :: proplist() | undefined - Posted data</li>
+%%		<li>Call :: #call{} | undefined - Current media if available</li>
+%%	</ul>
+%% 
+%% ==== Returns ====
+%% 
+%% Returns other than the ones listed are wrapped in an error with an
+%% UNKNOWN_ERROR code.
+%%
+%%	<dl>
+%%		<dt>Binary :: binary()</dt>
+%% 			<dd>The body to return for the request.  
+%% status code of 200 is used.</dd>
+%%
+%%		<dt>{Status :: http_status(), Headers :: proplist(), 
+%% 			Binary :: binary()}</dt>
+%%			<dd>Allows control of the status code and headers</dd>
+%%
+%%		<dt>ok</dt>
+%% 			<dd>Returnes a simple json success message back to the client</dd>
+%%
+%%		<dt>{json, Json :: json()}</dt>
+%% 			<dd>Returns wrapped in a success message.</dd>
+%%
+%%		<dt>{Errcode :: binary(), ErrMessage :: binary()}</dt>
+%% 			<dd>Return gets wrapped in an error json return.</dd>
+%%	</dl>
+%%
+%% == Web API ==
 %%
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
@@ -90,6 +131,8 @@
 %% }</pre>
 %% @see agent_web_listener
 %% @see cpx_web_management
+%% @see cpx_hooks
+
 -module(agent_web_connection).
 -author("Micah").
 
@@ -1103,6 +1146,26 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 			?ERROR("request to fetch ~p from ~p ~p by ~p", [Path, Call#call.id, Call#call.source, State#state.agent_fsm]),
 			{reply, {404, [], <<"path not found">>}, State}
 	end;
+handle_call({undefined, Path, Post}, _From, State) ->
+	?DEBUG("Forwarding to hooks for handling:  ~p", [Path]),
+	case cpx_hooks:trigger_hooks(agent_web_path, [Path, Post, State#state.current_call]) of
+		{ok, Binary} when is_binary(Binary) ->
+			{reply, {200, [], Binary}, State};
+		{ok, {Status, Headers, Binary} = Out} when is_integer(Status), is_list(Headers), is_binary(Binary) ->
+			{reply, Out, State};
+		{ok, ok} ->
+			{reply, ?simple_success(), State};
+		{ok, {json, Json}} ->
+			{reply, ?reply_success(Json), State};
+		{ok, {Errcode, ErrMsg}} ->
+			{reply, ?reply_err(ErrMsg, Errcode), State};
+		{error, unhandled} ->
+			{reply, {404, [], <<"not_found">>}, State};
+		Err ->
+			Msg = list_to_binary(io_lib:format("~p", [Err])),
+			{reply, ?reply_err(Msg, <<"UNKNOWN_ERROR">>), State}
+	end;
+
 handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};
 handle_call(dump_state, _From, State) ->
@@ -1151,6 +1214,7 @@ handle_cast({poll, Frompid}, State) ->
 			{noreply, Newstate}
 	end;
 handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = email_media} = Call}}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Midstate = case State#state.current_call of
 		expect ->
 			State#state{current_call = Call};
@@ -1165,6 +1229,7 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = ema
 	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate#state{mediaload = []}};
 handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = freeswitch_media} = Call, _}}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
 		{<<"channelid">>, list_to_binary(pid_to_list(ChanPid))},
@@ -1172,37 +1237,36 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, #call{source_module = fre
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
-handle_cast({mediaload, #call{type = voice}}, State) ->
-	Json = {struct, [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voice">>},
-		{<<"fullpane">>, false}
-	]},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
-handle_cast({mediaload, #call{type = voice}, Options}, State) ->
-	Base = [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voice">>},
-		{<<"fullpane">>, false}
-	],
-	Json = {struct, lists:append(Base, Options)},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
-handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
-	Base = [
-		{<<"command">>, <<"mediaload">>},
-		{<<"media">>, <<"voicemail">>},
-		{<<"fullpane">>, false}
-	],
-	Json = {struct, lists:append(Base, Options)},
-	Newstate = push_event(Json, State),
-	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
-handle_cast({mediapush, Chanpid, #call{source_module = Mediatype}, Data}, State) ->
-	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
+%handle_cast({mediaload, #call{type = voice}}, State) ->
+%	Json = {struct, [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voice">>},
+%		{<<"fullpane">>, false}
+%	]},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
+%handle_cast({mediaload, #call{type = voice}, Options}, State) ->
+%	Base = [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voice">>},
+%		{<<"fullpane">>, false}
+%	],
+%	Json = {struct, lists:append(Base, Options)},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
+%handle_cast({mediaload, #call{type = voicemail}, Options}, State) ->
+%	Base = [
+%		{<<"command">>, <<"mediaload">>},
+%		{<<"media">>, <<"voicemail">>},
+%		{<<"fullpane">>, false}
+%	],
+%	Json = {struct, lists:append(Base, Options)},
+%	Newstate = push_event(Json, State),
+%	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
+% TODO agent_web_connection should not interfere
+handle_cast({mediapush, Chanpid, #call{source_module = email_media}, Data}, State) ->
+	?WARNING("Media specific mediapush handling!", []),
 	Chanid = list_to_binary(pid_to_list(Chanpid)),
-	case Mediatype of
-		email_media ->
 			case Data of
 				send_done ->
 					Json = {struct, [
@@ -1229,22 +1293,35 @@ handle_cast({mediapush, Chanpid, #call{source_module = Mediatype}, Data}, State)
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
-		freeswitch_media ->
-			case Data of
-				SimpleCommand when is_atom(SimpleCommand) ->
-					Json = {struct, [
-						{<<"channelid">>, Chanid},
-						{<<"command">>, <<"mediaevent">>},
-						{<<"media">>, voice},
-						{<<"event">>, SimpleCommand}
-					]},
-					Newstate = push_event(Json, State),
-					{noreply, Newstate}
-			end;
-		Else ->
-			?INFO("Currently no for media pushings: ~p", [Else]),
-			{noreply, State}
+handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media}, Data} = Call, State) ->
+	?WARNING("Media specific mediapush handling!", []),
+	Mediatype = Call#call.type,
+	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
+	Chanid = list_to_binary(pid_to_list(Chanpid)),
+	case Data of
+		SimpleCommand when is_atom(SimpleCommand) ->
+			Json = {struct, [
+				{<<"channelid">>, Chanid},
+				{<<"command">>, <<"mediaevent">>},
+				{<<"media">>, voice},
+				{<<"event">>, SimpleCommand}
+			]},
+			Newstate = push_event(Json, State),
+			{noreply, Newstate}
 	end;
+
+handle_cast({mediapush, Chanpid, Call, {Command, Call, Data} = Fd}, State) ->
+	?DEBUG("mediapush unmolested by agent web connection: ~p", [Fd]),
+	Chanid = list_to_binary(pid_to_list(Chanpid)),
+	Json = {struct, [
+		{<<"channelid">>, Chanid},
+		{<<"command">>, Command},
+		{<<"media">>, Call#call.type},
+		{<<"event">>, Data}
+	]},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
+
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 

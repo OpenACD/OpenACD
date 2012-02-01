@@ -40,10 +40,10 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--include("log.hrl").
--include("call.hrl").
--include("agent.hrl").
--include("cpx.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
+-include_lib("OpenACD/include/cpx.hrl").
 
 %% API
 -export([
@@ -82,7 +82,7 @@
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 %%====================================================================
 %% API

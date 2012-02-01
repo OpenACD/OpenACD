@@ -35,9 +35,10 @@
 %% 
 %% routing_sup starts the following process in the listed order (they
 %% cannot be configured aside from applicatoin options):
-%% cpxlog, cpx_monitor, dispatch_manager, queue_manager, cpx_agent_event, 
-%% and cdr.  Any additions to this branch MUST NOT be dependant on other 
-%% branches running and MUST be hard-coded in a specific order.
+%% cpxlog, cpx_monitor, cpx_hooks, dispatch_manager, queue_manager, 
+%% cpx_agent_event, and cdr.  Any additions to this branch MUST NOT be 
+%% dependant on other branches running and MUST be hard-coded in a 
+%% specific order.
 %% 
 %% mediamanager_sup loads it's children from the cpx_conf table in mnesia.
 %% Start order is undefined.  Any of those children MAY be dependant on
@@ -155,9 +156,11 @@ start_link(Nodes) ->
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	AgentStateSpec = {cpx_agent_event, {cpx_agent_event, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
+	Hooksspec = {cpx_hooks, {cpx_hooks, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	
 	{ok, _} = supervisor:start_child(routing_sup, Cpxlogspec),
 	{ok, _} = supervisor:start_child(routing_sup, Cpxmonitorspec),
+	{ok, _} = supervisor:start_child(routing_sup, Hooksspec),
 	{ok, _} = supervisor:start_child(routing_sup, DispatchSpec),
 	{ok, _} = supervisor:start_child(routing_sup, QueueManagerSpec),
 	{ok, _} = supervisor:start_child(routing_sup, AgentStateSpec),

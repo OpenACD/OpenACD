@@ -66,7 +66,7 @@ OpenACD.AgentChannel.prototype.handleCommand = function(args){
 	delete args.channelid;
 	var pubChannel = "OpenACD/AgentChannel/" + this.channelId + "/"
 	if(command == 'mediaevent' || command == 'mediaload'){
-		pubChannel += args.media + '/' + command;
+		pubChannel += command;
 		delete args.media;
 	} else {
 		pubChannel += command;

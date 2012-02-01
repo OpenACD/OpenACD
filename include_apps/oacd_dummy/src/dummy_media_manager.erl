@@ -35,9 +35,9 @@
 
 -behaviour(gen_server).
 
--include("log.hrl").
--include("cpx.hrl").
--include("call.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/cpx.hrl").
+-include_lib("OpenACD/include/call.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -54,7 +54,8 @@
 	set_option/2,
 	get_media/1,
 	spawn_call/0,
-	spawn_call/1
+	spawn_call/1,
+	agent_web_path/4
 ]).
 
 %% gen_server callbacks
@@ -75,7 +76,7 @@
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -131,6 +132,19 @@ spawn_call(Options) ->
 	dummy_media_manager ! {spawn_call, Options},
 	ok.
 
+agent_web_path([$/,$d,$u,$m,$m,$y,$/ | Path], Post, _, PrivDir) ->
+	File = filename:join([PrivDir, "www", Path]),
+	case filelib:is_file(File) of
+		false ->
+			?DEBUG("Couldn't find file ~s (cwd:  ~p)", [File, file:get_cwd()]),
+			{error, not_found};
+		true -> file:read_file(File)
+	end;
+
+agent_web_path(Path, _, _, _) ->
+	?DEBUG("Got gonna do anything for ~p", [Path]),
+	{error, not_found}.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -139,6 +153,7 @@ spawn_call(Options) ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
+	cpx_hooks:set_hook(dummy_html_get, agent_web_path, {dummy_media_manager, agent_web_path, [code:priv_dir(oacd_dummy)]}),
 	process_flag(trap_exit, true),
 	Conf = #conf{
 		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 110}),

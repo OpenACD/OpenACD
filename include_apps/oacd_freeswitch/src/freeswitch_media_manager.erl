@@ -108,10 +108,10 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--include("log.hrl").
--include("queue.hrl").
--include("call.hrl").
--include("agent.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/queue.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
 
 -define(TIMEOUT, 10000).
 -define(default_dial_string(Type), case Type of
@@ -212,7 +212,7 @@ end).
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 %%====================================================================
 %% API

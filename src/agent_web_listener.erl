@@ -451,6 +451,7 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 			ets:delete(web_connections, Ref),
 			api(checkcookie, badcookie, []);
 		{true, api} ->
+			?INFO("WebAPI: ~p ~p", [Function, Args]),
 			case agent_web_connection:is_web_api(Function, length(Args) + 1) of
 				false ->
 					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);

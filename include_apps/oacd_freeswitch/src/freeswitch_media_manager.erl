@@ -823,8 +823,12 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								Agent ->
-									DialString = case agent:get_endpoint(freeswitch_media, Agent) of
-										sip_registration ->
+									{ok, {Opts, _}} = agent:get_endpoint(freeswitch_media, Agent),
+									Type = proplists:get_value(type, Opts),
+									Dat = proplists:get_value(data, Opts),
+
+									DialString = case {Type, Dat} of
+										{sip_registration, undefined} ->
 											"${sofia_contact("++User++"@"++Domain++")}";
 										{sip_registration, Data} ->
 											"${sofia_contact("++re:replace(Data, "@", "_", [{return, list}])++"@"++Domain++")}";

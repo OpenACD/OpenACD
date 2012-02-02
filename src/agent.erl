@@ -203,9 +203,9 @@ get_endpoint(Module, Agent) when is_record(Agent, agent) ->
 get_endpoint(Module, Ends) ->
 	case dict:find(Module, Ends) of
 		error -> {error, notfound};
-		{ok, inband} -> inband;
-		{ok, {module, NewMod}} -> get_endpoint(NewMod, Ends);
-		{ok, Data} -> Data
+		{ok, {_, inband}} -> inband;
+		{ok, {_, {module, NewMod}}} -> get_endpoint(NewMod, Ends);
+		{ok, Data} -> {ok, Data}
 	end.
 
 %% @doc Set the endpoint data for a specific module.  The calling process is
@@ -620,7 +620,7 @@ priv_set_endpoint(Agent, Module, Data) ->
 			?DEBUG("Didn't set endpoint ~s due to ~p", [Module, Err]),
 			{error, Err};
 		{ok, NewData} ->
-			NewEndpoints = dict:store(Module, NewData, Agent#agent.endpoints),
+			NewEndpoints = dict:store(Module, {Data, NewData}, Agent#agent.endpoints),
 			NewAgent = Agent#agent{endpoints = NewEndpoints},
 			inform_connection(Agent, {new_endpoint, Module, NewData}),
 			{ok, NewAgent};

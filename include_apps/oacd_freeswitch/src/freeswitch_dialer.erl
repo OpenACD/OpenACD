@@ -44,8 +44,8 @@
 		start_fg/6
 	]).
 
--include("log.hrl").
--include("call.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/call.hrl").
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 	-define(URL_POPS, [
@@ -76,7 +76,7 @@
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 -spec(start/6 :: (Node :: atom(), Number :: string(), Exten :: string(), Skills :: skill_list(), Client :: string(), Vars :: [any()]) -> {'ok', pid()}).
 start(Node, Number, Exten, Skills, Client, Vars) ->

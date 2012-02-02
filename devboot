@@ -40,6 +40,12 @@ for deps_file in $deps
 do
 	morepa="$morepa -pa deps/$deps_file/ebin"
 done
+# and included apps too
+deps=`ls include_apps`
+for deps_file in $deps
+do
+	morepa="$morepa -pa include_apps/$deps_file/ebin"
+done
 
 args=("$@")
 argstring=""

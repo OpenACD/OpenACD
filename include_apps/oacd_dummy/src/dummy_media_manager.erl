@@ -35,9 +35,9 @@
 
 -behaviour(gen_server).
 
--include("log.hrl").
--include("cpx.hrl").
--include("call.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/cpx.hrl").
+-include_lib("OpenACD/include/call.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -75,7 +75,7 @@
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 %%====================================================================
 %% API

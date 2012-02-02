@@ -47,9 +47,9 @@
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
--include("log.hrl").
--include("call.hrl").
--include("agent.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
 
 -record(state, {
 		type :: 'agent' | 'client',
@@ -61,7 +61,7 @@
 
 -define(GEN_SERVER, true).
 -type(state() :: #state{}).
--include("gen_spec.hrl").
+-include_lib("OpenACD/include/gen_spec.hrl").
 
 -spec(monitor_agent/3 :: (Agent :: string(), Dialstring :: string(), Node :: atom()) -> {'ok', pid()}).
 monitor_agent(Agent, Dialstring, Node) ->

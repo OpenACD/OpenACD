@@ -1,0 +1,13 @@
+{application, oacd_freeswitch, [
+	{description, "Freeswitch media plugin for OpenACD"},
+	{vsn, "2.0.0"},
+	{modules, []},
+	{registered, [
+		freeswitch_media_manager
+	]},
+	{mod, {oacd_freeswitch_app, []}},
+	{env, []},
+	{applications, [kernel, stdlib, 'OpenACD']},
+	{start_phases, []},
+	{included_applications, []}
+]}.

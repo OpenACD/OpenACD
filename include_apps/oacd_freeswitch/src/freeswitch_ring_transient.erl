@@ -31,9 +31,9 @@
 
 -module(freeswitch_ring_transient).
 
--include("log.hrl").
--include("call.hrl").
--include("agent.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

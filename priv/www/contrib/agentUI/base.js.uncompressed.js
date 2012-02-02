@@ -16307,7 +16307,7 @@ dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
 		this._agentSub = dojo.subscribe("OpenACD/AgentChannel", this, this._handleAgentChannelPublish);
 		this._agentCommandSubs = {};
 
-		var subChan = 'OpenACD/AgentChannel/' + this.channel + '/' + args.stateData.source_module + '/mediaload';
+		var subChan = 'OpenACD/AgentChannel/' + this.channel + '/mediaload';
 
 		console.log('media load chan', subChan);
 		this._agentCommandSubs.mediaload = dojo.subscribe(subChan, this, function(args){

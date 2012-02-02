@@ -481,7 +481,7 @@ behaviour_info(callbacks) ->
 		{handle_queue_transfer, 5},
 		{handle_wrapup, 5},
 		{handle_call, 6},
-		{handle_cast, 3},
+		{handle_cast, 5},
 		{handle_info, 5},
 		{terminate, 5},
 		{code_change, 4}

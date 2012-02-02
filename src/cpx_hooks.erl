@@ -1,10 +1,30 @@
-%% @doc Interface for plugins or modules to provide or take action on 
-%% some events.  When a hook is triggered, the list of callback functions
-%% set for that hook are called in order of priority from least to greatest.
-%% Processing stops at the first callback that returns `{ok, term()}'.  If
-%% no callbacks return `{ok, term()}', `{error, unhandled}' is returned.
-%% if a callback errors, it is removed from the list, never to be called
-%% again.  Callbacks are run in the same process that triggered the hook.
+%% @doc Manager for plugins to OpenACD.  Sometimes it is useful for OpenACD
+%% to be able to get information from other sources, or to allow other
+%% sources to provide some information when a particular event occurs.
+%% This module allows callback functions to be set when certain events
+%% occur.  See the documentation of other modules to see what hooks they
+%% trigger, what arguments they send, and the mode they use.  
+%%
+%% Plugins may also trigger hooks, though it is ill-advised to trigger 
+%% system hooks, or hooks defined by other plugins.
+%%
+%% When a hook is triggered, the arguments for a callback are appended to
+%% the arugments passed in when the hook was triggered.  Thus, the arity of
+%% the callback function must be equal to the length of the trigger's
+%% arguments plus the length of the hook's arguments.
+%%
+%% Hooks are called in order of priority going from lowest number to 
+%% highest.
+%%
+%% A hook can be triggered in one oftwo modes:  first or all.  If a hook is
+%% triggered in 'first' mode, the first callback to return `{ok, Term}' 
+%% stops other hooks from being called, and `{ok, Term}' is returned.  If
+%% no callback returns `{ok, Term}', `{error, not_handled}' is returned.
+%% In 'all' mode, each callback that returns `{ok, Term}' is collected in
+%% a list, and `{ok, [Term]}' is returned.
+%%
+%% If a callback errors, it is removed from the list no matter which mode
+%% the hook was triggered in.
 -module(cpx_hooks).
 -behavior(gen_server).
 
@@ -19,50 +39,58 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	code_change/3]).
 % api
--export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2]).
+-export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2,
+	trigger_hooks/3]).
 
 %% =================================================================
 %% API
 %% =================================================================
 
-%% @doc Start up the process that manages the ets table.
+%% @doc Creates the hooks ets table.
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, {}, []).
 
-%% @doc Register a callback for a given hook with a priority of 100.
-%% @see set_hook/6
+%% @doc Add a new hook to the trigger event `Hook'.
+-spec(set_hook/3 :: (Id :: any(), Hook :: atom(), {M :: atom(), F :: atom(),
+	A :: [any()]}) -> 'true').
 set_hook(Id, Hook, {M, F, A}) ->
 	set_hook(Id, Hook, M, F, A, 100).
 
-%% @doc Register a callback for a given hook.  `Id' can be used to remove
-%% the hook at a later time.  If a hook with `Id' already exists, it is
-%% overwritten.  `M' is the module for the callback, `F' is the function
-%% of that module, and `A' is a list of additional args appened to the
-%% arguments passed in when the hook is triggered.  `Priority' determines
-%% the order callbacks are called in.  The lower the priority, the earlier
-%% the callback is called (as in 1st place, 2nd place, etc).
+%% @doc Add a new hook to the trigger event `Hook'.
+-spec(set_hook/6 :: (Id :: any(), Hook :: atom(), M :: atom(), F :: atom(),
+	A :: [any()], Priority :: integer()) -> 'true').
 set_hook(Id, Hook, M, F, A, Priority) when is_list(A) ->
 	ets:insert(cpx_hooks, {Id, Hook, M, F, A, Priority}).
-	%gen_server:cast(?MODULE, {set_hook, Id, Hook, M, F, A, Priority}).
 
-%% @doc Remove a callback with the given idea.
+%% @doc Remove a hook from being triggered.
+-spec(drop_hook/1 :: (Id :: any()) -> 'true').
 drop_hook(Id) ->
 	ets:delete(cpx_hooks, Id).
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
 
-%% @doc Trigger a hook, passing the the given args along.  Callbacks are
-%% run in the calling process.  Generally a bad idea to trigger a hook
-%% specified outside your application.
+%% @doc Begin calling the callbacks for trigger event `Hook' in the `first'
+%% mode.
+-spec(trigger_hooks/2 :: (Hook :: atom(), Args :: [any()]) -> {'ok', any()}
+	| {'error', 'not_handled'}).
 trigger_hooks(Hook, Args) ->
+	trigger_hooks(Hook, Args, first).
+
+%% @doc Begin calling the callbacks for trigger event `Hook'.
+-spec(trigger_hooks/3 :: (Hook :: atom(), Args :: [any()], StopWhen ::
+	'first' | 'all') -> {'ok', any()} | {'error', 'not_handled'}).
+trigger_hooks(Hook, Args, StopWhen) ->
 	Hooks = qlc:e(qlc:q([{P, M, F, A, Id} || 
 		{Id, EHook, M, F, A, P} <- ets:table(cpx_hooks),
 		EHook == Hook
 	])),
 	Hooks0 = lists:sort(Hooks),
-	run_hooks(Hooks0, Args).
+	case StopWhen of
+		first -> run_hooks(Hooks0, Args, first);
+		all -> run_hooks(Hooks0, Args, [])
+	end.
 
-%% @doc Stop the hook server, thus removing the ets holding callback
-%% information.
+%% @doc Stop the hooks module, thus removing the ets table that backs the
+%% system.
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -137,24 +165,28 @@ code_change(_OldVsn, Ets, _Extra) ->
 %% internal
 %% =================================================================
 
-%% @private
-run_hooks([], _Args) ->
+run_hooks([], _Args, first) ->
 	{error, unhandled};
 
-run_hooks([{_P, M, F, A, Id} | Tail], Args) ->
+run_hooks([], _Args, Out) ->
+	{ok, Out};
+
+run_hooks([{_P, M, F, A, Id} | Tail], Args, StopWhen) ->
 	Args0 = lists:append(Args, A),
-	try apply(M, F, Args0) of
-		{ok, Val} ->
+	try {apply(M, F, Args0), StopWhen} of
+		{{ok, Val}, first} ->
 			?DEBUG("hook ~p supplied value", [Id]),
 			{ok, Val};
-		Else ->
+		{{ok, Val}, Acc} ->
+			run_hooks(Tail, Args, [Val | Acc]);
+		{Else, _} ->
 			?DEBUG("Hook ~p gave back a weird value:  ~p", [Id, Else]),
-			run_hooks(Tail, Args)
+			run_hooks(Tail, Args, StopWhen)
 	catch
 		What:Why ->
 			?NOTICE("Hook ~p failed with ~p:~p", [Id, What, Why]),
 			drop_hook(Id),
-			run_hooks(Tail, Args)
+			run_hooks(Tail, Args, StopWhen)
 	end.
 
 
@@ -171,7 +203,7 @@ hook_test_() ->
 		{ok, P} = start_link(),
 		P
 	end,
-	fun(P) ->
+	fun(_P) ->
 		meck:unload(hook_tester),
 		stop(),
 		timer:sleep(100)
@@ -212,6 +244,25 @@ hook_test_() ->
 				trigger_hooks(hook, []),
 				Out = qlc:e(qlc:q([X || X <- ets:table(cpx_hooks)])),
 				?assertEqual([], Out)
+			end}
+		end,
+
+		fun(_) ->
+			{"hook fold works", fun() ->
+				meck:expect(hook_tester, callback, fun(Action) ->
+					case Action of
+						$i -> {ok, $i};
+						$h -> {ok, $h};
+						{error, Err} -> erlang:error(Err);
+						Else -> Else
+					end
+				end),
+				set_hook(first, hook, hook_tester, callback, [$i], 1),
+				set_hook(second, hook, hook_tester, callback, [{error, donotwant}], 2),
+				set_hook(third, hook, hook_tester, callback, [jelly], 3),
+				set_hook(forth, hook, hook_tester, callback, [$h], 4),
+				Out = trigger_hooks(hook, [], all),
+				?assertEqual({ok, "hi"}, Out)
 			end}
 		end
 

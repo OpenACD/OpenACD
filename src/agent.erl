@@ -107,7 +107,7 @@
 
 %% Channel Starters
 -export([
-	precall/3,
+	precall/2,
 	prering/2,
 	ringing/2
 ]).
@@ -233,8 +233,8 @@ set_endpoints(Agent, Endpoints) when is_pid(Agent) ->
 	NewEndpoints = filter_endpoints(Endpoints),
 	gen_fsm:send_all_state_event(Agent, {set_endpoints, NewEndpoints}).
 
-precall(Apid, Client, Type) ->
-	gen_fsm:sync_send_event(Apid, {precall, Client, Type}).
+precall(Apid, Media) ->
+	gen_fsm:sync_send_event(Apid, {precall, Media}).
 
 prering(Apid, Data) ->
 	gen_fsm:sync_send_event(Apid, {prering, Data}).

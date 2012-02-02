@@ -3,6 +3,10 @@
 
 -include_lib("OpenACD/include/log.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -export([start/2, prep_stop/1, stop/1]).
 
 %% ==================================================
@@ -17,7 +21,7 @@ start(_Type, Args) ->
 	Node = proplists:get_value(freeswitch_node, Args, DefaultFsNode),
 	DefaultArgs = application:get_all_env(oacd_freeswitch),
 	Args0 = merge_args(DefaultArgs, Args),
-	oacd_freeswitch_sup:start_link(Node, Args).
+	oacd_freeswitch_sup:start_link(Node, Args0).
 
 prep_stop(State) ->
 	State.
@@ -45,3 +49,33 @@ merge_args([{Key, Val} = H | DTail], [{Key1, _} | _] = Overrides, Acc) when Key 
 merge_args(Defaults, [H | OTail], Acc) ->
 	Acc0 = [H | Acc],
 	merge_args(Defaults, OTail, Acc0).
+
+-ifdef(TEST).
+
+merge_args_test_() -> [
+	fun() ->
+		Expected = [{a, 1}, {b, 2}],
+		Out = merge_args([{a, 1}], [{b, 2}]),
+		?assertEqual(Expected, Out)
+	end,
+
+	fun() ->
+		Expected = [{a, 1}],
+		Out = merge_args([{a, 3}], [{a, 1}]),
+		?assertEqual(Expected, Out)
+	end,
+
+	fun() ->
+		Expected = [{b, 2}, {a, 1}],
+		Out = merge_args([{a, 3}], [{a, 1}, {b, 2}]),
+		?assertEqual(Expected, Out)
+	end,
+
+	fun() ->
+		Expected = [{b, 2}, {a, 1}],
+		Out = merge_args([{a, 3}, {b, 2}], [{a, 1}]),
+		?assertEqual(Expected, Out)
+	end
+
+	].
+-endif.

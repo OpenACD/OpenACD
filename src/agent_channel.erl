@@ -289,6 +289,11 @@ init([Agent, Call, Endpoint, StateName]) ->
 			conn_cast(Agent, {set_channel, self(), precall, Call}),
 			cpx_agent_event:agent_channel_init(Agent,self(),precall,Call),
 			{ok, precall, State};
+		precall when is_record(Call, call) ->
+			?DEBUG("Starting in precall with media rather than client", []),
+			conn_cast(Agent, {set_channel, self(), precall, Call}),
+			cpx_agent_event:agent_channel_init(Agent, self(), precall, Call),
+			{ok, precall, State};
 		ringing when is_record(Call, call) ->
 			% TODO tell media to ring
 			?DEBUG("Starting in ringing", []),
@@ -378,6 +383,12 @@ ringing(_Msg, State) ->
 
 precall({oncall, #call{client = Client} = Call}, _From, #state{state_data = Client} = State) ->
 	?DEBUG("Moving from precall to oncall state", []),
+	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
+	cpx_agent_event:change_agent_channel(self(), oncall, Call),
+	{reply, ok, oncall, State#state{state_data = Call}};
+
+precall({oncall, #call{id = Id} = Call}, _From, #state{state_data = #call{id = Id}} = State) ->
+	?DEBUG("Moving from precall to oncall", []),
 	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	cpx_agent_event:change_agent_channel(self(), oncall, Call),
 	{reply, ok, oncall, State#state{state_data = Call}};

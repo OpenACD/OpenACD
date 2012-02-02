@@ -115,6 +115,7 @@ init(_) ->
 handle_call(stop, _, Ets) ->
 	{stop, normal, ok, Ets};
 
+%% @private
 handle_call(_, _, Ets) ->
 	{reply, invalid, Ets}.
 
@@ -129,6 +130,7 @@ handle_cast({set_hook, Id, Hook, M, F, A, Priority} = H, Ets) ->
 	ets:insert(Ets, {Id, Hook, M, F, A, Priority}),
 	{noreply, Ets};
 
+%% @private
 handle_cast({drop_hook, Id}, Ets) ->
 	ets:delete(Ets, Id),
 	{noreply, Ets}.

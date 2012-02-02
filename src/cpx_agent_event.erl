@@ -96,7 +96,7 @@ change_profile(OldAgent, NewAgent) when is_record(OldAgent, agent),
 is_record(NewAgent, agent) ->
 	gen_event:notify(?MODULE, {change_profile, OldAgent, NewAgent}).
 
-%% @doc An agent has changed state (idle <-> released)
+%% @doc An agent has changed state (idle &lt;-&gt; released)
 -spec(change_state/2 :: (OldAgent :: #agent{}, NewAgent :: #agent{}) -> 'ok').
 change_state(OldAgent, NewAgent) when is_record(OldAgent, agent),
 is_record(NewAgent, agent) ->

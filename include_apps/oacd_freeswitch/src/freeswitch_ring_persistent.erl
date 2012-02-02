@@ -34,8 +34,8 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
--include("log.hrl").
--include("call.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/call.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

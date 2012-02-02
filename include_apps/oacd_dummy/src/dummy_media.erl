@@ -39,13 +39,15 @@
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
 
--include("log.hrl").
--include("queue.hrl").
--include("call.hrl").
--include("agent.hrl").
--include("gen_media.hrl").
+-include_lib("OpenACD/include/log.hrl").
+-include_lib("OpenACD/include/queue.hrl").
+-include_lib("OpenACD/include/call.hrl").
+-include_lib("OpenACD/include/agent.hrl").
+-include_lib("OpenACD/include/gen_media.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete, call_end]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail,
+	announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin,
+	warm_transfer_cancel, warm_transfer_complete, call_end]).
 
 %% API
 -export([
@@ -486,11 +488,18 @@ handle_answer(Agent, _Statename, Call, _Internal, #state{fail = Fail} = State) -
 			%agent:set_state(Agent, oncall, Call),
 			case State#state.mediaload of
 				true ->
-					agent:conn_cast(Agent, {mediaload, Call});
+					% currently only works on web
+					Data = {struct, [
+						{<<"href">>, <<"dummy_media.html">>}
+					]},
+					agent_channel:media_push(Agent, Call, {mediaload, Call, Data});
 				undefined ->
 					ok;
 				List ->
-					agent:conn_cast(Agent, {mediaload, Call, List})
+					Data = {struct, [
+						{<<"href">>, list_to_binary(List)}
+					]},
+					agent_channel:media_push(Agent, Call, {mediaload, Call, Data})
 			end,
 			{ok, State};
 		fail ->

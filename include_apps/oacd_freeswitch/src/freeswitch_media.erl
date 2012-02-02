@@ -203,11 +203,11 @@ prepare_endpoint(Agent, Options) ->
 				{destination, Dest},
 				{dialstring, Dialstring}]]}};
 		true ->
-			freeswitch_ring:start([Node, freeswitch_persistant_ring, [
+			freeswitch_ring:start(Node, freeswitch_persistant_ring, [
 				{destination, Dest},
 				{dialstring, Dialstring},
 				persistant
-			]])
+			])
 	end.
 
 %%--------------------------------------------------------------------

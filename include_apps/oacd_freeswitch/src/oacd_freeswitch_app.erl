@@ -17,7 +17,7 @@ start(_Type, Args) ->
 	Node = proplists:get_value(freeswitch_node, Args, DefaultFsNode),
 	DefaultArgs = application:get_all_env(oacd_freeswitch),
 	Args0 = merge_args(DefaultArgs, Args),
-	oacd_freeswitch_sup:start_link(Args).
+	oacd_freeswitch_sup:start_link(Node, Args).
 
 prep_stop(State) ->
 	State.

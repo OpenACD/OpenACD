@@ -52,7 +52,7 @@
 		{"test 1", "http://www.example.com"}, 
 		{"test 2", "http://subdomain.example.com"}
 	]).
-	-include("agent.hrl").
+	-include_lib("OpenACD/include/agent.hrl").
 -else.
 	-define(URL_POPS, [
 		{"test 1", "http://subdomain.example.com?ivroption=#{ivroption}&callid=#{callid}"},

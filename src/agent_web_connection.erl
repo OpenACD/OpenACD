@@ -27,10 +27,51 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Handles the internal (cpx interaction) part of an
-%%  agent web connection.
+%% @doc Handles the internal (cpx interaction) part of an agent web
+%% connection.
 %% 
-%% {@web}
+%% == Hooks ==
+%%
+%% This module can trigger the following {@link cpx_hooks. hooks}:
+%%
+%% === agent_web_path ===
+%%
+%%	When the agent_web_connection gets an http request for a path that
+%% is not handled internally or by the media (if the agent is oncall).
+%% 
+%% ==== Arguments ====
+%% 
+%% 	<ul>
+%%		<li>Path :: string() - Path portion of URL requested</li>
+%%		<li>Post :: proplist() | undefined - Posted data</li>
+%%		<li>Call :: #call{} | undefined - Current media if available</li>
+%%	</ul>
+%% 
+%% ==== Returns ====
+%% 
+%% Returns other than the ones listed are wrapped in an error with an
+%% UNKNOWN_ERROR code.
+%%
+%%	<dl>
+%%		<dt>Binary :: binary()</dt>
+%% 			<dd>The body to return for the request.  
+%% status code of 200 is used.</dd>
+%%
+%%		<dt>{Status :: http_status(), Headers :: proplist(), 
+%% 			Binary :: binary()}</dt>
+%%			<dd>Allows control of the status code and headers</dd>
+%%
+%%		<dt>ok</dt>
+%% 			<dd>Returnes a simple json success message back to the client</dd>
+%%
+%%		<dt>{json, Json :: json()}</dt>
+%% 			<dd>Returns wrapped in a success message.</dd>
+%%
+%%		<dt>{Errcode :: binary(), ErrMessage :: binary()}</dt>
+%% 			<dd>Return gets wrapped in an error json return.</dd>
+%%	</dl>
+%%
+%% == Web API ==
 %%
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
@@ -90,6 +131,8 @@
 %% }</pre>
 %% @see agent_web_listener
 %% @see cpx_web_management
+%% @see cpx_hooks
+
 -module(agent_web_connection).
 -author("Micah").
 
@@ -1118,7 +1161,7 @@ handle_call({undefined, Path, Post}, _From, State) ->
 			{reply, ?reply_err(ErrMsg, Errcode), State};
 		{error, unhandled} ->
 			{reply, {404, [], <<"not_found">>}, State};
-		{error, Err} ->
+		Err ->
 			Msg = list_to_binary(io_lib:format("~p", [Err])),
 			{reply, ?reply_err(Msg, <<"UNKNOWN_ERROR">>), State}
 	end;

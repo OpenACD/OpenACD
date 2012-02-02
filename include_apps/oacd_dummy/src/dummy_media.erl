@@ -490,7 +490,7 @@ handle_answer(Agent, _Statename, Call, _Internal, #state{fail = Fail} = State) -
 				true ->
 					% currently only works on web
 					Data = {struct, [
-						{<<"href">>, <<"dummy_media.html">>}
+						{<<"href">>, <<"dummy/dummy_media.html">>}
 					]},
 					agent_channel:media_push(Agent, Call, {mediaload, Call, Data});
 				undefined ->

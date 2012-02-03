@@ -1352,7 +1352,7 @@ handle_cast({mediapush, Chanpid, #call{source_module = email_media}, Data}, Stat
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
-handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media}, Data} = Call, State) ->
+handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media} = Call, Data}, State) ->
 	?WARNING("Media specific mediapush handling!", []),
 	Mediatype = Call#call.type,
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),

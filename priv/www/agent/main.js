@@ -1274,14 +1274,17 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
 		console.log('agent channel sub', chanId, stateName, stateData);
-		if(stateName != 'ringing'){
-			return true;
-		}
-		loadMediaTab({
+		var loadOpts = {
 			'channel':chanId,
 			'state':stateName,
 			'stateData':stateData
-		});
+		};
+		if(stateName == 'ringing'){
+			loadMediaTab(loadOpts);
+		} else if(stateName == 'precall'){
+			loadMediaTab(loadOpts);
+		}
+		return true;
 	});
 
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){

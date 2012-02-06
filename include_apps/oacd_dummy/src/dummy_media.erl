@@ -477,7 +477,9 @@ handle_info(<<"hagurk">>, _StateName, _Callrec, _Internal, State) ->
 
 handle_info({precall, Agentrec}, _StateName, Call, _Internal, State) ->
 	case agent:precall(Agentrec#agent.source, Call) of
-		{ok, Pid} -> {noreply, State};
+		{ok, Pid} ->
+			agent_channel:media_push(Pid, Call, {mediaload, Call, {struct, [{<<"href">>, <<"dummy/dummy_media.html">>}]}}),
+			{noreply, State};
 		Else -> {stop, Else, State}
 	end;
 

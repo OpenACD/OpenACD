@@ -398,6 +398,11 @@ precall(_Msg, _From, State) ->
 
 %% -----
 
+precall({mediapush, From, Callrec, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) when is_pid(Conn) ->
+	Self = self(),
+	gen_server:cast(Conn, {mediapush, Self, Callrec, Data}),
+	{next_state, precall, State};
+
 precall(_Msg, State) ->
 	{next_state, precall, State}.
 

@@ -681,7 +681,7 @@ start_channel(Agent, Call, StateName) ->
 			{error, nochannel};
 		{true, {error, notfound}} ->
 			{error, noendpoint};
-		{true, Endpoint} ->
+		{true, {ok, {_Orig, Endpoint}}} ->
 			Self = self(),
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->

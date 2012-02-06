@@ -956,6 +956,8 @@ handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
 	%AgentRec = agent:dump_state(Apid), % TODO - avoid
+	% TODO depricated; staring precall is a media specific thing, so this 
+	% should just be reactive.
 	Reply = case agent:precall(Apid, {precall, Client, Type})of
 		{ok, ChanPid} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};

@@ -297,7 +297,7 @@ init([Agent, Call, Endpoint, StateName]) ->
 		ringing when is_record(Call, call) ->
 			% TODO tell media to ring
 			?DEBUG("Starting in ringing", []),
-			conn_cast(Agent, {set_channel, self(), precall, Call}),
+			conn_cast(Agent, {set_channel, self(), ringing, Call}),
 			cpx_agent_event:agent_channel_init(Agent,self(),ringing, Call),
 			{ok, ringing, State};
 		_ ->

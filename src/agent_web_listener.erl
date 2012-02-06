@@ -31,7 +31,7 @@
 %% {@link agent_web_connection} to handle the details.  Uses Mochiweb for 
 %% the heavy lifting.
 %% 
-%% {@web}
+%% == Web Api ==
 %%
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
@@ -86,6 +86,41 @@
 %% 	"message":  string(),
 %% 	"errcode":  string()
 %% }</pre>
+%%
+%% == Hooks ==
+%%
+%% Hooks are available when a request is made that an agent connection
+%% cannot handle.
+%%
+%% === agent_web_call ===
+%% 
+%% Triggered when a function json request comes from the client, and the 
+%% agent connection itself doesn't recognize it.  First hook to respond
+%% wins.  This will only be triggered by logged in agents.
+%%
+%% ==== Arguments ====
+%%
+%% <ul>
+%%     <li>Agent :: agent{} - Agent associated with the request</li>
+%%     <li>Conn :: pid() - Agent connection pid associated with the
+%% request</li>
+%%     <li>Function :: binary() - Name of the function</li>
+%%     <li>Args :: [any()] - List of arguments passed in</li>
+%% </ul>
+%%
+%% ==== Returns ====
+%%
+%% Invalid returns are returned as an error.
+%%
+%% <dl>
+%%     <dt>ok</dt>
+%%        <dd>Simple success return</dd>
+%%     <dt>{ok, Json :: json()}</dt>
+%%        <dd>Success with a result</dd>
+%%     <dt>{error, ErrCode, ErrMessage}</dt>
+%%         <dd>Error return with given code and message.</dd>
+%% </dl>
+%%
 %% @see agent_web_connection
 %% @see cpx_web_management
 
@@ -441,7 +476,15 @@ send_to_connection(ApiArea, Cookie, Func, Args) when is_binary(Func) ->
 			send_to_connection(ApiArea, Cookie, Atom, Args)
 	catch
 		error:badarg ->
-			?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>)
+			{_Ref, _Salt, Conn} = Cookie,
+			Agent = agent_web_connection:dump_agent(Conn),
+			case cpx_hooks:trigger_hooks(agent_web_call, [Agent, Conn, Func, Args]) of
+				{error, unhandled} ->
+					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+					{ok, ok} -> ?simple_success();
+					{ok, {error, Code, Msg}} -> ?reply_err(Msg, Code);
+					{ok, {ok, Json}} -> ?reply_success(Json)
+				end
 	end;
 send_to_connection(ApiArea, Cookie, Func, Arg) when is_binary(Arg) ->
 	send_to_connection(ApiArea, Cookie, Func, [Arg]);
@@ -454,7 +497,14 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 			?INFO("WebAPI: ~p ~p", [Function, Args]),
 			case agent_web_connection:is_web_api(Function, length(Args) + 1) of
 				false ->
-					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+					Agent = agent_web_connection:dump_agent(Conn),
+					case cpx_hooks:trigger_hooks(agent_web_call, [Agent, Conn, Function, Args]) of
+						{error, unhandled} ->
+							?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+						{ok, ok} -> ?simple_success();
+						{ok, {error, Code, Msg}} -> ?reply_err(Msg, Code);
+						{ok, {ok, Json}} -> ?reply_success(Json)
+					end;
 				true ->
 					erlang:apply(agent_web_connection, Function, [Conn | Args])
 			end;

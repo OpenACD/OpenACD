@@ -58,6 +58,7 @@
 	start/2,
 	start_ring/4,
 	ring_agent/2,
+	precall_agent/1,
 	stop/1,
 	stop/2,
 	set_mode/3,
@@ -73,8 +74,8 @@
 %% gen_media callbacks
 -export([
 	init/1, 
-	handle_call/4, 
-	handle_cast/3, 
+	handle_call/6, 
+	handle_cast/5, 
 	handle_info/5,
 	terminate/5, 
 	code_change/4,
@@ -120,6 +121,7 @@
 -type(client_option() :: {'client', #client{}}).
 -type(skills_option() :: {'skills', skill_list()}).
 -type(priority_option() :: {'priority', pos_integer() | {'distribution', pos_integer()} | {pos_integer(), pos_integer()}}).
+-type(precall_option() :: 'precall').
 -type(start_option() :: 
 	queue_option() | 
 	life_option() | 
@@ -130,7 +132,8 @@
 	callerid_option() | 
 	client_option() |
 	skills_option() |
-	priority_option()
+	priority_option() |
+	precall_option()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -236,6 +239,22 @@ start_ring(Agent, Chan, Call, Mode) ->
 	Pid = spawn(fun() -> start_ring_loop(Agent, Chan, Call, Mode) end),
 	{ok, Pid}.
 
+%% @doc for testing the outgoing style:  set agent to precall, do stuff,
+%% return {outgoing, _, _} to gen_media at some point.
+precall_agent(Apid) ->
+	precall_agent(Apid, [], []).
+
+precall_agent(Apid, Opts) ->
+	precall_agent(Apid, Opts, []).
+
+precall_agent(Apid, Opts, Fails) when is_pid(Apid) ->
+	Agent = agent:dump_state(Apid),
+	precall_agent(Agent, Opts, Fails);
+
+precall_agent(Agent, Opts, Fails) when is_record(Agent, agent) ->
+	Opts0 = [{precall, Agent}, {queues, none} | Opts],
+	gen_media:start(?MODULE, [Opts0, Fails]).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -284,6 +303,10 @@ init([Props, Fails]) ->
 		life_timer = Life,
 		mediaload = Mediaload
 	},
+	case proplists:get_value(precall, Props) of
+		undefined -> ok;
+		Agent -> self() ! {precall, Agent}
+	end,
 	case proplists:get_value(queues, Props, any) of
 		none ->
 			{ok, {Basestate, Callrec}};
@@ -327,6 +350,9 @@ init([Props, Fails]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
+
+handle_call(Msg, From, Statename, Call, GmState, State) ->
+	handle_call(Msg, From, Call, State).
 
 handle_call(set_success, _From, _Callrec, #state{fail = Fail} = State) -> 
 	Newfail = dict:map(fun(_Key, _Value) -> success end, Fail),
@@ -432,6 +458,9 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(Msg, Call, _Statename, _GmState, State) ->
+	handle_cast(Msg, Call, State).
+
 handle_cast({set_caseid, CaseID}, _Call, State) ->
 	{noreply, State#state{caseid = CaseID}};
 handle_cast(_Msg, _Callrec, State) ->
@@ -445,6 +474,13 @@ handle_cast(_Msg, _Callrec, State) ->
 %%--------------------------------------------------------------------
 handle_info(<<"hagurk">>, _StateName, _Callrec, _Internal, State) ->
 	{stop, normal, State};
+
+handle_info({precall, Agentrec}, _StateName, Call, _Internal, State) ->
+	case agent:precall(Agentrec#agent.source, Call) of
+		{ok, Pid} -> {noreply, State};
+		Else -> {stop, Else, State}
+	end;
+
 handle_info(Info, _StateNaem, _Callrec, _Internal, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.

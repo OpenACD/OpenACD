@@ -317,7 +317,7 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, precall) of
 		{ok, Pid, NewAgent} ->
-			inform_connection(Agent, {set_channel, Pid, precall, Call}),
+			%inform_connection(Agent, {set_channel, Pid, precall, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -327,7 +327,7 @@ idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
 			?DEBUG("Started prering (~s) ~p", [Agent#agent.login, Pid]),
-			inform_connection(Agent, {set_channel, Pid, prering, Call}),
+			%inform_connection(Agent, {set_channel, Pid, prering, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -337,7 +337,7 @@ idle({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
 			?DEBUG("Started ringing (~s) ~p", [Agent#agent.login, Pid]),
-			inform_connection(Agent, {set_channel, Pid, ringing, Call}),
+			%inform_connection(Agent, {set_channel, Pid, ringing, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}

@@ -55,7 +55,8 @@
 	get_media/1,
 	spawn_call/0,
 	spawn_call/1,
-	agent_web_path/4
+	agent_web_path/4,
+	agent_web_call/5
 ]).
 
 %% gen_server callbacks
@@ -145,6 +146,11 @@ agent_web_path(Path, _, _, _) ->
 	?DEBUG("Got gonna do anything for ~p", [Path]),
 	{error, not_found}.
 
+agent_web_call(Agentrec, Conn, <<"get_happy">>, [], Priv) ->
+	File = filename:join([Priv, "www", "dummy_media.html"]),
+	{ok, Bin} = file:read_file(File),
+	{ok, {ok, Bin}}.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -154,6 +160,7 @@ agent_web_path(Path, _, _, _) ->
 %%--------------------------------------------------------------------
 init(Options) ->
 	cpx_hooks:set_hook(dummy_html_get, agent_web_path, {dummy_media_manager, agent_web_path, [code:priv_dir(oacd_dummy)]}),
+	cpx_hooks:set_hook(dummy_web_res, agent_web_call, {dummy_media_manager, agent_web_call, [code:priv_dir(oacd_dummy)]}),
 	process_flag(trap_exit, true),
 	Conf = #conf{
 		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 110}),

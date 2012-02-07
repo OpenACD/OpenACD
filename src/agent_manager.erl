@@ -95,6 +95,8 @@
 	get_leader/0,
 	list/0,
 	notify/5,
+	set_avail/2,
+	set_ends/2,
 	log_state/3
 ]).
 
@@ -303,7 +305,18 @@ blab(Text, all) ->
 blab(Text, {Key, Value}) ->
 	gen_leader:leader_cast(?MODULE, {blab, Text, {Key, Value}}).
 
+-spec(set_avail/2 :: (AgentLogin :: string(), Channels :: [atom()]) -> 'ok').
+set_avail(AgentLogin, Channels) ->
+	gen_leader:cast(?MODULE, {set_avail, AgentLogin, Channels}).
+
+-spec(set_ends/2 :: (AgentLogin :: string(), Endpoints :: [atom()]) -> 'ok').
+set_ends(AgentLogin, Endpoints) ->
+	gen_leader:cast(?MODULE, {set_ends, AgentLogin, Endpoints}).
+
+%% =================================================================
 %% gen_leader callbacks
+%% =================================================================
+
 %% @hidden
 init(_Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
@@ -788,50 +801,6 @@ handle_call_start_test() ->
 		stop(),
 		slave:stop(N)
 	end]}.
-
-% the test below is basically only testing lists:keysort/1.
-% teh useless.
-sort_eligible_agents_test_d() ->
-	[{"only difference is the length of the skills list",
-	fun() ->
-		In = [{"3rd", "3rd", 3, [a, b, c, d], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, [a, b, c, d], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"Only difference is the time went available",
-	fun() ->
-		In = [{"3rd", "3rd", 9, [a], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}, {"3rd", "3rd", 9, [a], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"'_all' loses the skill list war",
-	fun() ->
-		In = [{"3rd", "3rd", 3, ['_all'], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, ['_all'], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"Big sortification",
-	fun() ->
-		In = [
-			{"5th", "5th", 9, ['_all'], ignored},
-			{"7th", "7th", 9, ['_all', a], ignored},
-			{"2nd", "2nd", 9, [a, b], ignored},
-			{"6th", "6th", 6, ['_all', a], ignored},
-			{"3rd", "3rd", 6, [a, b, c], ignored},
-			{"1st", "1st", 6, [a, b], ignored},
-			{"4th", "4th", 6, ['_all'], ignored}
-		],
-		Out = [
-			{"1st", "1st", 6, [a, b], ignored},
-			{"2nd", "2nd", 9, [a, b], ignored},
-			{"3rd", "3rd", 6, [a, b, c], ignored},
-			{"4th", "4th", 6, ['_all'], ignored},
-			{"5th", "5th", 9, ['_all'], ignored},
-			{"6th", "6th", 6, ['_all', a], ignored},
-			{"7th", "7th", 9, ['_all', a], ignored}
-		],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end}].
 
 ds() ->
 	spawn(fun() -> ok end).

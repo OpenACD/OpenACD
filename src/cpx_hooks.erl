@@ -40,7 +40,7 @@
 	code_change/3]).
 % api
 -export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2,
-	trigger_hooks/3]).
+	trigger_hooks/3, async_trigger_hooks/2, async_trigger_hooks/3]).
 
 %% =================================================================
 %% API
@@ -88,6 +88,19 @@ trigger_hooks(Hook, Args, StopWhen) ->
 		first -> run_hooks(Hooks0, Args, first);
 		all -> run_hooks(Hooks0, Args, [])
 	end.
+
+%% @doc Trigger hooks asynchronously, thus ignoring the results.  This
+%% goes through all the hooks.
+-spec(async_trigger_hooks/2 :: (Hook :: atom(), Args :: [any()]) ->
+	{'ok', pid()}).
+async_trigger_hooks(Hook, Args) ->
+	async_trigger_hooks(Hook, Args, all).
+
+%% @doc Trigger hooks asynchronsouly.  Ignores the result.
+-spec(async_trigger_hooks/3 :: (Hook :: atom(), Args :: [any()],
+	StopWhen :: 'first' | 'all') -> {'ok', pid()}).
+async_trigger_hooks(Hook, Args, StopWhen) ->
+	spawn(?MODULE, trigger_hooks, [Hook, Args, StopWhen]).
 
 %% @doc Stop the hooks module, thus removing the ets table that backs the
 %% system.
@@ -263,6 +276,51 @@ hook_test_() ->
 				set_hook(forth, hook, hook_tester, callback, [$h], 4),
 				Out = trigger_hooks(hook, [], all),
 				?assertEqual({ok, "hi"}, Out)
+			end}
+		end,
+
+		fun(_) ->
+			{"a sync hook first", fun() ->
+				process_flag(trap_exit, true),
+				meck:expect(hook_tester, callback, fun() ->
+					{ok, ok}
+				end),
+				Meck = whereis(hook_tester),
+				set_hook(first, hook, hook_tester, callback, [], 1),
+				set_hook(second, hook, hook_tester, callback, [], 2),
+				P = async_trigger_hooks(hook, [], first),
+				link(P),
+				receive
+					{'EXIT', P, normal} ->
+						Expected = [{Meck, {hook_tester, callback, []}, {ok, ok}}],
+						Out = meck:history(hook_tester),
+						?assertEqual(Expected, Out)
+				after 100 ->
+					erlang:error(noexit)
+				end
+			end}
+		end,
+
+		fun(_) ->
+			{"a sync hook all", fun() ->
+				process_flag(trap_exit, true),
+				meck:expect(hook_tester, callback, fun() ->
+					{ok, ok}
+				end),
+				set_hook(first, hook, hook_tester, callback, [], 1),
+				set_hook(second, hook, hook_tester, callback, [], 2),
+				P = async_trigger_hooks(hook, []),
+				link(P),
+				receive
+					{'EXIT', P, normal} ->
+						Expected = [
+							{{hook_tester, callback, []}, {ok, ok}},
+							{{hook_tester, callback, []}, {ok, ok}}
+						],
+						?assertEqual(Expected, meck:history(hook_tester))
+				after 100 ->
+					erlang:error(noexit)
+				end
 			end}
 		end
 

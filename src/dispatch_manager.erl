@@ -329,7 +329,13 @@ zombie() ->
 monitor_test_() ->
 	{setup, fun() ->
 		{ok, State} = init([]),
+		meck:new(dispatcher),
+		meck:expect(dispatcher, start_link, fun() -> {ok, self()} end),
 		State
+	end,
+	fun(_) ->
+		meck:validate(dispatcher),
+		meck:unload(dispatcher)
 	end,
 	fun(State0) -> [
 
@@ -350,6 +356,26 @@ monitor_test_() ->
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(1, Count)
+		end},
+
+		{"An agent gets monitored once, channel difference", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			{noreply, S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
+			FakeAgent ! headshot,
+			Count = count_downs(FakeAgent, 0),
+			?assertEqual(1, Count)
+		end},
+
+		{"Handling an agent death", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, [skill]}, State0),
+			FakeAgent ! headshot,
+			Down = receive
+				{'DOWN', _, process, FakeAgent, _} = X -> X
+			after 10 -> ?assert(nodown) end,
+			{noreply, S2} = handle_info(Down, S1),
+			?assertEqual(State0#state.agents, S2#state.agents)
 		end}
 
 	] end}.

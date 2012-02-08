@@ -330,7 +330,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	mnesia:unsubscribe(system),
 
 	% clean out non-local pids
-	F = fun(_Login, {#agent_cache{pid = Apid}}) -> 
+	F = fun(_Login, #agent_cache{pid = Apid}) -> 
 		node() =:= node(Apid)
 	end,
 	Locals = dict:filter(F, Agents),
@@ -350,7 +350,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Node ~p died", [Node]),
 	% clean out the pids associated w/ the dead node
-	F = fun(_Login, {#agent_cache{pid = Apid}}) -> 
+	F = fun(_Login, #agent_cache{pid = Apid}) -> 
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
@@ -768,16 +768,11 @@ clear_rotates(Tree) ->
 	end.
 	
 build_tables() ->
-	agent_auth:build_tables(),
-	util:build_table(agent_state, [
-		{attributes, record_info(fields, agent_state)},
-		{disc_copies, [node()]},
-		{type, bag}
-	]).
+	agent_auth:build_tables().
 
 -ifdef(STANDARD_TEST).
 
-handle_call_start_test() ->
+handle_call_start_test_d() ->
 	util:start_testnode(),
 	N = util:start_testnode(agent_manager_handle_call_start_test),
 	{spawn, N, [fun() -> 
@@ -931,8 +926,6 @@ handle_cast_test_() ->
 %	
 %	
 	
-zombie() -> spawn(fun() -> receive headshot -> exit(headshot) end end).
-
 external_api_test_() ->
 	{setup, fun() ->
 		meck:new(gen_leader)
@@ -946,7 +939,7 @@ external_api_test_() ->
 		{"start_link/1", fun() ->
 			meck:expect(gen_leader, start_link, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _RunDir}], ?MODULE, [], []) ->
 				?assertEqual(node(), Node),
-				{ok, zombie()}
+				{ok, util:zombie()}
 			end),
 			?assertMatch({ok, _Pid}, start_link([node()]))
 		end},
@@ -954,7 +947,7 @@ external_api_test_() ->
 		{"start_link/2", fun() ->
 			meck:expect(gen_leader, start_link, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, opts, []) ->
 				?assertEqual(node(), Node),
-				{ok, zombie()}
+				{ok, util:zombie()}
 			end),
 			?assertMatch({ok, _Pid}, start_link([node()], opts))
 		end},
@@ -962,7 +955,7 @@ external_api_test_() ->
 		{"start/1", fun() ->
 			meck:expect(gen_leader, start, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, [], []) ->
 				?assertEqual(node(), Node),
-				{ok, zombie()}
+				{ok, util:zombie()}
 			end),
 			?assertMatch({ok, _Pid}, start([node()]))
 		end},
@@ -970,7 +963,7 @@ external_api_test_() ->
 		{"start/2", fun() ->
 			meck:expect(gen_leader, start, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, opts, []) ->
 				?assertEqual(node(), Node),
-				{ok, zombie()}
+				{ok, util:zombie()}
 			end),
 			?assertMatch({ok, _Pid}, start([node()], opts))
 		end},
@@ -984,7 +977,7 @@ external_api_test_() ->
 
 		{"start_agent/1, agent exists", fun() ->
 			meck:expect(gen_leader, leader_call, fun(?MODULE, {exists, "testagent"}) ->
-				{true, zombie()}
+				{true, util:zombie()}
 			end),
 			Agent = #agent{login = "testagent"},
 			?assertMatch({exists, _Pid}, start_agent(Agent))
@@ -997,7 +990,7 @@ external_api_test_() ->
 			end),
 			meck:expect(gen_leader, call, fun(?MODULE, {start_agent, InAgent}, infinity) ->
 				?assertEqual(Agent, InAgent),
-				{'ok', zombie()}
+				{'ok', util:zombie()}
 			end),
 			?assertMatch({ok, _Pid}, start_agent(Agent))
 		end},
@@ -1080,7 +1073,7 @@ external_api_test_() ->
 		end},
 
 		{"find_by_pid/1", fun() ->
-			Zombie = zombie(),
+			Zombie = util:zombie(),
 			meck:expect(gen_leader, leader_call, fun(?MODULE, {get_login, Agent}) ->
 				?assertEqual(Zombie, Agent),
 				"zombie_guard"
@@ -1104,7 +1097,7 @@ external_api_test_() ->
 		end},
 
 		{"get_leader/0", fun() ->
-			Zombie = zombie(),
+			Zombie = util:zombie(),
 			meck:expect(gen_leader, leader_call, fun(?MODULE, get_pid) ->
 				{ok, Zombie}
 			end),
@@ -1133,6 +1126,74 @@ external_api_test_() ->
 		end}
 
 	] end}.
+
+internal_state_test_() -> [
+	{"elected", fun() ->
+		meck:new(mnesia),
+		meck:expect(mnesia, subscribe, fun(system) -> ok end),
+		?assertEqual({ok, ok, state}, elected(state, election, node())),
+		?assertMatch([{_Pid, {mnesia, subscribe, [system]}, _}], meck:history(mnesia)),
+		?assert(meck:validate(mnesia)),
+		meck:unload(mnesia)
+	end},
+
+	{"surrendered", fun() ->
+		meck:new(mnesia),
+		meck:expect(mnesia, unsubscribe, fun(system) -> ok end),
+		util:start_testnode(),
+		{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_surrendered),
+		LocalZ = util:zombie(),
+		RemoteZ = rpc:call(Slave, util, zombie, []),
+		LocalA = #agent_cache{time_avail = 1, pid = LocalZ},
+		RemoteA = #agent_cache{time_avail = 1, pid = RemoteZ},
+		State = #state{
+			agents = dict:from_list([
+				{"local", LocalA},
+				{"remote", RemoteA}
+			]),
+			route_list = gb_trees:from_orddict([
+				{1, LocalA},
+				{2, RemoteA}
+			])
+		},
+		meck:new(gen_leader),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, "local", InAgent}) ->
+			?assertEqual(LocalA, InAgent)
+		end),
+		{ok, State0} = surrendered(State, "leaderstate", "election"),
+		?assertEqual([{"local", LocalA}], dict:to_list(State0#state.agents)),
+		?assertEqual([{1, LocalA}], gb_trees:to_list(State0#state.route_list)),
+		?assert(meck:validate(mnesia)),
+		?assert(meck:validate(gen_leader)),
+		meck:unload(mnesia),
+		meck:unload(gen_leader),
+		slave:stop(Slave)
+	end},
+
+	{"handle_DOWN", fun() ->
+		util:start_testnode(),
+		{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_handle_down),
+		LocalZ = util:zombie(),
+		RemoteZ = rpc:call(Slave, util, zombie, []),
+		LocalA = #agent_cache{time_avail = 1, pid = LocalZ},
+		RemoteA = #agent_cache{time_avail = 1, pid = RemoteZ},
+		State = #state{
+			agents = dict:from_list([
+				{"local", LocalA},
+				{"remote", RemoteA}
+			]),
+			route_list = gb_trees:from_orddict([
+				{1, LocalA},
+				{2, RemoteA}
+			])
+		},
+		{ok, State0} = handle_DOWN(Slave, State, "election"),
+		?assertEqual([{"local", LocalA}], dict:to_list(State0#state.agents)),
+		?assertEqual([{1, LocalA}], gb_trees:to_list(State0#state.route_list)),
+		slave:stop(Slave)
+	end}
+
+	].
 
 single_node_test_old() -> 
 	util:start_testnode(),

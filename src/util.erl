@@ -48,7 +48,8 @@
 	eunit/1,
 	start_testnode/0,
 	start_testnode/1,
-	start_testnode/2
+	start_testnode/2,
+	zombie/0
 ]).
 -endif.
 
@@ -640,6 +641,8 @@ run_dir() ->
 -endif.
 
 -ifdef(TEST).
+
+zombie() -> spawn(fun() -> receive headshot -> exit(headshot) end end).
 
 add_paths() ->
 	{Pre, Deps} = case {file:list_dir("deps"), file:list_dir("../deps")} of

@@ -776,15 +776,6 @@ build_tables() ->
 
 -ifdef(STANDARD_TEST).
 
-handle_call_start_test_d() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_manager_handle_call_start_test),
-	{spawn, N, [fun() -> 
-		?assertMatch({ok, _Pid}, start([node()])),
-		stop(),
-		slave:stop(N)
-	end]}.
-
 ds() ->
 	spawn(fun() -> ok end).
 
@@ -883,52 +874,6 @@ handle_cast_test_() ->
 			?assertMatch([{{agent_key, 0, z, 1, _}, {agent_cache, Pid, "agent", _, [skill], [dummy], [dummy]}}], gb_trees:to_list(NewState#state.route_list))
 		end}]
 	end}.
-	
-	
-
-%handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
-%	Node = node(),
-%	F = fun({Pid, Id, _Time, Skills}) ->
-%	Out = {Pid, Id, 0, Skills},
-%case gen_leader:leader_node(Election) of
-%	Node ->
-%	ok;
-%_ ->
-%gen_leader:leader_cast(?MODULE, {update_notify, Nom, Out})
-%end,
-%Out
-%end,
-%NewAgents = dict:update(Nom, F, Agents),
-%{noreply, State#state{agents = NewAgents, lists_requested = 0}};
-%handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
-%	Node = node(),
-%	{Pid, Id, Time, _} = dict:fetch(Login, Agents),
-%	Out = {Pid, Id, Time, Skills},
-%	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
-%												 Apid =/= Pid
-%												 end, State#state.route_list)),
-%	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist),
-%	F = fun({Pid, Id, Time, _OldSkills}) ->
-%case gen_leader:leader_node(Election) of
-%	Node ->
-%	ok;
-%_ ->
-%gen_leader:leader_cast(?MODULE, {update_notify, Login, Out})
-%end,
-%Out
-%end,	
-%NewAgents = dict:update(Login, F, Agents),
-%{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = Routelist}};
-%handle_cast(_Request, State, _Election) -> 
-%	?DEBUG("Stub handle_cast", []),
-%	{noreply, State}.	
-%	
-%	
-%	
-%	
-%	
-%	
-%	
 	
 external_api_test_() ->
 	{setup, fun() ->

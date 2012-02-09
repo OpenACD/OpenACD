@@ -790,40 +790,140 @@ tell_cands(Message, [Node | Tail], Leader) ->
 
 -ifdef(STANDARD_TEST).
 
-%data_grooming_test_() ->
-%	{foreach,
-%	fun() ->
-%		mnesia:start(),
-%		{ok, Cpx} = ?MODULE:start([{nodes, [node()]}]),
-%		Cpx
-%	end,
-%	fun(_Cpx) ->
-%		?MODULE:stop(),
-%		mnesia:stop()
-%	end,
-%	[fun(Cpx) ->
-%		{"media previously linked to an agent is cleared on new media",
-%		fun() ->
-%			?MODULE:set({media, "old"}, [], [{agent, "agent"}]),
-%			?MODULE:set({agent, "decoy"}, [], [{agent, "agent"}]),
-%			?MODULE:subscribe(),
-%			?MODULE:set({media, "new"}, [], [{agent, "agent"}]),
-%			receive
-%				{?MODULE_event, {drop, {media, "old"}, _Time}} ->
-%					?assert(true);
-%				{?MODULE_event, {drop, Key}, _Time} ->
-%					?DEBUG("Bad drop:  ~p", [Key]),
-%					?assert("bad drop recieved")
-%			after 1000 ->
-%				?assert("no clear received")
-%			end,
-%			{ok, [M1 | _] = Medias} = ?MODULE:get_health(media),
-%			?assertEqual(1, length(Medias)),
-%			?assertEqual({media, "new"}, get_key(M1))
-%		end}
-%	end]}.
+public_api_test_() ->
+	{foreach, fun() ->
+		meck:new(gen_leader)
+	end,
+	fun(_) ->
+		meck:unload(gen_leader)
+	end, [
+	fun(_) -> {"start_link/1", fun() ->
+		meck:expect(gen_leader, start_link, fun(?MODULE, [node1, node2], [{heartbeat, 1}, {vardir, _}], ?MODULE, [{nodes, node1}, auto_restart_mnesia, {nodes, node2}], []) ->
+			{ok, util:zombie()}
+		end),
+		Opts = [
+			{nodes, node1},
+			auto_restart_mnesia,
+			{nodes, node2}
+		],
+		?assertMatch({ok, _}, start_link(Opts)),
+		?assertEqual(1, length(meck:history(gen_leader))),
+		?assert(meck:validate(gen_leader))
+	end} end,
 
- handle_down_test() -> 
+	fun(_) -> {"start/1", fun() ->
+		meck:expect(gen_leader, start, fun(?MODULE, [node1, node2], [{heartbeat, 1}, {vardir, _}], ?MODULE, [{nodes, node1}, auto_restart_mnesia, {nodes, node2}], []) ->
+			{ok, util:zombie()}
+		end),
+		Opts = [
+			{nodes, node1},
+			auto_restart_mnesia,
+			{nodes, node2}
+		],
+		?assertMatch({ok, _}, start(Opts)),
+		?assertEqual(1, length(meck:history(gen_leader))),
+		?assert(meck:validate(gen_leader))
+	end} end,
+
+	fun(_) -> {"stop/0", fun() ->
+		meck:expect(gen_leader, call, fun(?MODULE, stop) -> ok end),
+		stop(),
+		?assert(meck:validate(gen_leader)),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+			
+	fun(_) -> {"set/2", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {set, {_, _, _}, {{type, "name"}, [{node, Node}, {p1, v1}], Node}, ignore}) -> 
+			?assertEqual(node(), Node),
+			ok
+		end),
+		ok = set({type, "name"}, [{p1, v1}]),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"set/2, node given", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {set, {_, _, _}, {{type, "name"}, [{node, "node"}, {p1, v1}], "node"}, ignore}) -> 
+			ok
+		end),
+		ok = set({type, "name"}, [{node, "node"}, {p1, v1}]),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"set/3", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {set, {_, _, _}, {{type, "name"}, [{node, Node}, {p1, v1}], Node}, dowatch}) ->
+			?assertEqual(node(), Node),
+			ok
+		end),
+		ok = set({type, "name"}, [{p1, v1}], dowatch),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"drop/1", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {drop, {_,_,_}, {type, "name"}}) -> ok end),
+		ok = drop({type, "name"}),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"info/1", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {info, {_,_,_}, [{p1,v1}]}) -> ok end),
+		ok = info([{p1, v1}]),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"subscribe/0", fun() ->
+		Self = self(),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {subscribe, Pid, Fun}) ->
+			?assertEqual(Self, Pid),
+			[?assert(Fun(N)) || N <- lists:seq(1, 100)],
+			ok
+		end),
+		ok = subscribe(),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"subscribe/1", fun() ->
+		T = fun(_) -> false end,
+		Self = self(),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {subscribe, Pid, Fun}) ->
+			?assertEqual(Self, Pid),
+			?assertEqual(T, Fun)
+		end),
+		ok = subscribe(T),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"unsubscribe/0", fun() ->
+		Self = self(),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {unsubscribe, Pid}) ->
+			?assertEqual(Self, Pid)
+		end),
+		ok = unsubscribe(),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end,
+
+	fun(_) -> {"clear_dead_media/0", fun() ->
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, clear_dead_media) ->
+			ok
+		end),
+		ok = clear_dead_media(),
+		?assertEqual(1, length(meck:history(gen_leader)))
+	end} end
+
+	]}.
+
+callback_test_() -> [
+	{"init", fun() ->
+		ExpectedState = #state{
+			nodes = [node1, node2, node3],
+			monitoring = [node1, node2, node3],
+			auto_restart_mnesia = true
+		},
+		Opts = [{nodes, [node1, node2]}, auto_restart_mnesia, {nodes, node3}],
+		?assertEqual({ok, ExpectedState}, init(Opts)),
+		ets:delete(?MODULE)
+	end}
+	].
+handle_down_test() -> 
 	ets:new(?MODULE, [named_table]),
 	Entries = [
 		{{media, "cull1"}, os:timestamp(), [{node, "deadnode"}], "deadnode", none, undefined},
@@ -838,29 +938,6 @@ tell_cands(Message, [Node | Tail], Leader) ->
 	?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
 	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
 	ets:delete(?MODULE).
-
-%-record(election, {
-%          leader = none,
-%          name,
-%          leadernode = none,
-%          candidate_nodes = [],
-%          worker_nodes = [],
-%          alive = [],
-%          down = [],
-%          monitored = [],
-%          buffered = [],
-%          status,
-%          elid,
-%          acks = [],
-%          work_down = [],
-%          cand_timer_int,
-%          cand_timer,
-%          pendack,
-%          incarn,
-%          nextel,
-%          bcast_type              %% all | one. When `all' each election event
-%          %% will be broadcast to all candidate nodes.
-%         }).
 
 sub_mock() ->
 	sub_mock(fun(_) -> true end).

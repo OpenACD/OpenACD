@@ -1596,16 +1596,137 @@ internal_state_test_() -> [
 	]},
 
 	{"handle_cast", [
-		{"{set_avail, Nom, Chans}, chan list longer", ?_assert(false)},
-		{"{set_avail, Nom, Chans}, chan list shorter", ?_assert(false)},
-		{"{set_ends, Nom, Ends}, is leader", ?_assert(false)},
-		{"{set_ends, Nom, Ends}, is not leader", ?_assert(false)},
-		{"{update_skill_list, Login, Skills}, is leader", ?_assert(false)},
-		{"{update_skill_list, Login, Skills}, is not leader", ?_assert(false)}
+
+		{"{set_avail, Nom, Chans}, chan list longer", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			AgentCache = #agent_cache{pid = Zombie, skills = [],
+				time_avail = {0,0,0}, channels = []},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = {0, 0, 0}},
+			State = #state{
+				agents = dict:from_list([{"testagent", AgentCache}]),
+				route_list = gb_trees:from_orddict([{AgentKey, AgentCache}])
+			},
+			{noreply, NewState} = handle_cast({set_avail, "testagent", [voice]}, State, "election"),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			TestCache = dict:fetch("testagent", NewState#state.agents),
+			{TestKey, _} = gb_trees:smallest(NewState#state.route_list),
+			?assertEqual({0,0,0}, TestCache#agent_cache.time_avail),
+			?assertEqual({0,0,0}, TestKey#agent_key.idle_time)
+		end},
+
+		{"{set_avail, Nom, Chans}, chan list shorter", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			AgentCache = #agent_cache{pid = Zombie, skills = [],
+				time_avail = {0,0,0}, channels = [voice]},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = {0, 0, 0}},
+			State = #state{
+				agents = dict:from_list([{"testagent", AgentCache}]),
+				route_list = gb_trees:from_orddict([{AgentKey, AgentCache}])
+			},
+			{noreply, NewState} = handle_cast({set_avail, "testagent", []}, State, "election"),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			TestCache = dict:fetch("testagent", NewState#state.agents),
+			{TestKey, _} = gb_trees:smallest(NewState#state.route_list),
+			?assert({0,0,0} < TestCache#agent_cache.time_avail),
+			?assert({0,0,0} < TestKey#agent_key.idle_time)
+		end},
+
+		{"{set_ends, Nom, Ends}, is leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [], channels = [], endpoints = [old_endpoint]},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{noreply, TestState} = handle_cast({set_ends, "testagent", [new_endpoint]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_endpoint], Val#agent_cache.endpoints),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{set_ends, Nom, Ends}, is not leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [], channels = [], endpoints = [old_endpoint]},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+				?assertNotEqual(OldCache, Out)
+			end),
+			{noreply, TestState} = handle_cast({set_ends, "testagent", [new_endpoint]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_endpoint], Val#agent_cache.endpoints),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(2, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end},
+
+		{"{update_skill_list, Login, Skills}, is leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [old_skill], channels = [], endpoints = []},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{noreply, TestState} = handle_cast({update_skill_list, "testagent", [new_skill]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_skill], Val#agent_cache.skills),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{update_skill_list, Login, Skills}, is not leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [old_skill], channels = [], endpoints = []},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+				?assertNotEqual(OldCache, Out)
+			end),
+			{noreply, TestState} = handle_cast({update_skill_list, "testagent", [new_skill]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_skill], Val#agent_cache.skills),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(2, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end}
 	]},
 
 	{"handle_info", [
-		{"{'EXIT', Pid, Reason}, Agent death", ?_assert(false)}
+		{"{'EXIT', Pid, Reason}, Agent death", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:new(cpx_monitor),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify_down, "zombie"}) -> ok end),
+			meck:expect(cpx_monitor, drop, fun({agent, "a"}) -> ok end),
+			State = #state{
+				agents = dict:from_list([
+					{"zombie", #agent_cache{id = "a", pid = Zombie}}
+				]),
+				route_list = gb_trees:from_orddict([
+					{"key", #agent_cache{id = "a", pid = Zombie}}
+				])
+			},
+			{noreply, TestState} = handle_info({'EXIT', Zombie, headshot}, State),
+			?assertEqual(#state{}, TestState),
+			[begin
+				?assertEqual(1, length(meck:history(X))),
+				?assert(meck:validate(X)),
+				meck:unload(X)
+			end || X <- [gen_leader, cpx_monitor]]
+		end}
 	]}
 
 	].

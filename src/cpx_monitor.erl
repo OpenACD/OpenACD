@@ -921,23 +921,54 @@ callback_test_() -> [
 		Opts = [{nodes, [node1, node2]}, auto_restart_mnesia, {nodes, node3}],
 		?assertEqual({ok, ExpectedState}, init(Opts)),
 		ets:delete(?MODULE)
-	end}
+	end},
+
+	{"elected", fun() -> ?assert(false) end},
+	{"surrendered", fun() -> ?assert(false) end},
+
+	{"handle_DOWN", fun() ->
+		ets:new(?MODULE, [named_table]),
+		Entries = [
+			{{media, "cull1"}, os:timestamp(), [{node, "deadnode"}], "deadnode", none, undefined},
+			{{media, "keep1"}, os:timestamp(), [{node, "goodnode"}], "goodnode", none, undefined}
+		],
+		ets:insert(?MODULE, Entries),
+		State = #state{}, 
+		% This is an election record, see gen_leader to find out what it is
+		% as the copy/pasta record below may be out of date
+		Election = {election, node(), ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
+		handle_DOWN("deadnode", State, Election),
+		?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
+		?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
+		ets:delete(?MODULE)
+	end},
+
+	{"handle_leader_call", [
+		{"{get, When}", fun() -> ?assert(false) end},
+		{"{get, What}", fun() -> ?assert(false) end},
+		{"{subscribe, Pid, Fun}", fun() -> ?assert(false) end},
+		{"{unsubscirbe, Pid}", fun() -> ?assert(false) end},
+		{"{reporting, Node}", fun() -> ?assert(false) end},
+		{"{drop, _Time, Key}", fun() -> ?assert(false) end},
+		{"{info, _Time, Key}", fun() -> ?assert(false) end},
+		{"{set, Time, Event, ignore", fun() -> ?assert(false) end},
+		{"{set, Time, Event, Pid", fun() -> ?assert(false) end},
+		{"{set, Time, Event, none", fun() -> ?assert(false) end},
+		{"{ensure_live, Node, Time}", fun() -> ?assert(false) end},
+		{"clear_dead_media", fun() -> ?assert(false) end}
+	]},
+
+	{"handle_call, stop", fun() -> ?assert(false) end},
+
+	{"handle_info", [
+		{"{leader_event, report}", ?_assert(false)},
+		{"{leader_event, Message}", ?_assert(false)},
+		{"{merge_complete, Mod, _Recs}", ?_assert(false)},
+		{"{merge_complete, Mod, Recs}", ?_assert(false)},
+		{"{'DOWN', Monref, process, WatchWhat, Why}", ?_assert(false)},
+		{"{'EXIT', From, Reason}", ?_assert(false)}
+	]}
 	].
-handle_down_test() -> 
-	ets:new(?MODULE, [named_table]),
-	Entries = [
-		{{media, "cull1"}, os:timestamp(), [{node, "deadnode"}], "deadnode", none, undefined},
-		{{media, "keep1"}, os:timestamp(), [{node, "goodnode"}], "goodnode", none, undefined}
-	],
-	ets:insert(?MODULE, Entries),
-	State = #state{}, 
-	% This is an election record, see gen_leader to find out what it is
-	% as the copy/pasta record below may be out of date
-	Election = {election, node(), ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
-	handle_DOWN("deadnode", State, Election),
-	?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
-	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
-	ets:delete(?MODULE).
 
 sub_mock() ->
 	sub_mock(fun(_) -> true end).

@@ -835,6 +835,7 @@ block_channel_test_gen([{Name, Chan, ListDef, Expected} | Tail]) ->
 		end} | block_channel_test_gen(Tail)]
 	end}.
 
+% TODO meck-anize these tests.
 handle_sync_event_test_() ->
 	[{"handle set_endpoint", setup, fun() ->
 			Endpoints = dict:from_list([
@@ -848,7 +849,7 @@ handle_sync_event_test_() ->
 		end,
 		fun({Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
-				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end},
@@ -868,7 +869,7 @@ handle_sync_event_test_() ->
 				end},
 
 			{"adding arbitary data endpoint", fun() ->
-				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end}

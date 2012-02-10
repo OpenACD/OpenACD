@@ -96,22 +96,6 @@
 	terminate/2, 
 	code_change/4]).
 
-%% test helper for other modules that rely on this.
--ifdef(TEST).
--export([
-	make_mock/0,
-	make_mock/1,
-	add_mocks/1,
-	add_set/1,
-	add_drop/1,
-	add_info/1,
-	add_message/1,
-	add_message/2,
-	assert_mock/0,
-	stop_mock/0
-]).
--endif.
-
 -record(state, {
 	nodes = [] :: [atom()],
 	monitoring = [] :: [atom()],
@@ -223,97 +207,6 @@ get_key({Key, _, _}) ->
 clear_dead_media() ->
 	gen_leader:leader_cast(?MODULE, clear_dead_media).
 
-%% =====
-%% test helpers for other modules
-%% =====
-
--ifdef(TEST).
-
-make_mock() ->
-	make_mock([]).
-
-make_mock(Events) ->
-	{ok, Mock} = gen_leader_mock:start(?MODULE),
-	add_mocks(Events),
-	{ok, Mock}.
-
-add_mocks([]) ->
-	ok;
-add_mocks([{set, Key, Params} | T]) ->
-	add_set({Key, Params, none}),
-	add_mocks(T);
-add_mocks([{set, Key, Params, Watch} | T]) ->
-	add_set({Key, Params, Watch}),
-	add_mocks(T);
-add_mocks([{drop, Key} | T]) ->
-	add_drop(Key),
-	add_mocks(T);
-add_mocks([{info, Params} | T]) ->
-	add_info(Params),
-	add_mocks(T);
-add_mocks([{message, Msg} | T]) ->
-	add_message(Msg),
-	add_mocks(T);
-add_mocks([{message, Msg, Fun} | T]) ->
-	add_message(Msg, Fun),
-	add_mocks(T).
-
-add_set({Key, Params, Watch}) ->
-	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
-		fun({set, _Time, {InKey, InParams, _Node}, InWatch}, _State, _Election) ->
-			InKey = Key,
-			case Watch of
-				ignore ->
-					ok;
-				InWatch ->
-					ok;
-				_ ->
-					Watch = InWatch
-			end,
-			true = lists:all(fun(E) -> lists:member(E, InParams) end, Params),
-			ok
-		end
-	);
-add_set({Key, Params}) ->
-	add_set({Key, Params, none}).
-
-add_drop(Key) ->
-	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor), 
-		fun({drop, _Time, AKey}, _State, _Election) ->
-			Key = AKey,
-			ok
-		end
-	).
-
-add_info(Params) ->
-	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
-		fun({info, _Time, TheParams}, _State, _Election) ->
-			case {is_list(TheParams), is_list(Params)} of
-				{true, true} ->
-					lists:all(fun(E) -> lists:member(E, TheParams) end, Params);
-				{X, X} ->
-					Params = TheParams
-			end,
-			ok
-		end
-	).
-
-add_message(Msg) ->
-	Fun = fun(_Msg, _State) ->
-		ok
-	end,
-	add_message(Msg, Fun).
-
-add_message(Msg, Fun) ->
-	gen_leader_mock:expect_info(whereis(cpx_monitor), Fun).
-
-assert_mock() ->
-	gen_leader_mock:assert_expectations(whereis(cpx_monitor)).
-
-stop_mock() ->
-	gen_leader_mock:stop(whereis(cpx_monitor)).
-
--endif.
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -525,7 +418,10 @@ handle_leader_cast({set, Time, {Key, _Details, _Node} = Event, Watchwhat}, State
 		[{Key, _, _, _, _OtherWatched, Monref}] ->
 			% the other one likely died.
 			erlang:demonitor(Monref),
-			NewMonref = erlang:monitor(process, Watchwhat),
+			NewMonref = case Watchwhat of
+				none -> undefined;
+				_ -> erlang:monitor(process, Watchwhat)
+			end,
 			cache_event(Event, Time, Watchwhat, NewMonref)
 	end,
 	tell_cands({set, Time, Event}, Election),
@@ -545,6 +441,8 @@ handle_leader_cast({ensure_live, Node, Time}, State, Election) ->
 	tell_subs({set, Time, Message}, State#state.subscribers),
 	{noreply, State};
 handle_leader_cast(clear_dead_media, State, Election) ->
+	% TODO This should not reference media modules directly.  Fix it to be
+	% generic.
 	Dropples = qlc:e(qlc:q([Id || 
 		{{Type, Id}, _Time, Details, _, _, _} <- ets:table(?MODULE), 
 		Type == media, 
@@ -923,324 +821,363 @@ callback_test_() -> [
 		ets:delete(?MODULE)
 	end},
 
-	{"elected", fun() -> ?assert(false) end},
-	{"surrendered", fun() -> ?assert(false) end},
+	{"elected", [
+		{"all up, no splits", fun() ->
+			meck:new(gen_leader),
+			meck:expect(gen_leader, candidates, fun(_) ->
+				[node(), node1, node2]
+			end),
+			meck:expect(gen_leader, down, fun(_) -> [] end),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{ok, State} = init([{nodes, [node(), node1, node2]}]),
+			?assertEqual({ok, {[], []}, State}, elected(State, "election", node())),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			ets:delete(?MODULE)
+		end},
+
+		{"some down, now up", fun() ->
+			meck:new(gen_leader),
+			meck:expect(gen_leader, candidates, fun(_) ->
+				[node(), node1, node2]
+			end),
+			meck:expect(gen_leader, down, fun(_) -> [] end),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{ok, State} = init([{nodes, [node(), node1, node2]}]),
+			State0 = State#state{splits = [{node1, 1}]},
+			ExpectedState = State#state{status = merging, merge_status = dict:new(), merging = [node1], splits = []},
+			?assertEqual({ok, {[{node1, 1}], []}, ExpectedState}, elected(State0, "election", node())),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			ets:delete(?MODULE)
+		end},
+
+		{"some up, some down still", fun() ->
+			meck:new(gen_leader),
+			meck:expect(gen_leader, candidates, fun(_) ->
+				[node(), node1, node2]
+			end),
+			meck:expect(gen_leader, down, fun(_) -> [node2] end),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{ok, State} = init([{nodes, [node(), node1, node2]}]),
+			State0 = State#state{splits = [{node1, 1}, {node2, 2}]},
+			ExpectedState = State#state{status = merging, merge_status = dict:new(), merging = [node1], splits = [{node2, 2}]},
+			?assertEqual({ok, {[{node1, 1}], [{node2, 2}]}, ExpectedState}, elected(State0, "election", node())),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			ets:delete(?MODULE)
+		end}
+		
+	]},
+
+	{"surrendered", fun() ->
+		ets:new(?MODULE, [named_table]),
+		meck:new(gen_leader),
+		meck:expect(gen_leader, down, fun(_) -> [node1] end),
+		meck:expect(gen_leader, alive, fun(_) -> [node()] end),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {ensure_live, Node, {_,_,_}}) ->
+			?assertEqual(node(), Node)
+		end),
+		?assertEqual({ok, state}, surrendered(state, {merge, stilldown}, election)),
+		?assert(meck:validate(gen_leader)),
+		?assertEqual(3, length(meck:history(gen_leader))),
+		ets:delete(?MODULE),
+		meck:unload(gen_leader)
+	end},
 
 	{"handle_DOWN", fun() ->
 		ets:new(?MODULE, [named_table]),
+		meck:new(gen_leader),
+		meck:expect(gen_leader, candidates, fun(_) -> [node(), deadnode, goodnode] end),
+		meck:expect(gen_leader, leader_node, fun(_) -> node() end),
 		Entries = [
-			{{media, "cull1"}, os:timestamp(), [{node, "deadnode"}], "deadnode", none, undefined},
-			{{media, "keep1"}, os:timestamp(), [{node, "goodnode"}], "goodnode", none, undefined}
+			{{media, "cull1"}, os:timestamp(), [{node, deadnode}], deadnode, none, undefined},
+			{{media, "keep1"}, os:timestamp(), [{node, goodnode}], goodnode, none, undefined}
 		],
 		ets:insert(?MODULE, Entries),
 		State = #state{}, 
 		% This is an election record, see gen_leader to find out what it is
 		% as the copy/pasta record below may be out of date
 		Election = {election, node(), ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
-		handle_DOWN("deadnode", State, Election),
+		handle_DOWN(deadnode, State, Election),
 		?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
-		?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
+		?assertMatch([{{media, "keep1"}, _Time, [{node, goodnode}], goodnode, none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
+		?assert(meck:validate(gen_leader)),
+		meck:unload(gen_leader),
 		ets:delete(?MODULE)
 	end},
 
 	{"handle_leader_call", [
-		{"{get, When}", fun() -> ?assert(false) end},
-		{"{get, What}", fun() -> ?assert(false) end},
-		{"{subscribe, Pid, Fun}", fun() -> ?assert(false) end},
-		{"{unsubscirbe, Pid}", fun() -> ?assert(false) end},
-		{"{reporting, Node}", fun() -> ?assert(false) end},
-		{"{drop, _Time, Key}", fun() -> ?assert(false) end},
-		{"{info, _Time, Key}", fun() -> ?assert(false) end},
-		{"{set, Time, Event, ignore", fun() -> ?assert(false) end},
-		{"{set, Time, Event, Pid", fun() -> ?assert(false) end},
-		{"{set, Time, Event, none", fun() -> ?assert(false) end},
-		{"{ensure_live, Node, Time}", fun() -> ?assert(false) end},
-		{"clear_dead_media", fun() -> ?assert(false) end}
+		{"{get, When}", fun() ->
+			ets:new(?MODULE, [named_table]),
+			{M,S,Little} = os:timestamp(),
+			O1 = {1, {M,S,Little-10}, 1,1,1,1},
+			O2 = {1, {M,S,Little+10}, 2,2,2,2},
+			ets:insert(?MODULE, [O1,O2]),
+			Expected = {reply, {ok, [O2]}, state},
+			Now = M * 1000000 + S,
+			?assertEqual(Expected, handle_leader_call({get, Now}, from, state, election)),
+			ets:delete(?MODULE)
+		end},
+
+		{"{get, What}", fun() ->
+			ets:new(?MODULE, [named_table]),
+			O1 = {{goober, 1}, 1, 1,1,1,1},
+			O2 = {{foo, 1}, 2, 2,2,2,2},
+			ets:insert(?MODULE, [O1,O2]),
+			Expected = {reply, {ok, [O1]}, state},
+			?assertEqual(Expected, handle_leader_call({get, goober}, from, state, election)),
+			ets:delete(?MODULE)
+		end}
 	]},
 
-	{"handle_call, stop", fun() -> ?assert(false) end},
+	{"handle_leader_cast", [
+
+		{"{subscribe, Pid, Fun}, pid doesn't exist", fun() ->
+			Zombie = util:zombie(),
+			F = fun(_) -> true end,
+			State = #state{subscribers = []},
+			Expected = #state{subscribers = [{Zombie, F}]},
+			?assertEqual({noreply, Expected}, handle_leader_cast({subscribe, Zombie, F}, State, election))
+		end},
+
+		{"{subscribe, Pid, Fun}, pid does exists", fun() ->
+			Zombie = util:zombie(),
+			F1 = fun(_) -> true end,
+			F2 = fun(_) -> false end,
+			State = #state{subscribers = [{Zombie, F1}]},
+			Expected = #state{subscribers = [{Zombie, F2}]},
+			?assertEqual({noreply, Expected}, handle_leader_cast({subscribe, Zombie, F2}, State, election))
+		end},
+
+		{"{unsubscirbe, Pid}", fun() ->
+			Zombie = util:zombie(),
+			State = #state{subscribers = [{Zombie, afun}]},
+			Expected = #state{subscribers = []},
+			?assertEqual({noreply, Expected}, handle_leader_cast({unsubscribe, Zombie}, State, election))
+		end},
+
+		{"{reporting, Node}", fun() ->
+			ets:new(?MODULE, [named_table]),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			meck:expect(gen_leader, candidates, fun(_) -> [] end),
+			?assertEqual({noreply, #state{}}, handle_leader_cast({reporting, node()}, #state{}, election)),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			ets:delete(?MODULE)
+		end},
+
+		{"drop tests",
+			{setup, fun() ->
+				ets:new(?MODULE, [named_table, public]),
+				meck:new(gen_leader),
+				meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+				meck:expect(gen_leader, candidates, fun(_) -> [] end)
+			end,
+			fun(_) ->
+				meck:unload(gen_leader),
+				ets:delete(?MODULE)
+			end,
+			fun(_) -> [
+				{"{drop, _Time, Key}, not found", fun() ->
+					?assertEqual({noreply, #state{}}, handle_leader_cast({drop, time, key}, #state{}, election)),
+					?assert(meck:validate(gen_leader))
+				end},
+
+				{"{drop, _Time, Key}, easy drop", fun() ->
+					O = {easy_drop, 1, 1, 1, none, 1},
+					ets:insert(?MODULE, [O]),
+					?assertEqual({noreply, #state{}}, handle_leader_cast({drop, time, easy_drop}, #state{}, election)),
+					?assert(meck:validate(gen_leader))
+				end},
+
+				{"{drop, _Time, Key}, demonitor", fun() ->
+					Zombie = util:zombie(),
+					Mon = erlang:monitor(process, Zombie),
+					O = {mon_drop, 1, 1, 1, Zombie, Mon},
+					ets:insert(?MODULE, [O]),
+					?assertEqual({noreply, #state{}}, handle_leader_cast({drop, time, mon_drop}, #state{}, election)),
+					?assert(meck:validate(gen_leader))
+				end}
+			] end}
+		},
+
+		{"{info, _Time, Key}", fun() ->
+			meck:new(faker),
+			meck:expect(faker, didit, fun(_) -> false end),
+			Fun = fun faker:didit/1,
+			Msg = {info, time, params},
+			State = #state{subscribers = [{util:zombie(), Fun}]},
+			?assertEqual({noreply, State}, handle_leader_cast(Msg, State, election)),
+			% let the spawned tell sups thing die.
+			timer:sleep(10),
+			?assertEqual(1, length(meck:history(faker))),
+			?assert(meck:validate(faker)),
+			meck:unload(faker)
+		end},
+
+		{"set",
+			{setup, fun() ->
+				ets:new(?MODULE, [named_table, public])
+			end,
+			fun(_) ->
+				ets:delete(?MODULE)
+			end,
+			fun(_) ->
+				{foreach, fun() ->
+					meck:new(gen_leader),
+					meck:expect(gen_leader, candidates, fun(_) -> [node()] end),
+					meck:expect(gen_leader, leader_node, fun(_) -> [node()] end)
+				end,
+				fun(_) ->
+					ets:delete_all_objects(?MODULE),
+					meck:unload(gen_leader)
+				end, [
+
+					fun(_) -> {"{set, Time, Event, ignore}", fun() ->
+						Msg = {set, time, {key, [], node()}, ignore},
+						O = {key, 1, 1, 1, watchme, monref},
+						ets:insert(?MODULE, [O]),
+						Expect = {key, [], node(), time, watchme, monref},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						?assertEqual([Expect], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end,
+
+					fun(_) -> {"{set, Time, Event, Pid}, new pid", fun() ->
+						Zombie = util:zombie(),
+						Msg = {set, time, {key, [], node()}, Zombie},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						Node = node(),
+						?assertMatch([{key, [], Node, time, Zombie, _Monref}], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end,
+
+					fun(_) -> {"{set, Time, Event, Pid}, same pid", fun() ->
+						Zombie = util:zombie(),
+						Monref = monitor(process, Zombie),
+						O = {key, 1, 1, 1, Zombie, Monref},
+						ets:insert(?MODULE, [O]),
+						Msg = {set, time, {key, [], node()}, Zombie},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						Node = node(),
+						?assertEqual([{key, [], Node, time, Zombie, Monref}], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end,
+
+
+					fun(_) -> {"{set, Time, Event, Pid}, replacing a pid", fun() ->
+						Zombie = util:zombie(),
+						Monref = monitor(process, Zombie),
+						O = {key, 1, 1, 1, Zombie, Monref},
+						ets:insert(?MODULE, [O]),
+						NewZombie = util:zombie(),
+						Node = node(),
+						Msg = {set, time, {key, [], Node}, NewZombie},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						?assertMatch([{key, [], Node, time, NewZombie, _NewRef}], ets:lookup(?MODULE, key)),
+						?assertNotMatch([{_,_,_,_,_,Monref}], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end,
+
+					fun(_) -> {"{set, Time, Event, Pid}, replacing a none", fun() ->
+						O = {key, 1, 1, 1, none, undefined},
+						ets:insert(?MODULE, [O]),
+						NewZombie = util:zombie(),
+						Node = node(),
+						Msg = {set, time, {key, [], Node}, NewZombie},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						?assertMatch([{key, [], Node, time, NewZombie, _NewRef}], ets:lookup(?MODULE, key)),
+						?assertNotMatch([{_,_,_,_,none,undefined}], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end,
+
+					fun(_) -> {"{set, Time, Event, none}, removing", fun() ->
+						Zombie = util:zombie(),
+						Monref = monitor(process, Zombie),
+						O = {key, 1,1,1,Zombie,Monref},
+						ets:insert(?MODULE, [O]),
+						Node = node(),
+						Msg = {set, time, {key, [], Node}, none},
+						Expect = {key, [], Node, time, none, undefined},
+						?assertEqual({noreply, #state{}}, handle_leader_cast(Msg, #state{}, election)),
+						?assertEqual([Expect], ets:lookup(?MODULE, key)),
+						?assert(meck:validate(gen_leader))
+					end} end
+				]}
+			end}
+		},
+
+		{"{ensure_live, Node, Time}", fun() ->
+			ets:new(?MODULE, [named_table]),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, candidates, fun(_) -> [node()] end),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			meck:expect(gen_leader, alive, fun(_) -> [node()] end),
+			?assertEqual({noreply, #state{}}, handle_leader_cast({ensure_live, node(), time}, #state{}, election)),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			ets:delete(?MODULE)
+		end}
+
+% TODO This clause has hard-coded media modules, and as such needs to be
+% revisted and re-worked.
+%		{"clear_dead_media", fun() ->
+%			?assert(false)
+%		end}
+	]},
+
+	{"handle_call, stop", fun() ->
+		?assertEqual({stop, normal, ok, #state{}}, handle_call(stop, from, #state{}, election))
+	end},
 
 	{"handle_info", [
-		{"{leader_event, report}", ?_assert(false)},
-		{"{leader_event, Message}", ?_assert(false)},
-		{"{merge_complete, Mod, _Recs}", ?_assert(false)},
+		{"{leader_event, report}", fun() ->
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {reporting, Node}) ->
+				?assertEqual(node(), Node)
+			end),
+			?assertEqual({noreply, #state{}}, handle_info({leader_event, report}, #state{})),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(1, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end},
+
+		{"{leader_event, Message}",
+			{setup, fun() ->
+				ets:new(?MODULE, [named_table, public])
+			end,
+			fun(_) ->
+				ets:delete(?MODULE)
+			end,
+			fun(_) -> [
+
+				{"drop", fun() ->
+					ets:insert(?MODULE, [{key, value}]),
+					?assertEqual({noreply, #state{}}, handle_info({leader_event, {drop, time, key}}, #state{})),	
+					?assertEqual([], ets:lookup(?MODULE, key))
+				end},
+
+				{"set", fun() ->
+					?assertEqual({noreply, #state{}}, handle_info({leader_event, {set, time, {key, data, node}}}, #state{})),
+					?assertEqual([{key, data, node, time, none, undefined}], ets:lookup(?MODULE, key))
+				end}
+			] end}
+		},
+
+		% the next four need to be completed at some point.
+		% code works, just needs to get under test.
+		{"{merge_complete, Mod, _Recs}, late merge_complete", fun() ->
+			?assert(false)
+		end},
+
 		{"{merge_complete, Mod, Recs}", ?_assert(false)},
 		{"{'DOWN', Monref, process, WatchWhat, Why}", ?_assert(false)},
 		{"{'EXIT', From, Reason}", ?_assert(false)}
 	]}
 	].
 
-sub_mock() ->
-	sub_mock(fun(_) -> true end).
-
-sub_mock(Fun) ->
-	{ok, Mock} = gen_server_mock:new(),
-	%gen_server_mock:expect_info(Mock, fun(goober, _) ->
-	%	?DEBUG("Mon:  ~p; me:  ~p", [whereis(?MODULE), self()]),
-	%	ok
-	%end),
-	%Mock ! goober,
-	gen_server_mock:expect_info(Mock, fun({sub, TheFun}, _) ->
-		?DEBUG("mon:  ~p;  me:  ~p", [whereis(?MODULE), self()]),
-		cpx_monitor:subscribe(TheFun),
-		ok
-	end),
-	Mock ! {sub, Fun},
-	{ok, Mock}.
-
-mock_test_then_die([]) ->
-	ok;
-mock_test_then_die([H | T]) ->
-	gen_server_mock:assert_expectations(H),
-	gen_server_mock:stop(H),
-	mock_test_then_die(T).
-
-subscribers_test_() ->
-	util:start_testnode(),
-	SubscribeNode = util:start_testnode(cpx_monitor_subscribers_tests),
-	{spawn, SubscribeNode, {foreach, 
-	fun() ->
-		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
-		timer:sleep(5), % time for it to start up
-		ok
-	end,
-	fun(ok) ->
-		cpx_monitor:stop(),
-		timer:sleep(5) % time to die
-	end,
-	[fun(ok) -> {"simple info", fun() ->
-		timer:sleep(5), % fails unless cpx_mon is given time to wake up.
-		cpx_monitor:subscribe(),
-		cpx_monitor:info([{<<"key">>, <<"value">>}]),
-		receive
-			{cpx_monitor_event, {info, _Time, [{<<"key">>, <<"value">>}]}} ->
-				?assert(true);
-			{cpx_monitor_event, Other} ->
-				?assert(Other)
-		after 20 ->
-			?assert("timeout")
-		end 
-	end} end,
-	fun(ok) -> {"simpler info", fun() ->
-		cpx_monitor:subscribe(),
-		cpx_monitor:info(<<"funk initiated">>),
-		receive
-			{cpx_monitor_event, {info, _Time, <<"funk initiated">>}} ->
-				?assert(true);
-			{cpx_monitor_event, Other} ->
-				?assert(Other)
-		after 20 ->
-			?assert("timeout")
-		end
-	end} end,
-	fun(ok) -> {"simple set", fun() ->
-		cpx_monitor:subscribe(),
-		cpx_monitor:set({media, "media1"}, [{<<"key">>, <<"val">>}]),
-		receive
-			{cpx_monitor_event, {set, _Time, {{media, "media1"}, [{node, _Node}, {<<"key">>, <<"val">>}], _Node}}} ->
-				?assert(true);
-			{cpx_monitor_event, Other} ->
-				?assert(Other)
-		after 50 ->
-			?assert("timeout")
-		end
-	end} end,
-	fun(ok) -> {"getting a drop", fun() ->
-		cpx_monitor:subscribe(),
-		cpx_monitor:drop({media, "dead"}),
-		receive
-			{cpx_monitor_event, {drop, _Time, {media, "dead"}}} ->
-				?assert(true);
-			{cpx_monitor_event, Other} ->
-				?assert(Other)
-		after 50 ->
-			?assert("timeout")
-		end
-	end} end,
-	fun(ok) -> {"Filtering out infos", fun() ->
-		Filter = fun(E) ->
-			?DEBUG("filtering ~p", [E]),
-			case E of
-				{info, _, _} ->
-					false;
-				_ ->
-					true
-			end
-		end,
-		cpx_monitor:subscribe(Filter),
-		cpx_monitor:info([{<<"key">>, <<"value">>}]),
-		Good = receive
-			{cpx_monitor_event, {info, _, _}} ->
-				false;
-			Other ->
-				Other
-		after 20 ->
-			true
-		end,
-		?assert(Good)
-	end} end,
-	fun(ok) -> {"gen_server_mock test", fun() ->
-		{ok, Mock} = sub_mock(),
-		timer:sleep(10),
-		gen_server_mock:expect_info(Mock, fun({cpx_monitor_event, _}, _) ->
-			ok
-		end),
-		cpx_monitor:info([]),
-		timer:sleep(10),
-		mock_test_then_die([Mock])
-	end} end,
-	fun(ok) -> {"a bad filter tolerance", fun() ->
-		BadFilter = fun(_) ->
-			exit(<<"I suck">>)
-		end,
-		{ok, GoodMock} = sub_mock(),
-		{ok, BadMock} = sub_mock(BadFilter),
-		%% sleep to give the monitor time to set up the subs.
-		timer:sleep(10),
-		gen_server_mock:expect_info(GoodMock, fun({cpx_monitor_event, {info, _, _}}, _) ->
-			ok
-		end),
-		cpx_monitor:info([{<<"key">>, <<"val">>}]),
-		timer:sleep(10),
-		mock_test_then_die([GoodMock, BadMock])
-	end} end,
-	fun(ok) -> {"a monitored process dies, causing a drop", fun() ->
-		{ok, Watched} = gen_server_mock:new(),
-		{ok, Watcher} = sub_mock(),
-		gen_server_mock:expect_info(Watcher, fun({cpx_monitor_event, {set, _Time, {{media, "hi"}, _Params, _Node}}}, _) ->
-			?DEBUG("got the set.", []),
-			ok
-		end),
-		gen_server_mock:expect_info(Watcher, fun({cpx_monitor_event, {drop, _Time, {media, "hi"}}}, _) ->
-			?DEBUG("Got the drop", []),
-			ok
-		end),
-		timer:sleep(10),
-		cpx_monitor:set({media, "hi"}, [], Watched),
-		gen_server_mock:stop(Watched),
-		timer:sleep(10),
-		mock_test_then_die([Watcher])
-	end} end]}}.
-
-ets_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(cpx_monitor_ets_tests),
-	{spawn,
-	N,
-	{foreach,
-	fun() ->
-		{ok, _} = cpx_monitor:start([{nodes, node()}]),
-		timer:sleep(5),
-		ok
-	end,
-	fun(ok) ->
-		cpx_monitor:stop(),
-		timer:sleep(5)
-	end,
-	[fun(ok) -> {"simple set", fun() ->
-		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}], none),
-		timer:sleep(15),
-		?DEBUG("Whereis:  ~p", [whereis(cpx_monitor)]),
-		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
-		Node = node(),
-		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)
-	end} end,
-	fun(ok) -> {"set, reset", fun() ->
-		cpx_monitor:set({media, "hi"}, [], none),
-		timer:sleep(10),
-		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
-		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}]),
-		timer:sleep(10),
-		[{_Key, NewProps, _, NewTime, _, _}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
-		Node = node(),
-		?assertEqual([{node, Node}, {"hi", "bye"}], NewProps),
-		?assertNot(NewTime =:= Time)
-	end} end,
-	fun(ok) -> {"set, drop", fun() ->
-		cpx_monitor:set({media, "hi"}, [], none),
-		cpx_monitor:drop({media, "hi"}),
-		timer:sleep(10),
-		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
-		?assertEqual([], Res)
-	end} end,
-	fun(ok) -> {"set, reset, die", fun() ->
-		{ok, Mock} = gen_server_mock:new(),
-		cpx_monitor:subscribe(),
-		cpx_monitor:set({media, "hi"}, [], none),
-		receive
-			{cpx_monitor_event, {set, _, _}} ->
-				ok
-		after 1000 ->
-			?assert("initial set timed out")
-		end,
-		[Time] = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
-		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),
-		receive
-			{cpx_monitor_event, {set, _, _}} ->
-				ok
-		after 1000 ->
-			?assert("reset timed out")
-		end,
-		[{_Key, NewProps, _, NewTime, Mock, _Ref}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
-		gen_server_mock:stop(Mock),
-		receive
-			{cpx_monitor_event, {drop, _, _}} ->
-				ok
-		after 1000 ->
-			?assert("die timed out")
-		end,
-		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
-		Node = node(),
-		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
-		?assertNot(Time =:= NewTime),
-		?assertEqual([], Res)
-	end} end]}}.
-		
-multinode_test_d() ->
-	{foreach,
-	fun() ->
-		[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
-		Master = list_to_atom(lists:append("master@", Host)),
-		Slave = list_to_atom(lists:append("slave@", Host)),
-		slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-		slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-		mnesia:stop(),
-		
-		mnesia:change_config(extra_db_nodes, [Master, Slave]),
-		mnesia:delete_schema([node(), Master, Slave]),
-		mnesia:create_schema([node(), Master, Slave]),
-		
-		cover:start([Master, Slave]),
-		
-		rpc:call(Master, mnesia, start, []),
-		rpc:call(Slave, mnesia, start, []),
-		mnesia:start(),
-		
-		mnesia:change_table_copy_type(schema, Master, disc_copies),
-		mnesia:change_table_copy_type(schema, Slave, disc_copies),
-		
-		rpc:call(Master, agent_auth, start, []),
-		rpc:call(Slave, agent_auth, start, []),
-		
-		{Master, Slave}
-	end,
-	fun({Master, Slave}) ->
-		rpc:call(Master, agent_auth, stop, []),
-		rpc:call(Slave, agent_auth, stop, []),
-		cover:stop([Master, Slave])
-	end,
-	[fun({Master, Slave}) ->
-		{"Happy fun start!",
-		fun() ->
-			Mrez = rpc:call(Master, ?MODULE, start, [[{nodes, [Master, Slave]}]]),
-			Srez = rpc:call(Slave, ?MODULE, start, [[{nodes, [Master, Slave]}]]),
-			?INFO("Mrez  ~p", [Mrez]),
-			?INFO("Srez ~p", [Srez]),
-			?assertNot(Mrez =:= Srez),
-			?assertMatch({ok, _Pid}, Mrez),
-			?assertMatch({ok, _Pid}, Srez)
-		end}
-	end]}.
 -endif.
 
 -ifdef(PROFILE).

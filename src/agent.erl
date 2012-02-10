@@ -268,10 +268,10 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	agent_manager:update_skill_list(Agent2#agent.login, Agent2#agent.skills),
 	StateName = case Agent#agent.release_data of
 		none ->
-			gen_server:cast(dispatch_manager, {now_avail, self(), Agent2#agent.available_channels}),
+			dispatch_manager:now_avail(self(), Agent2#agent.available_channels),
 			idle;
 		_Other ->
-			gen_server:cast(dispatch_manager, {end_avail, self()}),
+			dispatch_manager:end_avail(self()),
 			released
 	end,
 	cpx_agent_event:agent_init(Agent2),
@@ -288,8 +288,8 @@ idle({set_release, default}, From, State) ->
 	idle({set_release, ?DEFAULT_RELEASE}, From, State);
 
 idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
-	gen_server:cast(dispatch_manager, {end_avail, self()}),
-	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
+	dispatch_manager:end_avail(self()),
+	agent_manager:set_avail(Agent#agent.login, []),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
@@ -337,8 +337,8 @@ idle(Msg, State) ->
 % ======================================================================
 
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(dispatch_manager, {now_avail, self(), Agent#agent.available_channels}),
-	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
+	dispatch_manager:now_avail(self(), Agent#agent.available_channels),
+	agent_manager:set_avail(Agent#agent.login, Agent#agent.available_channels),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
 	set_cpx_monitor(NewAgent, [{released, false}]),
@@ -436,7 +436,7 @@ handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_r
 	case priv_set_endpoint(Agent, Module, Data) of
 		{ok, NewAgent} ->
 			NewOEnds = dict:store(Module, Data, OEnds),
-			gen_leader:cast(agent_manager, {set_ends, Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
+			agent_manager:set_ends(Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)),
 			{reply, ok, StateName, State#state{agent_rec = NewAgent, original_endpoints = NewOEnds}};
 		{error, Err} = Error ->
 			{reply, Error, StateName, State}
@@ -472,7 +472,7 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 handle_event({set_endpoints, InEnds}, StateName, State) ->
 	Ends = sort_endpoints(InEnds),
 	NewAgent = priv_set_endpoints(State#state.agent_rec, State#state.original_endpoints, Ends),
-	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
+	agent_manager:set_ends(NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)),
 	{next_state, StateName, State#state{agent_rec = NewAgent}};
 
 handle_event(_Msg, StateName, State) ->
@@ -529,8 +529,8 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			},
 			case StateName of
 				idle ->
-					gen_server:cast(dispatch_manager, {now_avail, self(), NewAvail}),
-					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NewAvail});
+					dispatch_manager:now_avail(self(), NewAvail),
+					agent_manager:set_avail(Agent#agent.login, NewAvail);
 				_ ->
 					ok
 			end,
@@ -669,8 +669,8 @@ start_channel(Agent, Call, StateName) ->
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					Available = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
-					gen_server:cast(dispatch_manager, {now_avail, self(), Available}),
-					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
+					dispatch_manager:now_avail(self(), Available),
+					agent_manager:set_avail(Agent#agent.login, Available),
 					NewAgent = Agent#agent{
 						available_channels = Available,
 						used_channels = dict:store(Pid, Call#call.type, Agent#agent.used_channels)
@@ -867,7 +867,8 @@ state_test_() ->
 			gen_server:enter_loop(dummy_connection, [], state)
 		end),
 		Setup = fun() ->
-			[meck:new(M) || M <- Mecks]
+			[meck:new(M) || M <- Mecks],
+			meck:expect(dummy_connection, terminate, fun(_,_) -> ok end)
 		end,
 		Validator = fun() ->
 			[meck:validate(M) || M <- Mecks]
@@ -887,7 +888,7 @@ state_test_() ->
 
 			fun(_) ->
 				{"From release to release", fun() ->
-					Agent = #agent{id = "testid", login = "testagent", connection = connection},
+					Agent = #agent{id = "testid", login = "testagent", connection = Zombie},
 					State = #state{agent_rec = Agent},
 					meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
 						Expected = [{released, true}, {reason, "label"}, {bias, -1},
@@ -933,6 +934,49 @@ state_test_() ->
 					Validate()
 				end}
 			end
+		]}},
+
+		{"from idle", {foreach, fun() ->
+			Setup()
+		end,
+		fun(_) ->
+			Teardown()
+		end, [
+
+			fun(_) -> {"to idle", fun() ->
+				Out = idle({set_release, none}, "from", state),
+				?assertEqual({reply, ok, idle, state}, Out),
+				Validate()
+			end} end,
+
+			fun(_) -> {"to release", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = Zombie, release_data = undefined},
+				State = #state{agent_rec = Agent},
+				meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+					Expected = [{released, true}, {reason, "label"},
+						{reason_id, "id"}, {bias, -1}],
+					[?assertEqual(Val, proplists:get_value(Key, Data)) ||
+						{Key, Val} <- Expected],
+					ok
+				end),
+				meck:expect(agent_manager, set_avail, fun("testagent", []) ->
+					ok
+				end),
+				Self = self(),
+				meck:expect(dispatch_manager, end_avail, fun(InPid) ->
+					?assertEqual(Self, InPid),
+					ok
+				end),
+				meck:expect(dummy_connection, handle_cast, fun({set_release, {"id", "label", -1},_Time}, state) -> {noreply, state} end),
+				meck:expect(cpx_agent_event, change_agent, fun(InAgent, NewAgent) ->
+					?assertEqual(Agent, InAgent),
+					?assertEqual({"id", "label", -1}, NewAgent#agent.release_data)
+				end),
+				Out = idle({set_release, {"id", "label", -1}}, "from", State),
+				?assertMatch({reply, ok, released, _NewState}, Out),
+				Validate()
+			end} end
+
 		]}}
 	] end}.
 
@@ -946,76 +990,6 @@ state_test_() ->
 	assert
 }).
 
-from_release_test_() ->
-	util:start_testnode(),
-	Node = util:start_testnode(from_release_tests),
-	{setup, {spawn, Node}, fun() -> ok end, fun(_) ->
-	{foreach, fun() ->
-		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = cpx_monitor:make_mock(),
-		{ok, AMmock} = gen_leader_mock:start(agent_manager),
-		{ok, Connmock} = gen_server_mock:new(),
-		{ok, As} = gen_event:start({local, cpx_agent_event}),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
-		Assertmocks = fun() ->
-			gen_server_mock:assert_expectations(Dmock),
-			%gen_leader_mock:assert_expectations(Monmock),
-			cpx_monitor:assert_mock(),
-			gen_server_mock:assert_expectations(Connmock),
-			gen_leader_mock:assert_expectations(AMmock),
-			ok
-		end,
-		MockPids = #mock_pids{
-			state = #state{agent_rec = Agent},
-			dispatch_manager = Dmock,
-			cpx_monitor = Monmock,
-			agent_manager = AMmock,
-			connection = Connmock,
-			assert = Assertmocks
-		},
-		%?ERROR("reference:  ~p", [MockPids]),
-		MockPids
-	end,
-	fun(MockPids) ->
-		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
-		cpx_monitor:stop_mock(),
-		gen_server_mock:stop(MockPids#mock_pids.connection),
-		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
-		gen_event:stop(cpx_agent_event),
-		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
-		% before the next test runs.
-		ok
-	end,
-	[fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From release to release", fun() ->
-			#state{agent_rec = Agent} = State,
-			cpx_monitor:add_set({{agent, Agent#agent.id}, [{reason_id, "id"}, {reason, "label"}, {bias, -1}, {released, true}], ignore}),
-			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Timestamp}, _State) -> ok end),
-			Out = released({set_release, {"id", "label", -1}}, "from", State),
-			?assertMatch({reply, ok, released, _NewState}, Out),
-			AssertMocks()
-		end}
-	end,
-	fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From release to idle", fun() ->
-			#state{agent_rec = Agent} = State,
-			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, false}], ignore}),
-			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", InChans}, _State, _Elec) ->
-				InChans = Agent#agent.available_channels,
-				ok
-			end),
-			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, none, _Time}, _State) -> ok end),
-			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({now_avail, InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]}, _State) ->
-				InPid = Self,
-				ok
-			end),
-			Out = released({set_release, none}, "from", State),
-			?assertMatch({reply, ok, idle, _NewState}, Out),
-			AssertMocks()
-		end}
-	end]} end}.
-			
 from_idle_test_() ->
 	util:start_testnode(),
 	Node = util:start_testnode(from_idle_tests),

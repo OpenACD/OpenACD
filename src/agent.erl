@@ -274,23 +274,6 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
 			released
 	end,
-%	Agent3 = case proplists:get_value(logging, Options) of
-%		true ->
-%			Nodes = case proplists:get_value(nodes, Options) of
-%				undefined ->
-%					case application:get_env('OpenACD', nodes) of
-%						{ok, N} -> N;
-%						undefined -> [node()]
-%					end;
-%				Orelse -> Orelse
-%			end,
-%			Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-%			Pid ! {Agent#agent.login, login, Agent#agent.state, Agent#agent.statedata},
-%			Agent2#agent{log_pid = Pid};
-%		_Orelse ->
-%			Agent2
-%	end,
-	%set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
 	cpx_agent_event:agent_init(Agent2),
 	{ok, StateName, #state{agent_rec = Agent2, original_endpoints = OriginalEnds}}.
 

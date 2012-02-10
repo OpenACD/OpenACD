@@ -876,6 +876,83 @@ handle_sync_event_test_() ->
 		]
 	end}].
 
+state_test_() ->
+	{setup, fun() ->
+		Mecks = [dispatch_manager, cpx_monitor, agent_manager, agent_event,
+			cpx_agent_event, dummy_connection],
+		Zombie = proc_lib:spawn(fun() ->
+			gen_server:enter_loop(dummy_connection, [], state)
+		end),
+		Setup = fun() ->
+			[meck:new(M) || M <- Mecks]
+		end,
+		Validator = fun() ->
+			[meck:validate(M) || M <- Mecks]
+		end,
+		Teardown = fun() ->
+			[meck:unload(M) || M <- Mecks]
+		end,
+		{Setup, Validator, Teardown, Mecks, Zombie}
+	end,
+	fun({Setup, Validate, Teardown, Mecks, Zombie}) -> [
+		{"from release", {foreach, fun() ->
+			Setup()
+		end,
+		fun(_) ->
+			Teardown()
+		end, [
+
+			fun(_) ->
+				{"From release to release", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = connection},
+					State = #state{agent_rec = Agent},
+					meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+						Expected = [{released, true}, {reason, "label"}, {bias, -1},
+							{released, true}, {reason_id, "id"}],
+						[?assertEqual(Val, proplists:get_value(Key, Data)) ||
+							{Key, Val} <- Expected],
+						ok
+ 					end),
+					meck:expect(cpx_agent_event, change_agent, fun(InAgent, NewAgent) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual({"id", "label", -1}, NewAgent#agent.release_data)
+					end),
+					meck:expect(dummy_connection, handle_cast, fun({set_release, {"id", "label", -1}, _Timestamp}, state) -> {noreply, state} end),
+					Out = released({set_release, {"id", "label", -1}}, "from", State),
+					?assertMatch({reply, ok, released, _NewState}, Out),
+					Validate()
+				end}
+			end,
+
+			fun(_) ->
+				{"From release to idle", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = connection},
+					State = #state{agent_rec = Agent},
+					meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+						?assertNot(proplists:get_value(released, Data)),
+						ok
+					end),
+					meck:expect(agent_manager, set_avail, fun("testagent", InChans) ->
+						?assertEqual(Agent#agent.available_channels, InChans),
+						ok
+					end),
+					meck:expect(cpx_agent_event, change_agent, fun(InAgent, _Agent) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual(undefined, InAgent#agent.release_data)
+					end),
+					Self = self(),
+					meck:expect(dispatch_manager, now_avail, fun(InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]) ->
+						?assertEqual(Self, InPid),
+						ok
+					end),
+					Out = released({set_release, none}, "from", State),
+					?assertMatch({reply, ok, idle, _NewState}, Out),
+					Validate()
+				end}
+			end
+		]}}
+	] end}.
+
 -record(mock_pids, {
 	state,
 	dispatch_manager,

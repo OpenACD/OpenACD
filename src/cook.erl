@@ -545,9 +545,13 @@ check_conditions([{caller_id, Comparison, RegEx} | Conditions], Ticked, Qpid, Ca
 					check_conditions(Conditions, Ticked, Qpid, Call)
 			end
 	end;
-check_conditions([_ | Conditions], Ticked, Qpid, Call) ->
-	check_conditions(Conditions, Ticked, Qpid, Call).
-
+check_conditions([Cond | Conditions], Ticked, Qpid, Call) ->
+	case cpx_hooks:trigger_hooks(recipe_check_condition, [Cond, Ticked, Qpid, Call]) of
+		{ok, block} ->
+			false;
+		_ ->
+			check_conditions(Conditions, Ticked, Qpid, Call)
+	end.
 
 %% @private
 -spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> recipe()).
@@ -640,6 +644,7 @@ do_operation(Operations, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid) ->
 do_operation([], _Qpid, _Callpid, Acc) ->
 	lists:reverse(Acc);
 do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
+	?INFO("Doing operation: ~p", [Op]),
 	Out = case Op of
 		add_skills ->
 			call_queue:add_skills(Qpid, Callpid, Args),
@@ -678,9 +683,11 @@ do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
 			%% here should be the function call to hangup the qued call
 			gen_media:end_call(Callpid),
 			ok;
-		_Op ->
-			?WARNING("ignoring unknown operation ~p", [_Op]), 
-			ok
+		Op ->
+			case cpx_hooks:trigger_hooks(recipe_do_operation, [Op, Qpid, Callpid]) of
+				{ok, Outz} -> Outz;
+				_ -> ok
+			end
 	end,
 	Newacc = case Out of
 		ok ->

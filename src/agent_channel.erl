@@ -297,7 +297,7 @@ init([Agent, Call, Endpoint, StateName]) ->
 		ringing when is_record(Call, call) ->
 			% TODO tell media to ring
 			?DEBUG("Starting in ringing", []),
-			conn_cast(Agent, {set_channel, self(), precall, Call}),
+			conn_cast(Agent, {set_channel, self(), ringing, Call}),
 			cpx_agent_event:agent_channel_init(Agent,self(),ringing, Call),
 			{ok, ringing, State};
 		_ ->
@@ -397,6 +397,11 @@ precall(_Msg, _From, State) ->
 	{reply, {error, invalid}, precall, State}.
 
 %% -----
+
+precall({mediapush, From, Callrec, Data}, #state{state_data = #call{source = From}, agent_connection = Conn} = State) when is_pid(Conn) ->
+	Self = self(),
+	gen_server:cast(Conn, {mediapush, Self, Callrec, Data}),
+	{next_state, precall, State};
 
 precall(_Msg, State) ->
 	{next_state, precall, State}.

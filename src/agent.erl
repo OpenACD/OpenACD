@@ -268,29 +268,12 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	agent_manager:update_skill_list(Agent2#agent.login, Agent2#agent.skills),
 	StateName = case Agent#agent.release_data of
 		none ->
-			gen_server:cast(dispatch_manager, {now_avail, self(), Agent2#agent.available_channels}),
+			dispatch_manager:now_avail(self(), Agent2#agent.available_channels),
 			idle;
 		_Other ->
-			gen_server:cast(dispatch_manager, {end_avail, self()}),
+			dispatch_manager:end_avail(self()),
 			released
 	end,
-%	Agent3 = case proplists:get_value(logging, Options) of
-%		true ->
-%			Nodes = case proplists:get_value(nodes, Options) of
-%				undefined ->
-%					case application:get_env('OpenACD', nodes) of
-%						{ok, N} -> N;
-%						undefined -> [node()]
-%					end;
-%				Orelse -> Orelse
-%			end,
-%			Pid = spawn_link(agent, log_loop, [Agent#agent.id, Agent#agent.login, Nodes, Agent#agent.profile]),
-%			Pid ! {Agent#agent.login, login, Agent#agent.state, Agent#agent.statedata},
-%			Agent2#agent{log_pid = Pid};
-%		_Orelse ->
-%			Agent2
-%	end,
-	%set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}], self()),
 	cpx_agent_event:agent_init(Agent2),
 	{ok, StateName, #state{agent_rec = Agent2, original_endpoints = OriginalEnds}}.
 
@@ -305,8 +288,8 @@ idle({set_release, default}, From, State) ->
 	idle({set_release, ?DEFAULT_RELEASE}, From, State);
 
 idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
-	gen_server:cast(dispatch_manager, {end_avail, self()}),
-	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, []}),
+	dispatch_manager:end_avail(self()),
+	agent_manager:set_avail(Agent#agent.login, []),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
@@ -317,7 +300,7 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, precall) of
 		{ok, Pid, NewAgent} ->
-			inform_connection(Agent, {set_channel, Pid, precall, Call}),
+			%inform_connection(Agent, {set_channel, Pid, precall, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -327,17 +310,17 @@ idle({prering, Call}, _From, #state{agent_rec = Agent} = State) ->
 	case start_channel(Agent, Call, prering) of
 		{ok, Pid, NewAgent} ->
 			?DEBUG("Started prering (~s) ~p", [Agent#agent.login, Pid]),
-			inform_connection(Agent, {set_channel, Pid, prering, Call}),
+			%inform_connection(Agent, {set_channel, Pid, prering, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
 	end;
 
 idle({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
-	case start_channel(Agent, Call, prering) of
+	case start_channel(Agent, Call, ringing) of
 		{ok, Pid, NewAgent} ->
 			?DEBUG("Started ringing (~s) ~p", [Agent#agent.login, Pid]),
-			inform_connection(Agent, {set_channel, Pid, ringing, Call}),
+			%inform_connection(Agent, {set_channel, Pid, ringing, Call}),
 			{reply, {ok, Pid}, idle, State#state{agent_rec = NewAgent}};
 		Else ->
 			{reply, Else, idle, State}
@@ -354,8 +337,8 @@ idle(Msg, State) ->
 % ======================================================================
 
 released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
-	gen_server:cast(dispatch_manager, {now_avail, self(), Agent#agent.available_channels}),
-	gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Agent#agent.available_channels}),
+	dispatch_manager:now_avail(self(), Agent#agent.available_channels),
+	agent_manager:set_avail(Agent#agent.login, Agent#agent.available_channels),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
 	set_cpx_monitor(NewAgent, [{released, false}]),
@@ -453,7 +436,7 @@ handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_r
 	case priv_set_endpoint(Agent, Module, Data) of
 		{ok, NewAgent} ->
 			NewOEnds = dict:store(Module, Data, OEnds),
-			gen_leader:cast(agent_manager, {set_ends, Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
+			agent_manager:set_ends(Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)),
 			{reply, ok, StateName, State#state{agent_rec = NewAgent, original_endpoints = NewOEnds}};
 		{error, Err} = Error ->
 			{reply, Error, StateName, State}
@@ -489,7 +472,7 @@ handle_event({remove_skills, Skills}, StateName, #state{agent_rec = Agent} = Sta
 handle_event({set_endpoints, InEnds}, StateName, State) ->
 	Ends = sort_endpoints(InEnds),
 	NewAgent = priv_set_endpoints(State#state.agent_rec, State#state.original_endpoints, Ends),
-	gen_leader:cast(agent_manager, {set_ends, NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)}),
+	agent_manager:set_ends(NewAgent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)),
 	{next_state, StateName, State#state{agent_rec = NewAgent}};
 
 handle_event(_Msg, StateName, State) ->
@@ -514,7 +497,7 @@ handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connect
 handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State) ->
 	case dict:find(Pid, Agent#agent.used_channels) of
 		error ->
-			case util:dict_find_by_value(Pid, Agent#agent.endpoints) of
+			case get_endpoint_by_pid(Pid, Agent#agent.endpoints) of
 				error ->
 					case whereis(agent_manager) of
 						undefined ->
@@ -525,15 +508,17 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 							?INFO("unknown exit from ~p", [Pid]),
 							{next_state, StateName, State}
 					end;
-				{ok, DeadEnds} ->
-					Self = self(),
-					Oends = State#state.original_endpoints,
-					NewEnds = [begin
-						Data = dict:fetch(End, Oends),
-						{End, Data}
-					end || End <- DeadEnds],
-					?MODULE:set_endpoints(Self, NewEnds),
-					{next_state, StateName, State}
+				{End, Orig} ->
+					Ends0 = dict:erase(End, Agent#agent.endpoints),
+					Agent0 = Agent#agent{endpoints = Ends0},
+					PrivRes = priv_set_endpoint(Agent0, End, Orig),
+					Agent1 = case PrivRes of
+						{ok, AgentEnds} -> AgentEnds;
+						{error, Err} ->
+							?NOTICE("Endpoint ~p's pid exited, could not recover due to ~p", [End, Err]),
+							Agent#agent{endpoints = Ends0}
+					end,
+					{next_state, StateName, State#state{agent_rec = Agent1}}
 			end;
 		{ok, Type} ->
 			NewDict = dict:erase(Pid, Agent#agent.used_channels),
@@ -546,15 +531,19 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			},
 			case StateName of
 				idle ->
-					gen_server:cast(dispatch_manager, {now_avail, self(), NewAvail}),
-					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, NewAvail});
+					dispatch_manager:now_avail(self(), NewAvail),
+					agent_manager:set_avail(Agent#agent.login, NewAvail);
 				_ ->
 					ok
 			end,
 			inform_connection(Agent, {channel_died, Pid, NewAvail}),
 			cpx_agent_event:change_agent_channel(Pid, exit, exit),
 			{next_state, StateName, State#state{agent_rec = NewAgent}}
-	end.
+	end;
+
+handle_info(Msg, Statename, State) ->
+	?DEBUG("Disregarding:  ~p", [Msg]),
+	{next_state, Statename, State}.
 
 % ======================================================================
 % TERMINATE
@@ -600,6 +589,21 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % INTERNAL
 % ======================================================================
 
+get_endpoint_by_pid(Pid, []) ->
+	error;
+
+get_endpoint_by_pid(Pid, [{End, {Orig, Pid}} | _]) ->
+	{End, Orig};
+
+get_endpoint_by_pid(Pid, [_Head | Tail]) ->
+	get_endpoint_by_pid(Pid, Tail);
+
+get_endpoint_by_pid(Pid, EndpointDict) ->
+	Ends = dict:to_list(EndpointDict),
+	get_endpoint_by_pid(Pid, Ends).
+
+% ----------------------------------------------------------------------
+	
 priv_set_endpoint(_Agent, Module, {module, Module}) ->
 	?DEBUG("endpoint ~s is a circular reference", [Module]),
 	{error, self_reference};
@@ -625,6 +629,7 @@ priv_set_endpoint(Agent, Module, Data) ->
 			inform_connection(Agent, {new_endpoint, Module, NewData}),
 			{ok, NewAgent};
 		Else ->
+			?NOTICE("prepare endpoint failed:  ~p", [Else]),
 			{error, Else}
 	end.
 
@@ -681,13 +686,13 @@ start_channel(Agent, Call, StateName) ->
 			{error, nochannel};
 		{true, {error, notfound}} ->
 			{error, noendpoint};
-		{true, Endpoint} ->
+		{true, {ok, {_Orig, Endpoint}}} ->
 			Self = self(),
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					Available = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
-					gen_server:cast(dispatch_manager, {now_avail, self(), Available}),
-					gen_leader:cast(agent_manager, {set_avail, Agent#agent.login, Available}),
+					dispatch_manager:now_avail(self(), Available),
+					agent_manager:set_avail(Agent#agent.login, Available),
 					NewAgent = Agent#agent{
 						available_channels = Available,
 						used_channels = dict:store(Pid, Call#call.type, Agent#agent.used_channels)
@@ -835,6 +840,7 @@ block_channel_test_gen([{Name, Chan, ListDef, Expected} | Tail]) ->
 		end} | block_channel_test_gen(Tail)]
 	end}.
 
+% TODO meck-anize these tests.
 handle_sync_event_test_() ->
 	[{"handle set_endpoint", setup, fun() ->
 			Endpoints = dict:from_list([
@@ -848,7 +854,7 @@ handle_sync_event_test_() ->
 		end,
 		fun({Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
-				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end},
@@ -868,156 +874,434 @@ handle_sync_event_test_() ->
 				end},
 
 			{"adding arbitary data endpoint", fun() ->
-				Expected = [{dummy_media, {dummy_media,start_ring,[transient]}} | dict:to_list(Endpoints)],
+				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
 				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end}
 		]
+	end},
+
+	{"{set_connection, Pid}", fun() ->
+		Self = self(),
+		Zombie = util:zombie(),
+		Agent = #agent{id = "testid", login = "testlogin", source = Self,
+			used_channels = dict:from_list([{Zombie, voice}])},
+		State = #state{agent_rec = Agent},
+		meck:new(agent_channel),
+		meck:expect(agent_channel, set_connection, fun(ChanPid, InPid) ->
+			?assertEqual(Zombie, ChanPid),
+			?assertEqual(Self, InPid)
+		end),
+		ExpectState = State#state{
+			agent_rec = Agent#agent{connection = Self}
+		},
+		?assertEqual({reply, ok, idle, ExpectState}, handle_sync_event({set_connection, Self}, from, idle, State)),
+		?assert(meck:validate(agent_channel)),
+		?assertEqual(1, length(meck:history(agent_channel))),
+		meck:unload(agent_channel)
+	end},
+
+	{"{set_connection, _Pid}", fun() ->
+		Self = self(),
+		Zombie = util:zombie(),
+		Agent = #agent{id = "testid", login = "testlogin", source = Self,
+			used_channels = dict:from_list([{Zombie, voice}]), connection = Zombie},
+		State = #state{agent_rec = Agent},
+		?assertEqual({reply, error, idle, State}, handle_sync_event({set_connection, Zombie}, from, idle, State))
+	end},
+
+	{"{change_profile, Profile}, success", fun() ->
+		OldAgent = #agent{id = "testid", login = "testagent", profile = "oldprofile", skills = [old_skill]},
+		NewAgent = OldAgent#agent{profile = "newprofile", skills = [new_skill]},
+		Mecks = [agent_auth, cpx_agent_event, cpx_monitor],
+		[meck:new(M) || M <- Mecks],
+		meck:expect(agent_auth, get_profile, fun
+			("oldprofile") ->
+				#agent_profile{name = "oldprofile", skills = [old_skill]};
+			("newprofile") ->
+				#agent_profile{name = "newprofile", skills = [new_skill]}
+		end),
+		meck:expect(cpx_agent_event, change_agent, fun(InOld, InNew) ->
+			?assertEqual(OldAgent, InOld),
+			?assertEqual(NewAgent, InNew),
+			ok
+		end),
+		meck:expect(cpx_monitor, set, fun({agent, "testid"}, [
+			{profile, "newprofile"}, {login, "testagent"}, {skills, [new_skill]}
+		]) ->
+			ok
+		end),
+		?assertEqual({reply, ok, idle, #state{agent_rec = NewAgent}},
+			handle_sync_event({change_profile, "newprofile"}, from, idle, #state{agent_rec = OldAgent})),
+		[begin meck:validate(M), meck:unload(M) end || M <- Mecks]
+	end},
+
+	{"{change_profile, Profile}, no profile", fun() ->
+		OldAgent = #agent{id = "testid", login = "testagent", profile = "oldprofile", skills = [old_skill]},
+		Mecks = [agent_auth],
+		[meck:new(M) || M <- Mecks],
+		meck:expect(agent_auth, get_profile, fun
+			("oldprofile") ->
+				#agent_profile{name = "oldprofile", skills = [old_skill]};
+			("newprofile") ->
+				undefined
+		end),
+		?assertEqual({reply, {error, unknown_profile}, idle, #state{agent_rec = OldAgent}},
+			handle_sync_event({change_profile, "newprofile"}, from, idle, #state{agent_rec = OldAgent})),
+		[begin meck:validate(M), meck:unload(M) end || M <- Mecks]
 	end}].
 
--record(mock_pids, {
-	state,
-	dispatch_manager,
-	cpx_monitor,
-	agent_manager,
-	connection,
-	logger,
-	assert
-}).
+state_test_() ->
+	{setup, fun() ->
+		Mecks = [dispatch_manager, cpx_monitor, agent_manager, agent_event,
+			cpx_agent_event, dummy_connection],
+		Zombie = proc_lib:spawn(fun() ->
+			gen_server:enter_loop(dummy_connection, [], state)
+		end),
+		Setup = fun() ->
+			[meck:new(M) || M <- Mecks],
+			meck:expect(dummy_connection, terminate, fun(_,_) -> ok end)
+		end,
+		Validator = fun() ->
+			[meck:validate(M) || M <- Mecks]
+		end,
+		Teardown = fun() ->
+			[meck:unload(M) || M <- Mecks]
+		end,
+		{Setup, Validator, Teardown, Mecks, Zombie}
+	end,
+	fun({Setup, Validate, Teardown, Mecks, Zombie}) -> [
+		{"from release", {foreach, fun() ->
+			Setup()
+		end,
+		fun(_) ->
+			Teardown()
+		end, [
 
-from_release_test_() ->
-	util:start_testnode(),
-	Node = util:start_testnode(from_release_tests),
-	{setup, {spawn, Node}, fun() -> ok end, fun(_) ->
-	{foreach, fun() ->
-		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = cpx_monitor:make_mock(),
-		{ok, AMmock} = gen_leader_mock:start(agent_manager),
-		{ok, Connmock} = gen_server_mock:new(),
-		{ok, As} = gen_event:start({local, cpx_agent_event}),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
-		Assertmocks = fun() ->
-			gen_server_mock:assert_expectations(Dmock),
-			%gen_leader_mock:assert_expectations(Monmock),
-			cpx_monitor:assert_mock(),
-			gen_server_mock:assert_expectations(Connmock),
-			gen_leader_mock:assert_expectations(AMmock),
-			ok
+			fun(_) ->
+				{"From release to release", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = Zombie},
+					State = #state{agent_rec = Agent},
+					meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+						Expected = [{released, true}, {reason, "label"}, {bias, -1},
+							{released, true}, {reason_id, "id"}],
+						[?assertEqual(Val, proplists:get_value(Key, Data)) ||
+							{Key, Val} <- Expected],
+						ok
+ 					end),
+					meck:expect(cpx_agent_event, change_agent, fun(InAgent, NewAgent) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual({"id", "label", -1}, NewAgent#agent.release_data)
+					end),
+					meck:expect(dummy_connection, handle_cast, fun({set_release, {"id", "label", -1}, _Timestamp}, state) -> {noreply, state} end),
+					Out = released({set_release, {"id", "label", -1}}, "from", State),
+					?assertMatch({reply, ok, released, _NewState}, Out),
+					Validate()
+				end}
+			end,
+
+			fun(_) ->
+				{"From release to idle", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = connection},
+					State = #state{agent_rec = Agent},
+					meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+						?assertNot(proplists:get_value(released, Data)),
+						ok
+					end),
+					meck:expect(agent_manager, set_avail, fun("testagent", InChans) ->
+						?assertEqual(Agent#agent.available_channels, InChans),
+						ok
+					end),
+					meck:expect(cpx_agent_event, change_agent, fun(InAgent, _Agent) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual(undefined, InAgent#agent.release_data)
+					end),
+					Self = self(),
+					meck:expect(dispatch_manager, now_avail, fun(InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]) ->
+						?assertEqual(Self, InPid),
+						ok
+					end),
+					Out = released({set_release, none}, "from", State),
+					?assertMatch({reply, ok, idle, _NewState}, Out),
+					Validate()
+				end}
+			end
+		]}},
+
+		{"from idle", {foreach, fun() ->
+			Setup()
 		end,
-		MockPids = #mock_pids{
-			state = #state{agent_rec = Agent},
-			dispatch_manager = Dmock,
-			cpx_monitor = Monmock,
-			agent_manager = AMmock,
-			connection = Connmock,
-			assert = Assertmocks
-		},
-		%?ERROR("reference:  ~p", [MockPids]),
-		MockPids
-	end,
-	fun(MockPids) ->
-		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
-		cpx_monitor:stop_mock(),
-		gen_server_mock:stop(MockPids#mock_pids.connection),
-		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
-		gen_event:stop(cpx_agent_event),
-		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
-		% before the next test runs.
-		ok
-	end,
-	[fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From release to release", fun() ->
-			#state{agent_rec = Agent} = State,
-			cpx_monitor:add_set({{agent, Agent#agent.id}, [{reason_id, "id"}, {reason, "label"}, {bias, -1}, {released, true}], ignore}),
-			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Timestamp}, _State) -> ok end),
-			Out = released({set_release, {"id", "label", -1}}, "from", State),
-			?assertMatch({reply, ok, released, _NewState}, Out),
-			AssertMocks()
-		end}
-	end,
-	fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From release to idle", fun() ->
-			#state{agent_rec = Agent} = State,
-			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, false}], ignore}),
-			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", InChans}, _State, _Elec) ->
-				InChans = Agent#agent.available_channels,
-				ok
-			end),
-			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, none, _Time}, _State) -> ok end),
-			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({now_avail, InPid, [dummy, voice,visual,slow_text,fast_text,fast_text,fast_text]}, _State) ->
-				InPid = Self,
-				ok
-			end),
-			Out = released({set_release, none}, "from", State),
-			?assertMatch({reply, ok, idle, _NewState}, Out),
-			AssertMocks()
-		end}
-	end]} end}.
-			
-from_idle_test_() ->
-	util:start_testnode(),
-	Node = util:start_testnode(from_idle_tests),
-	{setup, {spawn, Node}, fun() -> ok end, fun(_) ->
+		fun(_) ->
+			Teardown()
+		end, [
+
+			fun(_) -> {"to idle", fun() ->
+				Out = idle({set_release, none}, "from", state),
+				?assertEqual({reply, ok, idle, state}, Out),
+				Validate()
+			end} end,
+
+			fun(_) -> {"to release", fun() ->
+					Agent = #agent{id = "testid", login = "testagent", connection = Zombie, release_data = undefined},
+				State = #state{agent_rec = Agent},
+				meck:expect(cpx_monitor, set, fun({agent, "testid"}, Data, ignore) ->
+					Expected = [{released, true}, {reason, "label"},
+						{reason_id, "id"}, {bias, -1}],
+					[?assertEqual(Val, proplists:get_value(Key, Data)) ||
+						{Key, Val} <- Expected],
+					ok
+				end),
+				meck:expect(agent_manager, set_avail, fun("testagent", []) ->
+					ok
+				end),
+				Self = self(),
+				meck:expect(dispatch_manager, end_avail, fun(InPid) ->
+					?assertEqual(Self, InPid),
+					ok
+				end),
+				meck:expect(dummy_connection, handle_cast, fun({set_release, {"id", "label", -1},_Time}, state) -> {noreply, state} end),
+				meck:expect(cpx_agent_event, change_agent, fun(InAgent, NewAgent) ->
+					?assertEqual(Agent, InAgent),
+					?assertEqual({"id", "label", -1}, NewAgent#agent.release_data)
+				end),
+				Out = idle({set_release, {"id", "label", -1}}, "from", State),
+				?assertMatch({reply, ok, released, _NewState}, Out),
+				Validate()
+			end} end,
+
+			fun(_) -> {"agent channel starting",
+				{foreach, fun() ->
+					meck:new(agent_channel)
+				end,
+				fun(_) ->
+					meck:unload(agent_channel)
+				end, [
+
+				fun(_) -> {"channel not found", fun() ->
+					Agent = #agent{login = "testagent", id = "testid",
+						available_channels = []},
+					Call = #call{id = "media", type = voice, source = self()},
+					State = #state{agent_rec = Agent},
+					?assertEqual({reply, {error, nochannel}, idle, State}, idle({prering, Call}, from, State))
+				end} end,
+
+				fun(_) -> {"endpoint not found", fun() ->
+					Agent = #agent{login = "testagent", id = "testid",
+						available_channels = [voice]},
+					Call = #call{id = "media", type = voice, source = self(),
+						source_module = dummy_media},
+					State = #state{agent_rec = Agent},
+					?assertEqual({reply, {error, noendpoint}, idle, State}, idle({prering, Call}, from, State))
+				end} end,
+
+				fun(_) -> {"precall success", fun() ->
+					Agent = #agent{login = "testagent", id = "testid",
+						available_channels = [voice], endpoints = dict:from_list([
+							{dummy_media, {inband, self_ring}}
+						])},
+					Call = #call{id = "media", type = voice, source = self(),
+						source_module = dummy_media},
+					meck:expect(agent_channel, start_link, fun(InAgent, InCall, End, precall) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual(Call, InCall),
+						{ok, Zombie}
+					end),
+					Self = self(),
+					meck:expect(dispatch_manager, now_avail, fun(InPid, []) ->
+						?assertEqual(Self, InPid),
+						ok
+					end),
+					meck:expect(agent_manager, set_avail, fun("testagent", []) ->
+						ok
+					end),
+					State = #state{agent_rec = Agent},
+					ExpectAgent = Agent#agent{available_channels = [],
+						used_channels = dict:from_list([{Zombie, voice}])},
+					ExpectState = #state{agent_rec = ExpectAgent},
+					?assertEqual({reply, {ok, Zombie}, idle, ExpectState}, idle({precall, Call}, from, State))
+				end} end,
+
+				fun(_) -> {"prering success", fun() ->
+					Agent = #agent{login = "testagent", id = "testid",
+						available_channels = [voice], endpoints = dict:from_list([
+							{dummy_media, {inband, self_ring}}
+						])},
+					Call = #call{id = "media", type = voice, source = self(),
+						source_module = dummy_media},
+					meck:expect(agent_channel, start_link, fun(InAgent, InCall, self_ring, prering) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual(Call, InCall),
+						{ok, Zombie}
+					end),
+					Self = self(),
+					meck:expect(dispatch_manager, now_avail, fun(InPid, []) ->
+						?assertEqual(Self, InPid),
+						ok
+					end),
+					meck:expect(agent_manager, set_avail, fun("testagent", []) ->
+						ok
+					end),
+					State = #state{agent_rec = Agent},
+					ExpectAgent = Agent#agent{available_channels = [],
+						used_channels = dict:from_list([{Zombie, voice}])},
+					ExpectState = #state{agent_rec = ExpectAgent},
+					?assertEqual({reply, {ok, Zombie}, idle, ExpectState}, idle({prering, Call}, from, State))
+				end} end,
+
+				fun(_) -> {"ringing success", fun() ->
+					Agent = #agent{login = "testagent", id = "testid",
+						available_channels = [voice], endpoints = dict:from_list([
+							{dummy_media, {inband, self_ring}}
+						])},
+					Call = #call{id = "media", type = voice, source = self(),
+						source_module = dummy_media},
+					meck:expect(agent_channel, start_link, fun(InAgent, InCall, self_ring, ringing) ->
+						?assertEqual(Agent, InAgent),
+						?assertEqual(Call, InCall),
+						{ok, Zombie}
+					end),
+					Self = self(),
+					meck:expect(dispatch_manager, now_avail, fun(InPid, []) ->
+						?assertEqual(Self, InPid),
+						ok
+					end),
+					meck:expect(agent_manager, set_avail, fun("testagent", []) ->
+						ok
+					end),
+					State = #state{agent_rec = Agent},
+					ExpectAgent = Agent#agent{available_channels = [],
+						used_channels = dict:from_list([{Zombie, voice}])},
+					ExpectState = #state{agent_rec = ExpectAgent},
+					?assertEqual({reply, {ok, Zombie}, idle, ExpectState}, idle({ringing, Call}, from, State))
+				end} end
+
+				]}
+			} end
+
+
+
+		]}}
+	] end}.
+
+handle_event_test_() ->
 	{foreach, fun() ->
-		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = cpx_monitor:make_mock(),
-		{ok, AMmock} = gen_leader_mock:start(agent_manager),
-		{ok, Connmock} = gen_server_mock:new(),
-		{ok, _} = gen_event:start({local, cpx_agent_event}),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock},
-		Assertmocks = fun() ->
-			gen_server_mock:assert_expectations(Dmock),
-			%gen_leader_mock:assert_expectations(Monmock),
-			cpx_monitor:assert_mock(),
-			gen_server_mock:assert_expectations(Connmock),
-			gen_leader_mock:assert_expectations(AMmock),
-			ok
+		meck:new(agent_manager),
+		LengthAssert = fun(N) ->
+			?assertEqual(N, length(meck:history(agent_manager)))
 		end,
-		MockPids = #mock_pids{
-			state = #state{agent_rec = Agent},
-			dispatch_manager = Dmock,
-			cpx_monitor = Monmock,
-			agent_manager = AMmock,
-			connection = Connmock,
-			assert = Assertmocks
-		},
-		%?ERROR("reference:  ~p", [MockPids]),
-		MockPids
+		Agent = #agent{id = "testid", login = "testagent",
+			skills = [old_skill]},
+		{LengthAssert, Agent}
 	end,
-	fun(MockPids) ->
-		gen_server_mock:stop(MockPids#mock_pids.dispatch_manager),
-		%gen_leader_mock:stop(Monmock),
-		cpx_monitor:stop_mock(),
-		gen_server_mock:stop(MockPids#mock_pids.connection),
-		gen_leader_mock:stop(MockPids#mock_pids.agent_manager),
-		gen_event:stop(cpx_agent_event),
-		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
-		% before the next test runs.
-		ok
+	fun(_) ->
+		?assert(meck:validate(agent_manager)),
+		meck:unload(agent_manager)
+	end, [
+
+	fun({L, Agent}) -> {"{blab, Text}", fun() ->
+		?assertEqual({next_state, idle, #state{agent_rec = Agent}},
+			handle_event({blab, "text"}, idle, #state{agent_rec = Agent})),
+		L(0)
+	end} end,
+
+	fun({L, Agent}) -> {"stop", fun() ->
+		?assertEqual({stop, normal, #state{agent_rec = Agent}},
+			handle_event(stop, idle, #state{agent_rec = Agent})),
+		L(0)
+	end} end,
+
+	fun({L, Agent}) -> {"{add_skills, Skills}", fun() ->
+		NewAgent = Agent#agent{skills = [new_skill, old_skill]},
+		meck:expect(agent_manager, update_skill_list, fun("testagent", [new_skill, old_skill]) -> ok end),
+		?assertEqual({next_state, idle, #state{agent_rec = NewAgent}},
+			handle_event({add_skills, [new_skill]}, idle, #state{agent_rec = Agent})),
+		L(1)
+	end} end,
+
+	fun({L, Agent}) -> {"{remove_skills, Skills}", fun() ->
+		NewAgent = Agent#agent{skills = []},
+		meck:expect(agent_manager, update_skill_list, fun("testagent", []) -> ok end),
+		?assertEqual({next_state, idle, #state{agent_rec = NewAgent}},
+			handle_event({remove_skills, [old_skill]}, idle, #state{agent_rec = Agent})),
+		L(1)
+	end} end,
+
+	fun({L, Agent}) -> {"{set_endpoints, InEnds}", fun() ->
+		NewAgent = Agent#agent{endpoints = dict:from_list([{dummy_media, {inband, self_ring}}])},
+		meck:new(dummy_media),
+		meck:expect(dummy_media, prepare_endpoint, fun(_Agent, inband) ->
+			{ok, self_ring}
+		end),
+		meck:expect(agent_manager, set_ends, fun(A,B) ->
+			?ERROR("~p  ~p", [A,B]),
+			ok
+		end),
+		Expected = {next_state, idle, #state{agent_rec = NewAgent}},
+		Got = handle_event({set_endpoints, [{dummy_media, inband}]}, idle, #state{agent_rec = Agent}),
+		?DEBUG("Expect:  ~p;\ngot:  ~p", [Expected, Got]),
+		?assertEqual(Expected, Got),
+		L(1),
+		meck:validate(dummy_media),
+		meck:unload(dummy_media)
+	end} end
+
+	]}.
+
+handle_info_test_() ->
+	{setup, fun() ->
+		Z = util:zombie(),
+		Agent = #agent{id = "testid", login = "testlogin", source = self()},
+		{Z, Agent}
 	end,
-	[fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From idle to idle", fun() ->
-			Out = idle({set_release, none}, "from", State),
-			?assertEqual({reply, ok, idle, State}, Out),
-			AssertMocks()
-		end}
+	fun({Z,_}) ->
+		exit(Z, normal)
 	end,
-	fun(#mock_pids{state = State, assert = AssertMocks} = Mocks) ->
-		{"From idle to release", fun() ->
-			#state{agent_rec = Agent} = State,
-			cpx_monitor:add_set({{agent, Agent#agent.id}, [{released, true}, {reason, "label"}, {reason_id, "id"}, {bias, -1}], ignore}),
-			gen_leader_mock:expect_cast(Mocks#mock_pids.agent_manager, fun({set_avail, "testagent", []}, _State, _Elec) -> ok end),
-			gen_server_mock:expect_cast(Mocks#mock_pids.connection, fun({set_release, {"id", "label", -1}, _Time}, _State) -> ok end),
-			Self = self(),
-			gen_server_mock:expect_cast(Mocks#mock_pids.dispatch_manager, fun({end_avail, InPid}, _State) ->
-				InPid = Self,
+	fun({Zombie,ProtoAgent}) -> [
+
+		{"connection exit", fun() ->
+			Agent = ProtoAgent#agent{connection = Zombie},
+			State = #state{agent_rec = Agent},
+			?assertEqual({stop, {error, conn_exit, <<"hagurk">>}, State},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, State))
+		end},
+
+		{"channel exit", fun() ->
+			meck:new(cpx_agent_event),
+			meck:expect(cpx_agent_event, change_agent_channel, fun(InPid, exit, exit) ->
+				?assertEqual(Zombie, InPid),
 				ok
 			end),
-			Out = idle({set_release, {"id", "label", -1}}, "from", State),
-			?assertMatch({reply, ok, released, _NewState}, Out),
-			AssertMocks()
+			Agent = ProtoAgent#agent{used_channels = dict:from_list([
+				{Zombie, voice}
+			]), available_channels = [fast_text], all_channels = [voice, fast_text]},
+			Agent0 = Agent#agent{used_channels = dict:new(), available_channels = [voice, fast_text]},
+			?assertEqual({next_state, idle, #state{agent_rec = Agent0}},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, #state{agent_rec = Agent})),
+			?assert(meck:validate(cpx_agent_event)),
+			?assertEqual(1, length(meck:history(cpx_agent_event))),
+			meck:unload(cpx_agent_event)
+		end},
+
+		{"endpoint exit", fun() ->
+			Agent = ProtoAgent#agent{endpoints = dict:from_list([
+				{dummy_media, {inband, Zombie}}
+			])},
+			NewEnd = util:zombie(),
+			meck:new(dummy_media),
+			meck:expect(dummy_media, prepare_endpoint, fun(_,inband) ->
+				{ok, NewEnd}
+			end),
+			ExpectAgent = ProtoAgent#agent{endpoints = dict:from_list([
+				{dummy_media, {inband, NewEnd}}
+			])},
+			?assertEqual({next_state, idle, #state{agent_rec = ExpectAgent}},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, #state{agent_rec = Agent})),
+			?assert(meck:validate(dummy_media)),
+			?assertEqual(1, length(meck:history(dummy_media))),
+			meck:unload(dummy_media)
 		end}
-	end]} end}.
+		
+	] end}.
+
 
 -endif.

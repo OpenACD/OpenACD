@@ -95,7 +95,8 @@
 	get_leader/0,
 	list/0,
 	notify/5,
-	log_state/3
+	set_avail/2,
+	set_ends/2
 ]).
 
 % gen_leader callbacks
@@ -160,7 +161,8 @@ find_avail_agents_by_skill(Skills) ->
 	filter_avail_agents_by_skill(List, Skills).
 
 %% @doc Locally find all available agents with a particular skillset, and
-%% makes sure the server knows it's for routing.
+%% makes sure the server knows it's for routing.  Depricated in favor of
+%% {@link filtered_route_list/3}
 -spec(filtered_route_list/1 :: (Skills :: [atom()]) -> 
 		{integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
 filtered_route_list(Skills) ->
@@ -223,20 +225,8 @@ sort_agents_by_elegibility(AvailSkilledAgents) ->
 %			end
 %	end.
 
-create_node_map(Agents) ->
-	create_node_map(Agents, 1, dict:new()).
-
-create_node_map([], _Nth, Acc) ->
-	Acc;
-create_node_map([{_Login, _Pid, _Timeavail, _Skills, {Node, _Count}} | Tail], Nth, Acc) ->
-	case dict:is_key(Node, Acc) of
-		true ->
-			create_node_map(Tail, Nth + 1, dict:append(Node, Nth, Acc));
-		false ->
-			create_node_map(Tail, Nth + 1, dict:store(Node, [Nth], Acc))
-	end.
-
 %% @doc Gets all the agents have have the given `[atom()] Skills'.
+% TODO This is wrong, should use agent cache
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
 	[{K, V, Timeavail, AgSkills} || 
@@ -275,6 +265,7 @@ query_agent(Login) ->
 	gen_leader:leader_call(?MODULE, {exists, Login}).
 
 %% @doc Notify the agent_manager of a local agent after an agent manager restart.
+%% TODO update to take channels and endpoints too
 -spec(notify/5 :: (Login :: string(), Id :: string(), Pid :: pid(), TimeAvail :: non_neg_integer(), Skills :: [atom()]) -> 'ok').
 notify(Login, Id, Pid, TimeAvail, Skills) ->
 	case gen_leader:call(?MODULE, {exists, Login}) of
@@ -286,11 +277,6 @@ notify(Login, Id, Pid, TimeAvail, Skills) ->
 			erlang:error({duplicate_registration, Login})
 	end.
 
-%% @doc Used by agents to write to the agent states table.
--spec(log_state/3 :: (Agent :: string(), State :: atom(), Statedata :: any()) -> 'ok').
-log_state(Agent, State, Statedata) ->
-	gen_leader:cast(?MODULE, {log_state, Agent, State, Statedata}).
-	
 %% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
 -spec(get_leader/0 :: () -> {'ok', pid()}).
 get_leader() -> 
@@ -303,7 +289,18 @@ blab(Text, all) ->
 blab(Text, {Key, Value}) ->
 	gen_leader:leader_cast(?MODULE, {blab, Text, {Key, Value}}).
 
+-spec(set_avail/2 :: (AgentLogin :: string(), Channels :: [atom()]) -> 'ok').
+set_avail(AgentLogin, Channels) ->
+	gen_leader:cast(?MODULE, {set_avail, AgentLogin, Channels}).
+
+-spec(set_ends/2 :: (AgentLogin :: string(), Endpoints :: [atom()]) -> 'ok').
+set_ends(AgentLogin, Endpoints) ->
+	gen_leader:cast(?MODULE, {set_ends, AgentLogin, Endpoints}).
+
+%% =================================================================
 %% gen_leader callbacks
+%% =================================================================
+
 %% @hidden
 init(_Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
@@ -333,7 +330,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	mnesia:unsubscribe(system),
 
 	% clean out non-local pids
-	F = fun(_Login, {#agent_cache{pid = Apid}}) -> 
+	F = fun(_Login, #agent_cache{pid = Apid}) -> 
 		node() =:= node(Apid)
 	end,
 	Locals = dict:filter(F, Agents),
@@ -353,7 +350,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Node ~p died", [Node]),
 	% clean out the pids associated w/ the dead node
-	F = fun(_Login, {#agent_cache{pid = Apid}}) -> 
+	F = fun(_Login, #agent_cache{pid = Apid}) -> 
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
@@ -401,8 +398,10 @@ handle_leader_call(Message, From, State, _Election) ->
 %% @hidden
 handle_leader_cast({notify, Agent, AgentCache}, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Notified of ~p (~p)", [Agent, AgentCache]),
+	Apid = AgentCache#agent_cache.pid,
 	case dict:find(Agent, Agents) of
 		error -> 
+			?DEBUG("Adding agent ~p", [Agent]),
 			Agents2 = dict:store(Agent, AgentCache, Agents),
 			Routelist = gb_trees:enter(#agent_key{
 				rotations = 0,
@@ -412,8 +411,10 @@ handle_leader_cast({notify, Agent, AgentCache}, #state{agents = Agents} = State,
 			AgentCache, State#state.route_list),
 			{noreply, State#state{agents = Agents2, route_list = Routelist}};
 		{ok, #agent_cache{pid = Apid}} ->
+			?DEBUG("Agent ~p already know", [Agent]),
 			{noreply, State};
 		_Else -> 
+			?DEBUG("agent pid mismatch, telling imposter", []),
 			agent:register_rejected(AgentCache#agent_cache.pid),
 			{noreply, State}
 	end;
@@ -536,7 +537,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = InAgent}, _From, #sta
 			gen_leader:leader_cast(?MODULE, {update_notify, ALogin, Value})
 	end,
 	Agents2 = dict:store(ALogin, Value, Agents),
-	gen_server:cast(dispatch_manager, {end_avail, Apid}),
+	dispatch_manager:end_avail(Apid),
 	Key = #agent_key{
 		has_all = ?has_all(Agent#agent.skills),
 		skill_count = length(Agent#agent.skills),
@@ -771,67 +772,9 @@ clear_rotates(Tree) ->
 	end.
 	
 build_tables() ->
-	agent_auth:build_tables(),
-	util:build_table(agent_state, [
-		{attributes, record_info(fields, agent_state)},
-		{disc_copies, [node()]},
-		{type, bag}
-	]).
+	agent_auth:build_tables().
 
 -ifdef(STANDARD_TEST).
-
-handle_call_start_test() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_manager_handle_call_start_test),
-	{spawn, N, [fun() -> 
-		?assertMatch({ok, _Pid}, start([node()])),
-		stop(),
-		slave:stop(N)
-	end]}.
-
-% the test below is basically only testing lists:keysort/1.
-% teh useless.
-sort_eligible_agents_test_d() ->
-	[{"only difference is the length of the skills list",
-	fun() ->
-		In = [{"3rd", "3rd", 3, [a, b, c, d], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, [a, b, c, d], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"Only difference is the time went available",
-	fun() ->
-		In = [{"3rd", "3rd", 9, [a], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}, {"3rd", "3rd", 9, [a], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"'_all' loses the skill list war",
-	fun() ->
-		In = [{"3rd", "3rd", 3, ['_all'], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
-		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, ['_all'], ignored}],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end},
-	{"Big sortification",
-	fun() ->
-		In = [
-			{"5th", "5th", 9, ['_all'], ignored},
-			{"7th", "7th", 9, ['_all', a], ignored},
-			{"2nd", "2nd", 9, [a, b], ignored},
-			{"6th", "6th", 6, ['_all', a], ignored},
-			{"3rd", "3rd", 6, [a, b, c], ignored},
-			{"1st", "1st", 6, [a, b], ignored},
-			{"4th", "4th", 6, ['_all'], ignored}
-		],
-		Out = [
-			{"1st", "1st", 6, [a, b], ignored},
-			{"2nd", "2nd", 9, [a, b], ignored},
-			{"3rd", "3rd", 6, [a, b, c], ignored},
-			{"4th", "4th", 6, ['_all'], ignored},
-			{"5th", "5th", 9, ['_all'], ignored},
-			{"6th", "6th", 6, ['_all', a], ignored},
-			{"7th", "7th", 9, ['_all', a], ignored}
-		],
-		?assertEqual(Out, sort_agents_by_elegibility(In))
-	end}].
 
 ds() ->
 	spawn(fun() -> ok end).
@@ -932,245 +875,806 @@ handle_cast_test_() ->
 		end}]
 	end}.
 	
-	
+external_api_test_() ->
+	{setup, fun() ->
+		meck:new(gen_leader)
+	end,
+	fun(_) ->
+		meck:validate(gen_leader),
+		meck:unload(gen_leader)
+	end,
+	fun(_) -> [
 
-%handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
-%	Node = node(),
-%	F = fun({Pid, Id, _Time, Skills}) ->
-%	Out = {Pid, Id, 0, Skills},
-%case gen_leader:leader_node(Election) of
-%	Node ->
-%	ok;
-%_ ->
-%gen_leader:leader_cast(?MODULE, {update_notify, Nom, Out})
-%end,
-%Out
-%end,
-%NewAgents = dict:update(Nom, F, Agents),
-%{noreply, State#state{agents = NewAgents, lists_requested = 0}};
-%handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
-%	Node = node(),
-%	{Pid, Id, Time, _} = dict:fetch(Login, Agents),
-%	Out = {Pid, Id, Time, Skills},
-%	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
-%												 Apid =/= Pid
-%												 end, State#state.route_list)),
-%	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist),
-%	F = fun({Pid, Id, Time, _OldSkills}) ->
-%case gen_leader:leader_node(Election) of
-%	Node ->
-%	ok;
-%_ ->
-%gen_leader:leader_cast(?MODULE, {update_notify, Login, Out})
-%end,
-%Out
-%end,	
-%NewAgents = dict:update(Login, F, Agents),
-%{noreply, State#state{agents = NewAgents, lists_requested = 0, route_list = Routelist}};
-%handle_cast(_Request, State, _Election) -> 
-%	?DEBUG("Stub handle_cast", []),
-%	{noreply, State}.	
-%	
-%	
-%	
-%	
-%	
-%	
-%	
-	
-	
-	
-single_node_test_() -> 
-	util:start_testnode(),
-	N = util:start_testnode(agent_manager_single_node_tests),
-	{spawn, N, {foreach,
-		fun() ->
-			Agent = #agent{login="testagent"},
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			start([node()]),
-			Agent
-		end,
-		fun(_Agent) -> 
-			stop()
-		end,
-		[
-			fun(Agent) ->
-				{"Start New Agent", 
-					fun() -> 
-						{ok, Pid} = start_agent(Agent),
-						?assertMatch({error, query_state}, agent:query_state(Pid))
-					end
-				}
-			end,
-			fun(Agent) ->
-				{"Start Existing Agent",
-					fun() -> 
-						{ok, Pid} = start_agent(Agent),
-						?assertMatch({exists, Pid}, start_agent(Agent))
-					end
-				}
-			end,
-			fun(Agent) ->
-				{"Lookup agent by name",
-					fun() -> 
-						{ok, Pid} = start_agent(Agent),
-						Login = Agent#agent.login,
-						?assertMatch({true, Pid}, query_agent(Login))
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"Look for a non-existant agent",
-					fun() -> 
-						?assertMatch(false, query_agent("does not exist"))
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"There's no available agents",
-					fun() ->
-						Agent1 = #agent{login="Agent1", id="A1"},
-						Agent2 = #agent{login="Agent2", id="A2", skills=[english, '_agent', '_node', coolskill, otherskill]},
-						Agent3 = #agent{login="Agent3", id="A3", skills=[english, '_agent', '_node', coolskill]},
-						{ok, A1} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-						{ok, A2} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-						{ok, A3} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-						?assertEqual([], list_avail())
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"There's one available agent",
-					fun() ->
-						Agent1 = #agent{login="Agent1", id="A1"},
-						Agent2 = #agent{login="Agent2", id="A2", skills=[english, '_agent', '_node', coolskill, otherskill]},
-						Agent3 = #agent{login="Agent3", id="A3", skills=[english, '_agent', '_node', coolskill]},
-						{ok, A1} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-						{ok, A2} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-						{ok, A3} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-						gen_leader:cast(?MODULE, {set_avail, "Agent2", [dummy, voice]}),
-						?assertMatch([
-							{_Key, #agent_cache{pid = A2, channels = [dummy, voice]}}
-						], list_avail())
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"There's two available agent",
-					fun() ->
-						Agent1 = #agent{login="Agent1", id="A1"},
-						Agent2 = #agent{login="Agent2", id="A2", skills=[english, '_agent', '_node', coolskill, otherskill]},
-						Agent3 = #agent{login="Agent3", id="A3", skills=[english, '_agent', '_node', coolskill]},
-						{ok, A1} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-						{ok, A2} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-						{ok, A3} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-						gen_leader:cast(?MODULE, {set_avail, "Agent1", [dummy, voice]}),
-						gen_leader:cast(?MODULE, {set_avail, "Agent3", [dummy, voice]}),
-						?assertMatch([
-							{_Key, #agent_cache{pid = A1, channels = [dummy, voice]}},
-							{_Key2, #agent_cache{pid = A3, channels = [dummy, voice]}}
-						], list_avail())
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"idle time is not updated when channels become available",
-					fun() ->
-						Agent = #agent{login = "agent", id="agent"},
-						{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
-						?assertEqual([], list_avail()),
-						gen_leader:cast(?MODULE, {set_avail, "agent", [dummy]}),
-						[{OldKey, _}] = list_avail(),
-						gen_leader:cast(?MODULE, {set_avail, "agent", [dummy, voice]}),
-						[{NewKey, _}] = list_avail(),
-						?DEBUG("Old:  ~p;  New:  ~p", [OldKey, NewKey]),
-						?assert(NewKey == OldKey)
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"idle time is updated when channels become used",
-					fun() ->
-						Agent = #agent{login = "agent", id="agent"},
-						{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
-						?assertEqual([], list_avail()),
-						gen_leader:cast(?MODULE, {set_avail, "agent", [dummy, voice]}),
-						[{OldKey, _}] = list_avail(),
-						gen_leader:cast(?MODULE, {set_avail, "agent", [dummy]}),
-						[{NewKey, _}] = list_avail(),
-						?DEBUG("Old:  ~p;  New:  ~p", [OldKey, NewKey]),
-						?assert(NewKey > OldKey)
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"Find available agents with a skillset that matches but is the shortest",
-					fun() ->
-						Agent1 = #agent{login="Agent1", id="A1"},
-						Agent2 = #agent{login="Agent2", id="A2", skills=[english, '_agent', '_node', coolskill, otherskill]},
-						Agent3 = #agent{login="Agent3", id="A3", skills=[english, '_agent', '_node', coolskill]},
-						Agent4 = #agent{login="Agent4", id="A4", skills=[english, '_agent', '_node', coolskill, a, b, c, d, e, f]},
-						{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-						{ok, Agent4Pid} = gen_leader:call(?MODULE, {start_agent, Agent4}),
-						agent:set_release(Agent1Pid, none),
-						agent:set_release(Agent2Pid, default),
-						agent:set_release(Agent3Pid, none),
-						agent:set_release(Agent4Pid, default),
-						?DEBUG("agent list:~n~p", [gen_leader:call(?MODULE, list_agents)]),
-						?DEBUG("avail agent list:~n~p", [gen_leader:call(?MODULE, list_avail_agents)]),
-						?assertMatch([{_, {agent_cache, Agent3Pid, "A3", _Time, _Skills, _Chans, []}}], find_avail_agents_by_skill([coolskill])),
-						agent:set_release(Agent2Pid, none),
-						agent:set_release(Agent4Pid, none),
-						?assertMatch([
-							{_, #agent_cache{pid = Agent3Pid, id="A3"}},
-							{_, #agent_cache{pid = Agent2Pid, id="A2"}},
-							{_, #agent_cache{pid = Agent4Pid, id="A4"}}
-						], find_avail_agents_by_skill([coolskill]))
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"Find available agents with a skillset that matches but is longest idle",
-					fun() ->
-						Agent1 = #agent{login="Agent1", id="Agent1"},
-						Agent2 = #agent{login="Agent2", id="Agent2", skills=[english, '_agent', '_node', coolskill]},
-						Agent3 = #agent{login="Agent3", id="Agent3", skills=[english, '_agent', '_node', coolskill]},
-						{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-						gen_leader:cast(?MODULE, {set_avail, "Agent1", [dummy]}),
-						gen_leader:cast(?MODULE, {set_avail, "Agent2", [dummy]}),
-						?assertMatch([{_, {agent_cache, Agent2Pid, "Agent2", _, _, _, _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
-						receive after 1000 -> ok end,
-						gen_leader:cast(?MODULE, {set_avail, "Agent3", [dummy]}),
-						?DEBUG("list avail ~p", [list_avail()]),
-						?assertMatch([{_, #agent_cache{id = "Agent2"}}, {_, #agent_cache{id = "Agent3"}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
-					end
-				}
-			end,
-			fun(_Agent) ->
-				{"No agents with valid channel found",
-					fun() ->
-						Agent = #agent{login = "agent", id = "agent", skills = ['_all'], endpoints = dict:from_list([{dummy_media, inband}])},
-						{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
-						gen_leader:cast(?MODULE, {set_avail, "agent", []}),
-						?assertEqual([], filtered_route_list([], dummy, dummy_media))
-					end
-				}
-			end
-		]
-	}}.
+		{"start_link/1", fun() ->
+			meck:expect(gen_leader, start_link, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _RunDir}], ?MODULE, [], []) ->
+				?assertEqual(node(), Node),
+				{ok, util:zombie()}
+			end),
+			?assertMatch({ok, _Pid}, start_link([node()]))
+		end},
+			
+		{"start_link/2", fun() ->
+			meck:expect(gen_leader, start_link, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, opts, []) ->
+				?assertEqual(node(), Node),
+				{ok, util:zombie()}
+			end),
+			?assertMatch({ok, _Pid}, start_link([node()], opts))
+		end},
 
+		{"start/1", fun() ->
+			meck:expect(gen_leader, start, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, [], []) ->
+				?assertEqual(node(), Node),
+				{ok, util:zombie()}
+			end),
+			?assertMatch({ok, _Pid}, start([node()]))
+		end},
 
+		{"start/2", fun() ->
+			meck:expect(gen_leader, start, fun(?MODULE, [Node], [{heartbeat, 1}, {vardir, _Rundir}], ?MODULE, opts, []) ->
+				?assertEqual(node(), Node),
+				{ok, util:zombie()}
+			end),
+			?assertMatch({ok, _Pid}, start([node()], opts))
+		end},
 
-get_nodes() ->
-	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
-	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
+		{"stop/0", fun() ->
+			meck:expect(gen_leader, call, fun(?MODULE, stop) ->
+				ok
+			end),
+			?assertEqual(ok, stop())
+		end},
+
+		{"start_agent/1, agent exists", fun() ->
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {exists, "testagent"}) ->
+				{true, util:zombie()}
+			end),
+			Agent = #agent{login = "testagent"},
+			?assertMatch({exists, _Pid}, start_agent(Agent))
+		end},
+
+		{"start_agent/1, agent doesn't exist", fun() ->
+			Agent = #agent{login = "testagent"},
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {exists, "testagent"}) ->
+				false
+			end),
+			meck:expect(gen_leader, call, fun(?MODULE, {start_agent, InAgent}, infinity) ->
+				?assertEqual(Agent, InAgent),
+				{'ok', util:zombie()}
+			end),
+			?assertMatch({ok, _Pid}, start_agent(Agent))
+		end},
+			
+		{"query_agent/1, given record", fun() ->
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {exists, "testagent"}) ->
+				ok
+			end),
+			Agent = #agent{login = "testagent"},
+			?assertEqual(ok, query_agent(Agent))
+		end},
+
+		{"query_agent/1, given login", fun() ->
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {exists, "testagent"}) ->
+				ok
+			end),
+			?assertEqual(ok, query_agent("testagent"))
+		end},
+
+		{"update_skill_list/2", fun() ->
+			meck:expect(gen_leader, cast, fun(?MODULE, {update_skill_list, "testagent", [english, awesome]}) ->
+				ok
+			end),
+			?assertEqual(ok, update_skill_list("testagent", [english, awesome]))
+		end},
+
+		{"find_avail_agents_by_skill/1, 'english' skill given", fun() ->
+			AgentCaches = [
+				{"key1", #agent_cache{channels = [voice], skills = [], id = "skip1"}},
+				{"key2", #agent_cache{channels = [], skills = [english], id = "skip2"}},
+				{"key3", #agent_cache{time_avail = 1, channels = [voice], skills = [english], id = "gotit1"}},
+				{"key4", #agent_cache{time_avail = 1, channels = [voice], skills = ['_all'], id = "gotit2"}}
+			],
+			meck:expect(gen_leader, call, fun(?MODULE, list_avail_agents) ->
+				AgentCaches
+			end),
+			Expected = [
+				{"key3", #agent_cache{time_avail = 1, channels = [voice], skills = [english], id = "gotit1"}},
+				{"key4", #agent_cache{time_avail = 1, channels = [voice], skills = ['_all'], id = "gotit2"}}
+			],
+			?assertEqual(Expected, find_avail_agents_by_skill([english]))
+		end},
+
+		{"find_avail_agents_by_skill/1, '_all' skill given", fun() ->
+			AgentCaches = [
+				{"key1", #agent_cache{time_avail = 1, channels = [voice], skills = [], id = "skip1"}},
+				{"key2", #agent_cache{time_avail = 1, channels = [], skills = [english], id = "skip2"}},
+				{"key3", #agent_cache{time_avail = 1, channels = [voice], skills = [english], id = "gotit1"}},
+				{"key4", #agent_cache{time_avail = 1, channels = [voice], skills = ['_all'], id = "gotit2"}}
+			],
+			meck:expect(gen_leader, call, fun(?MODULE, list_avail_agents) ->
+				AgentCaches
+			end),
+			Expected = [
+				{"key1", #agent_cache{time_avail = 1, channels = [voice], skills = [], id = "skip1"}},
+				{"key3", #agent_cache{time_avail = 1, channels = [voice], skills = [english], id = "gotit1"}},
+				{"key4", #agent_cache{time_avail = 1, channels = [voice], skills = ['_all'], id = "gotit2"}}
+			],
+			?assertEqual(Expected, find_avail_agents_by_skill(['_all']))
+		end},
+
+		{"filtered_route_list/3", fun() ->
+			AgentList = [
+				{"key1", #agent_cache{skills = [], channels = [], endpoints = [], id = "skip1"}},
+				{"key2", #agent_cache{skills = ['_all'], channels = [], endpoints = [], id = "skip2"}},
+				{"key3", #agent_cache{skills = [english], channels = [], endpoints = [], id = "skip3"}},
+				{"key4", #agent_cache{skills = [], channels = [voice], endpoints = [], id = "skip4"}},
+				{"key5", #agent_cache{skills = [], channels = [], endpoints = [dummy_media], id = "skip5"}},
+				{"key6", #agent_cache{time_avail = 1, skills = ['_all'], channels = [voice], endpoints = [dummy_media], id = "take6"}},
+				{"key7", #agent_cache{time_avail = 1, skills = [english], channels = [voice], endpoints = [dummy_media], id = "take7"}}
+			],
+			meck:expect(gen_leader, call, fun(?MODULE, route_list_agents) ->
+				AgentList
+			end),
+			Expected = [
+				{"key6", #agent_cache{time_avail = 1, skills = ['_all'], channels = [voice], endpoints = [dummy_media], id = "take6"}},
+				{"key7", #agent_cache{time_avail = 1, skills = [english], channels = [voice], endpoints = [dummy_media], id = "take7"}}
+			],
+			?assertEqual(Expected, filtered_route_list([english], voice, dummy_media))
+		end},
+
+		{"find_by_pid/1", fun() ->
+			Zombie = util:zombie(),
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {get_login, Agent}) ->
+				?assertEqual(Zombie, Agent),
+				"zombie_guard"
+			end),
+			?assertEqual("zombie_guard", find_by_pid(Zombie))
+		end},
+
+		{"blab/2, all", fun() ->
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {blab, "blab", all}) ->
+				ok
+			end),
+			?assertEqual(ok, blab("blab", all))
+		end},
+
+		{"blab/2, {key, value}", fun() ->
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {blab, "blab", {node, Node}}) ->
+				?assertEqual(node(), Node),
+				ok
+			end),
+			?assertEqual(ok, blab("blab", {node, node()}))
+		end},
+
+		{"get_leader/0", fun() ->
+			Zombie = util:zombie(),
+			meck:expect(gen_leader, leader_call, fun(?MODULE, get_pid) ->
+				{ok, Zombie}
+			end),
+			?assertEqual({ok, Zombie}, get_leader())
+		end},
+
+		{"list/0", fun() ->
+			meck:expect(gen_leader, call, fun(?MODULE, list_agents) ->
+				[]
+			end),
+			?assertEqual([], list())
+		end},
+
+		{"set_avail/2", fun() ->
+			meck:expect(gen_leader, cast, fun(?MODULE, {set_avail, "testagent", [voice]}) ->
+				ok
+			end),
+			?assertEqual(ok, set_avail("testagent", [voice]))
+		end},
+
+		{"set_ends/2", fun() ->
+			meck:expect(gen_leader, cast, fun(?MODULE, {set_ends, "testagent", [dummy_media]}) ->
+				ok
+			end),
+			?assertEqual(ok, set_ends("testagent", [dummy_media]))
+		end}
+
+	] end}.
+
+internal_state_test_() -> [
+	{"elected", fun() ->
+		meck:new(mnesia),
+		meck:expect(mnesia, subscribe, fun(system) -> ok end),
+		?assertEqual({ok, ok, state}, elected(state, election, node())),
+		?assertMatch([{_Pid, {mnesia, subscribe, [system]}, _}], meck:history(mnesia)),
+		?assert(meck:validate(mnesia)),
+		meck:unload(mnesia)
+	end},
+
+	{"surrendered", fun() ->
+		meck:new(mnesia),
+		meck:expect(mnesia, unsubscribe, fun(system) -> ok end),
+		util:start_testnode(),
+		{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_surrendered),
+		LocalZ = util:zombie(),
+		RemoteZ = rpc:call(Slave, util, zombie, []),
+		LocalA = #agent_cache{time_avail = 1, pid = LocalZ},
+		RemoteA = #agent_cache{time_avail = 1, pid = RemoteZ},
+		State = #state{
+			agents = dict:from_list([
+				{"local", LocalA},
+				{"remote", RemoteA}
+			]),
+			route_list = gb_trees:from_orddict([
+				{1, LocalA},
+				{2, RemoteA}
+			])
+		},
+		meck:new(gen_leader),
+		meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, "local", InAgent}) ->
+			?assertEqual(LocalA, InAgent)
+		end),
+		{ok, State0} = surrendered(State, "leaderstate", "election"),
+		?assertEqual([{"local", LocalA}], dict:to_list(State0#state.agents)),
+		?assertEqual([{1, LocalA}], gb_trees:to_list(State0#state.route_list)),
+		?assert(meck:validate(mnesia)),
+		?assert(meck:validate(gen_leader)),
+		meck:unload(mnesia),
+		meck:unload(gen_leader),
+		slave:stop(Slave)
+	end},
+
+	{"handle_DOWN", fun() ->
+		util:start_testnode(),
+		{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_handle_down),
+		LocalZ = util:zombie(),
+		RemoteZ = rpc:call(Slave, util, zombie, []),
+		LocalA = #agent_cache{time_avail = 1, pid = LocalZ},
+		RemoteA = #agent_cache{time_avail = 1, pid = RemoteZ},
+		State = #state{
+			agents = dict:from_list([
+				{"local", LocalA},
+				{"remote", RemoteA}
+			]),
+			route_list = gb_trees:from_orddict([
+				{1, LocalA},
+				{2, RemoteA}
+			])
+		},
+		{ok, State0} = handle_DOWN(Slave, State, "election"),
+		?assertEqual([{"local", LocalA}], dict:to_list(State0#state.agents)),
+		?assertEqual([{1, LocalA}], gb_trees:to_list(State0#state.route_list)),
+		slave:stop(Slave)
+	end},
+
+	{"handle_leader_call", [
+
+		{"{exists, Agent}, agent exists", fun() ->
+			State = #state{
+				agents = dict:from_list([
+					{"testagent", #agent_cache{pid = "pid"}}
+				])
+			},
+			?assertEqual({reply, {true, "pid"}, State}, handle_leader_call({exists, "testagent"}, "from", State, "election"))
+		end},
+
+		{"{exists, Agent}, agent not found", fun() ->
+			State = #state{ agents = dict:new() },
+			?assertEqual({reply, false, State}, handle_leader_call({exists, "testagent"}, "from", State, "election"))
+		end},
+
+		{"{full_data, Agent}, agent not found", fun() ->
+			State = #state{ agents = dict:new() },
+			?assertEqual({reply, false, State}, handle_leader_call({full_data, "testagent"}, "from", State, "election"))
+		end},
+
+		%% the next is a hack for freeswitch.  sip registrations can't have
+		%% two '@' in the name, so the sip endpoint does magic to usernames
+		%% that have an @, turning it into an _.  When freesiwtch media wants
+		%% to lookup the agent, it send agent_domain rather than agent@domain
+		%% thus the fall back.
+		{"{full_data, Agent}, agent lookup has _ instead of @", fun() ->
+			State = #state{ agents = dict:from_list([
+				{"testagent@example.com", "data"}
+			]) },
+			?assertEqual({reply, "data", State}, handle_leader_call({full_data, "testagent_example.com"}, "from", State, "election"))
+		end},
+
+		{"{full_data, Agent}, simple success", fun() ->
+			State = #state{ agents = dict:from_list([ {"testagent", "data"} ]) },
+			?assertEqual({reply, "data", State}, handle_leader_call({full_data, "testagent"}, "from", State, "election"))
+		end},
+
+		{"get_pid", fun() ->
+			Self = self(),
+			?assertEqual({reply, {ok, Self}, "state"}, handle_leader_call(get_pid, "from", "state", "election"))
+		end},
+
+		{"{get_login, Apid}, found", fun() ->
+			Zombie = util:zombie(),
+			Agent = #agent_cache{time_avail = 1, pid = Zombie, id = "agent"},
+			State = #state{agents = dict:from_list([
+				{"testagent", Agent}
+			])},
+			?assertEqual({reply, "testagent", State}, handle_leader_call({get_login, Zombie}, "from", State, "election"))
+		end},
+
+		{"{get_login, Apid}, not found", fun() ->
+			State = #state{agents = dict:new()},
+			?assertEqual({reply, notfound, State}, handle_leader_call({get_login, self()}, "from", State, "election"))
+		end},
+
+		{"{get_login, Id}, found", fun() ->
+			Agent = #agent_cache{time_avail = 1, pid = self(), id = "agent"},
+			State = #state{agents = dict:from_list([
+				{"testagent", Agent}
+			])},
+			?assertEqual({reply, "testagent", State}, handle_leader_call({get_login, "agent"}, "from", State, "election"))
+		end},
+
+		{"{get_login, Id}, not found", fun() ->
+			State = #state{agents = dict:new()},
+			?assertEqual({reply, notfound, State}, handle_leader_call({get_login, "agent"}, "from", State, "election"))
+		end}
+
+	]},
+
+	{"handle_leader_cast", [
+		{"{notify, Agent, AgentCache}, simple success", fun() ->
+			State = #state{agents = dict:new(), route_list = gb_trees:empty()},
+			AgentCache = #agent_cache{pid = self(), id = "agentId",
+				time_avail = 1, skills = [], channels = [], endpoints = []},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = 1},
+			ExpectedState = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{AgentKey, AgentCache}
+				])
+			},
+			?assertEqual({noreply, ExpectedState}, handle_leader_cast({notify, "testagent", AgentCache}, State, "election"))
+		end},
+
+		{"{notify, Agent, AgentCache}, agent already known", fun() ->
+			AgentCache = #agent_cache{pid = self(), id = "agentId",
+				time_avail = 1, skills = [], channels = [], endpoints = []},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = 1},
+			ExpectedState = State = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{AgentKey, AgentCache}
+				])
+			},
+			?assertEqual({noreply, ExpectedState}, handle_leader_cast({notify, "testagent", AgentCache}, State, "election"))
+		end},
+
+		{"{notify, Agent, AgentCache}, duplicate, pid mismatch", fun() ->
+			AgentCache = #agent_cache{pid = self(), id = "agentId",
+				time_avail = 1, skills = [], channels = [], endpoints = []},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = 1},
+			State = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{AgentKey, AgentCache}
+				])
+			},
+			Zombie = util:zombie(),
+			BadCache = #agent_cache{pid = Zombie, id = "agentId",
+				time_avail = 1, skills = [], channels = [], endpoints = []},
+			meck:new(agent),
+			meck:expect(agent, register_rejected, fun(InPid) ->
+				?assertEqual(Zombie, InPid)
+			end),
+			?assertEqual({noreply, State}, handle_leader_cast({notify, "testagent", BadCache}, State, "election")),
+			?assert(meck:validate(agent)),
+			?assertMatch([{_Pid, {agent, register_rejected, [Zombie]}, _}],
+				meck:history(agent)
+			),
+			meck:unload(agent)
+		end},
+
+		{"{update_notify, Login, AgentCache}", fun() ->
+			AgentCache = #agent_cache{ pid = self(), id = "agentId",
+				time_avail = 1, skills = [], channels = [], endpoints = []},
+			Key = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = 1},
+			State = #state{agents = dict:new(), route_list = gb_trees:empty()},
+			Expected = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{Key, AgentCache}
+				])
+			},
+			?assertEqual({noreply, Expected}, handle_leader_cast({update_notify, "testagent", AgentCache}, State, "election"))
+		end},
+
+		{"{notify_down, Agent}, agent not found", fun() ->
+			State = #state{},
+			?assertEqual({noreply, State}, handle_leader_cast({notify_down, "testagent"}, State, "election"))
+		end},
+
+		{"{notify_down, Agent}, simple success", fun() ->
+			AgentCache = #agent_cache{id = "agentid", pid = self()},
+			State = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{1, AgentCache}
+				])
+			},
+			Expected = #state{},
+			?assertEqual({noreply, Expected}, handle_leader_cast({notify_down, "testagent"}, State, "election"))
+		end},
+
+		{"{blab, Text, {agent, Value}}", fun() ->
+			Zombie = util:zombie(),
+			State = #state{agents = dict:from_list([{"testagent", #agent_cache{pid = Zombie}}])},
+			meck:new(agent),
+			meck:expect(agent, blab, fun(InPid, "blab blab") ->
+				?assertEqual(Zombie, InPid)
+			end),
+			handle_leader_cast({blab, "blab blab", {agent, "testagent"}}, State, "election"),
+			?assertEqual(1, length(meck:history(agent))),
+			?assert(meck:validate(agent)),
+			meck:unload(agent)
+		end},
+
+		{"{blab, Text, {node, Node}}", fun() ->
+			util:start_testnode(),
+			{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_blab_node),
+			RZombie = rpc:call(Slave, util, zombie, []),
+			LZombie = util:zombie(),
+			State = #state{agents = dict:from_list([
+				{"remote_dude", #agent_cache{pid = RZombie}},
+				{"local_dude", #agent_cache{pid = LZombie}}
+			])},
+			meck:new(agent),
+			meck:expect(agent, blab, fun(InPid, "blab blab") ->
+				?assertEqual(RZombie, InPid)
+			end),
+			handle_leader_cast({blab, "blab blab", {node, Slave}}, State, "election"),
+			% spawns out the work, so wait for it to finish
+			timer:sleep(10),
+			?assertEqual(1, length(meck:history(agent))),
+			?assert(meck:validate(agent)),
+			meck:unload(agent),
+			slave:stop(Slave)
+		end},
+		
+		{"{blab, Text, {profile, Value}}", fun() ->
+			State = #state{agents = dict:from_list([
+				{"dude1", #agent_cache{pid = true}},
+				{"dude2", #agent_cache{pid = false}}
+			])},
+			meck:new(agent),
+			meck:expect(agent, blab, fun(true, "blab blab") -> ok end),
+			meck:expect(agent, dump_state, fun
+				(true) -> #agent{login = "testagent", id = "id", profile = "testprofile"};
+				(false) -> #agent{login = "tnegatset", id = "di", profile = "eliforptset"}
+			end),
+			handle_leader_cast({blab, "blab blab", {profile, "testprofile"}}, State, "election"),
+			% work done in a spawn
+			timer:sleep(10),
+			?assert(meck:validate(agent)),
+			?assertEqual(3, length(meck:history(agent))),
+			meck:unload(agent)
+		end},
+
+		{"{blab, Text, all}", fun() ->
+			State = #state{agents = dict:from_list([
+				{"dude1", #agent_cache{pid = pid}},
+				{"dude2", #agent_cache{pid = pid}}
+			])},
+			meck:new(agent),
+			meck:expect(agent, blab, fun(pid, "blab blab") -> ok end),
+			handle_leader_cast({blab, "blab blab", all}, State, "election"),
+			timer:sleep(10),
+			?assert(meck:validate(agent)),
+			?assertEqual(2, length(meck:history(agent))),
+			meck:unload(agent)
+		end}
+
+	]},
+
+	{"handle_call", [
+
+		{"list_agents", fun() ->
+			?assertEqual({reply, [], #state{}}, handle_call(list_agents, "from", #state{}, "election"))
+		end},
+
+		{"list_avail_agents, empty tree", fun() ->
+			?assertEqual({reply, [], #state{lists_requested = 1}}, handle_call(route_list_agents, "from", #state{}, "election"))
+		end},
+
+		{"list_avail_agents, populated tree", fun() ->
+			InitList = [
+				{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, "agent1"},
+				{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 2}, "agent2"}
+			],
+			Route1 = gb_trees:from_orddict(InitList),
+			Route2 =  gb_trees:from_orddict([
+				{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 2}, "agent2"},
+				{#agent_key{rotations = 1, has_all = z, skill_count = 0, idle_time = 1}, "agent1"}
+			]),
+			State = #state{route_list = Route1},
+			ExpectedState = #state{route_list = Route2, lists_requested = 1},
+			{reply, OotList, OotState} = handle_call(route_list_agents, "from", State, "election"),
+			?assertEqual(InitList, OotList),
+			?assertEqual(gb_trees:to_list(Route2), gb_trees:to_list(OotState#state.route_list))
+		end},
+			
+		{"stop", fun() ->
+			?assertEqual({stop, normal, ok, state}, handle_call(stop, "from", state, "election"))
+		end},
+
+		{"{start_agent, InAgent}", fun() ->
+			Mecks = [agent, gen_leader, dispatch_manager],
+			[meck:new(X) || X <- Mecks],
+			Zombie = util:zombie(),
+			meck:expect(agent, start, fun(_Rec, _Opts) ->
+				{ok, Zombie}
+			end),
+			meck:expect(gen_leader, candidates, fun(_) ->
+				[node()]
+			end),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			meck:expect(dispatch_manager, end_avail, fun(APid) ->
+				?assertEqual(Zombie, APid)
+			end),
+			InAgent = #agent{id = "agent1", login = "testagent"},
+			State = #state{},
+			{reply, Preply, State0} = handle_call({start_agent, InAgent}, "from", State, "election"),
+			?assertEqual(1, gb_trees:size(State0#state.route_list)),
+			?assertEqual(1, dict:size(State0#state.agents)),
+			[begin
+				?assert(meck:validate(X)),
+				meck:unload(X)
+			end || X <- Mecks]
+		end},
+			
+		{"{exists, Login}, found local", fun() ->
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			Zombie = util:zombie(),
+			State = #state{agents = dict:from_list([
+				{"testagent", #agent_cache{pid = Zombie}}
+			])},
+			?assertEqual({reply, {true, Zombie}, State}, handle_call({exists, "testagent"}, "from", State, "election")),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{exists, Login}, not found", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {full_data, "testagent"}) ->
+				false
+			end),
+			?assertEqual({reply, false, #state{}}, handle_call({exists, "testagent"}, "from", #state{}, "election")),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{exists, Login}, leader found", fun() ->
+			util:start_testnode(),
+			{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_exists),
+			Zombie = rpc:call(Slave, util, zombie, []),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> leader_node end),
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {full_data, "testagent"}) ->
+				#agent_cache{pid = Zombie}
+			end),
+			?assertEqual({reply, {true, Zombie}, #state{}}, handle_call({exists, "testagent"}, "from", #state{}, "election")),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			slave:stop(Slave)
+		end},
+			
+		{"{exists, Login}, leader found, should be local", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_call, fun(?MODULE, {full_data, "testagent"}) ->
+				#agent_cache{pid = Zombie, time_avail = 1}
+			end),
+			ExpectedState = #state{agents = dict:from_list([
+				{"testagent", #agent_cache{pid = Zombie, time_avail = 1}}
+			])},
+			?assertEqual({reply, {true, Zombie}, ExpectedState}, handle_call({exists, "testagent"}, "from", #state{}, "election")),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{notify, Login, AgentCache}, not found, not leader", fun() ->
+			Zombie = util:zombie(),
+			AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
+				?assertEqual(AgentCache, InAgentCache)
+			end),
+			ExpectedState = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
+				])
+			},
+			?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(2, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end},
+
+		{"{notify, Login, AgentCache}, not found, leader", fun() ->
+			Zombie = util:zombie(),
+			AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
+				?assertEqual(AgentCache, InAgentCache)
+			end),
+			ExpectedState = #state{
+				agents = dict:from_list([
+					{"testagent", AgentCache}
+				]),
+				route_list = gb_trees:from_orddict([
+					{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
+				])
+			},
+			?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(1, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end},
+
+		% TODO look into what notify is actually for
+		{"{notify, Login, AgentCache}, found, pid match", ?_assert(true)}
+	]},
+
+	{"handle_cast", [
+
+		{"{set_avail, Nom, Chans}, chan list longer", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			AgentCache = #agent_cache{pid = Zombie, skills = [],
+				time_avail = {0,0,0}, channels = []},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = {0, 0, 0}},
+			State = #state{
+				agents = dict:from_list([{"testagent", AgentCache}]),
+				route_list = gb_trees:from_orddict([{AgentKey, AgentCache}])
+			},
+			{noreply, NewState} = handle_cast({set_avail, "testagent", [voice]}, State, "election"),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			TestCache = dict:fetch("testagent", NewState#state.agents),
+			{TestKey, _} = gb_trees:smallest(NewState#state.route_list),
+			?assertEqual({0,0,0}, TestCache#agent_cache.time_avail),
+			?assertEqual({0,0,0}, TestKey#agent_key.idle_time)
+		end},
+
+		{"{set_avail, Nom, Chans}, chan list shorter", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			AgentCache = #agent_cache{pid = Zombie, skills = [],
+				time_avail = {0,0,0}, channels = [voice]},
+			AgentKey = #agent_key{rotations = 0, has_all = z, skill_count = 0,
+				idle_time = {0, 0, 0}},
+			State = #state{
+				agents = dict:from_list([{"testagent", AgentCache}]),
+				route_list = gb_trees:from_orddict([{AgentKey, AgentCache}])
+			},
+			{noreply, NewState} = handle_cast({set_avail, "testagent", []}, State, "election"),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader),
+			TestCache = dict:fetch("testagent", NewState#state.agents),
+			{TestKey, _} = gb_trees:smallest(NewState#state.route_list),
+			?assert({0,0,0} < TestCache#agent_cache.time_avail),
+			?assert({0,0,0} < TestKey#agent_key.idle_time)
+		end},
+
+		{"{set_ends, Nom, Ends}, is leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [], channels = [], endpoints = [old_endpoint]},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{noreply, TestState} = handle_cast({set_ends, "testagent", [new_endpoint]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_endpoint], Val#agent_cache.endpoints),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{set_ends, Nom, Ends}, is not leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [], channels = [], endpoints = [old_endpoint]},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+				?assertNotEqual(OldCache, Out)
+			end),
+			{noreply, TestState} = handle_cast({set_ends, "testagent", [new_endpoint]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_endpoint], Val#agent_cache.endpoints),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(2, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end},
+
+		{"{update_skill_list, Login, Skills}, is leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [old_skill], channels = [], endpoints = []},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+			{noreply, TestState} = handle_cast({update_skill_list, "testagent", [new_skill]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_skill], Val#agent_cache.skills),
+			?assert(meck:validate(gen_leader)),
+			meck:unload(gen_leader)
+		end},
+
+		{"{update_skill_list, Login, Skills}, is not leader", fun() ->
+			Zombie = util:zombie(),
+			OldCache = #agent_cache{id = "agentId", pid = Zombie, time_avail = 1,
+				skills = [old_skill], channels = [], endpoints = []},
+			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
+			meck:new(gen_leader),
+			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+				?assertNotEqual(OldCache, Out)
+			end),
+			{noreply, TestState} = handle_cast({update_skill_list, "testagent", [new_skill]}, State, "election"),
+			{_, Val, _} = gb_trees:take_smallest(TestState#state.route_list),
+			?assertEqual([new_skill], Val#agent_cache.skills),
+			?assert(meck:validate(gen_leader)),
+			?assertEqual(2, length(meck:history(gen_leader))),
+			meck:unload(gen_leader)
+		end}
+	]},
+
+	{"handle_info", [
+		{"{'EXIT', Pid, Reason}, Agent death", fun() ->
+			Zombie = util:zombie(),
+			meck:new(gen_leader),
+			meck:new(cpx_monitor),
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify_down, "zombie"}) -> ok end),
+			meck:expect(cpx_monitor, drop, fun({agent, "a"}) -> ok end),
+			State = #state{
+				agents = dict:from_list([
+					{"zombie", #agent_cache{id = "a", pid = Zombie}}
+				]),
+				route_list = gb_trees:from_orddict([
+					{"key", #agent_cache{id = "a", pid = Zombie}}
+				])
+			},
+			{noreply, TestState} = handle_info({'EXIT', Zombie, headshot}, State),
+			?assertEqual(#state{}, TestState),
+			[begin
+				?assertEqual(1, length(meck:history(X))),
+				?assert(meck:validate(X)),
+				meck:unload(X)
+			end || X <- [gen_leader, cpx_monitor]]
+		end}
+	]}
+
+	].
 
 -record(multi_node_test_state, {
 	master_node,

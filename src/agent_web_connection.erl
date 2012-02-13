@@ -71,6 +71,28 @@
 %% 			<dd>Return gets wrapped in an error json return.</dd>
 %%	</dl>
 %%
+%% === agent_web_tabs ===
+%%
+%% When the agent logs in, this is triggered.  Each valid response is
+%% added to the list of tabs an agent may open.
+%%
+%% ==== Arguments ====
+%%
+%% <ul>
+%%     <li>Agent :: agent{} - The agent that has logged in.</li>
+%% </ul>
+%%
+%% ==== Returns ====
+%%
+%% Invalid returns are ignored.
+%%
+%% <dl>
+%%     <dt>{TranslationTag :: binary(), Href :: binary()}</dt>
+%%     <dd>Translation tag is used to look up what to display in the tabs
+%% menu for the user.  Href is the url path to load.  When the user
+%% selects the tabe, an agent_web_path will be triggered.</dd>
+%% </dl>
+%%
 %% == Web API ==
 %%
 %% The listener and connection are designed to be able to function with
@@ -956,6 +978,8 @@ handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
 	%AgentRec = agent:dump_state(Apid), % TODO - avoid
+	% TODO depricated; staring precall is a media specific thing, so this 
+	% should just be reactive.
 	Reply = case agent:precall(Apid, {precall, Client, Type})of
 		{ok, ChanPid} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -1352,7 +1376,7 @@ handle_cast({mediapush, Chanpid, #call{source_module = email_media}, Data}, Stat
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
-handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media}, Data} = Call, State) ->
+handle_cast({mediapush, Chanpid, #call{source_module = freeswitch_media} = Call, Data}, State) ->
 	?WARNING("Media specific mediapush handling!", []),
 	Mediatype = Call#call.type,
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),

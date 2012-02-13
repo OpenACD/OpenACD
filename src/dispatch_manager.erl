@@ -50,7 +50,9 @@
 	start/0, 
 	stop/0, 
 	count_dispatchers/0,
-	deep_inspect/0
+	deep_inspect/0,
+	now_avail/2,
+	end_avail/1
 ]).
 
 %% gen_server callbacks
@@ -93,6 +95,14 @@ count_dispatchers() ->
 -spec(deep_inspect/0 :: () -> 'ok').
 deep_inspect() ->
 	gen_server:cast(?MODULE, deep_inspect).
+
+-spec(now_avail/2 :: (AgentPid :: pid(), Channels :: [atom()]) -> 'ok').
+now_avail(AgentPid, Channels) ->
+	gen_server:cast(?MODULE, {now_avail, AgentPid, Channels}).
+
+-spec(end_avail/1 :: (AgentPid :: pid()) -> 'ok').
+end_avail(AgentPid) ->
+	gen_server:cast(?MODULE, {end_avail, AgentPid}).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -295,21 +305,11 @@ balance(#state{dispatchers = Dispatchers, channel_count = NumAgents} = State) ->
 
 -ifdef(TEST).
 
-dump() ->
-	gen_server:call(?MODULE, dump).
-
-test_primer() ->
-	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start().
-
 count_downs(FilterPid, N) ->
 	receive
 		{'DOWN', _MonRef, process, FilterPid, _Info} ->
 			count_downs(FilterPid, N+1)
-	after 0 ->
+	after 10 ->
 		N
 	end.
 
@@ -317,177 +317,107 @@ zombie() ->
 	receive headshot -> exit end.
 
 monitor_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(dispatch_manger_monitor_tests),
-	{spawn, N, {inorder, {foreach, 
-	fun() ->
-		test_primer(),
-		agent_manager:start([node()]),
-		queue_manager:start([node()]),
-		ok
-	end,
-	fun(ok) ->
-		ok
-	end,
-	[{"An agent gets monitored only once", fun() ->
+	{setup, fun() ->
 		{ok, State} = init([]),
-		FakeAgent = spawn(fun zombie/0),
-		{noreply, S1} = handle_cast({now_avail, FakeAgent}, State),
-		{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
-		{noreply, S3} = handle_cast({now_avail, FakeAgent}, S2),
-		{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
-		FakeAgent ! headshot,
-		Count = count_downs(FakeAgent, 0),
-		?assertEqual(0, Count)
-	end}]}}}.
+		meck:new(dispatcher),
+		meck:expect(dispatcher, start_link, fun() -> {ok, self()} end),
+		State
+	end,
+	fun(_) ->
+		meck:validate(dispatcher),
+		meck:unload(dispatcher)
+	end,
+	fun(State0) -> [
+
+		{"An agent gets monitored only once", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
+			{noreply, S3} = handle_cast({now_avail, FakeAgent, []}, S2),
+			{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
+			FakeAgent ! headshot,
+			Count = count_downs(FakeAgent, 0),
+			?assertEqual(0, Count)
+		end},
+
+		{"An agent gets monitored, period", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			FakeAgent ! headshot,
+			Count = count_downs(FakeAgent, 0),
+			?assertEqual(1, Count)
+		end},
+
+		{"An agent gets monitored once, channel difference", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			{noreply, S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
+			FakeAgent ! headshot,
+			Count = count_downs(FakeAgent, 0),
+			?assertEqual(1, Count)
+		end},
+
+		{"Handling an agent death", fun() ->
+			FakeAgent = spawn(fun zombie/0),
+			{noreply, S1} = handle_cast({now_avail, FakeAgent, [skill]}, State0),
+			FakeAgent ! headshot,
+			Down = receive
+				{'DOWN', _, process, FakeAgent, _} = X -> X
+			after 10 -> ?assert(nodown) end,
+			{noreply, S2} = handle_info(Down, S1),
+			?assertEqual(State0#state.agents, S2#state.agents)
+		end}
+
+	] end}.
 
 balance_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(dispatch_manager_balance_tests),
-	{spawn, N, {inorder, {foreach,
-	fun() ->
-		test_primer(),
-		agent_manager:start([node()]),
-		queue_manager:start([node()]),
-		start(),
-		ok
+	{setup, fun() ->
+		meck:new(dispatcher),
+		meck:expect(dispatcher, start_link, fun() -> {ok, spawn(fun zombie/0)} end),
+		{ok, State} = ?MODULE:init([]),
+		State
 	end,
-	fun(ok) ->
-		agent_manager:stop(),
-		queue_manager:stop(),
-		stop(),
-		timer:sleep(50)
+	fun(_) ->
+		meck:validate(dispatcher),
+		meck:unload(dispatcher)
 	end,
-	[{"Agent started, but is still released", fun() ->
-		{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertEqual(dict:new(), State1#state.agents),
-		?assertEqual([], State1#state.dispatchers)
-	end},
-	{"Agent started then set available, so a dispatcher starts", fun() ->
-		State1 = dump(),
-		?assertEqual(dict:new(), State1#state.agents),
-		?assertEqual([], State1#state.dispatchers),
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		receive
-		after 100 ->
-			ok
-		end,
-		State2 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
-		?assertEqual(1, length(State2#state.dispatchers))
-	end},
-	{"Agent died, but dispatchers don't die automatically", fun() ->
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers)),
-		exit(Apid, kill),
-		receive
-		after 100 ->
-			ok
-		end,
-		State2 = dump(),
-		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(1, length(State2#state.dispatchers))
-	end},
-	{"Unexpected dispatcher death", fun() ->
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		#state{dispatchers = [PidToKill]} = dump(),
-		exit(PidToKill, test_kill),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertEqual(1, length(State1#state.dispatchers)),
-		?assertNot([PidToKill] =:= State1#state.dispatchers)
-	end},
-	{"Agent unavailable, do a dispatcher ends", fun() ->
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers)),
-		agent:set_state(Apid, released, default),
-		receive
-		after 100 ->
-			ok
-		end,
-		State2 = dump(),
-		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(dict:new(), State2#state.agents)
-	end},
-	{"Agent avail and already tracked", fun() ->
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers)),
-		gen_server:cast(?MODULE, {now_avail, Apid}),
-		State2 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers))
-	end},
-	{"Dispatcher unfortunately dies, but notices agents on it's return.", fun() ->
-		agent_dummy_connection:start_x(10),
-		Agents = agent_manager:list(),
-		Setrel = fun(I) ->
-			{_Login, {Pid, _, _, _}} = lists:nth(I, Agents),
-			agent:set_state(Pid, released, default)
-		end,
-		lists:foreach(Setrel, lists:seq(1, 5)),
-		#state{agents = Expectedagents, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
-		exit(whereis(dispatch_manager), kill),
-		timer:sleep(5),
-		{ok, _Pid} = start(),
-		timer:sleep(1000),
-		#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
-		?DEBUG("Expected:  ~p", [Expectedagents]),
-		?DEBUG("New agents:  ~p", [Newagents]),
-		?assertEqual(length(dict:to_list(Expectedagents)), length(dict:to_list(Newagents))),
-		?assertEqual(5, length(Newdispathers)),
-		lists:foreach(fun(I) ->
-			?assertNot(lists:member(I, Unexpecteddispatchers))
-		end, Newdispathers),
-		lists:foreach(fun({I, _}) ->
-			?assert(dict:is_key(I, Expectedagents))
-		end, dict:to_list(Newagents))
-	end}]}}}.
+	fun(State0) -> [
 
-gen_server_test_start() ->
-	util:start_testnode(),
-	N = util:start_testnode(dispatch_manager_gen_server_tests),
-	Start = fun() ->
-		{ok, _Pid} = ?MODULE:start_link(),
-		?MODULE
-	end,
-	Stop = fun(_) ->
-		?MODULE:stop()
-	end,
-	{N, Start, Stop}.
+		{"New agent channels, dispatcher starts", fun() ->
+			Zombie = spawn(fun zombie/0),
+			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),
+			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
+			?assertEqual(1, length(State1#state.dispatchers))
+		end},
 
--define(GEN_SERVER_TEST, fun gen_server_test_start/0).
+		{"New agent multiple channels, dispatchers start", fun() ->
+			Zombie = spawn(fun zombie/0),
+			{noreply, State1} = handle_cast({now_avail, Zombie, [voice, dummy]}, State0),
+			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
+			?assertEqual(2, length(State1#state.dispatchers))
+		end},
 
--include("gen_server_test.hrl").
+		{"agent dies, but dispatchers don't die with it", fun() ->
+			Zombie = spawn(fun zombie/0),
+			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),
+			Zombie ! headshot,
+			Down = receive
+				{'DOWN', _, process, Zombie, _} = X -> X
+			after 10 -> ?assert(nodown) end,
+			{noreply, State2} = handle_info(Down, State1),
+			?assertEqual(dict:new(), State2#state.agents),
+			?assertEqual(1, length(State2#state.dispatchers))
+		end},
+
+		{"unexpected dispatcher death", fun() ->
+			process_flag(trap_exit, true),
+			Zombie = spawn(fun zombie/0),
+			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),			[Dispatcher] = State1#state.dispatchers,
+			Exit = {'EXIT', Dispatcher, headshot},
+			{noreply, State2} = handle_info(Exit, State1),
+			?assertEqual(1, length(State2#state.dispatchers))
+		end}
+
+	] end}.
 
 -endif.

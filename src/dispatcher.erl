@@ -359,6 +359,7 @@ agents_avail_test_() ->
 		{_, Q1} = queue_manager:add_queue("q1", []),
 		agent_manager:start([node()]),
 		dispatch_manager:start(),
+		cpx_agent_event:start(),
 		{_, A1} = agent_manager:start_agent(#agent{login = "a1", id = "a1"}),
 		{_, A2} = agent_manager:start_agent(#agent{login = "a2", id = "a2", skills = ['_all']}),
 		{Q1, A1, A2}
@@ -367,6 +368,7 @@ agents_avail_test_() ->
 		agent_manager:stop(),
 		dispatch_manager:stop(),
 		queue_manager:stop(),
+		cpx_agent_event:stop(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()])
 	end,
@@ -374,12 +376,14 @@ agents_avail_test_() ->
 		{"a call is routed even if the agent that can take it starts released",
 		fun() ->
 			dummy_media:q([{skills, [skills]}]),
-			agent:set_state(A1, idle),
+			agent:set_release(A1, none),
 			timer:sleep(10),
-			?assertEqual({ok, idle}, agent:query_state(A1)),
-			agent:set_state(A2, idle),
+			DumpedState = agent:dump_state(A1),
+			?assertEqual(dict:new(), DumpedState#agent.used_channels),
+			agent:set_release(A2, none),
 			timer:sleep(10),
-			?assertEqual({ok, ringing}, agent:query_state(A2))
+			DumpedA2 = agent:dump_state(A2),
+			?assertEqual(1, dict:size(DumpedA2#agent.used_channels))
 		end}
 	end]}.
 	

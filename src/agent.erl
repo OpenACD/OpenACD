@@ -497,7 +497,7 @@ handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connect
 handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State) ->
 	case dict:find(Pid, Agent#agent.used_channels) of
 		error ->
-			case util:dict_find_by_value(Pid, Agent#agent.endpoints) of
+			case get_endpoint_by_pid(Pid, Agent#agent.endpoints) of
 				error ->
 					case whereis(agent_manager) of
 						undefined ->
@@ -508,15 +508,17 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 							?INFO("unknown exit from ~p", [Pid]),
 							{next_state, StateName, State}
 					end;
-				{ok, DeadEnds} ->
-					Self = self(),
-					Oends = State#state.original_endpoints,
-					NewEnds = [begin
-						Data = dict:fetch(End, Oends),
-						{End, Data}
-					end || End <- DeadEnds],
-					?MODULE:set_endpoints(Self, NewEnds),
-					{next_state, StateName, State}
+				{End, Orig} ->
+					Ends0 = dict:erase(End, Agent#agent.endpoints),
+					Agent0 = Agent#agent{endpoints = Ends0},
+					PrivRes = priv_set_endpoint(Agent0, End, Orig),
+					Agent1 = case PrivRes of
+						{ok, AgentEnds} -> AgentEnds;
+						{error, Err} ->
+							?NOTICE("Endpoint ~p's pid exited, could not recover due to ~p", [End, Err]),
+							Agent#agent{endpoints = Ends0}
+					end,
+					{next_state, StateName, State#state{agent_rec = Agent1}}
 			end;
 		{ok, Type} ->
 			NewDict = dict:erase(Pid, Agent#agent.used_channels),
@@ -537,7 +539,11 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 			inform_connection(Agent, {channel_died, Pid, NewAvail}),
 			cpx_agent_event:change_agent_channel(Pid, exit, exit),
 			{next_state, StateName, State#state{agent_rec = NewAgent}}
-	end.
+	end;
+
+handle_info(Msg, Statename, State) ->
+	?DEBUG("Disregarding:  ~p", [Msg]),
+	{next_state, Statename, State}.
 
 % ======================================================================
 % TERMINATE
@@ -583,6 +589,21 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % INTERNAL
 % ======================================================================
 
+get_endpoint_by_pid(Pid, []) ->
+	error;
+
+get_endpoint_by_pid(Pid, [{End, {Orig, Pid}} | _]) ->
+	{End, Orig};
+
+get_endpoint_by_pid(Pid, [_Head | Tail]) ->
+	get_endpoint_by_pid(Pid, Tail);
+
+get_endpoint_by_pid(Pid, EndpointDict) ->
+	Ends = dict:to_list(EndpointDict),
+	get_endpoint_by_pid(Pid, Ends).
+
+% ----------------------------------------------------------------------
+	
 priv_set_endpoint(_Agent, Module, {module, Module}) ->
 	?DEBUG("endpoint ~s is a circular reference", [Module]),
 	{error, self_reference};
@@ -1226,6 +1247,61 @@ handle_event_test_() ->
 
 	]}.
 
+handle_info_test_() ->
+	{setup, fun() ->
+		Z = util:zombie(),
+		Agent = #agent{id = "testid", login = "testlogin", source = self()},
+		{Z, Agent}
+	end,
+	fun({Z,_}) ->
+		exit(Z, normal)
+	end,
+	fun({Zombie,ProtoAgent}) -> [
+
+		{"connection exit", fun() ->
+			Agent = ProtoAgent#agent{connection = Zombie},
+			State = #state{agent_rec = Agent},
+			?assertEqual({stop, {error, conn_exit, <<"hagurk">>}, State},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, State))
+		end},
+
+		{"channel exit", fun() ->
+			meck:new(cpx_agent_event),
+			meck:expect(cpx_agent_event, change_agent_channel, fun(InPid, exit, exit) ->
+				?assertEqual(Zombie, InPid),
+				ok
+			end),
+			Agent = ProtoAgent#agent{used_channels = dict:from_list([
+				{Zombie, voice}
+			]), available_channels = [fast_text], all_channels = [voice, fast_text]},
+			Agent0 = Agent#agent{used_channels = dict:new(), available_channels = [voice, fast_text]},
+			?assertEqual({next_state, idle, #state{agent_rec = Agent0}},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, #state{agent_rec = Agent})),
+			?assert(meck:validate(cpx_agent_event)),
+			?assertEqual(1, length(meck:history(cpx_agent_event))),
+			meck:unload(cpx_agent_event)
+		end},
+
+		{"endpoint exit", fun() ->
+			Agent = ProtoAgent#agent{endpoints = dict:from_list([
+				{dummy_media, {inband, Zombie}}
+			])},
+			NewEnd = util:zombie(),
+			meck:new(dummy_media),
+			meck:expect(dummy_media, prepare_endpoint, fun(_,inband) ->
+				{ok, NewEnd}
+			end),
+			ExpectAgent = ProtoAgent#agent{endpoints = dict:from_list([
+				{dummy_media, {inband, NewEnd}}
+			])},
+			?assertEqual({next_state, idle, #state{agent_rec = ExpectAgent}},
+				handle_info({'EXIT', Zombie, <<"hagurk">>}, idle, #state{agent_rec = Agent})),
+			?assert(meck:validate(dummy_media)),
+			?assertEqual(1, length(meck:history(dummy_media))),
+			meck:unload(dummy_media)
+		end}
+		
+	] end}.
 
 
 -endif.

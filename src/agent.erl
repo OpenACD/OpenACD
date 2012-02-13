@@ -608,6 +608,7 @@ priv_set_endpoint(Agent, Module, Data) ->
 			inform_connection(Agent, {new_endpoint, Module, NewData}),
 			{ok, NewAgent};
 		Else ->
+			?NOTICE("prepare endpoint failed:  ~p", [Else]),
 			{error, Else}
 	end.
 
@@ -1160,5 +1161,71 @@ state_test_() ->
 
 		]}}
 	] end}.
+
+handle_event_test_() ->
+	{foreach, fun() ->
+		meck:new(agent_manager),
+		LengthAssert = fun(N) ->
+			?assertEqual(N, length(meck:history(agent_manager)))
+		end,
+		Agent = #agent{id = "testid", login = "testagent",
+			skills = [old_skill]},
+		{LengthAssert, Agent}
+	end,
+	fun(_) ->
+		?assert(meck:validate(agent_manager)),
+		meck:unload(agent_manager)
+	end, [
+
+	fun({L, Agent}) -> {"{blab, Text}", fun() ->
+		?assertEqual({next_state, idle, #state{agent_rec = Agent}},
+			handle_event({blab, "text"}, idle, #state{agent_rec = Agent})),
+		L(0)
+	end} end,
+
+	fun({L, Agent}) -> {"stop", fun() ->
+		?assertEqual({stop, normal, #state{agent_rec = Agent}},
+			handle_event(stop, idle, #state{agent_rec = Agent})),
+		L(0)
+	end} end,
+
+	fun({L, Agent}) -> {"{add_skills, Skills}", fun() ->
+		NewAgent = Agent#agent{skills = [new_skill, old_skill]},
+		meck:expect(agent_manager, update_skill_list, fun("testagent", [new_skill, old_skill]) -> ok end),
+		?assertEqual({next_state, idle, #state{agent_rec = NewAgent}},
+			handle_event({add_skills, [new_skill]}, idle, #state{agent_rec = Agent})),
+		L(1)
+	end} end,
+
+	fun({L, Agent}) -> {"{remove_skills, Skills}", fun() ->
+		NewAgent = Agent#agent{skills = []},
+		meck:expect(agent_manager, update_skill_list, fun("testagent", []) -> ok end),
+		?assertEqual({next_state, idle, #state{agent_rec = NewAgent}},
+			handle_event({remove_skills, [old_skill]}, idle, #state{agent_rec = Agent})),
+		L(1)
+	end} end,
+
+	fun({L, Agent}) -> {"{set_endpoints, InEnds}", fun() ->
+		NewAgent = Agent#agent{endpoints = dict:from_list([{dummy_media, {inband, self_ring}}])},
+		meck:new(dummy_media),
+		meck:expect(dummy_media, prepare_endpoint, fun(_Agent, inband) ->
+			{ok, self_ring}
+		end),
+		meck:expect(agent_manager, set_ends, fun(A,B) ->
+			?ERROR("~p  ~p", [A,B]),
+			ok
+		end),
+		Expected = {next_state, idle, #state{agent_rec = NewAgent}},
+		Got = handle_event({set_endpoints, [{dummy_media, inband}]}, idle, #state{agent_rec = Agent}),
+		?DEBUG("Expect:  ~p;\ngot:  ~p", [Expected, Got]),
+		?assertEqual(Expected, Got),
+		L(1),
+		meck:validate(dummy_media),
+		meck:unload(dummy_media)
+	end} end
+
+	]}.
+
+
 
 -endif.

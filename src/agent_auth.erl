@@ -93,7 +93,8 @@
 -export([
 	query_agent_auth/1,
 	query_profiles/1,
-	query_release/1
+	query_release/1,
+	upgrade_v1_table/0
 ]).
 
 %%====================================================================
@@ -692,6 +693,21 @@ build_tables() ->
 		_Else3 ->
 			C
 	end.
+
+upgrade_v1_table() ->
+	NewAttributes = [id, login, password, skills, securitylevel, integrated,
+		profile, firstname, lastname, endpoints, extended_props, timestamp],
+	% old attributes: [id, login, password, skills, securitylevel,
+	%    integrated, profile, firstname, lastname, extended_props, timestamp
+	mnesia:transform_table(agent_auth, fun upgrade_transform/1, NewAttributes).
+
+upgrade_transform({agent_auth, Id, Login, Password, Skills, Security,
+	Integrated, Profile, First, Last, ExProps, Timestamp}) ->
+	{agent_auth, Id, Login, Password, Skills, Security, Integrated, Profile,
+		First, Last, [], ExProps, Timestamp}.
+
+
+
 
 %%--------------------------------------------------------------------
 %%% Internal functions

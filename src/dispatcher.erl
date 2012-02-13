@@ -396,6 +396,7 @@ prevent_infinite_regrabbing_test_() ->
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		crypto:start(),
+		cpx_agent_event:start(),
 		queue_manager:start([node()]),
 		{_, Q1} = queue_manager:add_queue("q1", []),
 		{_, Q2} = queue_manager:add_queue("q2", []),
@@ -403,7 +404,7 @@ prevent_infinite_regrabbing_test_() ->
 		{_, A1} = agent_manager:start_agent(#agent{login = "a1"}),
 		{ok, M1} = dummy_media:q([{skills, [skills]}, {queues, ["q1"]}]),
 		{ok, M2} = dummy_media:q([{skills, [skills]}, {queues, ["q2"]}]),
-		agent:set_state(A1, idle),
+		agent:set_release(A1, none),
 		timer:sleep(100),
 		{ok, State} = init([]),
 		{Regrabs, Grab_bests} = O = recloop(0, 0, State),
@@ -417,6 +418,7 @@ prevent_infinite_regrabbing_test_() ->
 		% must remember to clean up the mess I've made.
 		agent_manager:stop(),
 		queue_manager:stop(),
+		cpx_agent_event:stop(),
 		mnesia:stop()
 	end}.
 	

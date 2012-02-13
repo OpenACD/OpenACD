@@ -14,6 +14,16 @@ do
 	fi
 done
 
+# hack for include_apps
+initDir=`pwd`
+for file in include_apps/*
+do
+	echo "das file:  $file"
+	cd $file
+	../../rebar compile
+	cd $initDir
+done
+
 # hack for reltool
 if [ ! -d OpenACD ]; then
 	mkdir OpenACD

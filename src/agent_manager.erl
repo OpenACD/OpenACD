@@ -1325,7 +1325,7 @@ internal_state_test_() -> [
 			meck:unload(agent)
 		end},
 
-		{"{blab, Text, {node, Node}}", fun() ->
+		{"{blab, Text, {node, Node}}", {timeout, 60, fun() ->
 			util:start_testnode(),
 			{ok, Slave} = slave:start(net_adm:localhost(), agent_manager_blab_node),
 			RZombie = rpc:call(Slave, util, zombie, []),
@@ -1345,7 +1345,7 @@ internal_state_test_() -> [
 			?assert(meck:validate(agent)),
 			meck:unload(agent),
 			slave:stop(Slave)
-		end},
+		end}},
 		
 		{"{blab, Text, {profile, Value}}", fun() ->
 			State = #state{agents = dict:from_list([

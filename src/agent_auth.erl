@@ -35,7 +35,58 @@
 %%
 %% == Hooks ==
 %%
-%% 
+%% Many many hooks; adding, droping, updating, and fetching.
+%%
+%% === agent_auth_profile_create ===
+%%
+%% Asynchronously triggers all hooks when a profile is created.
+%% Args :: [Rec :: #agent_profile{}]
+%%
+%% === agent_auth_profile_update ===
+%%
+%% Aynchronously triggers all hooks when a profile is updated.
+%% Args :: [OldName :: string(), NewRec :: #agent_profile{}]
+%%
+%% === agent_auth_profile_destroy ===
+%%
+%% Asynchronously triggers all hooks when a profile is removed.
+%% Args :: [Name :: string()].
+%%
+%% === agent_auth_agent_update ===
+%%
+%% Asynchronously triggers all hooks when an agent is updated.
+%% Args :: [OldAgent :: #agent_auth{}, NewAgent :: #agent_auth{}]
+%%
+%% === agent_auth_agent_set_endpoint ===
+%%
+%% Asynchronously triggers all hooks when an agent's endpoint is set.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Endpoint :: atom(), Data :: any()]
+%%
+%% === agent_auth_agent_drop_endpoint ===
+%%
+%% Asynchronously triggers all hooks when an agent has an endpoint removed.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Endpoint :: atom()]
+%%
+%% === agent_auth_agent_set_extended ===
+%%
+%% Asynchronously triggers all hooks when an agent has an extended property
+%% set.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Prop :: any(), Val :: any()]
+%%
+%% === agent_auth_agent_drop_extended ===
+%%
+%% Asynchrously triggers all hooks when an agent has an extended property
+%% removed.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Prop :: any()]
+%%
+%% === agent_auth_agent_add ===
+%%
+%% Aysnchronously triggers all hooks when an agent is created.
+%% Args :: [Record :: #agent_auth{}]
 
 -module(agent_auth).
 
@@ -323,7 +374,7 @@ get_profiles() ->
 	sort_profiles(Profiles).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
-%% @depricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	Props = [
@@ -358,7 +409,7 @@ set_agent(Id, Props) ->
 	
 %% @doc Update the agent `string() Oldlogin' with a new password (as well 
 %% as everything else).
-%% @decpricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	Props = [
@@ -372,7 +423,7 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 
 %% @doc Update the agent `string() Oldlogin' with a new password (as well 
 %% as everything else).
-%% @depricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/8 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string(), Newfirstname :: string(), Newlastname :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstname, Newlastname) ->
 	Props = [
@@ -742,7 +793,7 @@ upgrade_transform({agent_auth, Id, Login, Password, Skills, Security,
 %% type.  to the mnesia database.  `Username' is the plaintext name and 
 %% used as the key.  `Password' is assumed to be plaintext; will be 
 %% erlang:md5'ed.  `Security' is either `agent', `supervisor', or `admin'.
-%% @depricated Use {@link cache/2} instead.
+%% @deprecated Use {@link cache/2} instead.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
@@ -787,7 +838,7 @@ cache(Id, Props) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/5 :: 
 	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
 		{'atomic', 'ok'}).
@@ -803,7 +854,7 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/7 ::
 	(Username :: string(), Firstname :: string(), Lastname :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
 		{'atomic', 'ok'}).

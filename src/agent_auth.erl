@@ -1259,7 +1259,7 @@ profile_test_() ->
 		?assertEqual({atomic, []}, mnesia:transaction(F))
 	end },
 	{"Get a profile", fun() ->
-		?assertEqual(undefined, get_profile("noexists")),
+		?assertEqual(undefined, get_profile("test profile")),
 		new_profile("test profile", [testskill]),
 		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
 	end},

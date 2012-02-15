@@ -214,7 +214,7 @@ function dropTab(tab){
 }
 
 function loadTab(title, href){
-	var tabid = 'tab-' + title;
+	var tabid = 'tab-' + title.replace(/\s/g, "_");
 	if(! window.tabCloseListeners){
 		window.tabCloseListeners = {};
 	}

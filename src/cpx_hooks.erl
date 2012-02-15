@@ -68,6 +68,15 @@ drop_hook(Id) ->
 	ets:delete(cpx_hooks, Id).
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
 
+%% @doc Get all hooks to the trigger event Hook.
+-spec(get_hooks/1 :: (Hook :: atom()) -> [{Id :: any(), M :: atom(), F :: atom(),
+	A :: [any()], Priority :: integer()}]).
+get_hooks(Hook) ->
+	qlc:e(qlc:q([{Id, M, F, A, P} || 
+		{Id, EHook, M, F, A, P} <- ets:table(cpx_hooks),
+		EHook == Hook
+	])).
+
 %% @doc Begin calling the callbacks for trigger event `Hook' in the `first'
 %% mode.
 -spec(trigger_hooks/2 :: (Hook :: atom(), Args :: [any()]) -> {'ok', any()}
@@ -223,11 +232,11 @@ hook_test_() ->
 	end, [
 		fun(_P) ->
 			{"no hooks", fun() ->
+				?assertEqual([], get_hooks(hook)),
 				Out = trigger_hooks(hook, []),
 				?assertEqual({error, unhandled}, Out)
 			end}
 		end,
-
 		fun(_) ->
 			{"Hook stops another from happening", fun() ->
 					meck:expect(hook_tester, good_skip, fun() ->
@@ -242,6 +251,13 @@ hook_test_() ->
 					set_hook(skipped, hook, hook_tester, good_skip, [], 1),
 					set_hook(good, hook, hook_tester, good_return, [], 2),
 					set_hook(error, hook, hook_tester, donotwant, [], 3),
+
+					?assertEqual(
+						lists:sort([{skipped, hook_tester, good_skip, [], 1},
+							{good, hook_tester, good_return, [], 2},
+							{error, hook_tester, donotwant, [], 3}]),
+						lists:sort(get_hooks(hook))),
+
 					%timer:sleep(10),
 					Out = trigger_hooks(hook, []),
 					?assertEqual({ok, ok}, Out)

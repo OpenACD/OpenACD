@@ -220,7 +220,8 @@
 	init_outbound/3,
 	set_endpoint/3,
 	logout/1,
-	plugin_call/3
+	plugin_call/3,
+	arbitrary_command/3
 ]).
 
 -web_api_functions([
@@ -599,6 +600,13 @@ load_media(Conn) ->
 plugin_call(Conn, Plugin, Args) ->
 	gen_server:call(Conn, {plugin_call, Plugin, Args}).
 
+%% @doc Useful when a plugin needs to send information or results to the
+%% agent ui.
+-spec(arbitrary_command/3 :: (Conn :: pid(), Command :: binary() | atom(),
+	JsonProps :: [{binary() | atom(), any()}]) -> 'ok').
+arbitrary_command(Conn, Command, JsonProps) ->
+	gen_server:cast(Conn, {arbitrary_command, Command, JsonProps}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -845,6 +853,7 @@ init([Agent]) ->
 %				admin ->
 %					cpx_monitor:subscribe()
 %			end,
+			spawn_get_tabs_menu(Apid),
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
@@ -1530,6 +1539,10 @@ handle_cast({blab, Text}, State) when is_binary(Text) ->
 handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
 	%% TODO update media in poll
 	{noreply, State};
+handle_cast({arbitrary_command, Command, JsonProps}, State) ->
+	Headjson = {struct, [{<<"command">>, Command} | JsonProps]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.
@@ -1647,6 +1660,25 @@ format_status(terminate, [_PDict, State]) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+spawn_get_tabs_menu(Apid) ->
+	Conn = self(),
+	spawn(fun() -> spawn_get_tabs_menu(Conn, Apid) end).
+
+spawn_get_tabs_menu(Conn, Apid) ->
+	Agent = agent:dump_state(Apid),
+	Admin = {<<"Dashboard">>, <<"tabs/dashboard.html">>},
+	Endpoints = {<<"Endpoints">>, <<"tabs/endpoints.html">>},
+	HookRes = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
+	Filtered = [Endpoints | [X || {B1, B2} = X <- HookRes, is_binary(B1), is_binary(B2)]],
+	TabsList = case Agent#agent.security_level of
+		agent -> gen_server:cast(Conn, {tabs_menu, Filtered});
+		Level when Level =:= admin; Level =:= supervisor ->
+			[Admin | Filtered]
+	end,
+	Tabs = [{struct, [{<<"label">>, Label}, {<<"href">>, Href}]} ||
+		{Label, Href} <- TabsList],
+	?MODULE:arbitrary_command(Conn, set_tabs_menu, [{<<"tabs">>, Tabs}]).
 
 fetch_channel(Channel, Channels) when is_binary(Channel) ->
 	fetch_channel(binary_to_list(Channel), Channels);

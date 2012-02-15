@@ -405,15 +405,10 @@ get_agent(id, Value) ->
 %% @doc Gets All the agents.
 -spec(get_agents/0 :: () -> [#agent_auth{}]).
 get_agents() ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
-		qlc:e(QH)
-	end,
-	{atomic, Agents} = mnesia:transaction(F),
-	Sort = fun(#agent_auth{profile = P1}, #agent_auth{profile = P2}) ->
-		P1 < P2
-	end,
-	lists:sort(Sort, Agents).
+	case cpx_hooks:trigger_hooks(get_agents, [], all) of
+		{ok, Auths} -> lists:flatten(Auths);
+		_ -> []
+	end.
 
 %% @doc Gets all the agents associated with `string() Profile'.
 -spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).
@@ -1025,6 +1020,33 @@ start_test_() ->
 	end
 
 	].
+
+get_agents_test_() ->
+	[{"no hook", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agents),
+
+		?assertEqual([], get_agents())
+	end},
+	{"with hook", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agents),
+		cpx_hooks:set_hook(a, get_agents, somestore, get_agents1, [], 2),
+		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 1),
+
+		Auths1 = [#agent_auth{id="1", login="ali"}, #agent_auth{id="2", login="baba"}],
+		Auths2 = [#agent_auth{id="3", login="mama"}, #agent_auth{id="4", login="mia"}],
+
+		meck:new(somestore),
+		meck:expect(somestore, get_agents1, fun() -> {ok, Auths1} end),
+		meck:expect(somestore, get_agents2, fun() -> {ok, Auths2} end),
+
+		?assertEqual(Auths1 ++ Auths2, get_agents()),
+
+		?assert(meck:validate(somestore)),
+		meck:unload(somestore)
+	end}].
+
 
 crud_test_() ->
 	util:start_testnode(),

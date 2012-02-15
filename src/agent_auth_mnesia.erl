@@ -102,6 +102,7 @@
 %%====================================================================
 
 start() ->
+	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
@@ -399,8 +400,6 @@ get_agent(Login) ->
 %% @doc Get an agent who's `Key' is `Value'.
 -spec(get_agent/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', [#agent_auth{}]}).
 get_agent(login, Value) ->
-	
-	
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
 		qlc:e(QH)
@@ -414,7 +413,7 @@ get_agent(id, Value) ->
 	mnesia:transaction(F).
 
 %% @doc Gets All the agents.
--spec(get_agents/0 :: () -> [#agent_auth{}]).
+-spec(get_agents/0 :: () -> {ok, [#agent_auth{}]}).
 get_agents() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
@@ -424,7 +423,7 @@ get_agents() ->
 	Sort = fun(#agent_auth{profile = P1}, #agent_auth{profile = P2}) ->
 		P1 < P2
 	end,
-	lists:sort(Sort, Agents).
+	{ok, lists:sort(Sort, Agents)}.
 
 %% @doc Gets all the agents associated with `string() Profile'.
 -spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).

@@ -68,6 +68,11 @@ drop_hook(Id) ->
 	ets:delete(cpx_hooks, Id).
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
 
+-spec(drop_hooks/1 :: (Hook :: atom()) -> ok).
+drop_hooks(Hook) ->
+	ets:match_delete(cpx_hooks, {'_', Hook, '_', '_', '_', '_'}),
+	ok.
+
 %% @doc Get all hooks to the trigger event Hook.
 -spec(get_hooks/1 :: (Hook :: atom()) -> [{Id :: any(), M :: atom(), F :: atom(),
 	A :: [any()], Priority :: integer()}]).
@@ -235,6 +240,40 @@ hook_test_() ->
 				?assertEqual([], get_hooks(hook)),
 				Out = trigger_hooks(hook, []),
 				?assertEqual({error, unhandled}, Out)
+			end}
+		end,
+		fun(_P) ->
+			{"hooks crud single", fun() ->
+				?assertEqual([], get_hooks(hook)),
+				set_hook(a, hook, hook_tester, foo, [], 1),
+				set_hook(b, hook, hook_tester, bar, [], 2),
+				
+				?assertEqual(
+					lists:sort([{a, hook_tester, foo, [], 1},
+						{b, hook_tester, bar, [], 2}]),
+					lists:sort(get_hooks(hook))),
+				
+				drop_hook(b),
+				?assertEqual(
+					[{a, hook_tester, foo, [], 1}],
+					get_hooks(hook))
+			end}
+		end,
+		fun(_P) ->
+			{"hooks crud batch", fun() ->
+				?assertEqual([], get_hooks(hook)),
+				set_hook(a, hook, hook_tester, foo, [], 1),
+				set_hook(b, hook, hook_tester, bar, [], 2),
+				set_hook(c, other, hook_tester, baz, [], 3),
+
+				?assertEqual(
+					lists:sort([{a, hook_tester, foo, [], 1},
+						{b, hook_tester, bar, [], 2}]),
+					lists:sort(get_hooks(hook))),
+				
+				drop_hooks(hook),
+				?assertEqual([], get_hooks(hook)),
+				?assertEqual([{c, hook_tester, baz, [], 3}], get_hooks(other))
 			end}
 		end,
 		fun(_) ->

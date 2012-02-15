@@ -104,6 +104,8 @@
 start() ->
 	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
+	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
+	
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
@@ -394,24 +396,30 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstnam
 	set_agent(Id, Props).
 
 %% @doc Gets `#agent_auth{}' associated with `string() Login'.
--spec(get_agent/1 :: (Login :: string()) -> {'atomic', [#agent_auth{}]}).
+-spec(get_agent/1 :: (Login :: string()) -> {ok, #agent_auth{}} | none).
 get_agent(Login) ->
 	get_agent(login, Login).
 
 %% @doc Get an agent who's `Key' is `Value'.
--spec(get_agent/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', [#agent_auth{}]}).
+-spec(get_agent/2 :: (Key :: 'id' | 'login', Value :: string()) -> {ok, #agent_auth{}} | none).
 get_agent(login, Value) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
 		qlc:e(QH)
 	end,
-	mnesia:transaction(F);
+	case mnesia:transaction(F) of
+		{atomic, [Agent]} -> {ok, Agent};
+		_ -> none
+	end;
 get_agent(id, Value) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Value]),
 		qlc:e(QH)
 	end,
-	mnesia:transaction(F).
+	case mnesia:transaction(F) of
+		{atomic, [Agent]} -> {ok, Agent};
+		_ -> none
+	end.
 
 %% @doc Gets All the agents.
 -spec(get_agents/0 :: () -> {ok, [#agent_auth{}]}).
@@ -442,7 +450,7 @@ get_agents(Profile) ->
 -spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
 set_endpoint({Type, Aval}, Endpoint, Data) ->
 	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
+		{ok, Rec} ->
 			Midends = proplists:delete(Endpoint, Rec#agent_auth.endpoints),
 			Newends = [{Endpoint, Data} | Midends],
 			F = fun() ->
@@ -456,7 +464,7 @@ set_endpoint({Type, Aval}, Endpoint, Data) ->
 -spec(drop_endpoint/2 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom()) -> {'atomic', 'ok'}).
 drop_endpoint({Type, Aval}, Endpoint) ->
 	case get_agent(Type, Aval) of
-		{atomic, [#agent_auth{endpoints = OldEnds} = Rec]} ->
+		{ok, #agent_auth{endpoints = OldEnds} = Rec} ->
 			case proplists:delete(Endpoint, Rec#agent_auth.endpoints) of
 				OldEnds ->
 					{atomic, ok};
@@ -471,7 +479,7 @@ drop_endpoint({Type, Aval}, Endpoint) ->
 -spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'atomic', 'ok'}).
 set_extended_prop({Type, Aval}, Prop, Val) ->
 	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
+		{ok, Rec} ->
 			Midprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
 			Newprops = [{Prop, Val} | Midprops],
 			F = fun() ->
@@ -485,7 +493,7 @@ set_extended_prop({Type, Aval}, Prop, Val) ->
 -spec(drop_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'atomic', 'ok'}).
 drop_extended_prop({Type, Aval}, Prop) ->
 	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
+		{ok, Rec} ->
 			Newprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
 			F = fun() ->
 				mnesia:write(Rec#agent_auth{extended_props = Newprops})
@@ -500,7 +508,7 @@ drop_extended_prop({Type, Aval}, Prop) ->
 -spec(get_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'ok', any()} | {'error', 'noagent'} | 'undefined').
 get_extended_prop({Type, Aval}, Prop) ->
 	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
+		{ok, Rec} ->
 			get_extended_prop(Rec, Prop);
 		_ ->
 			{error, noagent}
@@ -626,7 +634,7 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
 	Extended = case get_agent(Username) of
-		{atomic, [Rec]} ->
+		{ok, Rec} ->
 			Rec#agent_auth.extended_props;
 		_Else ->
 			[]
@@ -738,9 +746,9 @@ cache(Id, Username, Password, {Profile, Skills}, Security, Extended) ->
 	]);
 cache(Id, Username, Password, [Isskill | _Tail] = Skills, Security, Extended) when is_atom(Isskill); is_tuple(Isskill) ->
 	case get_agent(id, Id) of
-		{atomic, [Agent]} ->
+		{ok, Agent} ->
 			cache(Id, Username, Password, {Agent#agent_auth.profile, Skills}, Security, Extended);
-		{atomic, []} ->
+		none ->
 			cache(Id, Username, Password, {"Default", Skills}, Security, Extended)
 	end;
 cache(Id, Username, Password, Profile, Security, Extended) ->
@@ -1025,14 +1033,14 @@ crud_test_() ->
 	fun() ->
 		add_agent("original", "pass", [], agent, "Default"),
 		add_agent("target", "pass", [], agent, "Default"),
-		{atomic, [Old]} = get_agent("target"),
+		{ok, Old} = get_agent("target"),
 		Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
 		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
 	end},
 	{"no duplicat un error when doing an inline update for agent",
 	fun() ->
 		add_agent("agent", "pass", [], agent, "Default"),
-		{atomic, [Agent]} = get_agent("agent"),
+		{ok, Agent} = get_agent("agent"),
 		Out = set_agent(Agent#agent_auth.id, [{password, "newpass"}]),
 		?assertEqual({atomic, ok}, Out)
 	end},

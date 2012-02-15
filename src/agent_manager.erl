@@ -305,7 +305,8 @@ set_ends(AgentLogin, Endpoints) ->
 init(_Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
-	try build_tables() of
+
+	try agent_auth:start() of
 		Whatever ->
 			?DEBUG("building agent_state table:  ~p", [Whatever]),
 			ok
@@ -770,9 +771,6 @@ clear_rotates(Tree) ->
 		false ->
 			clear_rotates(gb_trees:take_largest(Tree))
 	end.
-	
-build_tables() ->
-	agent_auth:build_tables().
 
 -ifdef(STANDARD_TEST).
 

@@ -46,6 +46,7 @@
 
 %% API
 -export([
+	start/0,
 	auth/2,
 	build_tables/0
 ]).
@@ -100,6 +101,13 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+start() ->
+	Store = case application:get_env('OpenACD', agent_auth_storage) of
+		{ok, St} -> St;
+		undefined -> agent_auth_mnesia
+	end,
+	Store:start().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
 -spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -993,6 +1001,30 @@ encode_password(Password) ->
 %%--------------------------------------------------------------------
 %%% Test functions
 %%--------------------------------------------------------------------
+start_test_() ->
+	[fun() ->
+		application:set_env('OpenACD', agent_auth_storage, somestore),
+
+		meck:new(somestore),
+		meck:expect(somestore, start, fun() -> ok end),
+
+		agent_auth:start(),
+		?assert(meck:called(somestore, start, [])),
+		?assert(meck:validate(somestore)),
+		meck:unload(somestore)
+	end,
+	fun() ->
+		application:unset_env('OpenACD', agent_auth_storage),
+		meck:new(agent_auth_mnesia),
+		meck:expect(agent_auth_mnesia, start, fun() -> ok end),
+		
+		agent_auth:start(),
+		?assert(meck:called(agent_auth_mnesia, start, [])),
+		?assert(meck:validate(agent_auth_mnesia)),
+		meck:unload(agent_auth_mnesia)				
+	end
+
+	].
 
 crud_test_() ->
 	util:start_testnode(),

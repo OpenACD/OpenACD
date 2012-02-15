@@ -1672,7 +1672,7 @@ spawn_get_tabs_menu(Conn, Apid) ->
 	{ok, HookRes} = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
 	Filtered = [Endpoints | [X || {B1, B2} = X <- HookRes, is_binary(B1), is_binary(B2)]],
 	TabsList = case Agent#agent.security_level of
-		agent -> gen_server:cast(Conn, {tabs_menu, Filtered});
+		agent -> Filtered;
 		Level when Level =:= admin; Level =:= supervisor ->
 			[Admin | Filtered]
 	end,

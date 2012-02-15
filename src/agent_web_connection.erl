@@ -1669,7 +1669,7 @@ spawn_get_tabs_menu(Conn, Apid) ->
 	Agent = agent:dump_state(Apid),
 	Admin = {<<"Dashboard">>, <<"tabs/dashboard.html">>},
 	Endpoints = {<<"Endpoints">>, <<"tabs/endpoints.html">>},
-	HookRes = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
+	{ok, HookRes} = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
 	Filtered = [Endpoints | [X || {B1, B2} = X <- HookRes, is_binary(B1), is_binary(B2)]],
 	TabsList = case Agent#agent.security_level of
 		agent -> gen_server:cast(Conn, {tabs_menu, Filtered});

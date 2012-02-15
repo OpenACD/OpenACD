@@ -189,6 +189,8 @@
 	format_status/2,
 	is_web_api/2
 ]).
+%% handy encode functions
+-export([encode_call/1, encode_client/1]).
 
 %% Web api exports.
 %% to make documenting a web api easier, the listener will directly

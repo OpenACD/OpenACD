@@ -390,17 +390,15 @@ get_agent(Login) ->
 %% @doc Get an agent who's `Key' is `Value'.
 -spec(get_agent/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', [#agent_auth{}]}).
 get_agent(login, Value) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
-		qlc:e(QH)
-	end,
-	mnesia:transaction(F);
+	case cpx_hooks:trigger_hooks(get_agent, [login, Value], first) of
+		{ok, Auth} -> {atomic, [Auth]};
+		_ -> {atomic, []}
+	end;
 get_agent(id, Value) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Value]),
-		qlc:e(QH)
-	end,
-	mnesia:transaction(F).
+	case cpx_hooks:trigger_hooks(get_agent, [id, Value], first) of
+		{ok, Auth} -> {atomic, [Auth]};
+		_ -> {atomic, []}
+	end.
 
 %% @doc Gets All the agents.
 -spec(get_agents/0 :: () -> [#agent_auth{}]).
@@ -1065,6 +1063,43 @@ get_agents_by_profile_test_() ->
 		meck:expect(somestore, get_agents2, fun("devs") -> {ok, Auths2} end),
 
 		?assertEqual(Auths1 ++ Auths2, get_agents("devs")),
+
+		?assert(meck:validate(somestore)),
+		meck:unload(somestore)
+	end}].
+
+get_agent_test_() ->
+	[{"no hook", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agent),
+
+		?assertEqual({atomic, []}, get_agent("noone")),
+		?assertEqual({atomic, []}, get_agent(login, "noone")),
+		?assertEqual({atomic, []}, get_agent(id, "1"))
+	end},
+	{"with hooks", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agent),
+		cpx_hooks:set_hook(a, get_agent, somestore, get_agent1, [], 2),
+		cpx_hooks:set_hook(b, get_agent, somestore, get_agent2, [], 1),
+
+		Agent = #agent_auth{id="1", login="ali"},
+
+		meck:new(somestore),
+		meck:expect(somestore, get_agent1, fun(_) -> none end),
+		meck:expect(somestore, get_agent2, fun("ali") -> {ok, Agent} end),
+		meck:expect(somestore, get_agent2, fun(login, "ali") -> {ok, Agent};
+			(id, "1") -> {ok, Agent};
+			(_, _) -> none
+		end),
+
+		?assertEqual({atomic, [Agent]}, get_agent("ali")),
+		?assertEqual({atomic, [Agent]}, get_agent(login, "ali")),
+		?assertEqual({atomic, [Agent]}, get_agent(id, "1")),		
+
+		?assertEqual({atomic, []}, get_agent("kazam")),
+		?assertEqual({atomic, []}, get_agent(login, "kazam")),
+		?assertEqual({atomic, []}, get_agent(id, "2")),
 
 		?assert(meck:validate(somestore)),
 		meck:unload(somestore)

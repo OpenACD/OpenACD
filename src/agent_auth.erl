@@ -413,15 +413,10 @@ get_agents() ->
 %% @doc Gets all the agents associated with `string() Profile'.
 -spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).
 get_agents(Profile) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.profile =:= Profile]),
-		qlc:e(QH)
-	end,
-	{atomic, Agents} = mnesia:transaction(F),
-	Sort = fun(#agent_auth{login = L1}, #agent_auth{login = L2}) ->
-		 L1 < L2
-	end,
-	lists:sort(Sort, Agents).
+	case cpx_hooks:trigger_hooks(get_agents_by_profile, [Profile], all) of
+		{ok, Auths} -> lists:flatten(Auths);
+		_ -> []
+	end.
 
 -spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
 set_endpoint({Type, Aval}, Endpoint, Data) ->
@@ -1028,7 +1023,7 @@ get_agents_test_() ->
 
 		?assertEqual([], get_agents())
 	end},
-	{"with hook", fun() ->
+	{"with hooks", fun() ->
 		cpx_hooks:start_link(),
 		cpx_hooks:drop_hooks(get_agents),
 		cpx_hooks:set_hook(a, get_agents, somestore, get_agents1, [], 2),
@@ -1047,6 +1042,33 @@ get_agents_test_() ->
 		meck:unload(somestore)
 	end}].
 
+get_agents_by_profile_test_() ->
+	[{"no hook", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agents_by_profile),
+
+		?assertEqual([], get_agents("devs"))
+	end},
+	{"with hooks", fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_agents_by_profile),
+		cpx_hooks:set_hook(a, get_agents_by_profile, somestore, get_agents1, [], 2),
+		cpx_hooks:set_hook(b, get_agents_by_profile, somestore, get_agents2, [], 1),
+
+		Auths1 = [#agent_auth{id="1", login="ali", profile="devs"},
+			#agent_auth{id="2", login="baba", profile="devs"}],
+		Auths2 = [#agent_auth{id="3", login="mama", profile="devs"},
+			#agent_auth{id="4", login="mia", profile="devs"}],
+
+		meck:new(somestore),
+		meck:expect(somestore, get_agents1, fun("devs") -> {ok, Auths1} end),
+		meck:expect(somestore, get_agents2, fun("devs") -> {ok, Auths2} end),
+
+		?assertEqual(Auths1 ++ Auths2, get_agents("devs")),
+
+		?assert(meck:validate(somestore)),
+		meck:unload(somestore)
+	end}].
 
 crud_test_() ->
 	util:start_testnode(),

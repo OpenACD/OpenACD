@@ -103,6 +103,7 @@
 
 start() ->
 	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
+	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
@@ -248,7 +249,7 @@ destroy_profile("Default") ->
 destroy_profile(Name) ->
 	F = fun() ->
 		mnesia:delete({agent_profile, Name}),
-		Agents = get_agents(Name),
+		{ok, Agents} = get_agents(Name),
 		Update = fun(Arec) ->
 			Newagent = Arec#agent_auth{profile = "Default"},
 			destroy(Arec#agent_auth.login),
@@ -426,7 +427,7 @@ get_agents() ->
 	{ok, lists:sort(Sort, Agents)}.
 
 %% @doc Gets all the agents associated with `string() Profile'.
--spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).
+-spec(get_agents/1 :: (Profile :: string()) -> {ok, [#agent_auth{}]}).
 get_agents(Profile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.profile =:= Profile]),
@@ -436,7 +437,7 @@ get_agents(Profile) ->
 	Sort = fun(#agent_auth{login = L1}, #agent_auth{login = L2}) ->
 		 L1 < L2
 	end,
-	lists:sort(Sort, Agents).
+	{ok, lists:sort(Sort, Agents)}.
 
 -spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
 set_endpoint({Type, Aval}, Endpoint, Data) ->

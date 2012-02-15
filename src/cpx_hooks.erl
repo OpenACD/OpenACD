@@ -39,8 +39,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	code_change/3]).
 % api
--export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2,
-	trigger_hooks/3, async_trigger_hooks/2, async_trigger_hooks/3]).
+-export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, drop_hooks/1,
+	get_hooks/1, trigger_hooks/2, trigger_hooks/3,
+	async_trigger_hooks/2, async_trigger_hooks/3]).
 
 %% =================================================================
 %% API

@@ -369,7 +369,7 @@ agent_transfer(Conn, Agent) ->
 agent_transfer(Conn, Agent, Caseid) ->
 	gen_server:call(Conn, {agent_transfer, binary_to_list(Agent), binary_to_list(Caseid)}).
 
-%% @doc {@web} {@see media_call/4}
+%% @doc {@web} @see media_call/4
 -spec(media_call/3 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string()) -> any()).
 media_call(Conn, Channel, Command) ->
 	media_call(Conn, Channel, Command, []).
@@ -383,7 +383,7 @@ media_call(Conn, Channel, Command) ->
 media_call(Conn, Channel, Command, Args) ->
 	gen_server:call(Conn, {media_call, Channel, Command, Args}).
 
-%% @doc {@web} {@see media_cast/4}
+%% @doc {@web} @see media_cast/4
 -spec(media_cast/3 :: (Conn :: pid(), Channel :: bin_string(), Command :: bin_string()) -> any()).
 media_cast(Conn, Channel, Command) ->
 	media_cast(Conn, Channel, Command, []).
@@ -2398,7 +2398,7 @@ set_endpoint_test_() ->
 					?assertEqual(
 						{ok, undefined},
 						simplify_web_response(
-						set_endpoint(Connpid, <<"email_media">>, null)))
+						set_endpoint(Connpid, <<"email_media">>, null))),
 					?assertNotMatch({error, _}, agent:get_endpoint(	
 						email_media, dump_agent(Connpid)))
 				end}

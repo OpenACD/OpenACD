@@ -213,26 +213,8 @@ function dropTab(tab){
 	return true;
 }
 
-function loadTab(tabid){
-	var href = '';
-	var title = '';
-	switch(tabid){
-		/*case 'supervisorTab':
-			href = 'tabs/supervisor.html';
-			title = 'Supervisor';
-			break;*/
-		case 'dashboardTab':
-			href = 'tabs/dashboard.html';
-			title = 'Dashboard';
-			break;
-		case 'endpointsTab':
-			href = 'tabs/endpoints.html';
-			title = 'Endpoints';
-			break;
-		default:
-			return false;
-	}
-
+function loadTab(title, href){
+	var tabid = 'tab-' + title.replace(/\s/g, "_");
 	if(! window.tabCloseListeners){
 		window.tabCloseListeners = {};
 	}
@@ -710,87 +692,6 @@ dojo.addOnLoad(function(){
 	window.agentConnection = new OpenACD.Agent({});
 	window.agentConnection.checkCookie(checkCookieOpts);
 	
-	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
-
-	
-	/*dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var node = dojo.byId("brand");
-		debug(["byId('brand') stateChanger", data.statedata]);
-		switch(data.state){
-			case "ringing":
-			case "oncall":
-			case "outgoing":
-			case "wrapup":
-				node.innerHTML = data.statedata.brandname;
-				dojo.byId("agentbrandp").style.display = "block";
-			break;
-			case "precall":
-				node.innerHTML = data.statedata.brandname;
-				dojo.byId("agentbrandp").style.display = "block";
-				break;
-			default:
-				dojo.byId("agentbrandp").style.display = "none";
-		}
-	});*/
-
-	/*dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		switch(data.state){
-			case 'ringing':
-			case 'oncall':
-			case 'wrapup':
-				dojo.byId("callerid").innerHTML = encodeHTML(data.statedata.callerid);
-				dojo.byId("calleridp").style.display = "block";
-				break;
-			default:
-				dojo.byId("calleridp").style.display = "none";
-		}
-	});*/
-	
-	/*dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		switch(data.state){
-			case 'ringing':
-			case 'oncall':
-			case 'wrapup':
-				dojo.byId("calltype").innerHTML = encodeHTML(data.statedata.type);
-				dojo.byId("calltypep").style.display = "block";
-				break;
-			default:
-				dojo.byId("calltypep").style.display = "none";
-		}
-	});*/
-	
-	/*dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var node = dojo.byId("statedisp");
-		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
-		switch(data.state){
-			case "oncall":
-				node.innerHTML = innerh;
-				dojo.addClass(node, "profit");
-				dojo.removeClass(node, "loss");
-				break;
-			
-			case "wrapup":
-				node.innerHTML = innerh;
-				dojo.addClass(node, "loss");
-				dojo.removeClass(node, "profit");
-				break;
-			
-			default:
-				if(data.state == "released"){
-					if(data.statedata.constructor == String){
-						innerh += " (" + data.statedata + ")";
-					}
-					else{
-						innerh += " (" + data.statedata.reason + ")";
-					}
-				}
-				dojo.removeClass(node, "profit");
-				dojo.removeClass(node, "loss");
-				node.innerHTML = innerh;
-		}
-	});*/
-
 	dojo.byId("profiledisp").stateChanger = dojo.subscribe("OpenACD/Agent/profile", function(data){
 		var node = dojo.byId("profiledisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
@@ -826,166 +727,6 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	/*dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
-		var menu = dijit.byId("transferToQueueMenuDyn");
-		menu.destroyDescendants();
-	});*/
-
-	/*dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var div = dojo.byId("foo");
-		switch(data.state){
-			//case "warmtransfer":
-			case "precall":
-				div.style.display="inline";
-				break;
-			default:
-				div.style.display="none";
-		}
-	});*/
-
-	/*dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bcancel");
-		switch(data.state){
-			//case "warmtransfer":
-			case "precall":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});*/
-	
-	/*dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bdial");
-		switch(data.state){
-			case "precall":
-			//case "warmtransfer":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});*/
-	
-	/*dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("wtdial");
-		switch(data.state){
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});*/
-	
-	/*dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
-		if(data.event == 'warm_transfer_failed'){
-			this.attr('style', 'display:inline');
-			dojo.byId('foo').style.display = 'inline';
-		} else  {
-			dojo.byId('foo').style.display = 'none';
-			this.attr('style', 'display:none');
-		}
-	});*/
-	
-	/*dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
-		if(this.suppressHide){
-			delete this.suppressHide;
-			return true;
-		}
-		
-		switch(data.state){
-			default:
-				this.attr('style', 'display:none');
-		}
-	});*/
-	
-	/*dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
-		this.attr('style', 'display:none');
-	});
-	
-	dijit.byId('wtcomplete').warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId('wtcomplete'), function(data){
-		if(data.event == 'warm_transfer_succeeded'){
-			this.attr('style', 'display:inline');
-		} else {
-			this.attr('style', 'display:none');
-		}
-	});
-	
-	dojo.byId("state").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		dojo.byId("state").innerHTML = nlsStrings[data.state.toUpperCase()];
-	});
-	
-	dijit.byId("banswer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("banswer");
-		debug(["banswer", data]);
-		if(data.statedata && data.statedata.ringpath == "inband"){
-			if(data.state ==  "ringing"){
-				widget.attr('style', "display:inline");
-			} else {
-				widget.attr('style', 'display:none');
-			}
-		}
-		else{
-			widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("btransfer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("btransfer");
-		switch(data.state){
-			case "oncall":
-			case "outgoing":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId('transferToAgentMenu').startup();
-	dojo.connect(dijit.byId('btransfer'), 'onClick', dijit.byId('btransfer'), function(){
-		console.log('time to build agent transfer list');
-		window.agentConnection.getAvailAgents({
-			success:function(agentList){
-				dojo.publish("OpenACD/Agent/available", [agentList]);
-			}
-		});
-	});
-
-	dijit.byId('transferToQueueMenu').startup();
-	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("OpenACD/Agent/available", function(data){
-		console.log("Got agents available list", data);
-		var widget = dijit.byId("transferToAgentMenuDyn");
-		widget.destroyDescendants();
-		dojo.forEach(data, function(i){
-			var m = new dijit.MenuItem({
-				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
-				onClick: function(){
-					window.agentConnection.agentTransfer(escape(i.name), {});
-				}
-			});
-			widget.addChild(m);
-		});
-	});
-	
-	dijit.byId("bhangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bhangup");
-		debug(["bhangup", data]);
-		if(data.statedata && data.statedata.mediapath == "inband"){
-			switch(data.state){
-				case "oncall":
-				case "warmtransfer":
-				case "outgoing":
-					widget.attr('style', 'display:inline');
-					break;
-				default:
-					widget.attr('style', 'display:none');
-			}
-		}
-		else{
-			widget.attr('style', 'display:none');
-		}
-	});*/
-	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miHangup");
 		//if(data.statedata && data.statedata.mediapath == "inband"){
@@ -1290,6 +1031,22 @@ dojo.addOnLoad(function(){
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
 		//load_media_tab(eventdata);
+	});
+
+	dijit.byId("Tabsmenu").tabsListLoaded = dojo.subscribe("OpenACD/Agent/set_tabs_menu", function(tabsMenuList){
+		var tabsMenuDij = dijit.byId("Tabsmenu");
+		var addMenuItem = function(label, href){
+			tabsMenuDij.addChild(new dijit.MenuItem({
+				'label':label,
+				'onClick':function(){loadTab(label, href)}
+			}));
+		}
+		for(tabIndex in tabsMenuList.tabs){
+			var tabItem = tabsMenuList.tabs[tabIndex];
+			addMenuItem(tabItem.label, tabItem.href);
+		}
+		dijit.byId('tabsmenubutton').set('disabled', false);
+		console.log('tabs menu event', tabsMenuList);
 	});
 });
 /*

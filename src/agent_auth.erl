@@ -27,10 +27,66 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Connection to the local authenication cache and integration to another module.
-%% Authentication is first checked by the integration module (if any).  If that fails, 
-%% this module will fall back to it's local cache in the mnesia 'agent_auth' table.
-%% the cache table is both ram and disc copies on all nodes.
+%% @doc Connection to the local authenication cache and integration to
+%% another module.  Authentication is first checked by the integration 
+%% module (if any).  If that fails, this module will fall back to it's 
+%% local cache in the mnesia 'agent_auth' table.  The cache table is both 
+%% ram and disc copies on all nodes.
+%%
+%% == Hooks ==
+%%
+%% Many many hooks; adding, droping, updating, and fetching.
+%%
+%% === agent_auth_profile_create ===
+%%
+%% Asynchronously triggers all hooks when a profile is created.
+%% Args :: [Rec :: #agent_profile{}]
+%%
+%% === agent_auth_profile_update ===
+%%
+%% Aynchronously triggers all hooks when a profile is updated.
+%% Args :: [OldName :: string(), NewRec :: #agent_profile{}]
+%%
+%% === agent_auth_profile_destroy ===
+%%
+%% Asynchronously triggers all hooks when a profile is removed.
+%% Args :: [Name :: string()].
+%%
+%% === agent_auth_agent_update ===
+%%
+%% Asynchronously triggers all hooks when an agent is updated.
+%% Args :: [OldAgent :: #agent_auth{}, NewAgent :: #agent_auth{}]
+%%
+%% === agent_auth_agent_set_endpoint ===
+%%
+%% Asynchronously triggers all hooks when an agent's endpoint is set.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Endpoint :: atom(), Data :: any()]
+%%
+%% === agent_auth_agent_drop_endpoint ===
+%%
+%% Asynchronously triggers all hooks when an agent has an endpoint removed.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Endpoint :: atom()]
+%%
+%% === agent_auth_agent_set_extended ===
+%%
+%% Asynchronously triggers all hooks when an agent has an extended property
+%% set.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Prop :: any(), Val :: any()]
+%%
+%% === agent_auth_agent_drop_extended ===
+%%
+%% Asynchrously triggers all hooks when an agent has an extended property
+%% removed.
+%% Args :: [{Type :: 'id' | 'login', AgentVal :: string()},
+%%     Prop :: any()]
+%%
+%% === agent_auth_agent_add ===
+%%
+%% Aysnchronously triggers all hooks when an agent is created.
+%% Args :: [Record :: #agent_auth{}]
 
 -module(agent_auth).
 
@@ -166,7 +222,9 @@ new_profile(Rec) ->
 	F = fun() ->
 		case qlc:e(qlc:q([Out || #agent_profile{name = N} = Out <- mnesia:table(agent_profile), N =:= Rec#agent_profile.name])) of
 			[] ->
-				mnesia:write(Rec);
+				Out = mnesia:write(Rec),
+				cpx_hooks:async_trigger_hooks(agent_auth_profile_create, [Rec]),
+				Out;
 			_ ->
 				erlang:error(duplicate_name, Rec)
 		end
@@ -195,7 +253,9 @@ set_profile(Old, #agent_profile{id = undefined} = Rec) ->
 	set_profile(Old, Rec#agent_profile{id = Oldprof#agent_profile.id});
 set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		Out = mnesia:write(Rec),
+		cpx_hooks:async_trigger_hooks(agent_auth_profile_update, [Oldname, Rec]),
+		Out
 	end,
 	mnesia:transaction(F);
 set_profile("Default", _Rec) ->
@@ -208,6 +268,7 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 				mnesia:delete({agent_profile, Oldname}),
 				mnesia:write(Rec),
 				qlc:e(qlc:q([mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname])),
+				cpx_hooks:async_trigger_hooks(agent_auth_profile_update, [Oldname, Rec]),
 				ok;
 			_ ->
 				erlang:error(duplicate_name, Rec)
@@ -251,6 +312,7 @@ destroy_profile(Name) ->
 			mnesia:write(Newagent)
 		end,
 		lists:map(Update, Agents),
+		cpx_hooks:async_trigger_hooks(agent_auth_profile_destroy, [Name]),
 		ok
 	end,
 	mnesia:transaction(F).
@@ -312,7 +374,7 @@ get_profiles() ->
 	sort_profiles(Profiles).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
-%% @depricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	Props = [
@@ -337,6 +399,7 @@ set_agent(Id, Props) ->
 			[] ->
 				destroy(Id),
 				mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
+				cpx_hooks:async_trigger_hooks(agent_auth_agent_update, [Agent, Newrec]),
 				ok;
 			_ ->
 				erlang:error(duplicate_login, Newrec)
@@ -346,7 +409,7 @@ set_agent(Id, Props) ->
 	
 %% @doc Update the agent `string() Oldlogin' with a new password (as well 
 %% as everything else).
-%% @decpricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	Props = [
@@ -360,7 +423,7 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 
 %% @doc Update the agent `string() Oldlogin' with a new password (as well 
 %% as everything else).
-%% @depricated Use {@link set_agent/2} instead.
+%% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/8 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string(), Newfirstname :: string(), Newlastname :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstname, Newlastname) ->
 	Props = [
@@ -427,7 +490,9 @@ set_endpoint({Type, Aval}, Endpoint, Data) ->
 			Midends = proplists:delete(Endpoint, Rec#agent_auth.endpoints),
 			Newends = [{Endpoint, Data} | Midends],
 			F = fun() ->
-				mnesia:write(Rec#agent_auth{endpoints = Newends})
+				Out = mnesia:write(Rec#agent_auth{endpoints = Newends}),
+				cpx_hooks:async_trigger_hooks(agent_auth_agent_set_endpoint, [{Type, Aval}, Endpoint, Data]),
+				Out
 			end,
 			mnesia:transaction(F);
 		_ ->
@@ -443,7 +508,9 @@ drop_endpoint({Type, Aval}, Endpoint) ->
 					{atomic, ok};
 				Newends ->
 					F = fun() ->
-						mnesia:write(Rec#agent_auth{endpoints = Newends})
+						Out = mnesia:write(Rec#agent_auth{endpoints = Newends}),
+						cpx_hooks:async_trigger_hooks(agent_auth_agent_drop_endpoint, [{Type, Aval}, Endpoint]),
+						Out
 					end,
 					mnesia:transaction(F)
 			end
@@ -456,7 +523,10 @@ set_extended_prop({Type, Aval}, Prop, Val) ->
 			Midprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
 			Newprops = [{Prop, Val} | Midprops],
 			F = fun() ->
-				mnesia:write(Rec#agent_auth{extended_props = Newprops})
+				InsertRec = Rec#agent_auth{extended_props = Newprops},
+				Out = mnesia:write(InsertRec),
+				cpx_hooks:async_trigger_hooks(agent_auth_agent_set_extended, [{Type, Aval}, Prop, Val]),
+				Out
 			end,
 			mnesia:transaction(F);
 		_ ->
@@ -469,7 +539,9 @@ drop_extended_prop({Type, Aval}, Prop) ->
 		{atomic, [Rec]} ->
 			Newprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
 			F = fun() ->
-				mnesia:write(Rec#agent_auth{extended_props = Newprops})
+				Out = mnesia:write(Rec#agent_auth{extended_props = Newprops}),
+				cpx_hooks:async_trigger_hooks(agent_auth_agent_drop_extended, [{Type, Aval}, Prop]),
+				Out
 			end,
 			mnesia:transaction(F);
 		_ ->
@@ -646,16 +718,7 @@ build_tables() ->
 			]),
 	case A of
 		{atomic, ok} ->
-			F = fun() ->
-				mnesia:write(#agent_auth{id = "1", login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
-				mnesia:write(#agent_auth{id = "2", login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
-			end,
-			case mnesia:transaction(F) of
-				{atomic, ok} -> 
-					ok;
-				Else -> 
-					Else
-			end;
+			write_default_agents();
 		_Else when A =:= copied; A =:= exists ->
 			ok;
 		_Else -> 
@@ -678,20 +741,33 @@ build_tables() ->
 		{disc_copies, [node()]}
 	]),
 	case C of
-		{atomic, ok} -> 
-			G = fun() ->
-				mnesia:write(?DEFAULT_PROFILE)
-			end,
-			case mnesia:transaction(G) of
-				{atomic, ok} -> 
-					ok;
-				Else2 -> 
-					Else2
-			end;
+		{atomic, ok} ->
+			write_default_profile();
 		_Else3 when C =:= copied; C =:= exists ->
 			ok;
 		_Else3 ->
 			C
+	end.
+
+write_default_agents() ->
+	F = fun() ->
+		mnesia:write(#agent_auth{id = "1", login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
+		mnesia:write(#agent_auth{id = "2", login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
+	end,
+	case mnesia:transaction(F) of
+		{atomic, ok} -> ok;
+		Else -> Else
+	end.
+
+write_default_profile() ->
+	G = fun() ->
+		mnesia:write(?DEFAULT_PROFILE)
+	end,
+	case mnesia:transaction(G) of
+		{atomic, ok} -> 
+			ok;
+		Else2 -> 
+			Else2
 	end.
 
 upgrade_v1_table() ->
@@ -717,7 +793,7 @@ upgrade_transform({agent_auth, Id, Login, Password, Skills, Security,
 %% type.  to the mnesia database.  `Username' is the plaintext name and 
 %% used as the key.  `Password' is assumed to be plaintext; will be 
 %% erlang:md5'ed.  `Security' is either `agent', `supervisor', or `admin'.
-%% @depricated Use {@link cache/2} instead.
+%% @deprecated Use {@link cache/2} instead.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
@@ -762,7 +838,7 @@ cache(Id, Props) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/5 :: 
 	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
 		{'atomic', 'ok'}).
@@ -778,7 +854,7 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/7 ::
 	(Username :: string(), Firstname :: string(), Lastname :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
 		{'atomic', 'ok'}).
@@ -807,7 +883,9 @@ add_agent(Rec) when is_record(Rec, agent_auth) ->
 		QH = qlc:q([Rec || #agent_auth{login = Nom} <- mnesia:table(agent_auth), Nom =:= Rec#agent_auth.login]),
 		case qlc:e(QH) of
 			[] ->
-				mnesia:write(Rec#agent_auth{id = Id});
+				Out = mnesia:write(Rec#agent_auth{id = Id}),
+				cpx_hooks:async_trigger_hooks(agent_auth_agent_add, [Rec#agent_auth{id = Id}]),
+				Out;
 			_ ->
 				erlang:error(duplicate_login, Rec)
 		end
@@ -883,20 +961,28 @@ comp_profiles(#agent_profile{order = Asort}, #agent_profile{order = Bsort}) ->
 -spec(build_agent_record/2 :: (Proplist :: [{atom(), any()}], Rec :: #agent_auth{}) -> #agent_auth{}).
 build_agent_record([], Rec) ->
 	Rec;
+
 build_agent_record([{login, Login} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{login = Login});
+
 build_agent_record([{password, Password} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{password = encode_password(Password)});
+
 build_agent_record([{skills, Skills} | Tail], Rec) when is_list(Skills) ->
 	build_agent_record(Tail, Rec#agent_auth{skills = Skills});
+
 build_agent_record([{securitylevel, Sec} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{securitylevel = Sec});
+
 build_agent_record([{profile, Profile} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{profile = Profile});
+
 build_agent_record([{firstname, Name} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{firstname = Name});
+
 build_agent_record([{lastname, Name} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{lastname = Name});
+
 build_agent_record([{endpoints, Ends} | Tail], Rec) when is_list(Ends) ->
 	case Rec#agent_auth.endpoints of
 		undefined ->
@@ -905,10 +991,14 @@ build_agent_record([{endpoints, Ends} | Tail], Rec) when is_list(Ends) ->
 			NewEnds = proplist_overwrite(Ends, OldEnds),
 			build_agent_record(Tail, Rec#agent_auth{endpoints = NewEnds})
 	end;
+
 build_agent_record([{extended_props, Props} | Tail], Rec) ->
 	OldProps = Rec#agent_auth.extended_props,
 	NewProps = proplist_overwrite(Props, OldProps),
-	build_agent_record(Tail, Rec#agent_auth{extended_props = NewProps}).
+	build_agent_record(Tail, Rec#agent_auth{extended_props = NewProps});
+
+build_agent_record([{id, Id} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{id = Id}).
 
 proplist_overwrite([], Acc) ->
 	Acc;
@@ -994,329 +1084,338 @@ encode_password(Password) ->
 %%% Test functions
 %%--------------------------------------------------------------------
 
-crud_test_() ->
+agent_auth_test_() ->
 	util:start_testnode(),
-	N = util:start_testnode(agent_auth_crud_tests),
+	N = util:start_testnode(agent_auth_test_node),
 	{spawn, N, {setup,
 	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		build_tables(),
-		mnesia:clear_table(agent_auth),
-		mnesia:clear_table(agent_profile)
+		build_tables()
 	end,
 	fun(_) ->
 		mnesia:stop(),
-		mnesia:delete_schema([node()])
-	end,
-	[{"trying to add an agent with a duplicate un",
-	fun() ->
-		add_agent("dup-login", "pass", [], agent, "Default"),
-		Out = add_agent("dup-login", "pass", [], agent, "Default"),
-		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
-	end},
-	{"updating an agent to a duplicate name",
-	fun() ->
-		add_agent("original", "pass", [], agent, "Default"),
-		add_agent("target", "pass", [], agent, "Default"),
-		{atomic, [Old]} = get_agent("target"),
-		Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
-		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
-	end},
-	{"no duplicat un error when doing an inline update for agent",
-	fun() ->
-		add_agent("agent", "pass", [], agent, "Default"),
-		{atomic, [Agent]} = get_agent("agent"),
-		Out = set_agent(Agent#agent_auth.id, [{password, "newpass"}]),
-		?assertEqual({atomic, ok}, Out)
-	end},
-	{"Trying to add a profile with duplicate name fails",
-	fun() ->
-		new_profile("dup-name", []),
-		Out = new_profile("dup-name", []),
-		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
-	end},
-	{"Trying to update a proflie with duplicate name failes",
-	fun() ->
-		new_profile("original", []),
-		new_profile("target", []),
-		Out = set_profile("target", #agent_profile{name = "original"}),
-		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
-	end}]}}.
-
-auth_no_integration_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_auth_auth_no_integration),
-	{spawn, N, {setup,
-	fun() -> 
-		mnesia:stop(),
 		mnesia:delete_schema([node()]),
-		mnesia:create_schema([node()]),
-		mnesia:start(),
-		build_tables()
+		ok = cover:export("agent_auth_slave_cover.coverdata", agent_auth)
 	end,
-	fun(_) -> 
-		mnesia:stop(),
-		mnesia:delete_schema([node()])
-	end,
-	[{"authing the default agent success",
-	fun() ->
-		?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123"))
-	end},
-	{"auth an agent that doesn't exist",
-	fun() ->
-		?assertEqual(deny, auth("arnie", "goober"))
-	end},
-	{"don't auth with wrong pass",
-	fun() ->
-		?assertEqual(deny, auth("agent", "badpass"))
-	end},
-	{"extended prop test",
-	fun() ->
-		?assertEqual(undefined, get_extended_prop({id, "1"}, agent)),
-		set_extended_prop({id, "1"}, agent, true),
-		?assertEqual({ok, true}, get_extended_prop({id, "1"}, agent)),
-		drop_extended_prop({id, "1"}, agent),
-		?assertEqual(undefined, get_extended_prop({id, "1"}, agent))
-	end}]}}.
-
-auth_integration_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_auth_auth_integration_tests),
-	{spawn, N, {foreach,
-	fun() ->
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		mnesia:create_schema([node()]),
-		mnesia:start(),
-		build_tables(),
-		{ok, Mock} = gen_server_mock:named({local, integration}),
-		Mock
-	end,
-	fun(Mock) -> 
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		unregister(integration),
-		gen_server_mock:stop(Mock)
-	end,
-	[fun(Mock) ->
-		{"auth an agent that's not cached",
-		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password", []}, _, State) ->
-				{ok, {ok, "testid", "Default", agent, []}, State}
-			end),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "password")),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password"))
-		end}
-	end,
-	fun(Mock) ->
-		{"auth an agent overwrites the cache",
-		fun() ->
-			cache("testid", "testagent", "password", "Default", agent, []),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password")),
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass", []}, _, State) ->
-				{ok, {ok, "testid", "Default", agent, []}, State}
-			end),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "newpass")),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
-			?assertEqual(deny, local_auth("testagent", "password"))
-		end}
-	end,
-	fun(Mock) ->
-		{"integration denies, but doesn't remove from cache",
-		fun() ->
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
-				{ok, deny, State}
-			end),
-			?assertEqual(deny, auth("agent", "Password123")),
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123"))
-		end}
-	end,
-	fun(Mock) ->
-		{"integration returns a destory, thus removing from cache",
-		fun() ->
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
-				{ok, destroy, State}
-			end),
-			?assertEqual(deny, auth("agent", "Password123")),
-			?assertEqual(deny, local_auth("agent", "Password123"))
-		end}
-	end,
-	fun(Mock) ->
-		{"integration fails",
-		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
-				{ok, gooberpants, State}
-			end),
-			?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),
-			?assertMatch({allow, "1", _Skills, agent, "Default"}, local_auth("agent", "Password123"))
-		end}
-	end]}}.
-
-release_opt_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_auth_release_opt_tests),
-	{spawn, N, {foreach,
-	fun() ->
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		mnesia:create_schema([node()]),
-		mnesia:start(),
-		build_tables()
-	end,
-	fun(_) -> 
-		mnesia:stop(),
-		mnesia:delete_schema([node()])
-	end,
-	[{"Add new release option", fun() ->
-		Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
-		new_release(Releaseopt),
-		F = fun() ->
-			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
-			qlc:e(Select)
+	fun(_) -> [
+		{"crud", foreach, fun() ->
+			mnesia:clear_table(agent_auth),
+			mnesia:clear_table(agent_profile),
+			meck:new(cpx_hooks)
 		end,
-		?assertMatch({atomic, [#release_opt{label ="testopt"}]}, mnesia:transaction(F))
-	end },
-	{"Destroy a release option", fun() ->
-		Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
-		new_release(Releaseopt),
-		destroy_release("testopt"),
-		F = fun() ->
-			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
-			qlc:e(Select)
-		end,
-		?assertEqual({atomic, []}, mnesia:transaction(F))
-	end},
-	{"Update a release option", fun() ->
-		Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
-		Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
-		new_release(Oldopt),
-		update_release("oldopt", Newopt),
-		Getold = fun() ->
-			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "oldopt"]),
-			qlc:e(Select)
-		end,
-		Getnew = fun() ->
-			Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "newopt"]),
-			qlc:e(Select)
-		end,
-		?assertEqual({atomic, []}, mnesia:transaction(Getold)),
-		?assertMatch({atomic, [#release_opt{label = "newopt"}]}, mnesia:transaction(Getnew))
-	end},
-	{"Get all release options", fun() ->
-		Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
-		Bopt = #release_opt{label = "boption", id = 200, bias = 1},
-		Copt = #release_opt{label = "coption", id = 100, bias = -1},
-		new_release(Copt),
-		new_release(Bopt),
-		new_release(Aopt),
-		?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
-	end}]}}.
+		fun(_) ->
+			meck:unload(cpx_hooks)
+		end, [
 
-profile_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_auth_profile_test),
-	{spawn, N, {foreach,
-	fun() ->
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		mnesia:create_schema([node()]),
-		mnesia:start(),
-		build_tables()
-	end,
-	fun(_) -> 
-		mnesia:stop(),
-		mnesia:delete_schema([node()])
-	end,
-	[{"Add a profile", fun() ->
-		F = fun() ->
-			QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
-			qlc:e(QH)
+			fun(_) -> {"trying to add an agent with a duplicate un", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_agent_add, [_Agent]) -> ok end),
+				add_agent("dup-login", "pass", [], agent, "Default"),
+				Out = add_agent("dup-login", "pass", [], agent, "Default"),
+				?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+			end} end,
+
+			fun(_) -> {"updating an agent to a duplicate name", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_agent_add, [_Agent]) -> ok end),
+				add_agent("original", "pass", [], agent, "Default"),
+				add_agent("target", "pass", [], agent, "Default"),
+				{atomic, [Old]} = get_agent("target"),
+				Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
+				?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+			end} end,
+
+			fun(_) -> {"no duplicat un error when doing an inline update for agent", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun
+					(agent_auth_agent_add, [_Agent]) -> ok;
+					(agent_auth_agent_update, [_Old, _Agent]) -> ok
+				end),
+				add_agent("agent", "pass", [], agent, "Default"),
+				{atomic, [Agent]} = get_agent("agent"),
+				Out = set_agent(Agent#agent_auth.id, [{password, "newpass"}]),
+				?assertEqual({atomic, ok}, Out)
+			end} end,
+
+			fun(_) -> {"Trying to add a profile with duplicate name fails", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Profile]) -> ok end),
+				new_profile("dup-name", []),
+				Out = new_profile("dup-name", []),
+				?assertMatch({aborted, {duplicate_name, _Props}}, Out)
+			end} end,
+
+			fun(_) -> {"Trying to update a proflie with duplicate name failes", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Profile]) -> ok end),
+				new_profile("original", []),
+				new_profile("target", []),
+				Out = set_profile("target", #agent_profile{name = "original"}),
+				?assertMatch({aborted, {duplicate_name, _Props}}, Out)
+			end} end
+
+		]},
+
+		{"auth no integration", foreach, fun() ->
+			mnesia:clear_table(agent_auth),
+			mnesia:clear_table(agent_profile),
+			write_default_agents(),
+			write_default_profile(),
+			meck:new(cpx_hooks)
 		end,
-		?assertEqual({atomic, []}, mnesia:transaction(F)),
-		?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
-		Test = #agent_profile{name = "test profile", skills = [testskill]},
-		?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
-		?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
-	end},
-	{"Update a profile", fun() ->
-		new_profile(#agent_profile{name = "initial", skills = [english]}),
-		?assertNot(undefined == get_profile("initial")),
-		?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
-		?assertEqual(undefined, get_profile("initial")),
-		?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
-	end},
-	{"Remove a profile", fun() ->
-		F = fun() ->
-			QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
-			qlc:e(QH)
+		fun(_) ->
+			meck:unload(cpx_hooks)
+		end, [
+
+			fun(_) -> {"authing the default agent success", fun() ->
+				?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123"))
+			end} end,
+
+			fun(_) -> {"auth an agent that doesn't exist", fun() ->
+				?assertEqual(deny, auth("arnie", "goober"))
+			end} end,
+
+			fun(_) -> {"don't auth with wrong pass", fun() ->
+				?assertEqual(deny, auth("agent", "badpass"))
+			end} end,
+
+			fun(_) -> {"extended prop test", fun() ->
+				?assertEqual(undefined, get_extended_prop({id, "1"}, agent)),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_agent_set_extended, [{id, "1"}, agent, true]) -> 
+					ok
+				end),
+				set_extended_prop({id, "1"}, agent, true),
+				?assertEqual({ok, true}, get_extended_prop({id, "1"}, agent)),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_agent_drop_extended, [{id, "1"}, agent]) -> ok end),
+				drop_extended_prop({id, "1"}, agent),
+				?assertEqual(undefined, get_extended_prop({id, "1"}, agent))
+			end} end
+
+		]},
+
+		{"auth integration", foreach, fun() ->
+			mnesia:clear_table(agent_auth),
+			mnesia:clear_table(agent_profile),
+			write_default_agents(),
+			write_default_profile(),
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
 		end,
-		new_profile("test profile", [english]),
-		?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
-		?assertEqual({atomic, ok}, destroy_profile("test profile")),
-		?assertEqual({atomic, []}, mnesia:transaction(F))
-	end },
-	{"Get a profile", fun() ->
-		?assertEqual(undefined, get_profile("noexists")),
-		new_profile("test profile", [testskill]),
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
-	end},
-	{"Get all profiles", fun() ->
-		new_profile("B", [german]),
-		new_profile("A", [english]),
-		new_profile("C", [testskill]),
-		F = fun() ->
-			mnesia:delete({agent_profile, "Default"})
+		fun(Mock) ->
+			unregister(integration),
+			gen_server_mock:stop(Mock)
+		end, [
+
+			fun(Mock) -> {"auth an agent that's not cached", fun() ->
+				gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password", []}, _, State) ->
+					{ok, {ok, "testid", "Default", agent, []}, State}
+				end),
+				?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "password")),
+				?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password"))
+			end} end,
+
+			fun(Mock) -> {"auth an agent overwrites the cache", fun() ->
+				cache("testid", "testagent", "password", "Default", agent, []),
+				?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password")),
+				gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass", []}, _, State) ->
+					{ok, {ok, "testid", "Default", agent, []}, State}
+				end),
+				?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "newpass")),
+				?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
+				?assertEqual(deny, local_auth("testagent", "password"))
+			end} end,
+
+			fun(Mock) -> {"integration denies, but doesn't remove from cache", fun() ->
+				?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
+				gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
+					{ok, deny, State}
+				end),
+				?assertEqual(deny, auth("agent", "Password123")),
+				?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123"))
+			end} end,
+
+			fun(Mock) -> {"integration returns a destory, thus removing from cache", fun() ->
+				?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
+				gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
+					{ok, destroy, State}
+				end),
+				?assertEqual(deny, auth("agent", "Password123")),
+				?assertEqual(deny, local_auth("agent", "Password123"))
+			end} end,
+
+			fun(Mock) -> {"integration fails", fun() ->
+				gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
+					{ok, gooberpants, State}
+				end),
+				?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),
+				?assertMatch({allow, "1", _Skills, agent, "Default"}, local_auth("agent", "Password123"))
+			end} end
+
+		]},
+
+		{"release options", foreach, fun() ->
+			mnesia:clear_table(release_opt)
 		end,
-		mnesia:transaction(F),
-		?CONSOLE("profs:  ~p", [get_profiles()]),
-		?assertMatch([
-			#agent_profile{name = "A", skills = [english]},
-			#agent_profile{name = "B", skills = [german]},
-			#agent_profile{name = "C", skills = [testskill]}], 
-			get_profiles())
-	end}]}}.
+		fun(_) ->
+			ok
+		end, [
 
-profile_integration_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(agent_auth_profile_test),
-	{spawn, N, {foreach,
-	fun() ->
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		mnesia:create_schema([node()]),
-		mnesia:start(),
-		build_tables(),
+			fun(_) -> {"Add new release option", fun() ->
+				Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+				new_release(Releaseopt),
+				F = fun() ->
+					Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+					qlc:e(Select)
+				end,
+				?assertMatch({atomic, [#release_opt{label ="testopt"}]}, mnesia:transaction(F))
+			end } end,
 
-		{ok, Mock} = gen_server_mock:named({local, integration}),
-		Mock
-	end,
-	fun(Mock) -> 
-		mnesia:stop(),
-		mnesia:delete_schema([node()]),
-		unregister(integration),
-		gen_server_mock:stop(Mock),
-		ok
-	end,
-	[{"Get a profile in integration", fun(Mock) ->
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", [testskill], []}} end),
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", [testskill], []}} end),
+			fun(_) -> {"Destroy a release option", fun() ->
+				Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+				new_release(Releaseopt),
+				destroy_release("testopt"),
+				F = fun() ->
+					Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+					qlc:e(Select)
+				end,
+				?assertEqual({atomic, []}, mnesia:transaction(F))
+			end} end,
 
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}, get_profile("test profile")),
-		?assertEqual(#agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}, get_profile("test profile"))
+			fun(_) -> {"Update a release option", fun() ->
+				Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
+				Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
+				new_release(Oldopt),
+				update_release("oldopt", Newopt),
+				Getold = fun() ->
+					Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "oldopt"]),
+					qlc:e(Select)
+				end,
+				Getnew = fun() ->
+					Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "newopt"]),
+					qlc:e(Select)
+				end,
+				?assertEqual({atomic, []}, mnesia:transaction(Getold)),
+				?assertMatch({atomic, [#release_opt{label = "newopt"}]}, mnesia:transaction(Getnew))
+			end} end,
 
-	end},
-	{"Get a non-existing profile in integration", fun(Mock) ->
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none} end),
-		?assertEqual(undefined, get_profile("test profile"))
-	end}
-	]}}.	
+			fun(_) -> {"Get all release options", fun() ->
+				Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
+				Bopt = #release_opt{label = "boption", id = 200, bias = 1},
+				Copt = #release_opt{label = "coption", id = 100, bias = -1},
+				new_release(Copt),
+				new_release(Bopt),
+				new_release(Aopt),
+				?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
+			end} end
+
+		]},
+
+		{"profile", foreach, fun() ->
+			mnesia:clear_table(agent_auth),
+			mnesia:clear_table(agent_profile),
+			write_default_agents(),
+			write_default_profile(),
+			meck:new(cpx_hooks)
+		end,
+		fun(_) ->
+			meck:unload(cpx_hooks)
+		end, [
+
+			fun(_) -> {"Add a profile", fun() ->
+				F = fun() ->
+					QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+					qlc:e(QH)
+				end,
+				?assertEqual({atomic, []}, mnesia:transaction(F)),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Prof]) -> ok end),
+				?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
+				Test = #agent_profile{name = "test profile", skills = [testskill]},
+				?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
+				?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
+			end} end,
+
+			fun(_) -> {"Update a profile", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Prof]) -> ok end),
+				new_profile(#agent_profile{name = "initial", skills = [english]}),
+				?assertNot(undefined == get_profile("initial")),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_update, [_Old, _New]) -> ok end),
+				?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
+				?assertEqual(undefined, get_profile("initial")),
+				?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
+			end} end,
+
+			fun(_) -> {"Remove a profile", fun() ->
+				F = fun() ->
+					QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+					qlc:e(QH)
+				end,
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Prof]) -> ok end),
+				new_profile("test profile", [english]),
+				?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_destroy, [_Prof]) -> ok end),
+				?assertEqual({atomic, ok}, destroy_profile("test profile")),
+				?assertEqual({atomic, []}, mnesia:transaction(F))
+			end } end,
+
+			fun(_) -> {"Get a profile", fun() ->
+				?assertEqual(undefined, get_profile("noexists")),
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Prof]) -> ok end),
+				new_profile("test profile", [testskill]),
+				?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+			end} end,
+
+			fun(_) -> {"Get all profiles", fun() ->
+				meck:expect(cpx_hooks, async_trigger_hooks, fun(agent_auth_profile_create, [_Prof]) -> ok end),
+				new_profile("B", [german]),
+				new_profile("A", [english]),
+				new_profile("C", [testskill]),
+				F = fun() ->
+					mnesia:delete({agent_profile, "Default"})
+				end,
+				mnesia:transaction(F),
+				?CONSOLE("profs:  ~p", [get_profiles()]),
+				?assertMatch([
+					#agent_profile{name = "A", skills = [english]},
+					#agent_profile{name = "B", skills = [german]},
+					#agent_profile{name = "C", skills = [testskill]}], 
+					get_profiles())
+			end} end
+
+		]},
+
+		{"profile integration", foreach, fun() ->
+			mnesia:clear_table(agent_auth),
+			mnesia:clear_table(agent_profile),
+			write_default_agents(),
+			write_default_profile(),
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
+		end,
+		fun(Mock) ->
+			unregister(integration),
+			gen_server_mock:stop(Mock),
+			ok
+		end, [
+
+			fun(Mock) -> {"Get a profile in integration", fun() ->
+				gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", 1, [], [testskill]}, State} end),
+				gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", 1, [], [testskill]}, State} end),
+		
+				?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}, get_profile("test profile")),
+				?assertEqual(#agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}, get_profile("test profile"))
+		
+			end} end,
+
+			fun(Mock) -> {"Get a non-existing profile in integration", fun() ->
+				gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none} end),
+				?assertEqual(undefined, get_profile("test profile"))
+			end} end
+
+		]}
+
+
+	] end}}.
 
 diff_recs_test_() ->
+	ok = cover:import("agent_auth_slave_cover.coverdata"),
 	[{"agent_auth records",
 	fun() ->
 		Left = [

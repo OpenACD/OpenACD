@@ -44,6 +44,7 @@
 ).
 -export([
 	add_paths/0,
+	cover_mods/1,
 	get_modules/1,
 	eunit/1,
 	start_testnode/0,
@@ -653,6 +654,12 @@ add_paths() ->
 	Paths = [Pre ++ X ++ "/ebin" || X <- Deps],
 	code:add_paths(Paths).
 
+cover_mods([]) ->
+	cover:start();
+cover_mods([Mod | Tail]) ->
+	{ok, Mod} = cover:compile_beam(Mod),
+	cover_mods(Tail).
+
 get_modules(Appfile) ->
 	{ok, [{application, 'OpenACD', Props}]} = file:consult(Appfile),
 	proplists:get_value(modules, Props).
@@ -685,7 +692,9 @@ start_testnode(Name, Host) ->
 	start_testnode(),
 	case slave:start_link(Host, Name) of
 		{ok, N} -> 
-			rpc:cast(N, util, add_paths, []),
+			rpc:call(N, util, add_paths, []),
+			Covered = [Mod || {Mod, cover_compiled} <- code:all_loaded()],
+			rpc:call(N, util, cover_mods, [Covered]),
 			N;
 		{error, {already_running, N}} -> N
 	end.

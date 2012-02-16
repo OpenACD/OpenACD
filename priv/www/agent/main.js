@@ -172,40 +172,40 @@ function setTheme(theme) {
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
 }
 
-function storeTab(tab){
+function storeTab(tab, title, href){
 	var settings = {
-		'tabs': []
+		'tabs': {}
 	};
 	if(dojo.cookie('agentui-settings')){
 		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 		if(! settings.tabs){
-			settings.tabs = [];
+			settings.tabs = {};
 		}
 	}
-	for(var i = 0; i < settings.tabs.length; i++){
-		if(settings.tabs[i] == tab){
+	for(tabid in settins.tabs.length){
+		if(tabid == tab){
 			return true;
 		}
 	}
-	settings.tabs.push(tab);
+	settings.tabs[tab] = {'title':title,'href':href};
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
 	return true;
 }
 
 function dropTab(tab){
 	var settings = {
-		'tabs':[]
+		'tabs':{}
 	};
 	if(dojo.cookie('agentui-settings')){
 		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 		if(! settings.tabs){
-			settings.tabs = [];
+			settings.tabs = {};
 		}
 	}
-	var out = [];
-	for(var i = 0; i < settings.tabs.length; i++){
-		if(settings.tabs[i] != tab){
-			out.push(settings.tabs[i]);
+	var out = {};
+	for(tabid in settings.tabs){
+		if(tabid != tab){
+			out[tabid] = settings.tabs[tabid];
 		}
 	}
 	settings.tabs = out;
@@ -245,7 +245,7 @@ function loadTab(title, href){
 		this.closeChild(t);
 		dojo.unsubscribe(this[logoutListenerName]);
 	});
-	storeTab(tabid);
+	storeTab(tabid, title, href);
 }
 
 function loadMediaTab(options){
@@ -641,7 +641,7 @@ dojo.addOnLoad(function(){
 		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;*/
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
-				loadTab(settings.tabs[i]);
+				loadTab(settings.tabs[i].title, settings.tabs[i].herf);
 			}
 		}
 		if(settings.voipendpoint == "rtmp"){

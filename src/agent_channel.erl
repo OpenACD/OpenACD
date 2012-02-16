@@ -25,6 +25,7 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 %%	Micah Warren <micahw at lordnull dot com>
+%%  Chris Case	<chris dot case at g33xnexus dot com>
 %%
 
 %% @doc A gen_fsm for an agent channel.  When an agent is to go ringing
@@ -638,5 +639,66 @@ start_endpoint(E, _, _) ->
 	
 -ifdef(TEST).
 
+public_api_test_() ->
+	{foreach, fun() ->
+		meck:new(gen_fsm, [unstick])
+	end,
+	fun(_) ->
+		meck:unload(gen_fsm)
+	end, [
+	
+	fun(_) -> {"start/2, simple_sucess", fun() ->
+		meck:expect(gen_fsm, start, fun(?MODULE, [agentrecord, options], []) ->
+			?assert(true)
+		end),
+
+		start(agentrecord, options),
+		?assertEqual(1, length(meck:history(gen_fsm))),
+		?assert(meck:validate(gen_fsm))	
+	end} end,
+
+	fun(_) -> {"start/4, simple_sucess", fun() ->
+		meck:expect(gen_fsm, start, fun(?MODULE, [agentrecord, callrecord,
+			endpointdata, initstate]) ->
+			?assert(true)
+		end),
+
+		start(agentrecord, callrecord, endpointdata, initstate),
+		?assertEqual(1, length(meck:history(gen_fsm))),
+		?assert(meck:validate(gen_fsm))	
+	end} end,
+
+	fun(_) -> {"start_link/2, simple_sucess", fun() ->
+		meck:expect(gen_fsm, start_link, fun(?MODULE, [agentrecord, options], []) ->
+			?assert(true)
+		end),
+
+		start_link(agentrecord, options),
+		?assertEqual(1, length(meck:history(gen_fsm))),
+		?assert(meck:validate(gen_fsm))	
+	end} end,
+
+	fun(_) -> {"start_link/4, simple_sucess", fun() ->
+		meck:expect(gen_fsm, start_link, fun(?MODULE, [agentrecord,
+			callrecord, endpointdata, initstate], []) ->
+			?assert(true)
+		end),
+
+		start_link(agentrecord, callrecord, endpointdata, initstate),
+		?assertEqual(1, length(meck:history(gen_fsm))),
+		?assert(meck:validate(gen_fsm))	
+	end} end,
+
+	fun(_) -> {"stop/1, simple_sucess", fun() ->
+		meck:expect(gen_fsm, send_all_state_event, fun(pid, stop) ->
+			?assert(true)
+		end),
+
+		stop(pid),
+		?assertEqual(1, length(meck:history(gen_fsm))),
+		?assert(meck:validate(gen_fsm))
+	end} end
+
+	]}.
 
 -endif.

@@ -337,21 +337,12 @@ set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 %% settings.
 -spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_agent(Id, Props) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
-		[Agent] = qlc:e(QH),
-		Newrec = build_agent_record(Props, Agent),
-		case qlc:e(qlc:q([Dup || #agent_auth{login = Login, id = Gotid} = Dup <- mnesia:table(agent_auth), Login =:= Newrec#agent_auth.login, Id =/= Gotid])) of
-			[] ->
-				destroy(Id),
-				mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
-				ok;
-			_ ->
-				erlang:error(duplicate_login, Newrec)
-		end
-	end,
-	mnesia:transaction(F).
-	
+	case cpx_hooks:trigger_hooks(set_agent, [Id, Props], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {aborted, Err}
+	end.
+
+
 %% @doc Update the agent `string() Oldlogin' with a new password (as well 
 %% as everything else).
 %% @decpricated Use {@link set_agent/2} instead.
@@ -373,7 +364,7 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstname, Newlastname) ->
 	Props = [
 		{login, Newlogin},
-		{password, util:bin_to_hexstr(erlang:md5(Newpass))},
+		{password, Newpass},
 		{skills, Newskills},
 		{securitylevel, NewSecurity},
 		{profile, Newprofile},
@@ -1105,6 +1096,81 @@ get_agent_test_() ->
 		meck:unload(somestore)
 	end}].
 
+set_agent_test_() ->
+	[{"no hooks", {setup, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(set_agent)
+	end, fun(_) -> ok end,
+	[?_assertEqual({aborted, unhandled}, set_agent("foo", "foologin", [foonglish], agent, "foobar")),
+	?_assertEqual({aborted, unhandled}, set_agent("baz", "bazlogin", "bazsecret", [bazz], agent, "foobaz")),
+	?_assertEqual({aborted, unhandled}, set_agent("fro", "frologin", "frosecret", [froo], agent, "frobar", "fr", "o")),
+	?_assertEqual({aborted, unhandled}, set_agent("bar", []))
+	]}},
+	{"single hook", {foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(set_agent),
+		cpx_hooks:set_hook(a, set_agent, somestore, set_agent, [], 1),
+
+		meck:new(somestore),
+		meck:expect(somestore, set_agent, fun(_, _) -> {ok, ok} end),
+
+		ok
+	end, fun(_) -> 
+		meck:unload(somestore)
+	end,
+	[fun() ->
+		% Deprecated: (Id, Newlogin, Newskills, NewSecurity, Newprofile)
+		set_agent("foo", "foologin", [foonglish], agent, "foobar"),
+		?assert(meck:called(somestore, set_agent,
+			["foo",[{login, "foologin"},
+				{skills, [foonglish]},
+				{securitylevel, agent},
+				{profile, "foobar"}]]))
+	end,
+	fun() ->
+		% Deprecated: (Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile)
+		set_agent("baz", "bazlogin", "bazsecret", [bazz], agent, "foobaz"),
+		?assert(meck:called(somestore, set_agent,
+			["baz",[{login, "bazlogin"},
+				{password, "bazsecret"},
+				{skills, [bazz]},
+				{securitylevel, agent},
+				{profile, "foobaz"}]]))
+	end,
+	fun() ->
+		% Deprecated: (Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Firstname, Lastname)
+		set_agent("fro", "frologin", "frosecret", [froo], agent, "frobar", "fr", "o"),
+		?assert(meck:called(somestore, set_agent,
+			["fro",[{login, "frologin"},
+				{password, "frosecret"},
+				{skills, [froo]},
+				{securitylevel, agent},
+				{profile, "frobar"},
+				{firstname, "fr"},
+				{lastname, "o"}]]))
+	end,
+	fun() ->
+		set_agent("bar", [{login, "barlogin"},
+			{password, "barsecret"},
+			{skills, [bartending]},
+			{securitylevel, admin},
+			{profile, "foobar"},
+			{firstname, "ba"},
+			{lastname, "rr"},
+			{endpoints, [{freeswitch_media, []}]},
+			{extended_props, [someprop]}]),
+		?assert(meck:called(somestore, set_agent,
+			["bar", [{login, "barlogin"},
+				{password, "barsecret"},
+				{skills, [bartending]},
+				{securitylevel, admin},
+				{profile, "foobar"},
+				{firstname, "ba"},
+				{lastname, "rr"},
+				{endpoints, [{freeswitch_media, []}]},
+				{extended_props, [someprop]}]]))
+	end
+	]}}].
 crud_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(agent_auth_crud_tests),

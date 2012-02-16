@@ -182,7 +182,7 @@ function storeTab(tab, title, href){
 			settings.tabs = {};
 		}
 	}
-	for(tabid in settins.tabs.length){
+	for(tabid in settings.tabs.length){
 		if(tabid == tab){
 			return true;
 		}

@@ -58,9 +58,6 @@
 	add_agent/7,
 	add_agent/5,
 	add_agent/1,
-	set_agent/5,
-	set_agent/6,
-	set_agent/8,
 	set_agent/2,
 	get_agent/1,
 	get_agent/2,
@@ -105,7 +102,8 @@ start() ->
 	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
-	
+	cpx_hooks:set_hook(mn_set_agent, set_agent, ?MODULE, set_agent, [], 100),
+
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
@@ -332,23 +330,12 @@ get_profiles() ->
 	{atomic, Profiles} = mnesia:transaction(F),
 	sort_profiles(Profiles).
 
-%% @doc Update the agent `string() Oldlogin' without changing the password.
-%% @depricated Use {@link set_agent/2} instead.
--spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
-set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
-	Props = [
-		{login, Newlogin},
-		{skills, Newskills},
-		{securitylevel, NewSecurity},
-		{profile, Newprofile}
-	],
-	set_agent(Id, Props).
 
 %% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
 %% does not change data that is not in the proplist.  The proplist's 
 %% `endpoints' field can also contain a partial list, preserving existing
 %% settings.
--spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'} | {'aborted', any()}).
+-spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'ok', any()} | {'error', any()}).
 set_agent(Id, Props) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
@@ -363,37 +350,10 @@ set_agent(Id, Props) ->
 				erlang:error(duplicate_login, Newrec)
 		end
 	end,
-	mnesia:transaction(F).
-	
-%% @doc Update the agent `string() Oldlogin' with a new password (as well 
-%% as everything else).
-%% @decpricated Use {@link set_agent/2} instead.
--spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
-set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
-	Props = [
-		{login, Newlogin},
-		{password, Newpass},
-		{skills, Newskills},
-		{securitylevel, NewSecurity},
-		{profile, Newprofile}
-	],
-	set_agent(Id, Props).
-
-%% @doc Update the agent `string() Oldlogin' with a new password (as well 
-%% as everything else).
-%% @depricated Use {@link set_agent/2} instead.
--spec(set_agent/8 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string(), Newfirstname :: string(), Newlastname :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
-set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile, Newfirstname, Newlastname) ->
-	Props = [
-		{login, Newlogin},
-		{password, util:bin_to_hexstr(erlang:md5(Newpass))},
-		{skills, Newskills},
-		{securitylevel, NewSecurity},
-		{profile, Newprofile},
-		{firstname, Newfirstname},
-		{lastname, Newlastname}
-	],
-	set_agent(Id, Props).
+	case mnesia:transaction(F) of
+		{atomic, ok} -> {ok, ok};
+		{aborted, Err} -> {error, Err}
+	end.
 
 %% @doc Gets `#agent_auth{}' associated with `string() Login'.
 -spec(get_agent/1 :: (Login :: string()) -> {ok, #agent_auth{}} | none).
@@ -1035,14 +995,14 @@ crud_test_() ->
 		add_agent("target", "pass", [], agent, "Default"),
 		{ok, Old} = get_agent("target"),
 		Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
-		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+		?assertMatch({error, {duplicate_login, _Props}}, Out)
 	end},
 	{"no duplicat un error when doing an inline update for agent",
 	fun() ->
 		add_agent("agent", "pass", [], agent, "Default"),
 		{ok, Agent} = get_agent("agent"),
 		Out = set_agent(Agent#agent_auth.id, [{password, "newpass"}]),
-		?assertEqual({atomic, ok}, Out)
+		?assertEqual({ok, ok}, Out)
 	end},
 	{"Trying to add a profile with duplicate name fails",
 	fun() ->

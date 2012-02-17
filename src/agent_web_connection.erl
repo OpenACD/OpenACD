@@ -1958,9 +1958,18 @@ encode_call(Call) when is_record(Call, queued_call) ->
 %	encode_calls(Tail, [encode_call(Head) | Acc]).
 
 encode_client(Client) when is_record(Client, client) ->
+	Label = if
+		Client#client.label == undefined -> <<"Default">>;
+		is_atom(Client#client.label) -> Client#client.label;
+		true -> list_to_binary(Client#client.label)
+	end,
+	Id = if
+		is_atom(Client#client.id) -> Client#client.id;
+		true -> list_to_binary(Client#client.id)
+	end,
 	{struct, [
-		{<<"label">>, list_to_binary(Client#client.label)},
-		{<<"id">>, list_to_binary(Client#client.id)}
+		{<<"label">>, Label},
+		{<<"id">>, Id}
 	]};
 encode_client(_) ->
 	undefined.

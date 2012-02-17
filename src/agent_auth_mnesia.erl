@@ -52,7 +52,6 @@
 ]).
 -export([
 	cache/6,
-	destroy/1,
 	destroy/2,
 	merge/3,
 	add_agent/7,
@@ -104,6 +103,7 @@ start() ->
 	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
 	cpx_hooks:set_hook(mn_set_agent, set_agent, ?MODULE, set_agent, [], 100),
 	cpx_hooks:set_hook(mn_auth_agent, auth_agent, ?MODULE, auth, [], 100),
+	cpx_hooks:set_hook(mn_destroy_agent, destroy_agent, ?MODULE, destroy, [], 100),
 
 	build_tables().
 
@@ -801,25 +801,30 @@ make_id() ->
 	end,
 	lists:reverse(lists:foldl(F, [], FixedRef)).
 	
-%% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
--spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
+-spec(destroy/1 :: (Username :: string()) -> {'ok', any()} | {'error', any()}).
 destroy(Username) ->
 	destroy(login, Username).
 
 %% @doc Destory either by id or login.
--spec(destroy/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
+-spec(destroy/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'ok', any()} | {'error', any()}).
 destroy(id, Value) ->
 	F = fun() -> 
 		mnesia:delete({agent_auth, Value})
 	end,
-	mnesia:transaction(F);
+	case mnesia:transaction(F) of
+		{atomic, ok} -> {ok, ok};
+		{abort, Err} -> {error, Err}
+	end;
 destroy(login, Value) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
 		[#agent_auth{id = Id}] = qlc:e(QH),
 		mnesia:delete({agent_auth, Id})
 	end,
-	mnesia:transaction(F).
+	case mnesia:transaction(F) of
+		{atomic, ok} -> {ok, ok};
+		{abort, Err} -> {error, Err}
+	end.
 
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.

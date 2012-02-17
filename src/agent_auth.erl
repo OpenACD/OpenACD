@@ -822,18 +822,11 @@ destroy(Username) ->
 
 %% @doc Destory either by id or login.
 -spec(destroy/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
-destroy(id, Value) ->
-	F = fun() -> 
-		mnesia:delete({agent_auth, Value})
-	end,
-	mnesia:transaction(F);
-destroy(login, Value) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
-		[#agent_auth{id = Id}] = qlc:e(QH),
-		mnesia:delete({agent_auth, Id})
-	end,
-	mnesia:transaction(F).
+destroy(Key, Value) ->
+	case cpx_hooks:trigger_hooks(destroy_agent, [Key, Value], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {aborted, Err}
+	end.
 
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
@@ -1171,6 +1164,42 @@ set_agent_test_() ->
 				{extended_props, [someprop]}]]))
 	end
 	]}}].
+
+destroy_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(destroy_agent),
+		cpx_hooks:set_hook(a, destroy_agent, somestore, destroy_agent, [], 1),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end, [
+	fun() ->
+		meck:expect(somestore, destroy_agent, fun(_, _) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, destroy("fooid")),
+		?assert(meck:called(somestore, destroy_agent, [login, "fooid"])),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		meck:expect(somestore, destroy_agent, fun(_, _) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, destroy(id, "fooid")),
+		?assert(meck:called(somestore, destroy_agent, [id, "fooid"])),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		meck:expect(somestore, destroy_agent, fun(_, _) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, destroy(login, "fooid")),
+		?assert(meck:called(somestore, destroy_agent, [login, "fooid"])),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		meck:expect(somestore, destroy_agent, fun(_, _) -> pass end),
+		?assertEqual({aborted, unhandled}, destroy(id, "fooid")),
+		?assert(meck:called(somestore, destroy_agent, [id, "fooid"])),
+		?assert(meck:validate(somestore))
+	end
+	]}.
 
 diff_recs_test_() ->
 	[{"agent_auth records",

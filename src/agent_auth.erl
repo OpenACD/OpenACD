@@ -591,34 +591,13 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 %% @doc Take the plaintext username and password and attempt to 
 %% authenticate the agent.
 -type(profile_name() :: string()).
--spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
+-spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', Id :: string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
-	Extended = case get_agent(Username) of
-		{atomic, [Rec]} ->
-			Rec#agent_auth.extended_props;
-		_Else ->
-			[]
-	end,
-	try integration:agent_auth(Username, Password, Extended) of
-		deny ->
-			?INFO("integration denial for ~p", [Username]),
-			%destroy(Username),
-			deny;
-		destroy ->
-			destroy(Username),
-			deny;
-		{ok, Id, Profile, Security, Newextended} ->
-			?INFO("integration allow for ~p", [Username]),
-			cache(Id, Username, Password, Profile, Security, Newextended),
-			local_auth(Username, Password);
-		{error, nointegration} ->
-			?INFO("No integration, local authing ~p", [Username]),
-			local_auth(Username, Password)
-	catch
-		throw:{badreturn, Err} ->
-			?WARNING("Integration gave a bad return of ~p", [Err]),
-			local_auth(Username, Password)
+	case cpx_hooks:trigger_hooks(auth_agent, [Username, Password], first) of
+		{ok, Res} -> Res;
+		{error, unhandled} -> deny
 	end.
+
 
 %% @doc Starts mnesia and creates the tables.  If the tables already exist,
 %% returns `ok'.  Otherwise, a default username of `"agent"' is stored 
@@ -784,36 +763,16 @@ add_agent(Username, Firstname, Lastname, Password, Skills, Security, Profile) ->
 %% a proplist as the initial argument.  If an agent with the given login
 %% already exists, this throws an error.  An id is created for ye.  The
 %% password should not be encoded.
--spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'}).
+-spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'} | {'abort', any()}).
 add_agent(Proplist) when is_list(Proplist) ->
 	Rec = build_agent_record(Proplist, #agent_auth{}),
 	add_agent(Rec);
 add_agent(Rec) when is_record(Rec, agent_auth) ->
-	Id = make_id(),
-	F = fun() ->
-		QH = qlc:q([Rec || #agent_auth{login = Nom} <- mnesia:table(agent_auth), Nom =:= Rec#agent_auth.login]),
-		case qlc:e(QH) of
-			[] ->
-				mnesia:write(Rec#agent_auth{id = Id});
-			_ ->
-				erlang:error(duplicate_login, Rec)
-		end
-	end,
-	mnesia:transaction(F).
-
-make_id() ->
-	Ref = erlang:ref_to_list(make_ref()),
-	RemovedRef = string:sub_string(Ref, 6),
-	FixedRef = string:strip(RemovedRef, right, $>),
-	F = fun(Elem, Acc) ->
-		case Elem of
-			$. ->
-				Acc;
-			Else ->
-				[Else | Acc]
-		end
-	end,
-	lists:reverse(lists:foldl(F, [], FixedRef)).
+	%% TODO no duplicate log-in detection
+	case cpx_hooks:trigger_hooks(add_agent, [Rec], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {abort, Err}
+	end.
 	
 %% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -834,26 +793,6 @@ destroy(login, Value) ->
 		mnesia:delete({agent_auth, Id})
 	end,
 	mnesia:transaction(F).
-
-%% @private 
-% Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
-% internally called by the auth callback; there should be no need to call this directly (aside from tests).
--spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'allow', string(), skill_list(), security_level(), profile_name()} | 'deny').
-local_auth(Username, BasePassword) -> 
-	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username, X#agent_auth.password =:= Password]),
-		qlc:e(QH)
-	end,
-	case mnesia:transaction(F) of
-		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
-			?DEBUG("Auth is coolbeans for ~p", [Username]),
-			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
-			{allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
-		Else ->
-			?DEBUG("Denying auth due to ~p", [Else]),
-			deny
-	end.
 
 %% @doc Sorts the profiles based on sort order, then alphabetical.
 -spec(sort_profiles/1 :: (List :: [#agent_profile{}]) -> [#agent_profile{}]).
@@ -1171,6 +1110,120 @@ set_agent_test_() ->
 				{extended_props, [someprop]}]]))
 	end
 	]}}].
+
+
+
+add_agent_test_() ->
+	[{"no hooks", {setup, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(add_agent)
+	end, fun(_) -> ok end,
+	[?_assertEqual({abort, unhandled}, add_agent("foouser", "foosecret", [foonglish], agent, "foobar")),
+		?_assertEqual({abort, unhandled}, add_agent("foouser", "foofirst", "foolast", "foosecret", [foonglish], agent, "foobar")),
+		?_assertEqual({abort, unhandled}, add_agent([{login, "foologin"}])),
+		?_assertEqual({abort, unhandled}, add_agent(#agent_auth{login="foologin"}))
+	]}},
+	{"single hook", {setup, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(add_agent),
+		cpx_hooks:set_hook(a, add_agent, somestore, add_agent, [], 1),
+
+		meck:new(somestore),
+		ok
+	end, fun(_) -> 
+		meck:unload(somestore)
+	end,
+	[fun() ->
+		meck:expect(somestore, add_agent, fun(
+			#agent_auth{login="foouser",
+				password="846437196b802770f1222dc0d37bd38d",
+				skills=[foonglish], securitylevel=admin, profile="foobar"}) ->
+			{ok, ok}
+		end),
+		
+		?assertEqual({atomic, ok},
+			add_agent("foouser", "foosecret", [foonglish], admin, "foobar"))
+	end,
+	fun() ->
+		meck:expect(somestore, add_agent, fun(
+			#agent_auth{login="foouser",firstname="foo", lastname="fighters",
+				password="846437196b802770f1222dc0d37bd38d",
+				skills=[foonglish], securitylevel=admin, profile="foobar"}) ->
+			{ok, ok}
+		end),
+		
+		?assertEqual({atomic, ok},
+			add_agent("foouser", "foo", "fighters",
+				"foosecret", [foonglish], admin, "foobar"))
+	end,
+	fun() ->
+		meck:expect(somestore, add_agent, fun(
+			#agent_auth{login="foouser",
+				firstname="foo",
+				lastname="fighters",
+				password="846437196b802770f1222dc0d37bd38d",
+				skills=[foonglish],
+				securitylevel=admin,
+				profile="foobar",
+				endpoints=[{dummy_media, inband}],
+				extended_props=[single]}) ->
+			{ok, ok}
+		end),
+		
+		?assertEqual({atomic, ok},
+			add_agent([{login, "foouser"},
+				{password, "foosecret"},
+				{skills, [foonglish]},
+				{securitylevel, admin},
+				{profile, "foobar"},
+				{firstname, "foo"},
+				{lastname, "fighters"},
+				{endpoints, [{dummy_media, inband}]},
+				{extended_props, [single]}]))
+	end,
+	fun() ->
+		meck:expect(somestore, add_agent, fun(
+			#agent_auth{login="foouser",firstname="foo", lastname="fighters",
+				password="846437196b802770f1222dc0d37bd38d",
+				skills=[foonglish], securitylevel=admin, profile="foobar"}) ->
+			{ok, ok}
+		end),
+		
+		?assertEqual({atomic, ok},
+			add_agent(#agent_auth{login="foouser",firstname="foo", lastname="fighters",
+				password="846437196b802770f1222dc0d37bd38d",
+				skills=[foonglish], securitylevel=admin, profile="foobar"}))
+	end]}}].
+
+auth_test_() ->
+	{setup, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(add_agent),
+		cpx_hooks:set_hook(a, auth_agent, somestore, auth_agent, [], 1),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end, [
+	fun() ->
+		meck:expect(somestore, auth_agent, fun("foouser", "rightpassword") -> {ok, {allow, "someid", [foonglish], admin, "frofile"}} end),
+		?assertEqual({allow, "someid", [foonglish], admin, "frofile"}, auth("foouser", "rightpassword")),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		meck:expect(somestore, auth_agent, fun("foouser", "wrongpasword") -> {ok, deny} end),
+		?assertEqual(deny, auth("foouser", "wrongpasword")),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		meck:expect(somestore, auth_agent, fun(_, _) -> pass end),
+		?assertEqual(deny, auth("noouser", "pasword")),
+		?assert(meck:validate(somestore))
+	end
+	]}.
+			% (auth_agent, ["foouser", "wrongsecret"]) -> {ok, deny};
+			% (auth_agent, ["foouser", ""])
+
 crud_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(agent_auth_crud_tests),

@@ -103,6 +103,7 @@ start() ->
 	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
 	cpx_hooks:set_hook(mn_set_agent, set_agent, ?MODULE, set_agent, [], 100),
+	cpx_hooks:set_hook(mn_auth_agent, auth_agent, ?MODULE, auth, [], 100),
 
 	build_tables().
 
@@ -591,7 +592,7 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 %% @doc Take the plaintext username and password and attempt to 
 %% authenticate the agent.
 -type(profile_name() :: string()).
--spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
+-spec(auth/2 :: (Username :: string(), Password :: string()) -> {ok, 'deny'} | {ok, {'allow', string(), skill_list(), security_level(), profile_name()}} | pass).
 auth(Username, Password) ->
 	Extended = case get_agent(Username) of
 		{ok, Rec} ->
@@ -603,10 +604,10 @@ auth(Username, Password) ->
 		deny ->
 			?INFO("integration denial for ~p", [Username]),
 			%destroy(Username),
-			deny;
+			{ok, deny};
 		destroy ->
 			destroy(Username),
-			deny;
+			pass;
 		{ok, Id, Profile, Security, Newextended} ->
 			?INFO("integration allow for ~p", [Username]),
 			cache(Id, Username, Password, Profile, Security, Newextended),
@@ -823,7 +824,7 @@ destroy(login, Value) ->
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
 % internally called by the auth callback; there should be no need to call this directly (aside from tests).
--spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'allow', string(), skill_list(), security_level(), profile_name()} | 'deny').
+-spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'ok', {'allow', string(), skill_list(), security_level(), profile_name()}} | {'ok', 'deny'} | pass).
 local_auth(Username, BasePassword) -> 
 	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
 	F = fun() ->
@@ -834,10 +835,10 @@ local_auth(Username, BasePassword) ->
 		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
 			?DEBUG("Auth is coolbeans for ~p", [Username]),
 			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
-			{allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
+			{ok, {allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile}};
 		Else ->
-			?DEBUG("Denying auth due to ~p", [Else]),
-			deny
+			?DEBUG("Passing off auth due to ~p", [Else]),
+			pass
 	end.
 
 %% @doc Sorts the profiles based on sort order, then alphabetical.
@@ -1035,11 +1036,11 @@ auth_no_integration_test_() ->
 	end,
 	[{"authing the default agent success",
 	fun() ->
-		?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123"))
+		?assertMatch({ok, {allow, "1", _Skills, agent, "Default"}}, auth("agent", "Password123"))
 	end},
 	{"auth an agent that doesn't exist",
 	fun() ->
-		?assertEqual(deny, auth("arnie", "goober"))
+		?assertEqual(pass, auth("arnie", "goober"))
 	end},
 	{"don't auth with wrong pass",
 	fun() ->
@@ -1079,32 +1080,32 @@ auth_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password", []}, _, State) ->
 				{ok, {ok, "testid", "Default", agent, []}, State}
 			end),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "password")),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password"))
+			?assertMatch({ok, {allow, "testid", _Skills, agent, "Default"}}, auth("testagent", "password")),
+			?assertMatch({ok, {allow, "testid", _Skills, agent, "Default"}}, local_auth("testagent", "password"))
 		end}
 	end,
 	fun(Mock) ->
 		{"auth an agent overwrites the cache",
 		fun() ->
 			cache("testid", "testagent", "password", "Default", agent, []),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password")),
+			?assertMatch({ok, {allow, "testid", _Skills, agent, "Default"}}, local_auth("testagent", "password")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass", []}, _, State) ->
 				{ok, {ok, "testid", "Default", agent, []}, State}
 			end),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "newpass")),
-			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
-			?assertEqual(deny, local_auth("testagent", "password"))
+			?assertMatch({ok, {allow, "testid", _Skills, agent, "Default"}}, auth("testagent", "newpass")),
+			?assertMatch({ok, {allow, "testid", _Skills, agent, "Default"}}, local_auth("testagent", "newpass")),
+			?assertEqual({ok, deny}, local_auth("testagent", "password"))
 		end}
 	end,
 	fun(Mock) ->
 		{"integration denies, but doesn't remove from cache",
 		fun() ->
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
+			?assertMatch({ok, {allow, "1", _, agent, "Default"}}, local_auth("agent", "Password123")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, deny, State}
 			end),
-			?assertEqual(deny, auth("agent", "Password123")),
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123"))
+			?assertEqual({ok, deny}, auth("agent", "Password123")),
+			?assertMatch({ok, {allow, "1", _, agent, "Default"}}, local_auth("agent", "Password123"))
 		end}
 	end,
 	fun(Mock) ->
@@ -1114,8 +1115,8 @@ auth_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, destroy, State}
 			end),
-			?assertEqual(deny, auth("agent", "Password123")),
-			?assertEqual(deny, local_auth("agent", "Password123"))
+			?assertEqual(pass, auth("agent", "Password123")),
+			?assertEqual(pass, local_auth("agent", "Password123"))
 		end}
 	end,
 	fun(Mock) ->
@@ -1124,8 +1125,8 @@ auth_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, gooberpants, State}
 			end),
-			?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),
-			?assertMatch({allow, "1", _Skills, agent, "Default"}, local_auth("agent", "Password123"))
+			?assertMatch({ok, {allow, "1", _Skills, agent, "Default"}}, auth("agent", "Password123")),
+			?assertMatch({ok, {allow, "1", _Skills, agent, "Default"}}, local_auth("agent", "Password123"))
 		end}
 	end]}}.
 

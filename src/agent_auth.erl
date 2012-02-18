@@ -992,30 +992,42 @@ start_test_() ->
 	].
 
 get_agents_test_() ->
-	[{"no hook", fun() ->
+	{foreach, fun() ->
 		cpx_hooks:start_link(),
 		cpx_hooks:drop_hooks(get_agents),
+		cpx_hooks:set_hook(a, get_agents, somestore, get_agents, [], 10),
 
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, get_agents, fun() -> none end),
 		?assertEqual([], get_agents())
 	end},
-	{"with hooks", fun() ->
-		cpx_hooks:start_link(),
-		cpx_hooks:drop_hooks(get_agents),
-		cpx_hooks:set_hook(a, get_agents, somestore, get_agents1, [], 2),
-		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 1),
+	{"normal", fun() ->
+		meck:expect(somestore, get_agents, 0, 
+			{ok, [#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}]}),
+		
+		?assertEqual([#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}], get_agents())
+	end},
+	{"multiple sources", fun() ->
+		meck:expect(somestore, get_agents, 0, 
+			{ok, [#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}]}),
+		
+		meck:expect(somestore, get_agents2, 0, 
+			{ok, [#agent_auth{id="3", login="mama"}]}),
 
-		Auths1 = [#agent_auth{id="1", login="ali"}, #agent_auth{id="2", login="baba"}],
-		Auths2 = [#agent_auth{id="3", login="mama"}, #agent_auth{id="4", login="mia"}],
-
-		meck:new(somestore),
-		meck:expect(somestore, get_agents1, fun() -> {ok, Auths1} end),
-		meck:expect(somestore, get_agents2, fun() -> {ok, Auths2} end),
-
-		?assertEqual(Auths1 ++ Auths2, get_agents()),
-
-		?assert(meck:validate(somestore)),
-		meck:unload(somestore)
-	end}].
+		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
+		
+		?assertEqual([#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"},
+			#agent_auth{id="3", login="mama"}], get_agents())
+	end}]}.
 
 get_agents_by_profile_test_() ->
 	[{"no hook", fun() ->

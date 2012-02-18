@@ -98,12 +98,16 @@
 %%====================================================================
 
 start() ->
+	%% Agents
 	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
 	cpx_hooks:set_hook(mn_set_agent, set_agent, ?MODULE, set_agent, [], 100),
 	cpx_hooks:set_hook(mn_auth_agent, auth_agent, ?MODULE, auth, [], 100),
 	cpx_hooks:set_hook(mn_destroy_agent, destroy_agent, ?MODULE, destroy, [], 100),
+
+	%% Endpoints
+	cpx_hooks:set_hook(mn_set_endpoint, set_endpoint, ?MODULE, set_endpoint, [], 100),
 
 	build_tables().
 
@@ -408,7 +412,7 @@ get_agents(Profile) ->
 	end,
 	{ok, lists:sort(Sort, Agents)}.
 
--spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
+-spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {ok, any()} | {error, any()}).
 set_endpoint({Type, Aval}, Endpoint, Data) ->
 	case get_agent(Type, Aval) of
 		{ok, Rec} ->
@@ -417,7 +421,10 @@ set_endpoint({Type, Aval}, Endpoint, Data) ->
 			F = fun() ->
 				mnesia:write(Rec#agent_auth{endpoints = Newends})
 			end,
-			mnesia:transaction(F);
+			case mnesia:transaction(F) of
+				{atomic, ok} -> {ok, ok};
+				{error, Err} -> {error, Err}
+			end;
 		_ ->
 			{error, noagent}
 	end.

@@ -407,18 +407,11 @@ get_agents(Profile) ->
 		_ -> []
 	end.
 
--spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'}).
-set_endpoint({Type, Aval}, Endpoint, Data) ->
-	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
-			Midends = proplists:delete(Endpoint, Rec#agent_auth.endpoints),
-			Newends = [{Endpoint, Data} | Midends],
-			F = fun() ->
-				mnesia:write(Rec#agent_auth{endpoints = Newends})
-			end,
-			mnesia:transaction(F);
-		_ ->
-			{error, noagent}
+-spec(set_endpoint/3 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom(), Data :: any()) -> {'atomic', 'ok'} | {'error', any()}).
+set_endpoint({_Type, _Aval} = U, Endpoint, Data) ->
+	case cpx_hooks:trigger_hooks(set_endpoint, [U, Endpoint, Data], first) of
+		{ok, _} -> {atomic, ok};
+		{error, _} = E -> E
 	end.
 
 -spec(drop_endpoint/2 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom()) -> {'atomic', 'ok'}).
@@ -1197,6 +1190,33 @@ destroy_test_() ->
 		meck:expect(somestore, destroy_agent, fun(_, _) -> pass end),
 		?assertEqual({aborted, unhandled}, destroy(id, "fooid")),
 		?assert(meck:called(somestore, destroy_agent, [id, "fooid"])),
+		?assert(meck:validate(somestore))
+	end
+	]}.
+
+set_endpoint_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(set_endpoint),
+		cpx_hooks:set_hook(a, set_endpoint, somestore, set_endpoint, [], 1),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end, [
+	fun() ->
+		meck:expect(somestore, set_endpoint, fun(_, _, _) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, set_endpoint({id, "fooid"}, email_media, inband)),
+		?assert(meck:called(somestore, set_endpoint,
+			[{id, "fooid"}, email_media, inband])),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		%% Set endpoint call to a non existing agent also returns {error, unhandled}
+		meck:expect(somestore, set_endpoint, fun(_, _, _) -> {error, noagent} end),
+		?assertEqual({error, unhandled}, set_endpoint({id, "fooid"}, email_media, inband)),
+		?assert(meck:called(somestore, set_endpoint,
+			[{id, "fooid"}, email_media, inband])),
 		?assert(meck:validate(somestore))
 	end
 	]}.

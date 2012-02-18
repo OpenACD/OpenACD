@@ -395,13 +395,30 @@ get_agent(id, Value) ->
 -spec(get_agents/0 :: () -> [#agent_auth{}]).
 get_agents() ->
 	case cpx_hooks:trigger_hooks(get_agents, [], all) of
-		{ok, Auths} -> lists:flatten(Auths);
+		{ok, AuthsLists} ->
+			GetUniqueAgentsFun = fun(Auth = #agent_auth{id=Id, login=Login},
+						{IdSet, LoginSet, AuthAcc}) ->
+				case gb_sets:is_member(Id, IdSet) orelse
+						gb_sets:is_member(Login, LoginSet) of
+					false -> {gb_sets:add(Id, IdSet),
+						gb_sets:add(Login, LoginSet),
+						[Auth|AuthAcc]};
+					true -> {IdSet, LoginSet, AuthAcc}
+				end
+			end,
+
+			{_, _, UAuths} = lists:foldl(fun(Auths, Acc) ->
+				lists:foldl(GetUniqueAgentsFun, Acc, Auths)
+			end, {gb_sets:new(), gb_sets:new(), []}, AuthsLists),
+
+			lists:reverse(UAuths);
 		_ -> []
 	end.
 
 %% @doc Gets all the agents associated with `string() Profile'.
 -spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).
 get_agents(Profile) ->
+	%% TODO handle duplicate ids/logins. What if they're from a different profile?
 	case cpx_hooks:trigger_hooks(get_agents_by_profile, [Profile], all) of
 		{ok, Auths} -> lists:flatten(Auths);
 		_ -> []
@@ -1027,6 +1044,32 @@ get_agents_test_() ->
 		?assertEqual([#agent_auth{id="1", login="ali"},
 			#agent_auth{id="2", login="baba"},
 			#agent_auth{id="3", login="mama"}], get_agents())
+	end},
+	{"id conflict", fun() ->
+		meck:expect(somestore, get_agents, 0, 
+			{ok, [#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}]}),
+		
+		meck:expect(somestore, get_agents2, 0, 
+			{ok, [#agent_auth{id="1", login="mama"}]}),
+
+		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
+		
+		?assertEqual([#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}], get_agents())
+	end},
+	{"login conflict", fun() ->
+		meck:expect(somestore, get_agents, 0, 
+			{ok, [#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}]}),
+		
+		meck:expect(somestore, get_agents2, 0, 
+			{ok, [#agent_auth{id="3", login="ali"}]}),
+
+		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
+		
+		?assertEqual([#agent_auth{id="1", login="ali"},
+			#agent_auth{id="2", login="baba"}], get_agents())
 	end}]}.
 
 get_agents_by_profile_test_() ->

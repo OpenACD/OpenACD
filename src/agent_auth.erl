@@ -309,15 +309,38 @@ local_get_profile(Name) ->
 			Profile
 	end.
 
-%% @doc Return all profiles as `[{string() Name, [atom] Skills}]'.
+%% @doc Return all agent profiles.
 -spec(get_profiles/0 :: () -> [#agent_profile{}]).
 get_profiles() ->
-	F = fun() ->
-		QH = qlc:q([ X || X <- mnesia:table(agent_profile)]),
-		qlc:e(QH)
+	case cpx_hooks:trigger_hooks(get_profiles, [], all) of
+		{ok, ProfilesLists} ->
+			IsUniqueFun = fun(#agent_profile{id=Id, name=Name}, {IdSet, NameSet}) ->
+				not (gb_sets:is_member(Id, IdSet) orelse gb_sets:is_member(Name, NameSet))
+			end,
+
+			AddToChecksFun = fun(#agent_profile{id=Id, name=Name}, {IdSet, NameSet}) ->
+				{gb_sets:add(Id, IdSet), gb_sets:add(Name, NameSet)}
+			end,
+
+			Init = {gb_sets:new(), gb_sets:new()},
+			Profiles = get_uniques(IsUniqueFun, AddToChecksFun, Init, ProfilesLists),
+			sort_profiles(Profiles);
+		_ -> []
+	end.
+
+get_uniques(IsUniqueFun, AddToChecksFun, Init, EntriesLists) ->
+	GetUniquesFun = fun(Entry, {UniqueCheckAcc, UniqueEntries}) ->
+		case IsUniqueFun(Entry, UniqueCheckAcc) of
+			true -> {AddToChecksFun(Entry, UniqueCheckAcc), [Entry|UniqueEntries]};
+			false -> {UniqueCheckAcc, UniqueEntries}
+		end
 	end,
-	{atomic, Profiles} = mnesia:transaction(F),
-	sort_profiles(Profiles).
+
+	{_, Uniques} = lists:foldl(fun(Entries, Acc) ->
+		lists:foldl(GetUniquesFun, Acc, Entries)
+	end, {Init, []}, EntriesLists),
+
+	lists:reverse(Uniques).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
 %% @depricated Use {@link set_agent/2} instead.
@@ -396,22 +419,16 @@ get_agent(id, Value) ->
 get_agents() ->
 	case cpx_hooks:trigger_hooks(get_agents, [], all) of
 		{ok, AuthsLists} ->
-			GetUniqueAgentsFun = fun(Auth = #agent_auth{id=Id, login=Login},
-						{IdSet, LoginSet, AuthAcc}) ->
-				case gb_sets:is_member(Id, IdSet) orelse
-						gb_sets:is_member(Login, LoginSet) of
-					false -> {gb_sets:add(Id, IdSet),
-						gb_sets:add(Login, LoginSet),
-						[Auth|AuthAcc]};
-					true -> {IdSet, LoginSet, AuthAcc}
-				end
+			IsUniqueFun = fun(#agent_auth{id=Id, login=Login}, {IdSet, LoginSet}) ->
+				not (gb_sets:is_member(Id, IdSet) orelse gb_sets:is_member(Login, LoginSet))
 			end,
 
-			{_, _, UAuths} = lists:foldl(fun(Auths, Acc) ->
-				lists:foldl(GetUniqueAgentsFun, Acc, Auths)
-			end, {gb_sets:new(), gb_sets:new(), []}, AuthsLists),
+			AddToChecksFun = fun(#agent_auth{id=Id, login=Login}, {IdSet, LoginSet}) ->
+				{gb_sets:add(Id, IdSet), gb_sets:add(Login, LoginSet)}
+			end,
 
-			lists:reverse(UAuths);
+			Init = {gb_sets:new(), gb_sets:new()},
+			get_uniques(IsUniqueFun, AddToChecksFun, Init, AuthsLists);
 		_ -> []
 	end.
 
@@ -1072,6 +1089,7 @@ get_agents_test_() ->
 			#agent_auth{id="2", login="baba"}], get_agents())
 	end}]}.
 
+%% TODO: test for duplicates
 get_agents_by_profile_test_() ->
 	[{"no hook", fun() ->
 		cpx_hooks:start_link(),
@@ -1101,41 +1119,50 @@ get_agents_by_profile_test_() ->
 	end}].
 
 get_agent_test_() ->
-	[{"no hook", fun() ->
+	{foreach, fun() ->
 		cpx_hooks:start_link(),
 		cpx_hooks:drop_hooks(get_agent),
+		cpx_hooks:set_hook(a, get_agent, somestore, get_agent, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, get_agent, fun(_, _) -> none end),
 
 		?assertEqual({atomic, []}, get_agent("noone")),
 		?assertEqual({atomic, []}, get_agent(login, "noone")),
-		?assertEqual({atomic, []}, get_agent(id, "1"))
+		?assertEqual({atomic, []}, get_agent(id, "1")),
+
+		?assert(meck:validate(somestore))
 	end},
-	{"with hooks", fun() ->
-		cpx_hooks:start_link(),
-		cpx_hooks:drop_hooks(get_agent),
-		cpx_hooks:set_hook(a, get_agent, somestore, get_agent1, [], 2),
-		cpx_hooks:set_hook(b, get_agent, somestore, get_agent2, [], 1),
+	{"by id", fun() ->
+		cpx_hooks:set_hook(b, get_agent, somestore, get_agent2, [], 5),
 
 		Agent = #agent_auth{id="1", login="ali"},
 
-		meck:new(somestore),
-		meck:expect(somestore, get_agent1, fun(_) -> none end),
-		meck:expect(somestore, get_agent2, fun("ali") -> {ok, Agent} end),
-		meck:expect(somestore, get_agent2, fun(login, "ali") -> {ok, Agent};
-			(id, "1") -> {ok, Agent};
-			(_, _) -> none
-		end),
+		meck:expect(somestore, get_agent, fun(id, _) -> none end),
+		meck:expect(somestore, get_agent2, fun(id, "1") -> {ok, Agent} end),
+
+		?assertEqual({atomic, [Agent]}, get_agent(id, "1")),
+
+		?assert(meck:validate(somestore))
+	end},
+	{"by login", fun() ->
+		cpx_hooks:set_hook(b, get_agent, somestore, get_agent2, [], 5),
+
+		Agent = #agent_auth{id="1", login="ali"},
+
+		meck:expect(somestore, get_agent, fun(login, _) -> none end),
+		meck:expect(somestore, get_agent2, fun(login, "ali") -> {ok, Agent} end),
 
 		?assertEqual({atomic, [Agent]}, get_agent("ali")),
 		?assertEqual({atomic, [Agent]}, get_agent(login, "ali")),
-		?assertEqual({atomic, [Agent]}, get_agent(id, "1")),		
 
-		?assertEqual({atomic, []}, get_agent("kazam")),
-		?assertEqual({atomic, []}, get_agent(login, "kazam")),
-		?assertEqual({atomic, []}, get_agent(id, "2")),
-
-		?assert(meck:validate(somestore)),
-		meck:unload(somestore)
-	end}].
+		?assert(meck:validate(somestore))
+	end}
+	]}.
 
 set_agent_test_() ->
 	[{"no hooks", {setup, fun() ->
@@ -1275,6 +1302,80 @@ set_endpoint_test_() ->
 		?assert(meck:validate(somestore))
 	end
 	]}.
+
+get_profiles_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_profiles),
+		cpx_hooks:set_hook(a, get_profiles, somestore, get_profiles, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, get_profiles, fun() -> none end),
+		?assertEqual([], get_agents())
+	end},
+	{"normal", fun() ->
+		meck:expect(somestore, get_profiles, 0, 
+			{ok, [#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}]}),
+		
+		?assertEqual([#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}], get_profiles())
+	end},
+	{"sorted", fun() ->
+		meck:expect(somestore, get_profiles, 0, 
+			{ok, [#agent_profile{id="1", name="ali", order = 20},
+			#agent_profile{id="2", name="baba", order = 10},
+			#agent_profile{id="3", name="aka", order = 20}]}),
+		
+		?assertEqual([#agent_profile{id="2", name="baba", order = 10},
+			#agent_profile{id="3", name="aka", order = 20},
+			#agent_profile{id="1", name="ali", order = 20}], get_profiles())
+	end},
+	{"multiple sources", fun() ->
+		meck:expect(somestore, get_profiles, 0, 
+			{ok, [#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}]}),
+		
+		meck:expect(somestore, get_profiles2, 0, 
+			{ok, [#agent_profile{id="3", name="mama"}]}),
+
+		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
+		
+		?assertEqual([#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"},
+			#agent_profile{id="3", name="mama"}], get_profiles())
+	end},
+	{"id conflict", fun() ->
+		meck:expect(somestore, get_profiles, 0, 
+			{ok, [#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}]}),
+		
+		meck:expect(somestore, get_profiles2, 0, 
+			{ok, [#agent_profile{id="1", name="mama"}]}),
+
+		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
+		
+		?assertEqual([#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}], get_profiles())
+	end},
+	{"name conflict", fun() ->
+		meck:expect(somestore, get_profiles, 0, 
+			{ok, [#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}]}),
+		
+		meck:expect(somestore, get_profiles2, 0, 
+			{ok, [#agent_profile{id="3", name="ali"}]}),
+
+		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
+		
+		?assertEqual([#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}], get_profiles())
+	end}]}.
 
 diff_recs_test_() ->
 	[{"agent_auth records",

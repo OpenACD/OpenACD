@@ -102,10 +102,10 @@ start() ->
 %% @doc Add `#release_opt{} Rec' to the database. 
 -spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 new_release(Rec) when is_record(Rec, release_opt) ->
-	F = fun() ->
-		mnesia:write(Rec)
-	end,
-	mnesia:transaction(F).
+	case cpx_hooks:trigger_hooks(new_release, [Rec], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {aborted, Err}
+	end.
 
 %% @doc Remove the release option `string() Label' from the database.
 -spec(destroy_release/1 :: (Label :: string()) -> {'atomic', 'ok'}).
@@ -1244,6 +1244,29 @@ get_releases_test_() ->
 		
 		?assertEqual([Release1, Release2, Release3], get_releases())
 	end}]}. %% no conflict handling
+
+
+new_release_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(new_release),
+		cpx_hooks:set_hook(a, new_release, somestore, new_release, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		Release = #release_opt{label="a"},
+		meck:expect(somestore, new_release, 1, none),
+		?assertEqual({aborted, unhandled}, new_release(Release))
+	end},
+	{"normal", fun() ->
+		Release = #release_opt{label="a"},
+		meck:expect(somestore, new_release, 1, {ok, ok}),
+		?assertEqual({atomic, ok}, new_release(Release))
+	end}]}.
 
 encode_password_test_() ->
 	[?_assertEqual("d41d8cd98f00b204e9800998ecf8427e", encode_password("")),

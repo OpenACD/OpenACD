@@ -759,44 +759,49 @@ get_agents_test_() ->
 			#agent_auth{id="2", login="baba"}], get_agents())
 	end},
 	{"multiple sources", fun() ->
-		meck:expect(somestore, get_agents, 0, 
-			{ok, [#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"}]}),
+		Agent1ali = #agent_auth{id="1", login="ali"},
+		Agent2baba = #agent_auth{id="2", login="baba"},
+		Agent3kazam = #agent_auth{id="3", login="kazam"},
+
+		meck:expect(somestore, get_agents, 0,
+			{ok, [Agent1ali, Agent2baba]}),
 		
 		meck:expect(somestore, get_agents2, 0, 
-			{ok, [#agent_auth{id="3", login="mama"}]}),
+			{ok, [Agent3kazam]}),
 
 		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
 		
-		?assertEqual([#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"},
-			#agent_auth{id="3", login="mama"}], get_agents())
+		?assertEqual([Agent1ali, Agent2baba, Agent3kazam], get_agents())
 	end},
 	{"id conflict", fun() ->
+		Agent1ali = #agent_auth{id="1", login="ali"},
+		Agent2baba = #agent_auth{id="2", login="baba"},
+		Agent1kazam = #agent_auth{id="1", login="kazam"},
+
 		meck:expect(somestore, get_agents, 0, 
-			{ok, [#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"}]}),
+			{ok, [Agent1ali, Agent2baba]}),
 		
 		meck:expect(somestore, get_agents2, 0, 
-			{ok, [#agent_auth{id="1", login="mama"}]}),
+			{ok, [Agent1kazam]}),
 
 		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
 		
-		?assertEqual([#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"}], get_agents())
+		?assertEqual([Agent1ali, Agent2baba], get_agents())
 	end},
 	{"login conflict", fun() ->
+		Agent1ali = #agent_auth{id="1", login="ali"},
+		Agent2baba = #agent_auth{id="2", login="baba"},
+		Agent3ali = #agent_auth{id="3", login="ali"},
+
 		meck:expect(somestore, get_agents, 0, 
-			{ok, [#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"}]}),
+			{ok, [Agent1ali, Agent2baba]}),
 		
 		meck:expect(somestore, get_agents2, 0, 
-			{ok, [#agent_auth{id="3", login="ali"}]}),
+			{ok, [Agent3ali]}),
 
 		cpx_hooks:set_hook(b, get_agents, somestore, get_agents2, [], 5),
 		
-		?assertEqual([#agent_auth{id="1", login="ali"},
-			#agent_auth{id="2", login="baba"}], get_agents())
+		?assertEqual([Agent1ali, Agent2baba], get_agents())
 	end}]}.
 
 %% TODO: test for duplicates
@@ -1029,62 +1034,68 @@ get_profiles_test_() ->
 		?assertEqual([], get_agents())
 	end},
 	{"normal", fun() ->
+		Profiles = [#agent_profile{id="1", name="ali"},
+			#agent_profile{id="2", name="baba"}],
+
 		meck:expect(somestore, get_profiles, 0, 
-			{ok, [#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}]}),
+			{ok, Profiles}),
 		
-		?assertEqual([#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}], get_profiles())
+		?assertEqual(Profiles, get_profiles())
 	end},
 	{"sorted", fun() ->
-		meck:expect(somestore, get_profiles, 0, 
-			{ok, [#agent_profile{id="1", name="ali", order = 20},
-			#agent_profile{id="2", name="baba", order = 10},
-			#agent_profile{id="3", name="aka", order = 20}]}),
+		Profile20b = #agent_profile{id="1", name="ali", order = 20},
+		Profile10 = #agent_profile{id="2", name="baba", order = 10},
+		Profile20a = #agent_profile{id="3", name="aka", order = 20},
 		
-		?assertEqual([#agent_profile{id="2", name="baba", order = 10},
-			#agent_profile{id="3", name="aka", order = 20},
-			#agent_profile{id="1", name="ali", order = 20}], get_profiles())
+		meck:expect(somestore, get_profiles, 0,
+			{ok, [Profile20b, Profile10, Profile20a]}),
+		
+		?assertEqual([Profile10, Profile20a, Profile20b], get_profiles())
 	end},
 	{"multiple sources", fun() ->
+		Profile1 = #agent_profile{id="1", name="ali"},
+		Profile2 = #agent_profile{id="2", name="baba"},
+		Profile3 = #agent_profile{id="3", name="mama"},
+
 		meck:expect(somestore, get_profiles, 0, 
-			{ok, [#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}]}),
+			{ok, [Profile1, Profile2]}),
 		
 		meck:expect(somestore, get_profiles2, 0, 
-			{ok, [#agent_profile{id="3", name="mama"}]}),
+			{ok, [Profile3]}),
 
 		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
 		
-		?assertEqual([#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"},
-			#agent_profile{id="3", name="mama"}], get_profiles())
+		?assertEqual([Profile1, Profile2, Profile3], get_profiles())
 	end},
 	{"id conflict", fun() ->
+		Profile1ali = #agent_profile{id="1", name="ali"},
+		Profile2baba = #agent_profile{id="2", name="baba"},
+		Profile1kazam = #agent_profile{id="1", name="kazam"},
+
 		meck:expect(somestore, get_profiles, 0, 
-			{ok, [#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}]}),
+			{ok, [Profile1ali, Profile2baba]}),
 		
 		meck:expect(somestore, get_profiles2, 0, 
-			{ok, [#agent_profile{id="1", name="mama"}]}),
+			{ok, [Profile1kazam]}),
 
 		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
 		
-		?assertEqual([#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}], get_profiles())
+		?assertEqual([Profile1ali, Profile2baba], get_profiles())
 	end},
 	{"name conflict", fun() ->
+		Profile1ali = #agent_profile{id="1", name="ali"},
+		Profile2baba = #agent_profile{id="2", name="baba"},
+		Profile3ali = #agent_profile{id="3", name="ali"},
+
 		meck:expect(somestore, get_profiles, 0, 
-			{ok, [#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}]}),
+			{ok, [Profile1ali, Profile2baba]}),
 		
 		meck:expect(somestore, get_profiles2, 0, 
-			{ok, [#agent_profile{id="3", name="ali"}]}),
+			{ok, [Profile3ali]}),
 
 		cpx_hooks:set_hook(b, get_profiles, somestore, get_profiles2, [], 5),
 		
-		?assertEqual([#agent_profile{id="1", name="ali"},
-			#agent_profile{id="2", name="baba"}], get_profiles())
+		?assertEqual([Profile1ali, Profile2baba], get_profiles())
 	end}]}.
 
 get_profile_test_() ->

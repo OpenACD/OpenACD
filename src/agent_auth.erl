@@ -375,16 +375,10 @@ set_extended_prop({_, _} = U, Prop, Val) ->
 	end.
 
 -spec(drop_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'atomic', 'ok'}).
-drop_extended_prop({Type, Aval}, Prop) ->
-	case get_agent(Type, Aval) of
-		{atomic, [Rec]} ->
-			Newprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
-			F = fun() ->
-				mnesia:write(Rec#agent_auth{extended_props = Newprops})
-			end,
-			mnesia:transaction(F);
-		_ ->
-			{error, noagent}
+drop_extended_prop({_, _} = U, Prop) ->
+	case cpx_hooks:trigger_hooks(drop_extended_prop, [U, Prop], first) of
+		{ok, _} -> {atomic, ok};
+		{error, unhandled} -> {error, noagent}
 	end.
 
 %% @doc Get an extened property either from the database or a record 
@@ -1190,5 +1184,27 @@ set_extended_prop_test_() ->
 		?assertEqual({atomic, ok}, set_extended_prop({id, "someone"}, someprop, val)),
 		?assert(meck:validate(somestore))
 	end}]}.
+
+drop_extended_prop_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(drop_extended_prop),
+		cpx_hooks:set_hook(a, drop_extended_prop, somestore, drop_extended_prop, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, drop_extended_prop, fun(_, noprop) -> none end),
+		?assertEqual({error, noagent}, drop_extended_prop({id, "noone"}, noprop)),
+		?assert(meck:validate(somestore))
+	end},
+	{"with prop", fun() ->
+		meck:expect(somestore, drop_extended_prop, fun(_, someprop) -> {ok, someval} end),
+		?assertEqual({atomic, ok}, drop_extended_prop({id, "someone"}, someprop)),
+		?assert(meck:validate(somestore))
+	end}
+	]}.
 
 -endif.

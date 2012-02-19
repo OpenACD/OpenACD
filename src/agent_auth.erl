@@ -115,24 +115,11 @@ destroy_release(Label) when is_list(Label) ->
 %% @doc Remove the release option with the key (id, label) of value from the 
 %% database.
 -spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'} | {'aborted', any()}).
-destroy_release(id, Id) ->
-	F = fun() ->
-		mnesia:delete({release_opt, Id})
-	end,
-	mnesia:transaction(F);
-destroy_release(label, Label) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= Label]),
-		case qlc:e(QH) of
-			[] ->
-				ok;
-			[#release_opt{id = Id}] ->
-				mnesia:delete({release_opt, Id});
-			_Else ->
-				{error, ambiguous_label}
-		end
-	end,
-	mnesia:transaction(F).
+destroy_release(Type, Val) ->
+	case cpx_hooks:trigger_hooks(destroy_release, [Type, Val], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {aborted, Err}
+	end.
 
 %% @doc Update the release option `string() Label' to `#release_opt{} Rec'.
 -spec(update_release/2 :: (Label :: string(), Rec :: #release_opt{}) -> {'atomic', 'ok'}).
@@ -1266,6 +1253,38 @@ new_release_test_() ->
 		Release = #release_opt{label="a"},
 		meck:expect(somestore, new_release, 1, {ok, ok}),
 		?assertEqual({atomic, ok}, new_release(Release))
+	end}]}.
+
+destroy_release_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(destroy_release),
+		cpx_hooks:set_hook(a, destroy_release, somestore, destroy_release, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, destroy_release, 2, none),
+		?assertEqual({aborted, unhandled}, destroy_release("rela")),
+		?assertEqual({aborted, unhandled}, destroy_release(id, "relb")),
+		?assertEqual({aborted, unhandled}, destroy_release(label, "relc")),
+
+		?assert(meck:validate(somestore))
+	end},
+	{"normal", fun() ->
+		meck:expect(somestore, destroy_release, 2, {ok, ok}),
+		?assertEqual({atomic, ok}, destroy_release("rela")),
+		?assertEqual({atomic, ok}, destroy_release(id, "relb")),
+		?assertEqual({atomic, ok}, destroy_release(label, "relc")),
+
+		?assert(meck:called(somestore, destroy_release, [label, "rela"])),
+		?assert(meck:called(somestore, destroy_release, [id, "relb"])),
+		?assert(meck:called(somestore, destroy_release, [label, "relc"])),
+
+		?assert(meck:validate(somestore))
 	end}]}.
 
 encode_password_test_() ->

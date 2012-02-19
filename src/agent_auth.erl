@@ -154,22 +154,15 @@ get_releases() ->
 	lists:sort(Opts).
 
 %% @doc Create a new agent profile.
--spec(new_profile/1 :: (Rec :: #agent_profile{}) -> 'error' | {'atomic', 'ok'}).
-new_profile(#agent_profile{id = undefined} = Rec) ->
-	new_profile(give_profile_id(Rec));
+-spec(new_profile/1 :: (Rec :: #agent_profile{}) -> {'error', any()} | {'atomic', 'ok'}).
 new_profile(#agent_profile{name = "Default"}) ->
 	?ERROR("Default cannot be added as a new profile", []),
-	error;
-new_profile(Rec) ->
-	F = fun() ->
-		case qlc:e(qlc:q([Out || #agent_profile{name = N} = Out <- mnesia:table(agent_profile), N =:= Rec#agent_profile.name])) of
-			[] ->
-				mnesia:write(Rec);
-			_ ->
-				erlang:error(duplicate_name, Rec)
-		end
-	end,
-	mnesia:transaction(F).
+	{error, not_allowed};
+new_profile(Rec) when is_record(Rec, agent_profile)->
+	case cpx_hooks:trigger_hooks(new_profile, [Rec], first) of
+		{ok, _} -> {atomic, ok};
+		Err -> Err
+	end.
 
 %% @doc Create a new agent profile `string() Name' with `[atom()] Skills'.
 -spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
@@ -179,7 +172,7 @@ new_profile(Name, Skills) ->
 
 -spec(set_profile/3 :: (Oldname :: string(), Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Name, Skills) ->
-	
+
 	Old = agent_auth:get_profile(Oldname),
 	New = Old#agent_profile{
 		name = Name,
@@ -193,34 +186,13 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 	case Oldname =:= "Default" andalso Newname =/= "Default" of
 		true ->
 			?ERROR("Cannot change the name of the default profile", []),
-			error;
+			{error, not_allowed};
 		_ ->
 			case cpx_hooks:trigger_hooks(set_profile, [Oldname, Rec], first) of
 				{ok, _} -> {atomic, ok};
 				Err -> Err
 			end
 	end.
-%% @doc generate an id for the profile rec and return the 'fixed' rec.
-give_profile_id(Rec) ->
-	F = fun() ->
-		qlc:e(qlc:q([Id || #agent_profile{id = Id} <- mnesia:table(agent_profile)]))
-	end,
-	{atomic, Ids} = mnesia:transaction(F),
-	Fold = fun(Elem, Acc) ->
-		Newacc = try list_to_integer(Elem) of
-			E when Acc < E->
-				E;
-			_ ->
-				Acc
-		catch
-			error:badarg ->
-				Acc
-		end,
-		Newacc
-	end,
-	Id = integer_to_list(lists:foldl(Fold, 0, Ids) + 1),
-	Rec#agent_profile{id = Id}.
-	
 
 %% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
 -spec(destroy_profile/1 :: (Name :: string()) -> 'error' | {'atomic', 'ok'}).
@@ -388,18 +360,10 @@ set_endpoint({_Type, _Aval} = U, Endpoint, Data) ->
 	end.
 
 -spec(drop_endpoint/2 :: (Key :: {'login' | 'id', string()}, Endpoint :: atom()) -> {'atomic', 'ok'}).
-drop_endpoint({Type, Aval}, Endpoint) ->
-	case get_agent(Type, Aval) of
-		{atomic, [#agent_auth{endpoints = OldEnds} = Rec]} ->
-			case proplists:delete(Endpoint, Rec#agent_auth.endpoints) of
-				OldEnds ->
-					{atomic, ok};
-				Newends ->
-					F = fun() ->
-						mnesia:write(Rec#agent_auth{endpoints = Newends})
-					end,
-					mnesia:transaction(F)
-			end
+drop_endpoint({_Type, _Aval} = U, Endpoint) ->
+	case cpx_hooks:trigger_hooks(drop_endpoint, [U, Endpoint], first) of
+		{ok, _} -> {atomic, ok};
+		{error, _} = E -> E
 	end.
 
 -spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'atomic', 'ok'}).
@@ -1005,6 +969,33 @@ set_endpoint_test_() ->
 	end
 	]}.
 
+drop_endpoint_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(drop_endpoint),
+		cpx_hooks:set_hook(a, drop_endpoint, somestore, drop_endpoint, [], 1),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end, [
+	fun() ->
+		meck:expect(somestore, drop_endpoint, fun(_, _) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, drop_endpoint({id, "fooid"}, email_media)),
+		?assert(meck:called(somestore, drop_endpoint,
+			[{id, "fooid"}, email_media])),
+		?assert(meck:validate(somestore))
+	end,
+	fun() ->
+		%% Drop endpoint call to a non existing agent also returns {error, unhandled}
+		meck:expect(somestore, drop_endpoint, fun(_, _) -> {error, noagent} end),
+		?assertEqual({error, unhandled}, drop_endpoint({id, "fooid"}, email_media)),
+		?assert(meck:called(somestore, drop_endpoint,
+			[{id, "fooid"}, email_media])),
+		?assert(meck:validate(somestore))
+	end
+	]}.
+
 get_profiles_test_() ->
 	{foreach, fun() ->
 		cpx_hooks:start_link(),
@@ -1129,9 +1120,37 @@ set_profile_test_() ->
 		?assertEqual({atomic, ok}, set_profile("foo", Profile)),
 		?assert(meck:validate(somestore))
 	end},
-	{"disallow renaming of default", fun() ->
+	{"disallow renaming of Default", fun() ->
 		Profile = #agent_profile{id="1", name="baz"},
-		?assertEqual(error, set_profile("Default", Profile))
+		?assertEqual({error, not_allowed}, set_profile("Default", Profile))
+	end}
+	%% TODO does not handle duplicate name
+	]}.
+
+new_profile_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(new_profile),
+		cpx_hooks:set_hook(a, new_profile, somestore, new_profile, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, new_profile, fun(_) -> none end),
+		?assertEqual({error, unhandled}, new_profile(#agent_profile{name="baz"})),
+		?assert(meck:validate(somestore))
+	end},
+	{"normal", fun() ->
+		Profile = #agent_profile{id="1", name="baz"},
+		meck:expect(somestore, new_profile, fun(_) -> {ok, Profile} end),
+		?assertEqual({atomic, ok}, new_profile(Profile)),
+		?assert(meck:validate(somestore))
+	end},
+	{"disallow adding Default", fun() ->
+		Profile = #agent_profile{id="1", name="Default"},
+		?assertEqual({error, not_allowed}, new_profile(Profile))
 	end}
 	%% TODO does not handle duplicate name
 	]}.

@@ -381,82 +381,14 @@ get_extended_prop({_, _} = U, Prop) ->
 -type(profile_name() :: string()).
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
-	Extended = case get_agent(Username) of
-		{atomic, [Rec]} ->
-			Rec#agent_auth.extended_props;
-		_Else ->
-			[]
-	end,
-	try integration:agent_auth(Username, Password, Extended) of
-		deny ->
-			?INFO("integration denial for ~p", [Username]),
-			%destroy(Username),
-			deny;
-		destroy ->
-			destroy(Username),
-			deny;
-		{ok, Id, Profile, Security, Newextended} ->
-			?INFO("integration allow for ~p", [Username]),
-			cache(Id, Username, Password, Profile, Security, Newextended),
-			local_auth(Username, Password);
-		{error, nointegration} ->
-			?INFO("No integration, local authing ~p", [Username]),
-			local_auth(Username, Password)
-	catch
-		throw:{badreturn, Err} ->
-			?WARNING("Integration gave a bad return of ~p", [Err]),
-			local_auth(Username, Password)
+	case cpx_hooks:trigger_hooks(auth_agent, [Username, Password], first) of
+		{ok, Res} -> Res;
+		_ -> deny
 	end.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-%% @doc Caches the passed `Username', `Password', `Skills', and `Security' 
-%% type.  to the mnesia database.  `Username' is the plaintext name and 
-%% used as the key.  `Password' is assumed to be plaintext; will be 
-%% erlang:md5'ed.  `Security' is either `agent', `supervisor', or `admin'.
-%% @depricated Use {@link cache/2} instead.
--type(profile() :: string()).
--type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
--spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
-						{'atomic', 'ok'} | {'aborted', any()}).
-cache(Id, Username, Password, {Profile, Skills}, Security, Extended) ->
-	cache(Id, [
-		{id, Id},
-		{login, Username},
-		{password, Password},
-		{profile, Profile},
-		{skills, Skills},
-		{securitylevel, Security},
-		{extended_props, Extended}
-	]);
-cache(Id, Username, Password, [Isskill | _Tail] = Skills, Security, Extended) when is_atom(Isskill); is_tuple(Isskill) ->
-	case get_agent(id, Id) of
-		{atomic, [Agent]} ->
-			cache(Id, Username, Password, {Agent#agent_auth.profile, Skills}, Security, Extended);
-		{atomic, []} ->
-			cache(Id, Username, Password, {"Default", Skills}, Security, Extended)
-	end;
-cache(Id, Username, Password, Profile, Security, Extended) ->
-	cache(Id, Username, Password, {Profile, []}, Security, Extended).
-
-cache(Id, Props) ->
-	F = fun() ->
-		QH = qlc:q([A || A <- mnesia:table(agent_auth), A#agent_auth.id =:= Id]),
-		Writerec = case qlc:e(QH) of
-			[] ->
-				Midrec = build_agent_record(Props, #agent_auth{}),
-				Midrec#agent_auth{id = Id, integrated = util:now()};
-			[Baserec] ->
-				Midrec = build_agent_record(Props, Baserec),
-				Midrec#agent_auth{id = Id, integrated = util:now()}
-		end,
-		mnesia:write(Writerec)
-	end,
-	Out = mnesia:transaction(F),
-	?DEBUG("Cache username result:  ~p", [Out]),
-	Out.
 	
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
@@ -538,26 +470,6 @@ destroy(Key, Value) ->
 	case cpx_hooks:trigger_hooks(destroy_agent, [Key, Value], first) of
 		{ok, _} -> {atomic, ok};
 		{error, Err} -> {aborted, Err}
-	end.
-
-%% @private 
-% Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
-% internally called by the auth callback; there should be no need to call this directly (aside from tests).
--spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'allow', string(), skill_list(), security_level(), profile_name()} | 'deny').
-local_auth(Username, BasePassword) -> 
-	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username, X#agent_auth.password =:= Password]),
-		qlc:e(QH)
-	end,
-	case mnesia:transaction(F) of
-		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
-			?DEBUG("Auth is coolbeans for ~p", [Username]),
-			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
-			{allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
-		Else ->
-			?DEBUG("Denying auth due to ~p", [Else]),
-			deny
 	end.
 
 %% @doc Sorts the profiles based on sort order, then alphabetical.
@@ -1284,6 +1196,36 @@ destroy_release_test_() ->
 		?assert(meck:called(somestore, destroy_release, [id, "relb"])),
 		?assert(meck:called(somestore, destroy_release, [label, "relc"])),
 
+		?assert(meck:validate(somestore))
+	end}]}.
+
+auth_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(auth),
+		cpx_hooks:set_hook(a, auth_agent, somestore, auth_agent, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, auth_agent, 2, none),
+		?assertEqual(deny, auth("user", "password")),
+
+		?assert(meck:validate(somestore))
+	end},
+	{"allow", fun() ->
+		meck:expect(somestore, auth_agent, 2, {ok, {allow, "fooid",
+			[foonglish], admin, "foobar"}}),
+		?assertEqual({allow, "fooid", [foonglish], admin, "foobar"},
+			auth("user", "password")),
+		?assert(meck:validate(somestore))
+	end},
+	{"deny", fun() ->
+		meck:expect(somestore, auth_agent, 2, {ok, deny}),
+		?assertEqual(deny, auth("user", "wrongo")),
 		?assert(meck:validate(somestore))
 	end}]}.
 

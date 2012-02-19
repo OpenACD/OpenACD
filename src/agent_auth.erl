@@ -1205,6 +1205,46 @@ drop_extended_prop_test_() ->
 	end}
 	]}.
 
+get_releases_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_releases),
+		cpx_hooks:set_hook(a, get_releases, somestore, get_releases, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, get_releases, fun() -> none end),
+		?assertEqual([], get_releases())
+	end},
+	{"normal", fun() ->
+		Releases = [#release_opt{label="a"},
+			#release_opt{label="b"}],
+
+		meck:expect(somestore, get_releases, 0, 
+			{ok, Releases}),
+		
+		?assertEqual(Releases, get_releases())
+	end},
+	{"multiple sources", fun() ->
+		Release1 = #release_opt{label="a"},
+		Release2 = #release_opt{label="b"},
+		Release3 = #release_opt{label="c"},
+
+		meck:expect(somestore, get_releases, 0, 
+			{ok, [Release1, Release2]}),
+		
+		meck:expect(somestore, get_releases2, 0, 
+			{ok, [Release3]}),
+
+		cpx_hooks:set_hook(b, get_releases, somestore, get_releases2, [], 5),
+		
+		?assertEqual([Release1, Release2, Release3], get_releases())
+	end}]}. %% no conflict handling
+
 encode_password_test_() ->
 	[?_assertEqual("d41d8cd98f00b204e9800998ecf8427e", encode_password("")),
 	?_assertEqual("9a618248b64db62d15b300a07b00580b", encode_password("supersecret"))].

@@ -47,14 +47,11 @@
 %% API
 -export([
 	start/0,
-	auth/2,
-	build_tables/0
+	auth/2
 ]).
 -export([
-	cache/6,
 	destroy/1,
 	destroy/2,
-	merge/3,
 	add_agent/7,
 	add_agent/5,
 	add_agent/1,
@@ -90,13 +87,6 @@
 	update_release/2,
 	get_releases/0
 	]).
-%% helper funcs for merge.
--export([
-	query_agent_auth/1,
-	query_profiles/1,
-	query_release/1,
-	upgrade_v1_table/0
-]).
 
 %%====================================================================
 %% API
@@ -468,115 +458,6 @@ get_extended_prop(#agent_auth{extended_props = Props}, Prop) ->
 		Else -> {ok, Else}
 	end.
 
-%% @doc Utility function to handle merging data after a net split.  Takes the 
-%% given nodes, selects all records with a timestamp greater than the given 
-%% time, merges them, and passes the resulting list back to Pid.  Best if used
-%% inside a spawn.
--spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok' | {'error', any()}).
-merge(Nodes, Time, Replyto) ->
-	Auths = merge_results(query_nodes(Nodes, Time, query_agent_auth)),
-	Profs = merge_results(query_nodes(Nodes, Time, query_profiles)),
-	Rels = merge_results(query_nodes(Nodes, Time, query_release)),
-%	Auths = merge_agent_auth(Nodes, Time),
-%	Profs = merge_profiles(Nodes, Time),
-%	Rels = merge_release(Nodes, Time),
-	Recs = lists:append([Auths, Profs, Rels]),
-	Replyto ! {merge_complete, agent_auth, Recs},
-	ok.
-
--spec(query_agent_auth/1 :: (Time :: pos_integer()) -> {'atomic', [#agent_auth{}]}).
-query_agent_auth(Time) ->
-	F = fun() ->
-		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
-		qlc:e(QH)
-	end,
-	mnesia:transaction(F).
-
--spec(query_profiles/1 :: (Time :: pos_integer()) -> {'atomic', [#agent_profile{}]}).
-query_profiles(Time) ->
-	F = fun() ->
-		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
-		qlc:e(QH)
-	end,
-	mnesia:transaction(F).
-
--spec(query_release/1 :: (Time :: pos_integer()) -> {'atomic', [#release_opt{}]}).
-query_release(Time) ->
-	F = fun() ->
-		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
-		qlc:e(QH)
-	end,
-	mnesia:transaction(F).
-
-%merge_agent_auth(Nodes, Time) ->
-%	?DEBUG("Staring merge.  Nodes:  ~p.  Time:  ~B", [Nodes, Time]),
-%	F = fun() ->
-%		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
-%		qlc:e(QH)
-%	end,
-%	merge_results(query_nodes(Nodes, F)).
-
-merge_results(Res) ->
-	?DEBUG("Merging:  ~p", [Res]),
-	merge_results_loop([], Res).
-
-merge_results_loop(Return, []) ->
-	?DEBUG("Merge complete:  ~p", [Return]),
-	Return;
-merge_results_loop(Return, [{atomic, List} | Tail]) ->
-	Newreturn = diff_recs(Return, List),
-	merge_results_loop(Newreturn, Tail).
-
-%merge_profiles(Nodes, Time) ->
-%	F = fun() ->
-%		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
-%		qlc:e(QH)
-%	end,
-%	merge_results(query_nodes(Nodes, F)).
-%
-%merge_release(Nodes, Time) ->
-%	F = fun() ->
-%		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
-%		qlc:e(QH)
-%	end,
-%	merge_results(query_nodes(Nodes, F)).
-
-query_nodes(Nodes, Time, Func) ->
-	query_nodes(Nodes, Time, Func, []).
-
-query_nodes([], _, _, Acc) ->
-	?DEBUG("Full acc:  ~p", [Acc]),
-	Acc;
-query_nodes([Node | Tail], Time, Func, Acc) ->
-	Newacc = case rpc:call(Node, agent_auth, Func, [Time]) of
-		{atomic, Rows} = Rez ->
-			?DEBUG("Node ~w got rows ~p", [Node, Rows]),
-			[Rez | Acc];
-		Else ->
-			?WARNING("unable to get rows during merge for node ~w due to ~p", [Node, Else]),
-			Acc
-	end,
-	query_nodes(Tail, Time, Func, Newacc).
-
-
-
-%query_nodes(Nodes, Fun) ->
-%	query_nodes(Nodes, Fun, []).
-%
-%query_nodes([], _Fun, Acc) ->
-%	?DEBUG("Full acc:  ~p", [Acc]),
-%	Acc;
-%query_nodes([Node | Tail], Fun, Acc) ->
-%	Newacc = case rpc:call(Node, mnesia, transaction, [Fun]) of
-%		{atomic, Rows} = Rez ->
-%			?DEBUG("Node ~w Got the following rows:  ~p", [Node, Rows]),
-%			[Rez | Acc];
-%		_Else ->
-%			?WARNING("Unable to get rows during merge for node ~w", [Node]),
-%			Acc
-%	end,
-%	query_nodes(Tail, Fun, Newacc).
-
 %% @doc Take the plaintext username and password and attempt to 
 %% authenticate the agent.
 -type(profile_name() :: string()).
@@ -608,82 +489,6 @@ auth(Username, Password) ->
 			?WARNING("Integration gave a bad return of ~p", [Err]),
 			local_auth(Username, Password)
 	end.
-
-%% @doc Starts mnesia and creates the tables.  If the tables already exist,
-%% returns `ok'.  Otherwise, a default username of `"agent"' is stored 
-%% with password `"Password123"' and skill `[english]'.
--spec(build_tables/0 :: () -> 'ok').
-build_tables() ->
-	?DEBUG("building tables...", []),
-%	Nodes = lists:append([[node()], nodes()]),
-	A = util:build_table(agent_auth, [
-				{attributes, record_info(fields, agent_auth)},
-				{disc_copies, [node()]}
-			]),
-	case A of
-		{atomic, ok} ->
-			F = fun() ->
-				mnesia:write(#agent_auth{id = "1", login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
-				mnesia:write(#agent_auth{id = "2", login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
-			end,
-			case mnesia:transaction(F) of
-				{atomic, ok} -> 
-					ok;
-				Else -> 
-					Else
-			end;
-		_Else when A =:= copied; A =:= exists ->
-			ok;
-		_Else -> 
-			A
-	end,
-	B = util:build_table(release_opt, [
-		{attributes, record_info(fields, release_opt)},
-		{disc_copies, [node()]}
-	]),
-	case B of
-		{atomic, ok} ->
-			ok;
-		_Else2 when B =:= copied; B =:= exists ->
-			ok;
-		_Else2 ->
-			B
-	end,
-	C = util:build_table(agent_profile, [
-		{attributes, record_info(fields, agent_profile)},
-		{disc_copies, [node()]}
-	]),
-	case C of
-		{atomic, ok} -> 
-			G = fun() ->
-				mnesia:write(?DEFAULT_PROFILE)
-			end,
-			case mnesia:transaction(G) of
-				{atomic, ok} -> 
-					ok;
-				Else2 -> 
-					Else2
-			end;
-		_Else3 when C =:= copied; C =:= exists ->
-			ok;
-		_Else3 ->
-			C
-	end.
-
-upgrade_v1_table() ->
-	NewAttributes = [id, login, password, skills, securitylevel, integrated,
-		profile, firstname, lastname, endpoints, extended_props, timestamp],
-	% old attributes: [id, login, password, skills, securitylevel,
-	%    integrated, profile, firstname, lastname, extended_props, timestamp
-	mnesia:transform_table(agent_auth, fun upgrade_transform/1, NewAttributes).
-
-upgrade_transform({agent_auth, Id, Login, Password, Skills, Security,
-	Integrated, Profile, First, Last, ExProps, Timestamp}) ->
-	{agent_auth, Id, Login, Password, Skills, Security, Integrated, Profile,
-		First, Last, [], ExProps, Timestamp}.
-
-
-
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -896,63 +701,6 @@ proplist_overwrite([Atom | Tail], Acc) when is_atom(Atom) ->
 			[Atom | MidAcc]
 	end,
 	proplist_overwrite(Tail, NewAcc).
-
-diff_recs(Left, Right) ->
-	Sort = fun(A, B) when is_record(A, agent_auth) ->
-			A#agent_auth.id < B#agent_auth.id;
-		(A, B) when is_record(A, release_opt) ->
-			A#release_opt.label < B#release_opt.label;
-		(A, B) when is_record(A, agent_profile) ->
-			A#agent_profile.name < B#agent_profile.name
-	end,
-	Sleft = lists:sort(Sort, Left),
-	Sright = lists:sort(Sort, Right),
-	diff_recs_loop(Sleft, Sright, []).
-
-diff_recs_loop([], [], Acc) ->
-	lists:reverse(Acc);
-diff_recs_loop([_H | _T] = Left, [], Acc) ->
-	lists:append(lists:reverse(Acc), Left);
-diff_recs_loop([], [_H | _T] = Right, Acc) ->
-	lists:append(lists:reverse(Acc), Right);
-diff_recs_loop([Lhead | LTail] = Left, [Rhead | Rtail] = Right, Acc) ->
-	case nom_equal(Lhead, Rhead) of
-		true ->
-			case timestamp_comp(Lhead, Rhead) of
-				false ->
-					diff_recs_loop(LTail, Rtail, [Lhead | Acc]);
-				true ->
-					diff_recs_loop(LTail, Rtail, [Rhead | Acc])
-			end;
-		false ->
-			case nom_comp(Lhead, Rhead) of
-				true ->
-					diff_recs_loop(LTail, Right, [Lhead | Acc]);
-				false ->
-					diff_recs_loop(Left, Rtail, [Rhead | Acc])
-			end
-	end.
-	
-nom_equal(A, B) when is_record(A, agent_auth) ->
-	A#agent_auth.id =:= B#agent_auth.id;
-nom_equal(A, B) when is_record(A, release_opt) ->
-	B#release_opt.label =:= A#release_opt.label;
-nom_equal(A, B) when is_record(A, agent_profile) ->
-	A#agent_profile.name =:= B#agent_profile.name.
-	
-nom_comp(A, B) when is_record(A, agent_auth) ->
-	A#agent_auth.id < B#agent_auth.id;
-nom_comp(A, B) when is_record(A, release_opt) ->
-	A#release_opt.label < B#release_opt.label;
-nom_comp(A, B) when is_record(A, agent_profile) ->
-	A#agent_profile.name < B#agent_profile.name.
-
-timestamp_comp(A, B) when is_record(A, agent_auth) ->
-	A#agent_auth.timestamp < B#agent_auth.timestamp;
-timestamp_comp(A, B) when is_record(B, release_opt) ->
-	A#release_opt.timestamp < B#release_opt.timestamp;
-timestamp_comp(A, B) when is_record(A, agent_profile) ->
-	A#agent_profile.timestamp < B#agent_profile.timestamp.
 
 encode_password(Password) ->
 	util:bin_to_hexstr(erlang:md5(Password)).
@@ -1361,85 +1109,5 @@ get_profile_test_() ->
 		?assert(meck:validate(somestore))
 	end}
 	]}.
-
-diff_recs_test_() ->
-	[{"agent_auth records",
-	fun() ->
-		Left = [
-			#agent_auth{id = "A", login = "A", timestamp = 1},
-			#agent_auth{id = "B", login = "B", timestamp = 3},
-			#agent_auth{id = "C", login = "C", timestamp = 5}
-		],
-		Right = [
-			#agent_auth{id = "A", login = "A", timestamp = 5},
-			#agent_auth{id = "B", login = "B", timestamp = 3},
-			#agent_auth{id = "C", login = "C", timestamp = 1}
-		],
-		Expected = [
-			#agent_auth{id = "A", login = "A", timestamp = 5},
-			#agent_auth{id = "B", login = "B", timestamp = 3},
-			#agent_auth{id = "C", login = "C", timestamp = 5}
-		],
-		?assertEqual(Expected, diff_recs(Left, Right))
-	end},
-	{"release_opts records",
-	fun() ->
-		Left = [
-			#release_opt{label = "A", timestamp = 1},
-			#release_opt{label = "B", timestamp = 3},
-			#release_opt{label = "C", timestamp = 5}
-		],
-		Right = [
-			#release_opt{label = "A", timestamp = 5},
-			#release_opt{label = "B", timestamp = 3},
-			#release_opt{label = "C", timestamp = 1}
-		],
-		Expected = [
-			#release_opt{label = "A", timestamp = 5},
-			#release_opt{label = "B", timestamp = 3},
-			#release_opt{label = "C", timestamp = 5}
-		],
-		?assertEqual(Expected, diff_recs(Left, Right))
-	end},
-	{"agent_prof records",
-	fun() ->
-		Left = [
-			#agent_profile{name = "A", timestamp = 1},
-			#agent_profile{name = "B", timestamp = 3},
-			#agent_profile{name = "C", timestamp = 5}
-		],
-		Right = [
-			#agent_profile{name = "A", timestamp = 5},
-			#agent_profile{name = "B", timestamp = 3},
-			#agent_profile{name = "C", timestamp = 1}
-		],
-		Expected = [
-			#agent_profile{name = "A", timestamp = 5},
-			#agent_profile{name = "B", timestamp = 3},
-			#agent_profile{name = "C", timestamp = 5}
-		],
-		?assertEqual(Expected, diff_recs(Left, Right))
-	end},
-	{"3 way merge",
-	fun() ->
-		One = [
-			#agent_auth{id = "A", login = "A", timestamp = 1},
-			#agent_auth{id = "B", login = "B", timestamp = 3}
-		],
-		Two = [
-			#agent_auth{id = "B", login = "B", timestamp = 3},
-			#agent_auth{id = "C", login = "C", timestamp = 5}
-		],
-		Three = [
-			#agent_auth{id = "A", login = "A", timestamp = 5},
-			#agent_auth{id = "C", login = "C", timestamp = 1}
-		],
-		Expected = [
-			#agent_auth{id = "A", login = "A", timestamp = 5},
-			#agent_auth{id = "B", login = "B", timestamp = 3},
-			#agent_auth{id = "C", login = "C", timestamp = 5}
-		],
-		?assertEqual(Expected, merge_results([{atomic, One}, {atomic, Two}, {atomic, Three}]))
-	end}].
 
 -endif.

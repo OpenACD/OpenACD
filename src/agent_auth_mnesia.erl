@@ -109,6 +109,9 @@ start() ->
 	%% Endpoints
 	cpx_hooks:set_hook(mn_set_endpoint, set_endpoint, ?MODULE, set_endpoint, [], 100),
 
+	%% Profiles
+	cpx_hooks:set_hook(mn_get_profiles, get_profiles, ?MODULE, get_profiles, [], 100),
+
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
@@ -191,7 +194,7 @@ new_profile(Name, Skills) ->
 
 -spec(set_profile/3 :: (Oldname :: string(), Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Name, Skills) ->
-	_Old = agent_auth:get_profile(Oldname),
+	{ok, _Old} = agent_auth:get_profile(Oldname),
 	New = #agent_profile{
 		name = Name,
 		skills = Skills
@@ -201,7 +204,7 @@ set_profile(Oldname, Name, Skills) ->
 %% @doc Update the profile `string() Oldname' to the given rec.
 -spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
 set_profile(Old, #agent_profile{id = undefined} = Rec) ->
-	Oldprof = get_profile(Old),
+	{ok, Oldprof} = get_profile(Old),
 	set_profile(Old, Rec#agent_profile{id = Oldprof#agent_profile.id});
 set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
@@ -266,7 +269,7 @@ destroy_profile(Name) ->
 	mnesia:transaction(F).
 
 %% @doc Gets the proflie `string() Name'
--spec(get_profile/1 :: (Name :: string() | {id, string()} | {name, string()}) -> #agent_profile{} | 'undefined').
+-spec(get_profile/1 :: (Name :: string() | {id, string()} | {name, string()}) -> {ok, #agent_profile{}} | 'undefined').
 get_profile(Profile) ->
 	try integration:get_profile(Profile) of
 		none ->
@@ -312,7 +315,7 @@ local_get_profile({id, Id}) ->
 		{atomic, []} ->
 			undefined;
 		{atomic, [Profile]} ->
-			Profile
+			{ok, Profile}
 	end;
 local_get_profile({name, Name}) ->
 	F = fun() ->
@@ -322,18 +325,18 @@ local_get_profile({name, Name}) ->
 		{atomic, []} ->
 			undefined;
 		{atomic, [Profile]} ->
-			Profile
+			{ok, Profile}
 	end.
 
 %% @doc Return all profiles as `[{string() Name, [atom] Skills}]'.
--spec(get_profiles/0 :: () -> [#agent_profile{}]).
+-spec(get_profiles/0 :: () -> {ok, [#agent_profile{}]}).
 get_profiles() ->
 	F = fun() ->
 		QH = qlc:q([ X || X <- mnesia:table(agent_profile)]),
 		qlc:e(QH)
 	end,
 	{atomic, Profiles} = mnesia:transaction(F),
-	sort_profiles(Profiles).
+	{ok, sort_profiles(Profiles)}.
 
 
 %% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
@@ -1226,14 +1229,14 @@ profile_test_() ->
 		?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
 		Test = #agent_profile{name = "test profile", skills = [testskill]},
 		?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
-		?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
+		?assertMatch({ok, #agent_profile{name = "test profile", skills = [testskill]}}, get_profile("test profile"))
 	end},
 	{"Update a profile", fun() ->
 		new_profile(#agent_profile{name = "initial", skills = [english]}),
 		?assertNot(undefined == get_profile("initial")),
 		?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
 		?assertEqual(undefined, get_profile("initial")),
-		?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
+		?assertEqual({ok, #agent_profile{name = "new", id = "1", skills = [german]}}, get_profile("new"))
 	end},
 	{"Remove a profile", fun() ->
 		F = fun() ->
@@ -1248,17 +1251,17 @@ profile_test_() ->
 	{"Get a profile", fun() ->
 		?assertEqual(undefined, get_profile("test profile")),
 		new_profile("test profile", [testskill]),
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill]}}, get_profile("test profile"))
 	end},
 	{"Get a profile by id", fun() ->
 		?assertEqual(undefined, get_profile({id, "1"})),
 		new_profile("test profile", [testskill]),
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill]}}, get_profile("test profile"))
 	end},
 	{"Get a profile by name", fun() ->
 		?assertEqual(undefined, get_profile({name, "test profile"})),
 		new_profile("test profile", [testskill]),
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill]}}, get_profile("test profile"))
 	end},
 	
 	{"Get all profiles", fun() ->
@@ -1270,10 +1273,10 @@ profile_test_() ->
 		end,
 		mnesia:transaction(F),
 		?CONSOLE("profs:  ~p", [get_profiles()]),
-		?assertMatch([
+		?assertMatch({ok, [
 			#agent_profile{name = "A", skills = [english]},
 			#agent_profile{name = "B", skills = [german]},
-			#agent_profile{name = "C", skills = [testskill]}], 
+			#agent_profile{name = "C", skills = [testskill]}]}, 
 			get_profiles())
 	end}]}}.
 
@@ -1302,8 +1305,8 @@ profile_integration_test_() ->
 		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", [testskill], []}} end),
 		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", [testskill], []}} end),
 
-		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}, get_profile("test profile")),
-		?assertEqual(#agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}, get_profile("test profile"))
+		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}}, get_profile("test profile")),
+		?assertEqual({ok, #agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}}, get_profile("test profile"))
 
 	end},
 	{"Get a non-existing profile in integration", fun(Mock) ->

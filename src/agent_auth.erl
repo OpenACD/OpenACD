@@ -266,47 +266,9 @@ destroy_profile(Name) ->
 %% @doc Gets the proflie `string() Name'
 -spec(get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
 get_profile(Name) ->
-	try integration:get_profile(Name) of
-		none ->
-			?DEBUG("integration has no such profile ~p", [Name]),
-			destroy_profile(Name),
-			undefined;
-		{ok, Name, Id, Order, Options, Skills} ->
-			?DEBUG("integration found profile ~p", [Name]),
-
-			Rec = #agent_profile{
-				name = Name,
-				id = Id,
-				order = Order,
-				options = Options,
-				skills = Skills,
-				timestamp = util:now()
-			},
-
-			F = fun() -> mnesia:write(Rec) end,
-			{atomic, ok} = mnesia:transaction(F),
-			
-			local_get_profile(Name);
-		{error, nointegration} ->
-			?DEBUG("No integration, falling back for ~p", [Name]),
-			local_get_profile(Name)
-	catch
-		throw:{badreturn, Err} ->
-			?WARNING("Integration failed with message:  ~p", [Err]),
-			local_get_profile(Name)
-	end.
-
-
--spec(local_get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
-local_get_profile(Name) ->
-	F = fun() ->
-		mnesia:read({agent_profile, Name})
-	end,
-	case mnesia:transaction(F) of
-		{atomic, []} ->
-			undefined;
-		{atomic, [Profile]} ->
-			Profile
+	case cpx_hooks:trigger_hooks(get_profile, [Name], first) of
+		{ok, Profile} -> Profile;
+		_ -> undefined
 	end.
 
 %% @doc Return all agent profiles.
@@ -1376,6 +1338,29 @@ get_profiles_test_() ->
 		?assertEqual([#agent_profile{id="1", name="ali"},
 			#agent_profile{id="2", name="baba"}], get_profiles())
 	end}]}.
+
+get_profile_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(get_profile),
+		cpx_hooks:set_hook(a, get_profile, somestore, get_profile, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, get_profile, fun(_) -> none end),
+		?assertEqual(undefined, get_profile("nogroup")),
+		?assert(meck:validate(somestore))
+	end},
+	{"by name", fun() ->
+		Profile = #agent_profile{id="1", name="baz"},
+		meck:expect(somestore, get_profile, fun(_) -> {ok, Profile} end),
+		?assertEqual(Profile, get_profile("baz")),
+		?assert(meck:validate(somestore))
+	end}
+	]}.
 
 diff_recs_test_() ->
 	[{"agent_auth records",

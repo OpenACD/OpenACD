@@ -179,40 +179,27 @@ new_profile(Name, Skills) ->
 
 -spec(set_profile/3 :: (Oldname :: string(), Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Name, Skills) ->
-	_Old = agent_auth:get_profile(Oldname),
-	New = #agent_profile{
+	
+	Old = agent_auth:get_profile(Oldname),
+	New = Old#agent_profile{
 		name = Name,
 		skills = Skills
 	},
 	set_profile(Oldname, New).
 
 %% @doc Update the profile `string() Oldname' to the given rec.
--spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
-set_profile(Old, #agent_profile{id = undefined} = Rec) ->
-	Oldprof = get_profile(Old),
-	set_profile(Old, Rec#agent_profile{id = Oldprof#agent_profile.id});
-set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
-	F = fun() ->
-		mnesia:write(Rec)
-	end,
-	mnesia:transaction(F);
-set_profile("Default", _Rec) ->
-	?ERROR("Cannot change the name of the default profile", []),
-	error;
+-spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'} | {error, any()}).
 set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
-	F = fun() ->
-		case qlc:e(qlc:q([Found || #agent_profile{name = Nom} = Found <- mnesia:table(agent_profile), Nom =:= Newname])) of
-			[] ->
-				mnesia:delete({agent_profile, Oldname}),
-				mnesia:write(Rec),
-				qlc:e(qlc:q([mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname])),
-				ok;
-			_ ->
-				erlang:error(duplicate_name, Rec)
-		end
-	end,
-	mnesia:transaction(F).
-
+	case Oldname =:= "Default" andalso Newname =/= "Default" of
+		true ->
+			?ERROR("Cannot change the name of the default profile", []),
+			error;
+		_ ->
+			case cpx_hooks:trigger_hooks(set_profile, [Oldname, Rec], first) of
+				{ok, _} -> {atomic, ok};
+				Err -> Err
+			end
+	end.
 %% @doc generate an id for the profile rec and return the 'fixed' rec.
 give_profile_id(Rec) ->
 	F = fun() ->
@@ -1119,6 +1106,34 @@ get_profile_test_() ->
 		?assertEqual(Profile, get_profile("baz")),
 		?assert(meck:validate(somestore))
 	end}
+	]}.
+
+set_profile_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(set_profile),
+		cpx_hooks:set_hook(a, set_profile, somestore, set_profile, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, set_profile, fun(_, _) -> none end),
+		?assertEqual({error, unhandled}, set_profile("nothing", #agent_profile{name="baz"})),
+		?assert(meck:validate(somestore))
+	end},
+	{"normal", fun() ->
+		Profile = #agent_profile{id="1", name="baz"},
+		meck:expect(somestore, set_profile, fun(_, _) -> {ok, Profile} end),
+		?assertEqual({atomic, ok}, set_profile("foo", Profile)),
+		?assert(meck:validate(somestore))
+	end},
+	{"disallow renaming of default", fun() ->
+		Profile = #agent_profile{id="1", name="baz"},
+		?assertEqual(error, set_profile("Default", Profile))
+	end}
+	%% TODO does not handle duplicate name
 	]}.
 
 -endif.

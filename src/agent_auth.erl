@@ -146,12 +146,10 @@ update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
 %% @doc Get all `#release_opt'.
 -spec(get_releases/0 :: () -> [#release_opt{}]).
 get_releases() ->
-	F = fun() ->
-		Select = qlc:q([X || X <- mnesia:table(release_opt)]),
-		qlc:e(Select)
-	end,
-	{atomic, Opts} = mnesia:transaction(F),
-	lists:sort(Opts).
+	case cpx_hooks:trigger_hooks(get_releases, [], all) of
+		{ok, Lists} -> lists:append(Lists);
+		Err -> Err
+	end.
 
 %% @doc Create a new agent profile.
 -spec(new_profile/1 :: (Rec :: #agent_profile{}) -> {'error', any()} | {'atomic', 'ok'}).
@@ -1206,5 +1204,9 @@ drop_extended_prop_test_() ->
 		?assert(meck:validate(somestore))
 	end}
 	]}.
+
+encode_password_test_() ->
+	[?_assertEqual("d41d8cd98f00b204e9800998ecf8427e", encode_password("")),
+	?_assertEqual("9a618248b64db62d15b300a07b00580b", encode_password("supersecret"))].
 
 -endif.

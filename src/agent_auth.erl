@@ -179,24 +179,16 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 	end.
 
 %% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
--spec(destroy_profile/1 :: (Name :: string()) -> 'error' | {'atomic', 'ok'}).
+-spec(destroy_profile/1 :: (Name :: string()) -> {'error', any()} | {'atomic', 'ok'}).
 destroy_profile("Default") ->
-	error;
+	{error, not_allowed};
 destroy_profile(Name) ->
-	F = fun() ->
-		mnesia:delete({agent_profile, Name}),
-		Agents = get_agents(Name),
-		Update = fun(Arec) ->
-			Newagent = Arec#agent_auth{profile = "Default"},
-			destroy(Arec#agent_auth.login),
-			mnesia:write(Newagent)
-		end,
-		lists:map(Update, Agents),
-		ok
-	end,
-	mnesia:transaction(F).
+	case cpx_hooks:trigger_hooks(destroy_profile, [Name], first) of
+		{ok, _} -> {atomic, ok};
+		Err -> Err
+	end.
 
-%% @doc Gets the proflie `string() Name'
+%% @doc Gets the profile `string() Name'
 -spec(get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
 get_profile(Name) ->
 	case cpx_hooks:trigger_hooks(get_profile, [Name], first) of
@@ -1004,6 +996,30 @@ set_profile_test_() ->
 	end}
 	%% TODO does not handle duplicate name
 	]}.
+
+destroy_profile_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(destroy_profile),
+		cpx_hooks:set_hook(a, destroy_profile, somestore, destroy_profile, [], 10),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		meck:expect(somestore, destroy_profile, fun(_) -> none end),
+		?assertEqual({error, unhandled}, destroy_profile("nothing")),
+		?assert(meck:validate(somestore))
+	end},
+	{"normal", fun() ->
+		meck:expect(somestore, destroy_profile, fun(_) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, destroy_profile("foo")),
+		?assert(meck:validate(somestore))
+	end},
+	{"disallow deleting Default", fun() ->
+		?assertEqual({error, not_allowed}, destroy_profile("Default"))
+	end}]}.
 
 new_profile_test_() ->
 	{foreach, fun() ->

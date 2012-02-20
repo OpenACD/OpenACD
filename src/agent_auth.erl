@@ -1163,7 +1163,9 @@ new_release_test_() ->
 	{"normal", fun() ->
 		Release = #release_opt{label="a"},
 		meck:expect(somestore, new_release, 1, {ok, ok}),
-		?assertEqual({atomic, ok}, new_release(Release))
+		?assertEqual({atomic, ok}, new_release(Release)),
+		?assert(meck:called(somestore, new_release, [Release])),
+		?assert(meck:validate(somestore))
 	end}]}.
 
 destroy_release_test_() ->

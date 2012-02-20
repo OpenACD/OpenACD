@@ -343,7 +343,7 @@ get_profiles() ->
 %% does not change data that is not in the proplist.  The proplist's 
 %% `endpoints' field can also contain a partial list, preserving existing
 %% settings.
--spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'ok', any()} | {'error', any()}).
+-spec(set_agent/2 :: (Id :: string(), Props :: [{atom(), any()}]) -> {'ok', any()} | {'error', any()}).
 set_agent(Id, Props) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
@@ -823,7 +823,7 @@ destroy(id, Value) ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, ok} -> {ok, ok};
-		{abort, Err} -> {error, Err}
+		Err -> Err
 	end;
 destroy(login, Value) ->
 	F = fun() ->
@@ -833,7 +833,7 @@ destroy(login, Value) ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, ok} -> {ok, ok};
-		{abort, Err} -> {error, Err}
+		Err -> Err
 	end.
 
 %% @private 
@@ -843,14 +843,19 @@ destroy(login, Value) ->
 local_auth(Username, BasePassword) -> 
 	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username, X#agent_auth.password =:= Password]),
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
 		qlc:e(QH)
 	end,
 	case mnesia:transaction(F) of
 		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
-			?DEBUG("Auth is coolbeans for ~p", [Username]),
-			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
-			{ok, {allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile}};
+			case Agent#agent_auth.password of
+				Password ->
+					?DEBUG("Auth is coolbeans for ~p", [Username]),
+					Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
+					{ok, {allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile}};
+				_ ->
+					{ok, deny}
+			end;
 		Else ->
 			?DEBUG("Passing off auth due to ~p", [Else]),
 			pass
@@ -871,6 +876,8 @@ comp_profiles(#agent_profile{order = Asort}, #agent_profile{order = Bsort}) ->
 -spec(build_agent_record/2 :: (Proplist :: [{atom(), any()}], Rec :: #agent_auth{}) -> #agent_auth{}).
 build_agent_record([], Rec) ->
 	Rec;
+build_agent_record([{id, Id} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{id = Id}); %% Should id be overwritten?
 build_agent_record([{login, Login} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{login = Login});
 build_agent_record([{password, Password} | Tail], Rec) ->
@@ -1053,14 +1060,14 @@ auth_no_integration_test_() ->
 	fun() ->
 		?assertMatch({ok, {allow, "1", _Skills, agent, "Default"}}, auth("agent", "Password123"))
 	end},
-	{"auth an agent that doesn't exist",
+	{"pass off auth for an agent that doesn't exist",
 	fun() ->
 		?assertEqual(pass, auth("arnie", "goober"))
 	end},
-	{"don't auth with wrong pass",
+	{"deny auth with wrong pass",
 	fun() ->
-		?assertEqual(deny, auth("agent", "badpass"))
-	end},
+		?assertEqual({ok, deny}, auth("agent", "badpass"))
+	end},	
 	{"extended prop test",
 	fun() ->
 		?assertEqual(undefined, get_extended_prop({id, "1"}, agent)),
@@ -1126,7 +1133,7 @@ auth_integration_test_() ->
 	fun(Mock) ->
 		{"integration returns a destory, thus removing from cache",
 		fun() ->
-			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
+			?assertMatch({ok, {allow, "1", _, agent, "Default"}}, local_auth("agent", "Password123")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, destroy, State}
 			end),
@@ -1290,7 +1297,6 @@ profile_integration_test_() ->
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		build_tables(),
-
 		{ok, Mock} = gen_server_mock:named({local, integration}),
 		Mock
 	end,
@@ -1298,21 +1304,26 @@ profile_integration_test_() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		unregister(integration),
-		gen_server_mock:stop(Mock),
-		ok
+		gen_server_mock:stop(Mock)
 	end,
-	[{"Get a profile in integration", fun(Mock) ->
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", [testskill], []}} end),
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", [testskill], []}} end),
+	[
+	fun(Mock) ->
+		{"Get a profile in integration",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", 10, [], [testskill]}, State} end),
+			gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", 10, [], [testskill]}, State} end),
 
-		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}}, get_profile("test profile")),
-		?assertEqual({ok, #agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}}, get_profile("test profile"))
-
-	end},
-	{"Get a non-existing profile in integration", fun(Mock) ->
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none} end),
-		?assertEqual(undefined, get_profile("test profile"))
-	end}
+			?assertEqual({ok, #agent_profile{name = "test profile", id = "1", order = 10,skills = [testskill], options=[]}}, get_profile("test profile")),
+			?assertEqual({ok, #agent_profile{name = "test profile", id = "2", order = 10,skills = [testskill], options=[]}}, get_profile("test profile"))
+		end}
+	end,
+	fun(Mock) ->
+		{"Get a non-existing profile in integration",
+		fun() ->
+			gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none, State} end),
+			?assertEqual(undefined, get_profile("test profile"))
+		end}
+	end
 	]}}.	
 
 diff_recs_test_() ->

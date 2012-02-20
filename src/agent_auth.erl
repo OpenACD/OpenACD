@@ -124,11 +124,10 @@ destroy_release(Type, Val) ->
 %% @doc Update the release option `string() Label' to `#release_opt{} Rec'.
 -spec(update_release/2 :: (Label :: string(), Rec :: #release_opt{}) -> {'atomic', 'ok'}).
 update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
-	F = fun() ->
-		mnesia:delete({release_opt, Label}),
-		mnesia:write(Rec)
-	end,
-	mnesia:transaction(F).
+	case cpx_hooks:trigger_hooks(update_release, [Label, Rec], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {aborted, Err}
+	end.
 
 %% @doc Get all `#release_opt'.
 -spec(get_releases/0 :: () -> [#release_opt{}]).
@@ -1196,6 +1195,31 @@ destroy_release_test_() ->
 		?assert(meck:called(somestore, destroy_release, [id, "relb"])),
 		?assert(meck:called(somestore, destroy_release, [label, "relc"])),
 
+		?assert(meck:validate(somestore))
+	end}]}.
+
+update_release_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(update_release),
+		cpx_hooks:set_hook(a, update_release, somestore, update_release, [], 10),
+
+		meck:new(somestore)
+	end,
+	fun(_) ->
+		meck:unload(somestore)
+	end,
+	[{"unhandled", fun() ->
+		Release = #release_opt{label="a"},
+		meck:expect(somestore, update_release, 2, none),
+		?assertEqual({aborted, unhandled}, update_release("foo", Release)),
+		?assert(meck:validate(somestore))
+	end},
+	{"normal", fun() ->
+		Release = #release_opt{label="a"},
+		meck:expect(somestore, update_release, 2, {ok, ok}),
+		?assertEqual({atomic, ok}, update_release("foo", Release)),
+		?assert(meck:called(somestore, update_release, ["foo", Release])),
 		?assert(meck:validate(somestore))
 	end}]}.
 

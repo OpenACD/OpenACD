@@ -419,37 +419,16 @@ add_agent(Username, Firstname, Lastname, Password, Skills, Security, Profile) ->
 %% a proplist as the initial argument.  If an agent with the given login
 %% already exists, this throws an error.  An id is created for ye.  The
 %% password should not be encoded.
--spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'}).
+-spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'} | {'abort', any()}).
 add_agent(Proplist) when is_list(Proplist) ->
 	Rec = build_agent_record(Proplist, #agent_auth{}),
 	add_agent(Rec);
 add_agent(Rec) when is_record(Rec, agent_auth) ->
-	Id = make_id(),
-	F = fun() ->
-		QH = qlc:q([Rec || #agent_auth{login = Nom} <- mnesia:table(agent_auth), Nom =:= Rec#agent_auth.login]),
-		case qlc:e(QH) of
-			[] ->
-				mnesia:write(Rec#agent_auth{id = Id});
-			_ ->
-				erlang:error(duplicate_login, Rec)
-		end
-	end,
-	mnesia:transaction(F).
+	case cpx_hooks:trigger_hooks(add_agent, [Rec], first) of
+		{ok, _} -> {atomic, ok};
+		{error, Err} -> {abort, Err}
+	end.
 
-make_id() ->
-	Ref = erlang:ref_to_list(make_ref()),
-	RemovedRef = string:sub_string(Ref, 6),
-	FixedRef = string:strip(RemovedRef, right, $>),
-	F = fun(Elem, Acc) ->
-		case Elem of
-			$. ->
-				Acc;
-			Else ->
-				[Else | Acc]
-		end
-	end,
-	lists:reverse(lists:foldl(F, [], FixedRef)).
-	
 %% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy(Username) ->
@@ -775,6 +754,30 @@ set_agent_test_() ->
 				{extended_props, [someprop]}]]))
 	end
 	]}}].
+
+add_agent_test_() ->
+	{foreach, fun() ->
+		cpx_hooks:start_link(),
+		cpx_hooks:drop_hooks(add_agent),
+		cpx_hooks:set_hook(a, add_agent, somestore, add_agent, [], 1),
+
+		meck:new(somestore)
+	end, fun(_) ->
+		meck:unload(somestore)
+	end, [
+	{"unhandled", fun() ->
+		Agent = #agent_auth{login="ali"},
+		meck:expect(somestore, add_agent, fun(_) -> pass end),
+		?assertEqual({abort, unhandled}, add_agent(Agent))
+	end},
+	{"normal", fun() ->
+		Agent = #agent_auth{login="ali"},
+		meck:expect(somestore, add_agent, fun(_) -> {ok, ok} end),
+		?assertEqual({atomic, ok}, add_agent(Agent)),
+		?assert(meck:called(somestore, add_agent, [Agent])),
+		?assert(meck:validate(somestore))
+	end}
+	]}.
 
 destroy_test_() ->
 	{foreach, fun() ->

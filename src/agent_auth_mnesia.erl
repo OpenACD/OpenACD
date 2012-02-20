@@ -102,25 +102,36 @@ start() ->
 	cpx_hooks:set_hook(mn_get_agents, get_agents, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agents_by_profile, get_agents_by_profile, ?MODULE, get_agents, [], 100),
 	cpx_hooks:set_hook(mn_get_agent, get_agent, ?MODULE, get_agent, [], 100),
+	cpx_hooks:set_hook(mn_add_agent, add_agent, ?MODULE, add_agent, [], 100),
 	cpx_hooks:set_hook(mn_set_agent, set_agent, ?MODULE, set_agent, [], 100),
-	cpx_hooks:set_hook(mn_auth_agent, auth_agent, ?MODULE, auth, [], 100),
 	cpx_hooks:set_hook(mn_destroy_agent, destroy_agent, ?MODULE, destroy, [], 100),
+	cpx_hooks:set_hook(mn_auth_agent, auth_agent, ?MODULE, auth, [], 100),
 
 	%% Endpoints
 	cpx_hooks:set_hook(mn_set_endpoint, set_endpoint, ?MODULE, set_endpoint, [], 100),
+	cpx_hooks:set_hook(mn_drop_endpoint, drop_endpoint, ?MODULE, drop_endpoint, [], 100),
+
+	%% Extended Prop
+	cpx_hooks:set_hook(mn_get_extended_prop, get_extended_prop, ?MODULE, get_extended_prop, [], 100),
+	cpx_hooks:set_hook(mn_set_extended_prop, set_extended_prop, ?MODULE, set_extended_prop, [], 100),
+	cpx_hooks:set_hook(mn_drop_extended_prop, drop_extended_prop, ?MODULE, drop_extended_prop, [], 100),
 
 	%% Profiles
 	cpx_hooks:set_hook(mn_get_profiles, get_profiles, ?MODULE, get_profiles, [], 100),
+	cpx_hooks:set_hook(mn_get_profile, get_profile, ?MODULE, get_profile, [], 100),
+	cpx_hooks:set_hook(mn_new_profile, new_profile, ?MODULE, new_profile, [], 100),
+	cpx_hooks:set_hook(mn_set_profile, set_profile, ?MODULE, set_profile, [], 100),
+	cpx_hooks:set_hook(mn_destroy_profile, destroy_profile, ?MODULE, destroy_profile, [], 100),
 
 	build_tables().
 
 %% @doc Add `#release_opt{} Rec' to the database. 
--spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'} | {'aborted', any()}).
+-spec(new_release/1 :: (Rec :: #release_opt{}) -> {'ok', any()} | {'aborted', any()}).
 new_release(Rec) when is_record(Rec, release_opt) ->
 	F = fun() ->
 		mnesia:write(Rec)
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc Remove the release option `string() Label' from the database.
 -spec(destroy_release/1 :: (Label :: string()) -> {'atomic', 'ok'}).
@@ -129,12 +140,12 @@ destroy_release(Label) when is_list(Label) ->
 
 %% @doc Remove the release option with the key (id, label) of value from the 
 %% database.
--spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'} | {'aborted', any()}).
+-spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'ok', any()} | {'error', any()}).
 destroy_release(id, Id) ->
 	F = fun() ->
 		mnesia:delete({release_opt, Id})
 	end,
-	mnesia:transaction(F);
+	do_transaction(F);
 destroy_release(label, Label) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= Label]),
@@ -144,37 +155,37 @@ destroy_release(label, Label) ->
 			[#release_opt{id = Id}] ->
 				mnesia:delete({release_opt, Id});
 			_Else ->
-				{error, ambiguous_label}
+				erlang:throw(ambiguous_label)
 		end
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc Update the release option `string() Label' to `#release_opt{} Rec'.
--spec(update_release/2 :: (Label :: string(), Rec :: #release_opt{}) -> {'atomic', 'ok'}).
+-spec(update_release/2 :: (Label :: string(), Rec :: #release_opt{}) -> {'ok', any()} | {'error', any()}).
 update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
 	F = fun() ->
 		mnesia:delete({release_opt, Label}),
 		mnesia:write(Rec)
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc Get all `#release_opt'.
--spec(get_releases/0 :: () -> [#release_opt{}]).
+-spec(get_releases/0 :: () -> {ok, [#release_opt{}]}).
 get_releases() ->
 	F = fun() ->
 		Select = qlc:q([X || X <- mnesia:table(release_opt)]),
 		qlc:e(Select)
 	end,
 	{atomic, Opts} = mnesia:transaction(F),
-	lists:sort(Opts).
+	{ok, lists:sort(Opts)}.
 
 %% @doc Create a new agent profile.
--spec(new_profile/1 :: (Rec :: #agent_profile{}) -> 'error' | {'atomic', 'ok'}).
+-spec(new_profile/1 :: (Rec :: #agent_profile{}) -> {'error', any()} | {'ok', any()}).
 new_profile(#agent_profile{id = undefined} = Rec) ->
 	new_profile(give_profile_id(Rec));
 new_profile(#agent_profile{name = "Default"}) ->
 	?ERROR("Default cannot be added as a new profile", []),
-	error;
+	{error, not_allowed};
 new_profile(Rec) ->
 	F = fun() ->
 		case qlc:e(qlc:q([Out || #agent_profile{name = N} = Out <- mnesia:table(agent_profile), N =:= Rec#agent_profile.name])) of
@@ -184,7 +195,7 @@ new_profile(Rec) ->
 				erlang:error(duplicate_name, Rec)
 		end
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc Create a new agent profile `string() Name' with `[atom()] Skills'.
 -spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
@@ -202,7 +213,7 @@ set_profile(Oldname, Name, Skills) ->
 	set_profile(Oldname, New).
 
 %% @doc Update the profile `string() Oldname' to the given rec.
--spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
+-spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'ok', any()} | {error, any()}).
 set_profile(Old, #agent_profile{id = undefined} = Rec) ->
 	{ok, Oldprof} = get_profile(Old),
 	set_profile(Old, Rec#agent_profile{id = Oldprof#agent_profile.id});
@@ -226,7 +237,7 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 				erlang:error(duplicate_name, Rec)
 		end
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc generate an id for the profile rec and return the 'fixed' rec.
 give_profile_id(Rec) ->
@@ -251,7 +262,7 @@ give_profile_id(Rec) ->
 	
 
 %% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
--spec(destroy_profile/1 :: (Name :: string()) -> 'error' | {'atomic', 'ok'}).
+-spec(destroy_profile/1 :: (Name :: string()) -> {'atomic', 'ok'} | {error, any()}).
 destroy_profile("Default") ->
 	error;
 destroy_profile(Name) ->
@@ -266,7 +277,7 @@ destroy_profile(Name) ->
 		lists:map(Update, Agents),
 		ok
 	end,
-	mnesia:transaction(F).
+	do_transaction(F).
 
 %% @doc Gets the proflie `string() Name'
 -spec(get_profile/1 :: (Name :: string() | {id, string()} | {name, string()}) -> {ok, #agent_profile{}} | 'undefined').
@@ -358,10 +369,7 @@ set_agent(Id, Props) ->
 				erlang:error(duplicate_login, Newrec)
 		end
 	end,
-	case mnesia:transaction(F) of
-		{atomic, ok} -> {ok, ok};
-		{aborted, Err} -> {error, Err}
-	end.
+	do_transaction(F).
 
 %% @doc Gets `#agent_auth{}' associated with `string() Login'.
 -spec(get_agent/1 :: (Login :: string()) -> {ok, #agent_auth{}} | none).
@@ -424,10 +432,7 @@ set_endpoint({Type, Aval}, Endpoint, Data) ->
 			F = fun() ->
 				mnesia:write(Rec#agent_auth{endpoints = Newends})
 			end,
-			case mnesia:transaction(F) of
-				{atomic, ok} -> {ok, ok};
-				{error, Err} -> {error, Err}
-			end;
+			do_transaction(F);
 		_ ->
 			{error, noagent}
 	end.
@@ -443,11 +448,11 @@ drop_endpoint({Type, Aval}, Endpoint) ->
 					F = fun() ->
 						mnesia:write(Rec#agent_auth{endpoints = Newends})
 					end,
-					mnesia:transaction(F)
+					do_transaction(F)
 			end
 	end.
 
--spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'atomic', 'ok'}).
+-spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'ok', any()} | {'error', any()}).
 set_extended_prop({Type, Aval}, Prop, Val) ->
 	case get_agent(Type, Aval) of
 		{ok, Rec} ->
@@ -456,12 +461,12 @@ set_extended_prop({Type, Aval}, Prop, Val) ->
 			F = fun() ->
 				mnesia:write(Rec#agent_auth{extended_props = Newprops})
 			end,
-			mnesia:transaction(F);
+			do_transaction(F);
 		_ ->
 			{error, noagent}
 	end.
 
--spec(drop_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'atomic', 'ok'}).
+-spec(drop_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) ->  {'ok', any()} | {'error', any()}).
 drop_extended_prop({Type, Aval}, Prop) ->
 	case get_agent(Type, Aval) of
 		{ok, Rec} ->
@@ -469,7 +474,7 @@ drop_extended_prop({Type, Aval}, Prop) ->
 			F = fun() ->
 				mnesia:write(Rec#agent_auth{extended_props = Newprops})
 			end,
-			mnesia:transaction(F);
+			do_transaction(F);
 		_ ->
 			{error, noagent}
 	end.
@@ -983,6 +988,12 @@ timestamp_comp(A, B) when is_record(A, agent_profile) ->
 encode_password(Password) ->
 	util:bin_to_hexstr(erlang:md5(Password)).
 
+do_transaction(F) ->
+	case mnesia:transaction(F) of
+		{atomic, V} -> {ok, V};
+		{aborted, Err} -> {error, Err}
+	end.
+
 -ifdef(TEST).
 
 %%--------------------------------------------------------------------
@@ -1031,14 +1042,14 @@ crud_test_() ->
 	fun() ->
 		new_profile("dup-name", []),
 		Out = new_profile("dup-name", []),
-		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
+		?assertMatch({error, {duplicate_name, _Props}}, Out)
 	end},
-	{"Trying to update a proflie with duplicate name failes",
+	{"Trying to update a proflie with duplicate name fails",
 	fun() ->
 		new_profile("original", []),
 		new_profile("target", []),
 		Out = set_profile("target", #agent_profile{name = "original"}),
-		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
+		?assertMatch({error, {duplicate_name, _Props}}, Out)
 	end}]}}.
 
 auth_no_integration_test_() ->
@@ -1209,7 +1220,7 @@ release_opt_test_() ->
 		new_release(Copt),
 		new_release(Bopt),
 		new_release(Aopt),
-		?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
+		?assertMatch({ok, [#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}]}, get_releases())
 	end}]}}.
 
 profile_test_() ->
@@ -1233,7 +1244,7 @@ profile_test_() ->
 			qlc:e(QH)
 		end,
 		?assertEqual({atomic, []}, mnesia:transaction(F)),
-		?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
+		?assertEqual({ok, ok}, new_profile("test profile", [testskill])),
 		Test = #agent_profile{name = "test profile", skills = [testskill]},
 		?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
 		?assertMatch({ok, #agent_profile{name = "test profile", skills = [testskill]}}, get_profile("test profile"))
@@ -1241,7 +1252,7 @@ profile_test_() ->
 	{"Update a profile", fun() ->
 		new_profile(#agent_profile{name = "initial", skills = [english]}),
 		?assertNot(undefined == get_profile("initial")),
-		?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
+		?assertEqual({ok, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
 		?assertEqual(undefined, get_profile("initial")),
 		?assertEqual({ok, #agent_profile{name = "new", id = "1", skills = [german]}}, get_profile("new"))
 	end},
@@ -1252,7 +1263,7 @@ profile_test_() ->
 		end,
 		new_profile("test profile", [english]),
 		?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
-		?assertEqual({atomic, ok}, destroy_profile("test profile")),
+		?assertEqual({ok, ok}, destroy_profile("test profile")),
 		?assertEqual({atomic, []}, mnesia:transaction(F))
 	end },
 	{"Get a profile", fun() ->

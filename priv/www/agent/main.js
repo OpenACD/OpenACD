@@ -620,6 +620,7 @@ dojo.addOnLoad(function(){
 		buildReleaseMenu();
 		buildOutboundMenu();
 		buildQueueMenu();
+		window.agentConnection.agentApi("get_tabs_menu", {});
 		dojo.byId("agentname").innerHTML = confs.username;
 		dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + confs.profile;
 		window.agentConnection.stopwatch.onTick = function(){

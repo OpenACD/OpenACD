@@ -396,6 +396,10 @@ loop(Req, Table) ->
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
 			%?DEBUG("Cookielist:  ~p", [Cookielist]),
+			GregSecs = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
+			FutureWeek = GregSecs + (60 * 60 * 24 * 7),
+			DateTime = calendar:gregorian_seconds_to_datetime(FutureWeek)
+			CacheControl = {"Expires", util:http_datetime(DateTime)},
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -403,17 +407,37 @@ loop(Req, Table) ->
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
 					?DEBUG("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
+					Req:serve_file(File, Docroot, [CacheControl, {"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
+					Req:serve_file(File, Docroot, [CacheControle, {"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
 			Cookie = cookie_good(Req:parse_cookie()),
 			keep_alive(Cookie),
-			Out = api(Api, Cookie, Post),
-			Req:respond(Out)
+			{Status, Headers, OutBin} = api(Api, Cookie, Post),
+			OutBin0 = case Req:get_range() of
+				undefined -> OutBin;
+				fail -> OutBin;
+				Ranges -> build_ranged_bin(Ranges, OutBin)
+			end,
+			Req:respond({Status, Headers, OutBin0})
 	end.
+
+build_ranged_bin(Ranges, OutBin) ->
+	Size = size(OutBin),
+	Skips = [mochiweb_http:range_skip_length(X) || X <- Ranges],
+	build_ranged_bin(Skips, Size, OutBin, []).
+
+build_ranged_bin([], _Size, _OrigBin, Acc) ->
+	list_to_binary(lists:reverse(Acc));
+
+build_ranged_bin([invalid_range | Tail], Size, OrigBin, Acc) ->
+	build_ranged_bin(Tail, Size, OrigBin, Acc);
+
+build_ranged_bin([{Start, End} | Tail, Size, OrigBin, Acc) ->
+	<<_Skip:Start/binary, AccBin:End/binary, _Rest/binary>> = OrigBin,
+	build_ranged_bin(Tail, Size, OrigBin, [AccBin | Acc]).
 
 file_handler(Name, ContentType) ->
 	fun(N) -> file_data_handler(N, {Name, ContentType, <<>>}) end.

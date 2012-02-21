@@ -223,7 +223,8 @@
 	set_endpoint/3,
 	logout/1,
 	plugin_call/3,
-	arbitrary_command/3
+	arbitrary_command/3,
+	get_tabs_menu/1
 ]).
 
 -web_api_functions([
@@ -255,7 +256,8 @@
 	{set_endpoint, 3},
 	{plugin_call, 3},
 	{poll, 2},
-	{logout, 1}
+	{logout, 1},
+	{get_tabs_menu, 1}
 ]).
 
 %% gen_server callbacks
@@ -571,6 +573,15 @@ set_endpoint(Conn, <<"dummy_media">>, Struct) ->
 	end);
 set_endpoint(_Conn, _Type, _Struct) ->
 	?reply_err(<<"unknwon endpoint">>, <<"INVALID_ENDPOINT">>).
+
+%% @doc {@web} Gathers the tabs an agent can access, and pushes the result
+%% into the command queue.
+%% {"command": "set_tabs_menu",
+%% "tabs": [
+%%     {"label":string(),"href":string()}
+%% ]}
+get_tabs_menu(Conn) ->
+	gen_server:cast(Conn, get_tabs_menu).
 
 % set_endpoint(Conn, Endpoint, Data, Persist) ->
 % 			EndpointData = binary_to_list(Data),
@@ -1545,6 +1556,10 @@ handle_cast({arbitrary_command, Command, JsonProps}, State) ->
 	Headjson = {struct, [{<<"command">>, Command} | JsonProps]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
+handle_cast(get_tabs_menu, State) ->
+	#state{agent_fsm = Apid} = State,
+	spawn_get_tabs_menu(Apid),
+	{noreply, State};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.

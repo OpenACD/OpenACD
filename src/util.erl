@@ -90,7 +90,9 @@
 	get_pubkey/0,
 	get_keyfile/0,
 	get_certfile/0,
-	decrypt_password/1
+	decrypt_password/1,
+	http_datetime/0,
+	http_datetime/1
 ]).
 %% time tracking util functions
 -export([
@@ -100,6 +102,39 @@
 	timemark_clear/0,
 	timemark_clear/1
 ]).
+
+%% @doc Take erlang:now() and pipe it through {@link http_datetime/1}
+-spec(http_datetime/0 :: () -> string()).
+http_datetime() ->
+	http_datetime(erlang:now()).
+
+%% @doc Take an erlang:now() format and turn it into something suitable for
+%% http headers, eg:  "Sun, 06 Nov 1994 08:49:37 GMT"
+-spec(http_datetime/1 :: (Now :: {pos_integer(), pos_integer(),
+	pos_integer()}) -> string()).
+http_datetime({_Mega, _Sec, _Micro} = Now) ->
+	Datetime = calendar:now_to_universal_time(Now),
+	http_datetime(Datetime);
+
+http_datetime({{Year, Month, Day} = YearMonDay, {Hour, Minute, Second}}) ->
+	DayOfWeekNum = calendar:day_of_the_week(YearMonDay),
+	DaysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+	DayOfWeekName = lists:nth(DayOfWeekNum, DaysOfWeek),
+	Months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+		"Sep", "Oct", "Nov", "Dec"],
+	MonthName = lists:nth(Month, Months),
+	Format = "~s, ~2..0B ~s ~B ~2..0B:~2..0B:~2..0B GMT",
+	io_lib:format(Format, [DayOfWeekName, Day, MonthName, Year, Hour, Minute,
+		Second]).
+
+-ifdef(TEST).
+
+http_datetime_test() ->
+	Expected = "Fri, 17 Feb 2012 21:42:46 GMT",
+	Got = lists:flatten(http_datetime({1329,514966,63165})),
+	?assertEqual(Expected, Got).
+
+-endif.
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];

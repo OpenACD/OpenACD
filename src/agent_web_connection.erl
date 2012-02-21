@@ -581,7 +581,8 @@ set_endpoint(_Conn, _Type, _Struct) ->
 %%     {"label":string(),"href":string()}
 %% ]}
 get_tabs_menu(Conn) ->
-	gen_server:cast(Conn, get_tabs_menu).
+	gen_server:cast(Conn, get_tabs_menu),
+	?simple_success().
 
 % set_endpoint(Conn, Endpoint, Data, Persist) ->
 % 			EndpointData = binary_to_list(Data),

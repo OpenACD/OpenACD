@@ -124,8 +124,9 @@ http_datetime({{Year, Month, Day} = YearMonDay, {Hour, Minute, Second}}) ->
 		"Sep", "Oct", "Nov", "Dec"],
 	MonthName = lists:nth(Month, Months),
 	Format = "~s, ~2..0B ~s ~B ~2..0B:~2..0B:~2..0B GMT",
-	io_lib:format(Format, [DayOfWeekName, Day, MonthName, Year, Hour, Minute,
-		Second]).
+	Io = io_lib:format(Format, [DayOfWeekName, Day, MonthName, Year, Hour,
+		Minute, Second]),
+	lists:flatten(Io).
 
 -ifdef(TEST).
 

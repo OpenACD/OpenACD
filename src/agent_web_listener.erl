@@ -415,18 +415,34 @@ loop(Req, Table) ->
 		{api, Api} ->
 			Cookie = cookie_good(Req:parse_cookie()),
 			keep_alive(Cookie),
-			{Status, Headers, OutBin} = api(Api, Cookie, Post),
-			OutBin0 = case Req:get_range() of
-				undefined -> OutBin;
-				fail -> OutBin;
-				Ranges -> build_ranged_bin(Ranges, OutBin)
-			end,
-			Req:respond({Status, Headers, OutBin0})
+			{Status, Headers, OutBin}  = Res = api(Api, Cookie, Post),
+			case {Req:get_primary_header_value("If-None-Match"), proplists:get_value("ETag", Headers)}  of
+				{X, X} when is_list(X) -> Req:respond({304, [{"ETag", X}], <<>>});
+				_ ->
+					case Status of
+						200 ->
+							ContentType = proplists:get_value("Content-Type", Headers, "text/html"),
+							Req:ok({ContentType, Headers, OutBin});
+						_ ->
+							Req:respond(Res)
+					end
+			end
+	end.
+
+clean_headers(Headers) ->
+	clean_headers(Headers, ["Accept-Ranges", "Content-Range", "Content-Length"]).
+
+clean_headers(Headers, []) ->
+	Headers;
+clean_headers(Headers, [Head | Tail] = Cleaners) ->
+	case lists:keydelete(Head, 1, Headers) of
+		Headers -> clean_headers(Headers, Tail);
+		Headers0 -> clean_headers(Headers0, Cleaners)
 	end.
 
 build_ranged_bin(Ranges, OutBin) ->
 	Size = size(OutBin),
-	Skips = [mochiweb_http:range_skip_length(X) || X <- Ranges],
+	Skips = [mochiweb_http:range_skip_length(X, Size) || X <- Ranges],
 	build_ranged_bin(Skips, Size, OutBin, []).
 
 build_ranged_bin([], _Size, _OrigBin, Acc) ->

@@ -398,7 +398,7 @@ loop(Req, Table) ->
 			%?DEBUG("Cookielist:  ~p", [Cookielist]),
 			GregSecs = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
 			FutureWeek = GregSecs + (60 * 60 * 24 * 7),
-			DateTime = calendar:gregorian_seconds_to_datetime(FutureWeek)
+			DateTime = calendar:gregorian_seconds_to_datetime(FutureWeek),
 			CacheControl = {"Expires", util:http_datetime(DateTime)},
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
@@ -410,7 +410,7 @@ loop(Req, Table) ->
 					Req:serve_file(File, Docroot, [CacheControl, {"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
-					Req:serve_file(File, Docroot, [CacheControle, {"Set-Cookie", Language}])
+					Req:serve_file(File, Docroot, [CacheControl, {"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
 			Cookie = cookie_good(Req:parse_cookie()),
@@ -435,7 +435,7 @@ build_ranged_bin([], _Size, _OrigBin, Acc) ->
 build_ranged_bin([invalid_range | Tail], Size, OrigBin, Acc) ->
 	build_ranged_bin(Tail, Size, OrigBin, Acc);
 
-build_ranged_bin([{Start, End} | Tail, Size, OrigBin, Acc) ->
+build_ranged_bin([{Start, End} | Tail], Size, OrigBin, Acc) ->
 	<<_Skip:Start/binary, AccBin:End/binary, _Rest/binary>> = OrigBin,
 	build_ranged_bin(Tail, Size, OrigBin, [AccBin | Acc]).
 

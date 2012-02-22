@@ -149,8 +149,7 @@
 -export([
 	query_agent_auth/1,
 	query_profiles/1,
-	query_release/1,
-	upgrade_v1_table/0
+	query_release/1
 ]).
 
 %%====================================================================
@@ -318,15 +317,15 @@ destroy_profile(Name) ->
 	mnesia:transaction(F).
 
 %% @doc Gets the proflie `string() Name'
--spec(get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
-get_profile(Name) ->
-	try integration:get_profile(Name) of
+-spec(get_profile/1 :: (Name :: string() | {id, string()} | {name, string()}) -> #agent_profile{} | 'undefined').
+get_profile(Profile) ->
+	try integration:get_profile(Profile) of
 		none ->
-			?DEBUG("integration has no such profile ~p", [Name]),
-			destroy_profile(Name),
+			?DEBUG("integration has no such profile ~p", [Profile]),
+			destroy_profile(Profile),
 			undefined;
 		{ok, Name, Id, Order, Options, Skills} ->
-			?DEBUG("integration found profile ~p", [Name]),
+			?DEBUG("integration found profile ~p", [Profile]),
 
 			Rec = #agent_profile{
 				name = Name,
@@ -340,19 +339,33 @@ get_profile(Name) ->
 			F = fun() -> mnesia:write(Rec) end,
 			{atomic, ok} = mnesia:transaction(F),
 			
-			local_get_profile(Name);
+			local_get_profile(Profile);
 		{error, nointegration} ->
-			?DEBUG("No integration, falling back for ~p", [Name]),
-			local_get_profile(Name)
+			?DEBUG("No integration, falling back for ~p", [Profile]),
+			local_get_profile(Profile)
 	catch
 		throw:{badreturn, Err} ->
 			?WARNING("Integration failed with message:  ~p", [Err]),
-			local_get_profile(Name)
+			local_get_profile(Profile)
 	end.
 
 
--spec(local_get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
-local_get_profile(Name) ->
+-spec(local_get_profile/1 :: (Name :: string() | {id, string()} | {name, string()}) -> #agent_profile{} | 'undefined').
+local_get_profile(Name) when is_list(Name) ->
+	local_get_profile({name, Name});
+local_get_profile({id, Id}) ->
+	F = fun() ->
+		QH = qlc:q([ X || X <- mnesia:table(agent_profile),
+			X#agent_profile.id =:= Id]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			undefined;
+		{atomic, [Profile]} ->
+			Profile
+	end;
+local_get_profile({name, Name}) ->
 	F = fun() ->
 		mnesia:read({agent_profile, Name})
 	end,
@@ -781,9 +794,6 @@ upgrade_transform({agent_auth, Id, Login, Password, Skills, Security,
 	Integrated, Profile, First, Last, ExProps, Timestamp}) ->
 	{agent_auth, Id, Login, Password, Skills, Security, Integrated, Profile,
 		First, Last, [], ExProps, Timestamp}.
-
-
-
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -1315,6 +1325,7 @@ agent_auth_test_() ->
 			write_default_profile(),
 			meck:new(cpx_hooks)
 		end,
+<<<<<<< HEAD
 		fun(_) ->
 			meck:unload(cpx_hooks)
 		end, [
@@ -1388,6 +1399,35 @@ agent_auth_test_() ->
 			write_default_profile(),
 			{ok, Mock} = gen_server_mock:named({local, integration}),
 			Mock
+=======
+		new_profile("test profile", [english]),
+		?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
+		?assertEqual({atomic, ok}, destroy_profile("test profile")),
+		?assertEqual({atomic, []}, mnesia:transaction(F))
+	end },
+	{"Get a profile", fun() ->
+		?assertEqual(undefined, get_profile("test profile")),
+		new_profile("test profile", [testskill]),
+		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+	end},
+	{"Get a profile by id", fun() ->
+		?assertEqual(undefined, get_profile({id, "1"})),
+		new_profile("test profile", [testskill]),
+		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+	end},
+	{"Get a profile by name", fun() ->
+		?assertEqual(undefined, get_profile({name, "test profile"})),
+		new_profile("test profile", [testskill]),
+		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
+	end},
+	
+	{"Get all profiles", fun() ->
+		new_profile("B", [german]),
+		new_profile("A", [english]),
+		new_profile("C", [testskill]),
+		F = fun() ->
+			mnesia:delete({agent_profile, "Default"})
+>>>>>>> 42c309c7b01f1265793864a04889702fec68acea
 		end,
 		fun(Mock) ->
 			unregister(integration),

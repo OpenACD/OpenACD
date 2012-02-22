@@ -39,8 +39,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	code_change/3]).
 % api
--export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, trigger_hooks/2,
-	trigger_hooks/3, async_trigger_hooks/2, async_trigger_hooks/3]).
+-export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, drop_hooks/1,
+	get_hooks/1, trigger_hooks/2, trigger_hooks/3,
+	async_trigger_hooks/2, async_trigger_hooks/3]).
 
 %% =================================================================
 %% API
@@ -67,6 +68,20 @@ set_hook(Id, Hook, M, F, A, Priority) when is_list(A) ->
 drop_hook(Id) ->
 	ets:delete(cpx_hooks, Id).
 	%gen_server:cast(?MODULE, {drop_hook, Id}).
+
+-spec(drop_hooks/1 :: (Hook :: atom()) -> ok).
+drop_hooks(Hook) ->
+	ets:match_delete(cpx_hooks, {'_', Hook, '_', '_', '_', '_'}),
+	ok.
+
+%% @doc Get all hooks to the trigger event Hook.
+-spec(get_hooks/1 :: (Hook :: atom()) -> [{Id :: any(), M :: atom(), F :: atom(),
+	A :: [any()], Priority :: integer()}]).
+get_hooks(Hook) ->
+	qlc:e(qlc:q([{Id, M, F, A, P} || 
+		{Id, EHook, M, F, A, P} <- ets:table(cpx_hooks),
+		EHook == Hook
+	])).
 
 %% @doc Begin calling the callbacks for trigger event `Hook' in the `first'
 %% mode.
@@ -223,11 +238,45 @@ hook_test_() ->
 	end, [
 		fun(_P) ->
 			{"no hooks", fun() ->
+				?assertEqual([], get_hooks(hook)),
 				Out = trigger_hooks(hook, []),
 				?assertEqual({error, unhandled}, Out)
 			end}
 		end,
+		fun(_P) ->
+			{"hooks crud single", fun() ->
+				?assertEqual([], get_hooks(hook)),
+				set_hook(a, hook, hook_tester, foo, [], 1),
+				set_hook(b, hook, hook_tester, bar, [], 2),
+				
+				?assertEqual(
+					lists:sort([{a, hook_tester, foo, [], 1},
+						{b, hook_tester, bar, [], 2}]),
+					lists:sort(get_hooks(hook))),
+				
+				drop_hook(b),
+				?assertEqual(
+					[{a, hook_tester, foo, [], 1}],
+					get_hooks(hook))
+			end}
+		end,
+		fun(_P) ->
+			{"hooks crud batch", fun() ->
+				?assertEqual([], get_hooks(hook)),
+				set_hook(a, hook, hook_tester, foo, [], 1),
+				set_hook(b, hook, hook_tester, bar, [], 2),
+				set_hook(c, other, hook_tester, baz, [], 3),
 
+				?assertEqual(
+					lists:sort([{a, hook_tester, foo, [], 1},
+						{b, hook_tester, bar, [], 2}]),
+					lists:sort(get_hooks(hook))),
+				
+				drop_hooks(hook),
+				?assertEqual([], get_hooks(hook)),
+				?assertEqual([{c, hook_tester, baz, [], 3}], get_hooks(other))
+			end}
+		end,
 		fun(_) ->
 			{"Hook stops another from happening", fun() ->
 					meck:expect(hook_tester, good_skip, fun() ->
@@ -242,6 +291,13 @@ hook_test_() ->
 					set_hook(skipped, hook, hook_tester, good_skip, [], 1),
 					set_hook(good, hook, hook_tester, good_return, [], 2),
 					set_hook(error, hook, hook_tester, donotwant, [], 3),
+
+					?assertEqual(
+						lists:sort([{skipped, hook_tester, good_skip, [], 1},
+							{good, hook_tester, good_return, [], 2},
+							{error, hook_tester, donotwant, [], 3}]),
+						lists:sort(get_hooks(hook))),
+
 					%timer:sleep(10),
 					Out = trigger_hooks(hook, []),
 					?assertEqual({ok, ok}, Out)

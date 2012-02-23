@@ -179,58 +179,51 @@
 ]).
 -export([
 	%% requests, exported for documentation happy.
-	agent_transfer/4,
-	end_wrapup/3,
-	get_agent_profiles/2,
-	get_avail_agents/2,
-	get_endpoint/3,
-	get_queue_transfer_options/3,
-	get_tabs_menu/2,
+	agent_transfer/3,
+	end_wrapup/2,
+	get_agent_profiles/1,
+	get_avail_agents/1,
+	get_endpoint/2,
+	get_queue_transfer_options/2,
+	get_tabs_menu/1,
 	% TODO implement
 	%load_media/1,
-	logout/2,
+	logout/1,
+	media_call/3,
 	media_call/4,
-	media_call/5,
+	media_cast/3,
 	media_cast/4,
-	media_cast/5,
 	%media_hangup/2,
 	%plugin_call/3,
-	queue_transfer/5,
+	queue_transfer/4,
 	%ring_test/1,
-	set_endpoint/4,
-	set_release/3,
-	set_state/4,
-	set_state/5
+	set_endpoint/3,
+	set_release/2,
+	set_state/3,
+	set_state/4
 ]).
 
 %% An easier way to do a lookup for api functions.
 -agent_api_functions([
-	{set_release, 2},
-	{set_state, 3},
-	{set_state, 4},
-	{end_wrapup, 2},
-	{dial, 2},
-	{get_avail_agents, 1},
-	{agent_transfer, 2},
 	{agent_transfer, 3},
-	{media_hangup, 1},
+	{end_wrapup, 2},
+	{get_agent_profiles, 1},
+	{get_avail_agents, 1},
+	{get_endpoint, 2},
+	{get_queue_transfer_options, 2},
+	{get_tabs_menu, 1},
+	% TODO implement
+	%{load_media, 1},
+	{logout, 1},
 	{media_call, 3},
 	{media_call, 4},
 	{media_cast, 3},
 	{media_cast, 4},
-	{load_media, 1},
-	{ring_test, 1},
-	{get_agent_profiles, 1},
-	{get_queue_transfer_options, 1},
-	{warm_transfer, 2},
-	{warm_transfer_complete, 1},
-	{warm_transfer_cancel, 1},
-	{queue_transfer, 3},
-	{init_outbound, 3},
-	{get_endpoint, 2},
+	{queue_transfer, 4},
 	{set_endpoint, 3},
-	{plugin_call, 3},
-	{logout, 1}
+	{set_release, 2},
+	{set_state, 3},
+	{set_state, 4}
 ]).
 
 %% =======================================================================

@@ -253,7 +253,7 @@ encode_cast(State, Cast) ->
 	{'exit', json(), #state{}}).
 handle_json(State, {struct, Json}) ->
 	ThisModBin = list_to_binary(atom_to_list(?MODULE)),
-	ModBin = proplists:get_value(Json, <<"module">>, ModBin),
+	ModBin = proplists:get_value(Json, <<"module">>, ThisModBin),
 	ReqId = proplists:get_value(Json, <<"request_id">>),
 	ModRes = try binary_to_existing_atom(ModBin, utf8) of
 		ModAtom ->
@@ -263,9 +263,9 @@ handle_json(State, {struct, Json}) ->
 			{error, bad_module}
 	end,
 	FuncBin = proplists:get_value(Json, <<"function">>, <<"undefined">>),
-	FuncRes = try binary_to_existing_atom(FunBin, utf) of
+	FuncRes = try binary_to_existing_atom(FuncBin, utf) of
 		FuncAtom ->
-			{ok, FuncAtom};
+			{ok, FuncAtom}
 	catch
 		error:badarg ->
 			{error, bad_function}
@@ -282,17 +282,23 @@ handle_json(State, {struct, Json}) ->
 		{{ok, Mod}, {ok, Func}} ->
 			Attrs = Mod:module_info(attributes),
 			AgentApiFuncs = proplists:get_value(agent_api_functions, Attrs, []),
-			Arity = length(args) + 1,
+			Arity = length(Args) + 1,
 			#state{agent = Agent} = State,
 			case lists:member({Func, Arity}, [Agent | AgentApiFuncs]) of
 				false ->
 					{ok, ?reply_err(ReqId, <<"no such function">>, <<"FUNCTION_NOEXISTS">>), State};
 				true ->
 					try apply(Mod, Func, [State, Args]) of
+						'exit' ->
+							{exit, ?simple_success(ReqId), State};
+						{'exit', ResultJson} ->
+							{exit, ?reply_success(ReqId, ResultJson), State};
+						ok ->
+							{ok, ?simple_success(ReqId), State};
 						{ok, ResultJson} ->
-							{ok, ?success(RequestId, ResultJson), State};
+							{ok, ?reply_success(ReqId, ResultJson), State};
 						{error, Msg, Code} ->
-							{ok, ?reply_err(RequestId, Msg, Code), State};
+							{ok, ?reply_err(ReqId, Msg, Code), State};
 						Else ->
 							ErrMsg = list_to_binary(io_lib:format("~p", [Else])),
 							{ok, ?reply_err(ReqId, ErrMsg, <<"UNKNOWN_ERROR">>), State}
@@ -312,18 +318,17 @@ handle_json(State, _InvalidJson) ->
 %% =======================================================================
 
 %% @doc {@agent_api} Logs the agent out.  The result is a simple success.
--spec(logout/2 :: (State :: #state{}, Id :: any()) -> {'exit', json(), #state{}}).
-logout(State, Id) ->
-	{exit, ?simple_success(Id), State}.
+-spec(logout/1 :: (State :: #state{}) -> 'exit').
+logout(_State) ->
+	exit.
 
 %% @doc {@agent_api} Sets the release mode of the agent.  To set an agent in
 %% a release mode, pass `<<"Default">>', `<<"default">>', or
 %% `<<"Id:Name:Bias">>' as the arguement.  Setting the agent idle is done
 %% by sending `<<"none">>' or `false'.
--spec(set_release/3 :: (State :: #state{}, Id :: any(),
-	Release :: binary() | 'false') ->
+-spec(set_release/2 :: (State :: #state{}, Release :: binary() | 'false') ->
 	{'ok', json(), #state{}} | {error, any(), #state{}}).
-set_release(State, Id, Release) ->
+set_release(State, Release) ->
 	RelData = case Release of
 		<<"none">> ->
 			none;
@@ -338,33 +343,26 @@ set_release(State, Id, Release) ->
 			{Id, Name, list_to_integer(Bias)}
 	end,
 	#state{agent = Agent} = State,
-	case agent:set_release(Agent#agent.source, RelData) of
-		ok ->
-			{ok, ?simple_success(Id), State};
-		Err ->
-			ErrBin = list_to_binary(io_lib:format("~p", [Err])),
-			{ok, ?reply_err(Id, ErrBin, <<"UNKNOWN_ERR">>), State}
-	end.
+	agent:set_release(Agent#agent.source, RelData).
 
 %% @doc {@agent_api} Set the agent channel `Channel' to the given
 %% `Statename' with default state data.  No result property as it either
 %% worked or didn't.  There will likely be an event as well to set the agent
 %% state, so it is recommended that no actual change occur on the agent UI
 %% side until that event is received.
--spec(set_state/4 :: (State :: #state{}, Id :: any(), Channel :: binary(),
+-spec(set_state/3 :: (State :: #state{}, Channel :: binary(),
 	Statename :: binary()) -> {'ok', json(), #state{}}).
-set_state(State, Id, Channel, Statename) ->
+set_state(State, Channel, Statename) ->
 	ChannelName = binary_to_list(Channel),
 	StateName = binary_to_list(Statename),
 	case fetch_channel(ChannelName, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>), State};
+			{error, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>};
 		{Chan, _ChanState} ->
 			case agent_channel:set_state(Chan, agent_channel:list_to_state(StateName)) of
-				ok ->
-					{ok, ?simple_success(Id), State};
+				ok -> ok;
 				{error, invalid} ->
-					{ok, ?reply_err(Id, <<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
+					{error, <<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>}
 			end
 	end.
 
@@ -372,22 +370,22 @@ set_state(State, Id, Channel, Statename) ->
 %% `Statename' with the given `Statedata'.  No result property as it either %% worked or it didn't.  State data will vary based on state.  Furthermore,
 %% in the case of success, an event is sent later by the agent fsm.  It is
 %% recommended that no change to the UI occur until that event is received.
--spec(set_state/5 :: (State :: #state{}, Id :: any(),
-	ChannelBin :: binary(), StateBin :: binary(), StateDataBin :: binary()) ->
+-spec(set_state/4 :: (State :: #state{}, ChannelBin :: binary(),
+	StateBin :: binary(), StateDataBin :: binary()) ->
 	{'ok', json(), #state{}}).
-set_state(State, Id, ChannelBin, StateBin, StateDataBin) ->
+set_state(State, ChannelBin, StateBin, StateDataBin) ->
 	Channel = binary_to_list(ChannelBin),
 	Statename = binary_to_list(StateBin),
 	Statedata = binary_to_list(StateDataBin),
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>), State};
+			{error, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>};
 		{Chan, _ChanState} ->
 			case agent_channel:set_state(Chan, agent_channel:list_to_state(Statename), Statedata) of
 				ok ->
-					{ok, ?simple_success(Id), State};
+					ok;
 				invalid ->
-					{ok, ?reply_err(Id, <<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>), State}
+					{error, <<"Channel state change invalid">>, <<"INVALID_STATE_CHANGE">>}
 			end
 	end.
 
@@ -396,19 +394,18 @@ set_state(State, Id, ChannelBin, StateBin, StateDataBin) ->
 %% property as it iether worked or didn't.  There will also be an event
 %% later sent by the agent fsm.  It is recommended that no UI changes
 %% occur until that event comes in.
--spec(end_wrapup/3 :: (State :: #state{}, Id :: any(), ChanBin :: binary())
+-spec(end_wrapup/2 :: (State :: #state{}, ChanBin :: binary())
 	-> {'ok', json(), #state{}}).
-end_wrapup(State, Id, ChanBin) ->
+end_wrapup(State, ChanBin) ->
 	Channel = binary_to_list(ChanBin),
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>)};
+			{error, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>};
 		{Chan, _ChanState} ->
 			case agent_channel:end_wrapup(Chan) of
-				ok ->
-					{ok, ?simple_success(Id), State};
+				ok -> ok;
 				invalid ->
-					{ok, ?reply_err(Id, <<"Channel not stopped">>, <<"INVALID_STATE_CHANGE">>), State}
+					{error, <<"Channel not stopped">>, <<"INVALID_STATE_CHANGE">>}
 			end
 	end.
 
@@ -419,13 +416,13 @@ end_wrapup(State, Id, ChanBin) ->
 %% 	"profile":  string(),
 %% 	"state":  "idle" | "released"
 %% }]</pre>
--spec(get_avail_agents/2 :: (State :: #state{}, Id :: any()) ->
+-spec(get_avail_agents/1 :: (State :: #state{}) ->
 	{'ok', json(), #state{}}).
-get_avail_agents(State, Id) ->
+get_avail_agents(_State) ->
 	Agents = [agent:dump_state(Pid)|| {_K, {Pid, _Id, _Time, _Skills}} <-
 		agent_manager:list()],
 	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}]} || Rec <- Agents],
-	{ok, ?reply_success(Id, Noms), State}.
+	{ok, Noms}.
 
 %% @doc {@agent_api} Get a list of the profiles that are in the system.
 %% Result is:
@@ -433,92 +430,88 @@ get_avail_agents(State, Id) ->
 %% 	"name":  string(),
 %% 	"order":  number()
 %% }]</pre>
--spec(get_agent_profiles/2 :: (State :: #state{}, Id :: any()) ->
+-spec(get_agent_profiles/1 :: (State :: #state{}) ->
 	{'ok', json(), #state{}}).
-get_agent_profiles(State, Id) ->
+get_agent_profiles(_State) ->
 	Profiles = agent_auth:get_profiles(),
 	Jsons = [
 		{struct, [{<<"name">>, list_to_binary(Name)}, {<<"order">>, Order}]} ||
 		#agent_profile{name = Name, order = Order} <- Profiles
 	],
-	{ok, ?reply_success(Id, Jsons), State}.
+	{ok, Jsons}.
 
 %% @doc {@agent_api} Transfer the call on the given `Channel' to `Agent'
 %% login name.  No result is sent back as it's a simple success or failure.
--spec(agent_transfer/4 :: (State :: #state{}, Id :: any(),
-	ChannelBin :: binary(), Agent :: binary()) ->
-	{'ok', json(), #state{}}).
-agent_transfer(State, Id, ChannelBin, AgentBin) ->
+-spec(agent_transfer/3 :: (State :: #state{}, ChannelBin :: binary(),
+	Agent :: binary()) -> {'ok', json(), #state{}}).
+agent_transfer(State, ChannelBin, AgentBin) ->
 	Channel = binary_to_list(ChannelBin),
 	Agent = binary_to_list(AgentBin),
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>)};
+			{error, <<"Channel not found">>, <<"CHANNEL_NOEXISTS">>};
 		{Chan, _ChanState} ->
 			case agent_channel:agent_transfer(Chan, Agent) of
-				ok ->
-					{ok, ?simple_success(Id), State};
+				ok -> ok;
 				invalid ->
-					{ok, ?reply_err(Id, <<"Channel refused">>, <<"INVALID_STATE_CHANGE">>), State}
+					{error, <<"Channel refused">>, <<"INVALID_STATE_CHANGE">>}
 			end
 	end.
 
 %% @doc {@agent_api} @see media_call/5
--spec(media_call/4 :: (State :: #state{}, Id :: any(), Channel :: binary(),
+-spec(media_call/3 :: (State :: #state{}, Channel :: binary(),
 	Command :: binary()) -> {'ok', json(), #state{}}).
-media_call(State, Id, Channel, Command) ->
-	media_call(State, Id, Channel, Command, []).
+media_call(State, Channel, Command) ->
+	media_call(State, Channel, Command, []).
 
 %% @doc {@agent_api} Forward a request to the media associated with an
 %% oncall agent channel.  `Command' is the name of the request to make.
 %% `Args' is a list of arguments to be sent with the `Command'.  Check the
 %% documentation of the media modules to see what possible returns there
 %% are.
--spec(media_call/5 :: (State :: #state{}, Id :: any(),
-	ChannelBin :: binary(), Command :: binary(), Args :: [any()]) ->
-	{'ok', json(), #state{}}).
-media_call(State, Id, Channel, Command, Args) ->
+-spec(media_call/4 :: (State :: #state{}, ChannelBin :: binary(),
+	Command :: binary(), Args :: [any()]) -> {'ok', json(), #state{}}).
+media_call(State, Channel, Command, Args) ->
 	case fetch_channel(Channel, State) of
 		none ->
-			{reply, ?reply_err(Id, <<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>), State};
-		{_ChanPid, #channel_state{current_call = #call{source = CallPid} = Call}} ->
-			Reply = try gen_media:call(CallPid, {?MODULE, Command, Args}) of
+			{error, <<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>};
+		{_ChanPid, #channel_state{current_call = #call{source = CallPid}}} ->
+			try gen_media:call(CallPid, {?MODULE, Command, Args}) of
 				invalid ->
 					?DEBUG("media call returned invalid", []),
-					?reply_err(Id, <<"invalid media call">>, <<"INVALID_MEDIA_CALL">>);
+					{error, <<"invalid media call">>, <<"INVALID_MEDIA_CALL">>};
 				Response ->
-					?reply_success(Id, Response)
+					{ok, Response}
 			catch
 				exit:{noproc, _} ->
 					?DEBUG("Media no longer exists.", []),
-					?reply_err(Id, <<"media no longer exists">>, <<"MEDIA_NOEXISTS">>);
+					{error, <<"media no longer exists">>, <<"MEDIA_NOEXISTS">>};
 				What:Why ->
 					?DEBUG("Media exploded:  ~p:~p", [What,Why]),
 					ErrBin = list_to_binary(io_lib:format("~p:~p", [What,Why])),
-					?reply_err(Id, ErrBin, <<"UNKNOWN_ERROR">>)
-			end,
-			{ok, Reply, State}
+					{error, ErrBin, <<"UNKNOWN_ERROR">>}
+			end
 	end.
 
 %% @doc {@agent_api} @see media_cast/5
--spec(media_cast/4 :: (State :: #state{}, Id :: any(), Channel :: binary(),
+-spec(media_cast/3 :: (State :: #state{}, Channel :: binary(),
 	Command :: binary()) -> {'ok', json(), #state{}}).
-media_cast(State, Id, Channel, Command) ->
-	media_cast(State, Id, Channel, Command, []).
+media_cast(State, Channel, Command) ->
+	media_cast(State, Channel, Command, []).
 
 %% @doc {@agent_api} Forward a command to the media associated with an
 %% oncall agent channel.  `Command' is the name of the command to send.
 %% `Args' is a list of arguments to send with the `Command'.  There is no
 %% reply expected, so a simple success is always returned.
--spec(media_cast/5 :: (State :: #state{}, Id :: any(), Channel :: binary(),
+-spec(media_cast/4 :: (State :: #state{}, Channel :: binary(),
 	Command :: binary(), Args :: [any()]) -> {'ok', json(), #state{}}).
-media_cast(State, Id, Channel, Command, Args) ->
+media_cast(State, Channel, Command, Args) ->
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>), State};
-		{_ChanPid, #channel_state{current_call = #call{source = CallPid} = Call}} ->
+			{error, <<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>};
+		{_ChanPid, #channel_state{current_call = #call{source = CallPid}}} ->
 			gen_media:cast(CallPid, {?MODULE, Command, Args}),
-			{ok, ?simple_success(Id), State}
+			ok
 	end.
 
 %% @doc {@agent_api} Get the fields and skills an agent can assign to a
@@ -536,12 +529,12 @@ media_cast(State, Id, Channel, Command, Args) ->
 %%		string() | {"atom":  string(),  "value":  string()}
 %% 	]
 %% }</pre>
--spec(get_queue_transfer_options/3 :: (State :: #state{}, Id :: any(),
+-spec(get_queue_transfer_options/2 :: (State :: #state{},
 	Channel :: binary()) -> {'ok', json(), #state{}}).
-get_queue_transfer_options(State, Id, Channel) ->
+get_queue_transfer_options(State, Channel) ->
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>), State};
+			{error, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>};
 		{_Chan, #channel_state{current_call = Call}} when is_record(Call, call) ->
 			{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),
 			{ok, {Prompts, Skills}} = cpx:get_env(transferprompt, {[], []}),
@@ -568,27 +561,27 @@ get_queue_transfer_options(State, Id, Channel) ->
 				{<<"prompts">>, Encodedprompts},
 				{<<"skills">>, Encodedskills}
 			]},
-			{ok, ?reply_success(Id, Json), State};
-		Else ->
-			{ok, ?reply_err(Id, <<"channel is not oncall">>, <<"INVALID_STATE_CHANGE">>), State}
+			{ok, Json};
+		_Else ->
+			{error, <<"channel is not oncall">>, <<"INVALID_STATE_CHANGE">>}
 	end.
 
 %% @doc {@agent_api} Force the agent channgel to disconnect the media;
-%% usually through a brutal %% kill of the media pid.  Best used as an
+%% usually through a brutal kill of the media pid.  Best used as an
 %% emergency escape hatch, and not under normal call flow.  No result set
 %% as it's merely success or failure.
--spec(media_hangup/3 :: (State :: #state{}, Id :: any(),
-	Channel :: binary()) -> {'ok', json(), #state{}}).
-media_hangup(State, Id, Channel) ->
+-spec(media_hangup/2 :: (State :: #state{}, Channel :: binary()) ->
+	{'ok', json(), #state{}}).
+media_hangup(State, Channel) ->
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>), State};
+			{error, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>};
 		{_ChanPid, #channel_state{current_call = Call}} when is_record(Call, call) ->
 			?DEBUG("The agent is committing call murder!", []),
 			exit(Call#call.source, agent_connection_request),
-			{ok, ?simple_success(Id), State};
+			ok;
 		_ ->
-			{ok, ?reply_err(Id, <<"channel not oncall">>, <<"INVALID_STATE_CHANGE">>), State}
+			{error, <<"channel not oncall">>, <<"INVALID_STATE_CHANGE">>}
 	end.
 
 %% @doc {@agent_api} Transfer the channel's call into `Queue' with
@@ -597,10 +590,9 @@ media_hangup(State, Id, Channel) ->
 %% `"skills"' with a list, the list is interpreted as a set of skills to 
 %% apply to the media.  No result is set as it is merely success or 
 %% failure.
--spec(queue_transfer/5 :: (State :: #state{}, Id :: any(),
-	QueueBin :: binary(), Channel :: binary(), Opts :: json()) ->
-	{'ok', json(), #state{}}).
-queue_transfer(State, Id, QueueBin, Channel, {struct, Opts}) ->
+-spec(queue_transfer/4 :: (State :: #state{}, QueueBin :: binary(),
+	Channel :: binary(), Opts :: json()) -> {'ok', json(), #state{}}).
+queue_transfer(State, QueueBin, Channel, {struct, Opts}) ->
 	Queue = binary_to_list(QueueBin),
 	{Skills, Opts0} = case lists:key_take(<<"skills">>, 1, Opts) of
 		false -> {[], Opts};
@@ -610,18 +602,17 @@ queue_transfer(State, Id, QueueBin, Channel, {struct, Opts}) ->
 	end,
 	case fetch_channel(Channel, State) of
 		none ->
-			{ok, ?reply_err(Id, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>), State};
+			{error, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>};
 		{Chan, #channel_state{current_call = Call}} when is_record(Call, call) ->
 			gen_media:set_url_getvars(Call#call.source, Opts0),
 			gen_media:add_skills(Call#call.source, Skills),
 			case agent_channel:queue_transfer(Chan, Queue) of
-				ok ->
-					{ok, ?simple_success(Id), State};
+				ok -> ok;
 				invalid ->
-					{ok, ?reply_err(Id, <<"agent channel rejected transfer">>, <<"INVALID_STATE_CHANGE">>), State}
+					{error, <<"agent channel rejected transfer">>, <<"INVALID_STATE_CHANGE">>}
 			end;
 		_ ->
-			{ok, ?reply_err(Id, <<"agent channel not oncall">>, <<"INVALID_STATE_CHANGE">>), State}
+			{error, <<"agent channel not oncall">>, <<"INVALID_STATE_CHANGE">>}
 	end.
 
 skills_from_post(Skills) ->
@@ -642,20 +633,20 @@ skills_from_post([Atom | Tail], Acc) when is_binary(Atom) ->
 	skills_from_post(Tail, Acc0).
 
 %% @doc {@agent_api} Get the agent's endpoint data for a given module.
--spec(get_endpoint/3 :: (State :: #state{}, Id :: any(),
-	TypeBin :: binary()) -> {'ok', json(), #state{}}).
-get_endpoint(State, Id, TypeBin) ->
+-spec(get_endpoint/2 :: (State :: #state{}, TypeBin :: binary()) ->
+	{'ok', json(), #state{}}).
+get_endpoint(State, TypeBin) ->
 	case catch erlang:binary_to_existing_atom(TypeBin, utf8) of
 		{'EXIT', {badarg, _}} ->
-			{ok, ?reply_err(Id, <<"invalid endpoint type">>, <<"INVALID_ENDPOINT_TYPE">>), State};
+			{error, <<"invalid endpoint type">>, <<"INVALID_ENDPOINT_TYPE">>};
 		Type ->
 			#state{agent = Agent} = State,
 			case agent:get_endpoint(Type, Agent) of
 				{error, notfound} ->
-					{ok, ?reply_success(Id, null), State};
+					{ok, null};
 				{ok, {InitOpts, _}} ->
 					Json = endpoint_to_struct(Type, InitOpts),
-					{ok, ?reply_success(Id, Json), State}
+					{ok, Json}
 			end
 	end.
 
@@ -679,10 +670,10 @@ endpoint_to_struct(dummy_media, Opt) ->
 %% data will not be available for that until it is started on in the 
 %% browser.
 % TODO make this not media specific.
--spec(set_endpoint/4 :: (State :: #state{}, Id :: any(),
-	Endpoint :: binary(), Data :: binary()) -> any()).
-set_endpoint(State, Id, <<"freeswitch_media">>, Struct) ->
-	set_endpoint_int(State, Id, freeswitch_media, Struct, fun(Data) ->
+-spec(set_endpoint/3 :: (State :: #state{}, Endpoint :: binary(),
+	Data :: binary()) -> any()).
+set_endpoint(State, <<"freeswitch_media">>, Struct) ->
+	set_endpoint_int(State, freeswitch_media, Struct, fun(Data) ->
 		FwType = case proplists:get_value(<<"type">>, Data) of
 			%<<"rtmp">> -> rtmp;
 			<<"sip_registration">> -> sip_registration;
@@ -709,11 +700,11 @@ set_endpoint(State, Id, <<"freeswitch_media">>, Struct) ->
 		end
 	end);
 
-set_endpoint(State, Id, <<"email_media">>, _Struct) ->
-	set_endpoint_int(State, Id, email_media, {struct, []}, fun(_) -> ok end);
+set_endpoint(State, <<"email_media">>, _Struct) ->
+	set_endpoint_int(State, email_media, {struct, []}, fun(_) -> ok end);
 
-set_endpoint(State, Id, <<"dummy_media">>, Struct) ->
-	set_endpoint_int(State, Id, dummy_media, Struct, fun(Data) ->
+set_endpoint(State, <<"dummy_media">>, Struct) ->
+	set_endpoint_int(State, dummy_media, Struct, fun(Data) ->
 		case proplists:get_value(<<"dummyMediaEndpoint">>, Data) of
 			<<"ring_channel">> ->  ring_channel;
 			<<"inband">> -> inband;
@@ -723,33 +714,32 @@ set_endpoint(State, Id, <<"dummy_media">>, Struct) ->
 		end
 	end);
 
-set_endpoint(State, Id, _Type, _Struct) ->
-	{ok, ?reply_err(Id, <<"unknwon endpoint">>, <<"INVALID_ENDPOINT">>), State}.
+set_endpoint(_State, _Type, _Struct) ->
+	{error, <<"unknwon endpoint">>, <<"INVALID_ENDPOINT">>}.
 
-set_endpoint_int(State, Id, Type, {struct, Data}, DataToOptsFun) ->
+set_endpoint_int(State, Type, {struct, Data}, DataToOptsFun) ->
 	case DataToOptsFun(Data) of
 		{error, Error} ->
-			{ok, ?reply_err(Id, iolist_to_binary(io_lib:format("error with input: ~p", [Error])), <<"INVALID_ENDPOINT">>), State};
+			{error, iolist_to_binary(io_lib:format("error with input: ~p", [Error])), <<"INVALID_ENDPOINT">>};
 		Opts ->
 			#state{agent = Agent} = State,
 			case agent:set_endpoint(Agent#agent.source, Type, Opts) of
-				ok ->
-					{ok, ?simple_success(Id), State};
+				ok -> ok;
 				{error, Error2} ->
-					{ok, ?reply_err(Id, iolist_to_binary(io_lib:format("error setting endpoint: ~p", [Error2])), <<"INVALID_ENDPOINT">>), State}
+					{error, iolist_to_binary(io_lib:format("error setting endpoint: ~p", [Error2])), <<"INVALID_ENDPOINT">>}
 			end
 	end.
 
-%% @doc {@agent_api} Gathers the tabs an agent can access, and pushes the result
-%% into the command queue.
+%% @doc {@agent_api} Gathers the tabs an agent can access, and pushes the
+%% result into the command queue.
 %% {"command": "set_tabs_menu",
 %% "tabs": [
 %%     {"label":string(),"href":string()}
 %% ]}
 % TODO freaking special snowflake.
-get_tabs_menu(State, Id) ->
-	gen_server:cast(State, get_tabs_menu),
-	{ok, ?simple_success(Id), State}.
+get_tabs_menu(State) ->
+	handle_cast(get_tabs_menu, State),
+	ok.
 
 %% @doc Useful when a plugin needs to send information or results to the
 %% agent ui.

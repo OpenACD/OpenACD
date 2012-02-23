@@ -87,7 +87,14 @@
 %% Modules intended to handle json calls can do so in two ways.  The first
 %% is to register a hook to {@link cpx_hooks. agent_api_call}.  This hook
 %% is triggered if the module and function with the appropriate arity is
-%% not found using the method described below.
+%% not found using the method described below.  The valid return values are
+%% the same as for the static functions.  The hook is triggered with the
+%% arguments:
+%% <ul>
+%% <li>`Connection :: #state{}': internal state of connection</li>
+%% <li>`Module :: atom()': Module that was in the json</li>
+%% <li>`Function :: atom()': Function that was in the json</li>
+%% <li>`Args :: [any()]': Arguments list in the json</li>
 %%
 %% The alternative is more efficient, preventing a call to cpx_hooks,
 %% though there is no custom information passed to the module.  The module
@@ -283,10 +290,28 @@ handle_json(State, {struct, Json}) ->
 			Attrs = Mod:module_info(attributes),
 			AgentApiFuncs = proplists:get_value(agent_api_functions, Attrs, []),
 			Arity = length(Args) + 1,
-			#state{agent = Agent} = State,
-			case lists:member({Func, Arity}, [Agent | AgentApiFuncs]) of
+			case lists:member({Func, Arity}, AgentApiFuncs) of
 				false ->
-					{ok, ?reply_err(ReqId, <<"no such function">>, <<"FUNCTION_NOEXISTS">>), State};
+					case cpx_hooks:trigger_hooks(agent_api_call, [State, Mod, Func, Args]) of
+						{error, unhandled} ->
+							{ok, ?reply_err(ReqId, <<"no such function">>, <<"FUNCTION_NOEXISTS">>), State};
+						{ok, HookRes} ->
+							case HookRes of
+								'exit' ->
+									{exit, ?simple_success(ReqId), State};
+								{'exit', ResultJson} ->
+									{exit, ?reply_success(ReqId, ResultJson), State};
+								ok ->
+									{ok, ?simple_success(ReqId), State};
+								{ok, ResultJson} ->
+									{ok, ?reply_success(ReqId, ResultJson), State};
+								{error, Msg, Code} ->
+									{ok, ?reply_err(ReqId, Msg, Code), State};
+								Else ->
+									ErrMsg = list_to_binary(io_lib:format("~p", [Else])),
+									{ok, ?reply_err(ReqId, ErrMsg, <<"UNKNOWN_ERROR">>), State}
+							end
+					end;
 				true ->
 					try apply(Mod, Func, [State, Args]) of
 						'exit' ->

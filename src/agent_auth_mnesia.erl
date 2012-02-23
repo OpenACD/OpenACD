@@ -689,7 +689,7 @@ build_tables() ->
 %% type.  to the mnesia database.  `Username' is the plaintext name and 
 %% used as the key.  `Password' is assumed to be plaintext; will be 
 %% erlang:md5'ed.  `Security' is either `agent', `supervisor', or `admin'.
-%% @depricated Use {@link cache/2} instead.
+%% @deprecated Use {@link cache/2} instead.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
@@ -734,7 +734,7 @@ cache(Id, Props) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/5 :: 
 	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
 		{'atomic', 'ok'}).
@@ -750,7 +750,7 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 %% @doc adds a user to the local cache bypassing the integrated at check.  
 %% Note that unlike {@link cache/4} this expects the password in plain 
 %% text!
-%% @depricated Please use {@link add_agent/1} instead.
+%% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/7 ::
 	(Username :: string(), Firstname :: string(), Lastname :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
 		{'atomic', 'ok'}).

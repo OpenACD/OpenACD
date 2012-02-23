@@ -5,21 +5,28 @@
 %%
 %% == Json API ==
 %%
+%% The Json API as two sides, client requests and server events.  OpenACD's
+%% policy is to assume the client connections are complete idiots, and
+%% therefore not worth asking about anything; not event if an event has been
+%% handled.  Thus, requests always come from the client, and events always
+%% come from the server.
+%%
+%% === Requests ===
+%%
 %% A Json request will have the following form:
 %% <pre>{"request_id":any(),
-%% (optional)"module_name": string(),
-%% "function_name": string(),
+%% (optional)module_name() : string(),
+%% function_name() : string(),
 %% (optional)"args": any() | [any()]}</pre>
 %%
-%% If the module name is omitted, it is assumed to be this module; ie: 
-%% handled intenrally.  If args is not an array, it is wrapped in an array
-%% of length 1.  If args is omitted, it is assumed tob an array of length 0.
-%% This way, requests match up to erlang Module:Function/Arity format.
-%% Erlang functions in this module that have {@agent_api} at the beginning
-%% of thier documentation conform to the form above with one caveat:  The
-%% first argument is always the internal state of the connection, and is
-%% obviously not sent with the json requests.  The second arguement is
-%% always the request id.
+%% If the module name is omitted, it is assumed to be this module
+%% ({@module}); ie: handled intenrally.  If args is not an array, it is
+%% wrapped in an array of length 1.  If args is omitted, it is assumed to
+%% be an array of length 0.  This way, requests match up to erlang
+%% Module:Function/Arity format.  Erlang functions in this module that have %% {@agent_api} at the beginning of thier documentation conform to the form %% above with one caveat:  The first argument is always the internal state
+%% of the connection, and is obviously not sent with the json requests.
+%% Thus, a properly documented project will be useful to agent connection
+%% and agent client developers.
 %%
 %% Request_id is an opaque type sent by the client; it is sent back with
 %% the reply to enable asynchronous requests.
@@ -45,31 +52,92 @@
 %% 	"errcode":  string()
 %% }</pre>
 %%
+%% === Events ===
+%%
+%% A server event is a json object with at least a "command" property.  If
+%% the command references a specific agent channel, it will also have a
+%% "channel_id" property.  All other properties are specific to the server
+%% events.  
+%%
 %% == Erlang API ==
-%% 
+%%
+%% There are two sides to the erlang API, the connection facing side (such
+%% as a web or tcp connection), and the api handler side, such as this
+%% module or plugins handing agent requests.
+%%
+%% === Agent Connections ===
+%%
 %% After the login procedure, init/1 should be called, passing in the agent
 %% record (prefereably after the connection is set).  If a reply of
 %% `{ok, #state{}}' is returned, stash the state.  It will be used in the
 %% encode_cast, and handle_json functions.
 %%
-%% An api handler function will return one of the following:
+%% Both encode_cast and handle_json have the same return types.
+%% <dl>
+%% <dt>`{ok, json(), state()}'</dt><dd>If json() is undefined, no json is
+%% to be sent.  Otherwise the json should be encoded using
+%% mochijson2:encode/1 and sent over the wire.</dd>
+%% <dt>`{exit, json(), state()}'</dt><dd>the connection should commit
+%% hari-kari.  If json() is undefined, that's all that needs to happen, 
+%% otherwise json should be sent, then death.</dd>
+%% </dl>
+%%
+%% === Api Handlers ===
+%%
+%% Modules intended to handle json calls can do so in two ways.  The first
+%% is to register a hook to {@link cpx_hooks. agent_api_call}.  This hook
+%% is triggered if the module and function with the appropriate arity is
+%% not found using the method described below.
+%%
+%% The alternative is more efficient, preventing a call to cpx_hooks,
+%% though there is no custom information passed to the module.  The module
+%% has an attribute `agent_api_functions', which is a list of tuples of
+%% type `{FunctionAtom, Arity}'.  The arity must be one more than the
+%% number of arguments sent with the json request; this is because the
+%% state of the agent connection is sent as the first argument.
+%%
+%% An api handler function (either kind) should return one of the following:
+%% <dl>
+%% <dt>`ok'</dt><dd>A simple success json is returned</dd>
+%% <dt>`{ok, json()}'</dt><dd>A json success is sent with the given json
+%% set as the result</dd>
+%% <dt>`{error, bin_string(), bin_string()}}'</dt><dd>An error is
+%% returned</dd>
+%% <dt> `exit'</dt><dd>The connection should exit, likely taking the agent
+%% fsm with it.  A simple success is returned.</dd>
+%% <dt>`{exit, json()}'</dt><dd>The connection should exit, likely taking
+%% the agent with it.  A success is returned, with the json as the result.
+%% </dd>
+%% </dl>
+%%
+%% Plugins that want to send server events to agents should send one of the
+%% two arbitrary command messages.
 %% <ul>
-%% <li>`{ok, json(), state()}'</li>
-%% <li>`{error, error(), state()}'</li>
-%% <li>`{exit, json(), state()}'</li>
+%% <li>`{arbitrary_command, Command, Props}'</li>
+%% <li>`{arbitrary_command, ChannelPidOrId, Command, Props}'</li>
 %% </ul>
 %%
-%% State should be stashed for the next encode_cast or handle_json.
+%% In both cases, `Command' should be either an atom or binary string.
+%% Props can be either a json object struct, or a property list that can
+%% be put into a json object struct.
 %%
-%% In the case of `{ok, json(), state()}' The json is guarenteed to be a
-%% valid response or event to be sent over the wire.
+%% `ChannelPidOrId' is the channel id either in its pid form, string form,
+%% or binary string form.  In any form, if the channel does not exist, the
+%% message is ignored.
 %%
-%% In the case of `{exit, json(), state()}' the connection should commit
-%% hari-kari.  If json() is undefined, that's all that needs to happen, 
-%% otherwise json should be sent, then deat.
+%% When the event is sent, the command property and channelid (if given)
+%% properties are automatically pre-pended onto the json struct.  The
+%% result is sent to the connection for encoding and being sent over the
+%% wire:
 %%
-%% Most times `{error, error(), state()}' just needs the new state stashed.
-%% In this case, there is no valid json ready to be sent back.
+%% <pre>{"command": string(),
+%% "channelid": string(),
+%% "field1": any(),
+%% "field2": any(),...
+%% "fieldN": any()
+%% }</pre>
+%%
+%% @TODO: Document the server events.
 
 -module(cpx_agent_connection).
 

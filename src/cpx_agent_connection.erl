@@ -136,7 +136,7 @@
 ]).
 
 %% An easier way to do a lookup for api functions.
--api_functions([
+-agent_api_functions([
 	{set_release, 2},
 	{set_state, 3},
 	{set_state, 4},
@@ -188,12 +188,64 @@ encode_cast(State, _Cast) ->
 
 %% @doc After unwrapping the binary that will hold json, and connection
 %% should call this.
--spec(handle_json/2 :: (State :: #state{}, JsonBin :: binary()) ->
+-spec(handle_json/2 :: (State :: #state{}, Json :: json()) ->
 	{'ok', json(), #state{}} | {'error', any(), #state{}} |
 	{'exit', json(), #state{}}).
-handle_json(State, _JsonBin) ->
-	% TODO make it do something
-	{error, nyi, State}.
+handle_json(State, {struct, Json}) ->
+	ThisModBin = list_to_binary(atom_to_list(?MODULE)),
+	ModBin = proplists:get_value(Json, <<"module">>, ModBin),
+	ReqId = proplists:get_value(Json, <<"request_id">>),
+	ModRes = try binary_to_existing_atom(ModBin, utf8) of
+		ModAtom ->
+			{ok, ModAtom}
+	catch
+		error:badarg ->
+			{error, bad_module}
+	end,
+	FuncBin = proplists:get_value(Json, <<"function">>, <<"undefined">>),
+	FuncRes = try binary_to_existing_atom(FunBin, utf) of
+		FuncAtom ->
+			{ok, FuncAtom};
+	catch
+		error:badarg ->
+			{error, bad_function}
+	end,
+	Args = case proplists:get_value(Json, <<"args">>, []) of
+		ArgsList when is_list(ArgsList) -> ArgsList;
+		Term -> [Term]
+	end,
+	case {ModRes, FuncRes} of
+		{{error, bad_module}, _} ->
+			{error, bad_module, State};
+		{_, {error, bad_function}} ->
+			{error, bad_function, State};
+		{{ok, Mod}, {ok, Func}} ->
+			Attrs = Mod:module_info(attributes),
+			AgentApiFuncs = proplists:get_value(agent_api_functions, Attrs, []),
+			Arity = length(args) + 1,
+			#state{agent = Agent} = State,
+			case lists:member({Func, Arity}, [Agent | AgentApiFuncs]) of
+				false ->
+					{ok, ?reply_err(ReqId, <<"no such function">>, <<"FUNCTION_NOEXISTS">>), State};
+				true ->
+					try apply(Mod, Func, [State, Args]) of
+						{ok, ResultJson} ->
+							{ok, ?success(RequestId, ResultJson), State};
+						{error, Msg, Code} ->
+							{ok, ?reply_err(RequestId, Msg, Code), State};
+						Else ->
+							ErrMsg = list_to_binary(io_lib:format("~p", [Else])),
+							{ok, ?reply_err(ReqId, ErrMsg, <<"UNKNOWN_ERROR">>), State}
+					catch
+						What:Why ->
+							ErrMsg = list_to_binary(io_lib:format("error occured:  ~p:~p", [What, Why])),
+							{ok, ?reply_err(ReqId, ErrMsg, <<"UNKNOWN_ERROR">>), State}
+					end
+			end
+	end;
+
+handle_json(State, _InvalidJson) ->
+	{error, invalid_json, State}.
 
 %% =======================================================================
 %% Agent connection api

@@ -243,9 +243,8 @@ init(Agent) ->
 %% client.
 -spec(encode_cast/2 :: (State :: #state{}, Cast :: any()) -> 
 	{'error', any(), #state{}} | {'ok', json(), #state{}}).
-encode_cast(State, _Cast) ->
-	% TODO make it do something
-	{error, nyi, State}.
+encode_cast(State, Cast) ->
+	handle_cast(Cast, State).
 
 %% @doc After unwrapping the binary that will hold json, and connection
 %% should call this.
@@ -770,10 +769,244 @@ fetch_channel(Channel, Channels) when is_binary(Channel) ->
 fetch_channel(Channel, #state{channels = Chans}) ->
 	fetch_channel(Channel, Chans);
 
-fetch_channel(Channel, Channels) ->
+fetch_channel(Channel, Channels) when is_list(Channel) ->
 	?DEBUG("The chan:  ~p, The channels:  ~p", [Channel, Channels]),
 	Chans = [C || C <- dict:fetch_keys(Channels), pid_to_list(C) =:= Channel],
 	case Chans of
 		[] ->	none;
 		[Chan] -> {Chan, dict:fetch(Chan, Channels)}
+	end;
+
+fetch_channel(Channel, Channels) when is_pid(Channel) ->
+	case dict:find(Channel, Channels) of
+		error -> none;
+		{ok, Chan} -> {Channel, Chan}
 	end.
+
+%% -----------------------------------------------------------------------
+
+update_channels(Chanpid, ChanInfo, State) when is_record(State, state) ->
+	Channels = State#state.channels,
+	Channels0 = update_channels(Chanpid, ChanInfo, Channels),
+	{ok, State#state{channels = Channels0}};
+
+update_channels(Chanpid, Call, Channels) when is_record(Call, call) ->
+	case fetch_channel(Chanpid, Channels) of
+		none ->
+			dict:store(Chanpid, #channel_state{current_call = Call}, Channels);
+		{Chanpid, ChanState} ->
+			dict:store(Chanpid, ChanState#channel_state{current_call = Call}, Channels)
+	end;
+
+update_channels(Chanpid, {wrapup, Call}, Channels) when is_record(Call, call) ->
+	Store = #channel_state{mediaload = undefined, current_call = Call},
+	dict:store(Chanpid, Store, Channels);
+
+update_channels(Chanpid, {_, Call}, Channels) when is_record(Call, call) ->
+	Store = case fetch_channel(Chanpid, Channels) of
+		none ->
+			#channel_state{current_call = Call, mediaload = Call};
+		{_, Cache} ->
+			Cache#channel_state{current_call = Call, mediaload = Call}
+	end,
+	dict:store(Chanpid, Store, Channels);
+
+update_channels(_Chanpid, _Call, State) ->
+	{ok, State}.
+
+%% -----------------------------------------------------------------------
+
+handle_cast({arbitrary_command, Command, {struct, Props}}, State) ->
+	handle_cast({arbitrary_command, Command, Props}, State);
+
+handle_cast({arbitrary_command, Command, Props}, State) when is_atom(Command); is_binary(Command) ->
+	Json = {struct, [{<<"command">>, Command} | Props]},
+	{ok, Json, State};
+
+handle_cast({arbitrary_command, Channel, Command, {struct, Props}}, State) ->
+	handle_cast({arbitrary_command, Channel, Command, Props}, State);
+
+handle_cast({arbitrary_command, Channel, Command, Props}, State) when is_binary(Command); is_atom(Command) ->
+	case fetch_channel(Channel, State) of
+		none ->
+			{ok, undefined, State};
+		{ChanPid, _ChanData} ->
+			Props0 = [{<<"command">>, Command}, {<<"channelid">>, binary_to_list(pid_to_list(ChanPid))} | Props],
+			{ok, {struct, Props0}, State}
+	end;
+
+handle_cast({mediapush, Chanpid, Call, Data}, State) ->
+	{ok, State0} = update_channels(Chanpid, Call, State),
+	case Data of
+		% because freeswitch, legacy format
+		EventName when is_atom(EventName) ->
+			Props = [{<<"event">>, EventName}, {<<"media">>, Call#call.type}],
+			handle_cast({arbitrary_command, Chanpid, <<"mediaevent">>, Props}, State0);
+		% email uses this
+		{mediaload, Call} ->
+			Props = [{<<"media">>, Call#call.source_module}],
+			handle_cast({arbitrary_command, Chanpid, <<"mediaload">>, Props}, State0);
+		% freeswitch uses this
+		{mediaload, Call, _Data} ->
+			Props = [{<<"media">>, Call#call.source_module}],
+			handle_cast({arbitrary_commadn, Chanpid, <<"mediaload">>, Props}, State0);
+		% not sure what uses this.  It's still pretty messy.
+		{Command, Call, EventData} ->
+			Props = [{<<"event">>, EventData}, {<<"media">>, Call#call.type}],
+			handle_cast({arbitrary_command, Chanpid, Command, Props}, State0);
+		% one of two versions I'd like to see in the future
+		{struct, Props} when is_list(Props) ->
+			handle_cast({arbitrary_command, Chanpid, <<"mediaevent">>, Props}, State0);
+		% and the second of the prefered versions
+		Props when is_list(Props) ->
+			handle_cast({arbitrary_command, Chanpid, <<"mediaevent">>, Props}, State0)
+	end;
+
+handle_cast({set_release, Release, Time}, State) ->
+	ReleaseData = case Release of
+		none ->
+			false;
+		{Id, Label, Bias} ->
+			{struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, if is_atom(Label) -> Label; true -> list_to_binary(Label) end},
+				{<<"bias">>, Bias}
+			]}
+	end,
+	Json = {struct, [
+		{<<"command">>, <<"arelease">>},
+		{<<"releaseData">>, ReleaseData},
+		{<<"changeTime">>, Time * 1000}
+	]},
+	{ok, Json, State};
+
+handle_cast({set_channel, Pid, StateName, Statedata}, State) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"setchannel">>},
+		{<<"state">>, StateName},
+		{<<"statedata">>, encode_statedata(Statedata)},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
+	]},
+	{ok, State0} = update_channels(Pid, {StateName, Statedata}, State),
+	{ok, Headjson, State0};
+
+handle_cast({channel_died, Pid, NewAvail}, State) ->
+	#state{channels = Channels} = State,
+	Json = {struct, [
+		{<<"command">>, <<"endchannel">>},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))},
+		{<<"availableChannels">>, NewAvail}
+	]},
+	Channels0 = dict:erase(Pid, Channels),
+	State0 = State#state{channels = Channels0},
+	{ok, Json, State0};
+
+handle_cast({change_profile, Profile}, State) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"aprofile">>},
+		{<<"profile">>, list_to_binary(Profile)}
+	]},
+	{ok, Headjson, State};
+
+handle_cast({url_pop, URL, Name}, State) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"urlpop">>},
+		{<<"url">>, list_to_binary(URL)},
+		{<<"name">>, list_to_binary(Name)}
+	]},
+	{ok, Headjson, State};
+
+handle_cast({blab, Text}, State) when is_list(Text) ->
+	handle_cast({blab, list_to_binary(Text)}, State);
+
+handle_cast({blab, Text}, State) when is_binary(Text) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"blab">>},
+		{<<"text">>, Text}
+	]},
+	{ok, Headjson, State};
+
+handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
+	%% TODO should likely actually tell the agent.  Maybe.
+	{ok, undefined, State};
+
+%% this should actually be implemented as a pure call.  Ah well.
+handle_cast(get_tabs_menu, State) ->
+	#state{agent = #agent{source = Apid}, connection = Conn} = State,
+	spawn_get_tabs_menu(Conn, Apid),
+	{ok, undefined, State};
+
+handle_cast(_, State) ->
+	{ok, undefined, State}.
+
+spawn_get_tabs_menu(Conn, Apid) ->
+	Agent = agent:dump_state(Apid),
+	Admin = {<<"Dashboard">>, <<"tabs/dashboard.html">>},
+	Endpoints = {<<"Endpoints">>, <<"tabs/endpoints.html">>},
+	{ok, HookRes} = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
+	Filtered = [Endpoints | [X || {B1, B2} = X <- HookRes, is_binary(B1), is_binary(B2)]],
+	TabsList = case Agent#agent.security_level of
+		agent -> Filtered;
+		Level when Level =:= admin; Level =:= supervisor ->
+			[Admin | Filtered]
+	end,
+	Tabs = [{struct, [{<<"label">>, Label}, {<<"href">>, Href}]} ||
+		{Label, Href} <- TabsList],
+	gen_server:cast(Conn, {arbitrary_command, set_tabs_menu, [{<<"tabs">>, Tabs}]}).
+
+%% @doc Encode the given data into a structure suitable for mochijson2:encode
+-spec(encode_statedata/1 :: 
+	(Callrec :: #call{}) -> json();
+	(Clientrec :: #client{}) -> json();
+	({'onhold', Holdcall :: #call{}, 'calling', any()}) -> json();
+	({Relcode :: string(), Bias :: non_neg_integer()}) -> json();
+	('default') -> {'struct', [{binary(), 'default'}]};
+	(List :: string()) -> binary();
+	({}) -> 'false').
+encode_statedata(Callrec) when is_record(Callrec, call) ->
+%	case Callrec#call.client of
+%		Clientrec when is_record(Clientrec, client) ->
+%			Brand = Clientrec#client.label;
+%		_ ->
+%			Brand = "unknown client"
+%	end,
+	Clientrec = Callrec#call.client,
+	Client = case Clientrec#client.label of
+		undefined ->
+			<<"unknown client">>;
+		Else ->
+			list_to_binary(Else)
+	end,
+	{struct, [
+		{<<"callerid">>, list_to_binary(element(1, Callrec#call.callerid) ++ " " ++ element(2, Callrec#call.callerid))},
+		{<<"brandname">>, Client},
+		{<<"ringpath">>, Callrec#call.ring_path},
+		{<<"mediapath">>, Callrec#call.media_path},
+		{<<"callid">>, list_to_binary(Callrec#call.id)},
+		{<<"source_module">>, Callrec#call.source_module},
+		{<<"type">>, Callrec#call.type}]};
+encode_statedata(Clientrec) when is_record(Clientrec, client) ->
+	Label = case Clientrec#client.label of
+		undefined ->
+			undefined;
+		Else ->
+			list_to_binary(Else)
+	end,
+	{struct, [
+		{<<"brandname">>, Label}]};
+encode_statedata({onhold, Holdcall, calling, Calling}) ->
+	Holdjson = encode_statedata(Holdcall),
+	Callingjson = encode_statedata(Calling),
+	{struct, [
+		{<<"onhold">>, Holdjson},
+		{<<"calling">>, Callingjson}]};
+encode_statedata({_, default, _}) ->
+	{struct, [{<<"reason">>, default}]};
+encode_statedata({_, ring_fail, _}) ->
+	{struct, [{<<"reason">>, ring_fail}]};
+encode_statedata({_, Reason, _}) ->
+	{struct, [{<<"reason">>, list_to_binary(Reason)}]};
+encode_statedata(List) when is_list(List) ->
+	list_to_binary(List);
+encode_statedata({}) ->
+	false.

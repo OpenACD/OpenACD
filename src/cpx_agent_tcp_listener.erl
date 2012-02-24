@@ -147,7 +147,7 @@ start_link(Options) when is_list(Options) ->
 %% @see start_link/1
 -spec(start/1 :: (Opts:: start_opts()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Options) ->
-	gen_server:start(?MODULE, [Options], []).
+	gen_server:start(?MODULE, Options, []).
 
 %% @doc Start the listener unlinked using only default options; generally
 %% best only for debugging or testing.
@@ -180,7 +180,7 @@ init(Options) ->
 		_ -> none
 	end,
 	Poolsize = proplists:get_value(poolsize, Options, 5),
-	SimpleOpts = [list, {packet, line}, {reuseaddr, true},
+	SimpleOpts = [binary, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	{Mod, Opts} = case SocketType of
 		ssl ->
@@ -197,6 +197,7 @@ init(Options) ->
 				poolsize = Poolsize, compression = Compression, radix = Radix,
 				socket_type = SocketType, socket_module = Mod},
 			State0 = spawn_acceptors(State),
+			?INFO("Started ~s on port ~p", [?MODULE, Port]),
 			{ok, State0};
 		{error, Reason} ->
 			?WARNING("Could not start listen socket:  ~p", [Reason]),
@@ -208,6 +209,11 @@ init(Options) ->
 %% ====================================================================
 
 %% @hidden
+handle_call(stop, _From, State) ->
+	% purposefully not exposed to the public interface.
+	% a synchronous stop is only useful to the tests.
+	{stop, normal, ok, State};
+
 handle_call(_Msg, _From, State) ->
 	{reply, {error, unknown_call}, State}.
 
@@ -232,6 +238,7 @@ handle_cast(_Msg, State) ->
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, State) ->
 	#state{acceptors = OldAcceptors} = State,
+	?DEBUG("Acceptor death due to ~p", [Reason]),
 	case lists:delete(Pid, OldAcceptors) of
 		OldAcceptors ->
 			?WARNING("Exit from elsewhere, going down with it", []),
@@ -276,11 +283,12 @@ spawn_acceptors(#state{acceptors = Accs, poolsize = Poolsize} = State) when
 spawn_acceptors(State) -> State.
 
 acceptor(#state{socket_type = tcp} = State) ->
+	?DEBUG("Tcp only acceptor spawned", []),
 	#state{listener = ListSocket, compression = Zip, radix = Rad} = State,
 	case gen_tcp:accept(ListSocket) of
 		{ok, Socket} ->
 			{ok, Pid} = cpx_agent_tcp_connection:start(Socket, tcp, Rad, Zip),
-			gen_tcp:controlling_process(Socket, Pid),
+			ok = gen_tcp:controlling_process(Socket, Pid),
 			cpx_agent_tcp_connection:negotiate(Pid),
 			exit(normal);
 		Else ->
@@ -288,6 +296,7 @@ acceptor(#state{socket_type = tcp} = State) ->
 	end;
 
 acceptor(#state{socket_type = ssl_upgrade} = State) ->
+	?DEBUG("SSL upgrade acceptor spawned", []),
 	#state{listener = ListSocket, compression = Zip, radix = Rad} = State,
 	CertFile = util:get_certfile(),
 	Keyfile = util:get_keyfile(),
@@ -303,6 +312,7 @@ acceptor(#state{socket_type = ssl_upgrade} = State) ->
 	end;
 
 acceptor(#state{socket_type = ssl} = State) ->
+	?DEBUG("SSL only acceptor spawned", []),
 	#state{listener = ListSocket, compression = Zip, radix = Rad} = State,
 	case ssl:transport_accept(ListSocket) of
 		{ok, AccSocket} ->
@@ -325,29 +335,48 @@ acceptor(#state{socket_type = ssl} = State) ->
 
 -ifdef(TEST).
 
-start_test() -> 
-	{ok, Pid} = start(6666),
-	stop(Pid).
+client_connect_test_() ->
+	{setup, fun() ->
+		{ok, Host} = inet:gethostname(),
+		Zombie = util:zombie(),
+		Ets = ets:new(cpx_agent_tcp_listener_ets, [public]),
+		{Host, Zombie, Ets}
+	end,
+	fun({Host, Zombie, Ets}) -> 
+		{foreach, fun() ->
+			meck:new(cpx_agent_tcp_connection),
+			ets:delete_all_objects(Ets)
+		end,
+		fun(_) ->
+			meck:unload(cpx_agent_tcp_connection)
+		end, [
+		
+		fun(_) ->
+			{"tcp only", fun() ->
+				meck:expect(cpx_agent_tcp_connection, start, fun(Sock, tcp, 10, none) ->
+					ets:insert(Ets, {sock, Sock}),
+					{ok, self()}
+				end),
+				meck:expect(cpx_agent_tcp_connection, negotiate, fun(InZombie) ->
+					?assertEqual(self(), InZombie),
+					[{sock, Sock}] = ets:lookup(Ets, sock),
+					gen_tcp:send(Sock, <<"yo">>)
+				end),
+				{ok, Server} = start([{socket_type, tcp}, {poolsize, 1}]),
+				{ok, CliSocket} = gen_tcp:connect(Host, ?PORT, [binary,
+					{active, false}]),
+				Bin = gen_tcp:recv(CliSocket, 0, 1000),
+				?assertEqual({ok, <<"yo">>}, Bin),
+				?assert(meck:validate(cpx_agent_tcp_connection)),
+				gen_server:call(Server, stop)
+			end}
+		end,
 
-double_start_test() -> 
-	{ok, Pid} = start(6666),
-	?assertMatch({error, eaddrinuse}, start(6666)),
-	stop(Pid).
-	
-async_listsock_test() -> 
-	{timeout, 10, fun() -> {ok, Pid} = start(6666),
-	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [list]),
-	gen_tcp:send(Socket, "test/r/n"),
-	stop(Pid),
-	gen_tcp:close(Socket) end}.
-
-
--define(MYSERVERFUNC, 
-	fun() -> 
-		{ok, Pid} = start_link(?PORT), 
-		{Pid, fun() -> stop(Pid),timer:sleep(10) end} 
-	end).
-
--include("gen_server_test.hrl").
+		fun(_) ->
+			{"false", fun() ->
+				?assert(false)
+			end}
+		end ]}
+	end}.
 
 -endif.

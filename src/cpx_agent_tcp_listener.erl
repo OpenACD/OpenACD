@@ -306,8 +306,6 @@ acceptor(#state{socket_type = ssl_upgrade} = State) ->
 	case gen_tcp:accept(ListSocket) of
 		{ok, TcpSocket} ->
 			UpgradeCmd = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
-			Size = erlang:integer_to_list(iolist_size(UpgradeCmd), State#state.radix),
-			SizeBin = iolist_to_binary(Size),
 			UpgradeCmdBin = iolist_to_binary(UpgradeCmd),
 			Sendbin = netstring:encode(UpgradeCmdBin),
 			gen_tcp:send(TcpSocket, Sendbin),
@@ -434,12 +432,6 @@ client_connect_test_() ->
 				?assertEqual(<<"yo">>, SslBin),
 				?assert(meck:validate(?con_module)),
 				gen_server:call(Server, stop)
-			end}
-		end,
-
-		fun(_) ->
-			{"false", fun() ->
-				?assert(false)
 			end}
 		end ]}
 	end}.

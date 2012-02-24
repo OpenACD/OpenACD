@@ -72,6 +72,7 @@
 -else.
 -define(PORT, 7331).
 -endif.
+-define(con_module, cpx_agent_tcp_connection).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -168,6 +169,7 @@ stop(Pid) ->
 %% @hidden
 init(Options) ->
 	process_flag(trap_exit, true),
+	ssl:start(),
 	Port = proplists:get_value(port, Options, ?PORT),
 	Radix = proplists:get_value(radix, Options, 10),
 	SocketType = proplists:get_value(socket_type, Options, tcp),
@@ -184,7 +186,7 @@ init(Options) ->
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	{Mod, Opts} = case SocketType of
 		ssl ->
-			{ok, CertFile} = cpx:get_env(certfile, "certfile.pem"),
+			{ok, CertFile} = cpx:get_env(certfile, "../openacd.crt"),
 			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
 			OutOpts = [{certfile, CertFile}, {keyfile, Keyfile} | SimpleOpts],
 			{ssl, OutOpts};
@@ -287,9 +289,9 @@ acceptor(#state{socket_type = tcp} = State) ->
 	#state{listener = ListSocket, compression = Zip, radix = Rad} = State,
 	case gen_tcp:accept(ListSocket) of
 		{ok, Socket} ->
-			{ok, Pid} = cpx_agent_tcp_connection:start(Socket, tcp, Rad, Zip),
+			{ok, Pid} = ?con_module:start(Socket, tcp, Rad, Zip),
 			ok = gen_tcp:controlling_process(Socket, Pid),
-			cpx_agent_tcp_connection:negotiate(Pid),
+			?con_module:negotiate(Pid),
 			exit(normal);
 		Else ->
 			exit(Else)
@@ -303,9 +305,9 @@ acceptor(#state{socket_type = ssl_upgrade} = State) ->
 	SSLOpts = [{certfile, CertFile}, {keyfile, Keyfile}],
 	case ssl:ssl_accept(ListSocket, SSLOpts) of
 		{ok, Socket} ->
-			{ok, Pid} = cpx_agent_tcp_connection:start(Socket, ssl, Rad, Zip),
+			{ok, Pid} = ?con_module:start(Socket, ssl, Rad, Zip),
 			ssl:controlling_process(Socket, Pid),
-			cpx_agent_tcp_connection:negotiate(Pid),
+			?con_module:negotiate(Pid),
 			exit(normal);
 		Else ->
 			exit(Else)
@@ -315,12 +317,12 @@ acceptor(#state{socket_type = ssl} = State) ->
 	?DEBUG("SSL only acceptor spawned", []),
 	#state{listener = ListSocket, compression = Zip, radix = Rad} = State,
 	case ssl:transport_accept(ListSocket) of
-		{ok, AccSocket} ->
-			case ssl:ssl_accept(AccSocket) of
-				{ok, Socket} ->
-					{ok, Pid} = cpx_agent_tcp_connection:start(Socket, ssl, Rad, Zip),
+		{ok, Socket} ->
+			case ssl:ssl_accept(Socket) of
+				ok ->
+					{ok, Pid} = ?con_module:start(Socket, ssl, Rad, Zip),
 					ssl:controlling_process(Socket, Pid),
-					cpx_agent_tcp_connection:negotiate(Pid),
+					?con_module:negotiate(Pid),
 					exit(normal);
 				Else ->
 					exit(Else)
@@ -344,20 +346,20 @@ client_connect_test_() ->
 	end,
 	fun({Host, Zombie, Ets}) -> 
 		{foreach, fun() ->
-			meck:new(cpx_agent_tcp_connection),
+			meck:new(?con_module),
 			ets:delete_all_objects(Ets)
 		end,
 		fun(_) ->
-			meck:unload(cpx_agent_tcp_connection)
+			meck:unload(?con_module)
 		end, [
 		
 		fun(_) ->
 			{"tcp only", fun() ->
-				meck:expect(cpx_agent_tcp_connection, start, fun(Sock, tcp, 10, none) ->
+				meck:expect(?con_module, start, fun(Sock, tcp, 10, none) ->
 					ets:insert(Ets, {sock, Sock}),
 					{ok, self()}
 				end),
-				meck:expect(cpx_agent_tcp_connection, negotiate, fun(InZombie) ->
+				meck:expect(?con_module, negotiate, fun(InZombie) ->
 					?assertEqual(self(), InZombie),
 					[{sock, Sock}] = ets:lookup(Ets, sock),
 					gen_tcp:send(Sock, <<"yo">>)
@@ -367,7 +369,31 @@ client_connect_test_() ->
 					{active, false}]),
 				Bin = gen_tcp:recv(CliSocket, 0, 1000),
 				?assertEqual({ok, <<"yo">>}, Bin),
-				?assert(meck:validate(cpx_agent_tcp_connection)),
+				?assert(meck:validate(?con_module)),
+				gen_server:call(Server, stop)
+			end}
+		end,
+
+		fun(_) ->
+			{"ssl only", fun() ->
+				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
+					ets:insert(Ets, {sock, Sock}),
+					{ok, self()}
+				end),
+				meck:expect(?con_module, negotiate, fun(InZombie) ->
+					?assertEqual(self(), InZombie),
+					[{sock, Sock}] = ets:lookup(Ets, sock),
+					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
+				end),
+				{ok, Server} = start([{socket_type, ssl}, {poolsize, 1}]),
+				{ok, CertFile} = cpx:get_env(certfile, "../openacd.crt"),
+				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+				{ok, CliSocket} = ssl:connect(Host, ?PORT, [binary, {active, false},
+					{certfile, CertFile}, {keyfile, Keyfile}]),
+				%Bin = ssl:recv(CliSocket, 0, 1000),
+				Bin = ssl_nommer(CliSocket),
+				?assertEqual(<<"yo">>, Bin),
+				?assert(meck:validate(?con_module)),
 				gen_server:call(Server, stop)
 			end}
 		end,
@@ -379,4 +405,19 @@ client_connect_test_() ->
 		end ]}
 	end}.
 
+ssl_nommer(Socket) ->
+	ssl_nommer(Socket, []).
+
+ssl_nommer(Socket, Acc) ->
+	case ssl:recv(Socket, 0, 1000) of
+		{ok, Bin} ->
+			Acc0 = [Bin | Acc],
+			ssl_nommer(Socket, Acc0);
+		{error, timeout} ->
+			list_to_binary(lists:reverse(Acc));
+		{error, closed} ->
+			list_to_binary(lists:reverse(Acc));
+		E ->
+			E
+	end.
 -endif.

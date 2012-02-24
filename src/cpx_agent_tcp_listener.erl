@@ -186,7 +186,7 @@ init(Options) ->
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	{Mod, Opts} = case SocketType of
 		ssl ->
-			{ok, CertFile} = cpx:get_env(certfile, "../openacd.crt"),
+			{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
 			{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
 			OutOpts = [{certfile, CertFile}, {keyfile, Keyfile} | SimpleOpts],
 			{ssl, OutOpts};
@@ -243,7 +243,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
 	?DEBUG("Acceptor death due to ~p", [Reason]),
 	case lists:delete(Pid, OldAcceptors) of
 		OldAcceptors ->
-			?WARNING("Exit from elsewhere, going down with it", []),
+			?WARNING("Exit from non acceptor pid ~p, going down with it", [Pid]),
 			{stop, Reason, State};
 		Acceptors ->
 			State0 = spawn_acceptors(State#state{acceptors = Acceptors}),
@@ -303,12 +303,23 @@ acceptor(#state{socket_type = ssl_upgrade} = State) ->
 	CertFile = util:get_certfile(),
 	Keyfile = util:get_keyfile(),
 	SSLOpts = [{certfile, CertFile}, {keyfile, Keyfile}],
-	case ssl:ssl_accept(ListSocket, SSLOpts) of
-		{ok, Socket} ->
-			{ok, Pid} = ?con_module:start(Socket, ssl, Rad, Zip),
-			ssl:controlling_process(Socket, Pid),
-			?con_module:negotiate(Pid),
-			exit(normal);
+	case gen_tcp:accept(ListSocket) of
+		{ok, TcpSocket} ->
+			UpgradeCmd = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
+			Size = erlang:integer_to_list(iolist_size(UpgradeCmd), State#state.radix),
+			SizeBin = iolist_to_binary(Size),
+			UpgradeCmdBin = iolist_to_binary(UpgradeCmd),
+			Sendbin = netstring:encode(UpgradeCmdBin),
+			gen_tcp:send(TcpSocket, Sendbin),
+			case ssl:ssl_accept(TcpSocket, SSLOpts) of
+				{ok, SslSocket} ->
+					{ok, Pid} = ?con_module:start(SslSocket, ssl, Rad, Zip),
+					ssl:controlling_process(SslSocket, Pid),
+					?con_module:negotiate(Pid),
+					exit(normal);
+				SslAcceptErr ->
+					exit(SslAcceptErr)
+			end;
 		Else ->
 			exit(Else)
 	end;
@@ -386,13 +397,41 @@ client_connect_test_() ->
 					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
 				end),
 				{ok, Server} = start([{socket_type, ssl}, {poolsize, 1}]),
-				{ok, CertFile} = cpx:get_env(certfile, "../openacd.crt"),
+				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
 				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
 				{ok, CliSocket} = ssl:connect(Host, ?PORT, [binary, {active, false},
 					{certfile, CertFile}, {keyfile, Keyfile}]),
 				%Bin = ssl:recv(CliSocket, 0, 1000),
 				Bin = ssl_nommer(CliSocket),
 				?assertEqual(<<"yo">>, Bin),
+				?assert(meck:validate(?con_module)),
+				gen_server:call(Server, stop)
+			end}
+		end,
+
+		fun(_) ->
+			{"ssl upgrade", fun() ->
+				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
+					ets:insert(Ets, {sock, Sock}),
+					{ok, self()}
+				end),
+				meck:expect(?con_module, negotiate, fun(InZombie) ->
+					?assertEqual(self(), InZombie),
+					[{sock, Sock}] = ets:lookup(Ets, sock),
+					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
+				end),
+				{ok, Server} = start([{socket_type, ssl_upgrade}, {poolsize, 1}]),
+				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
+				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+				{ok, CliTcpSocket} = gen_tcp:connect(Host, ?PORT, [binary,
+					{active, false}]),
+				Bin = tcp_nommer(CliTcpSocket),
+				Expected = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
+				ExpectedBin = netstring:encode(iolist_to_binary(Expected)),
+				?assertEqual(ExpectedBin, Bin),
+				{ok, CliSSLSocket} = ssl:connect(CliTcpSocket, [{certfile, CertFile}, {keyfile, Keyfile}]),
+				SslBin = ssl_nommer(CliSSLSocket),
+				?assertEqual(<<"yo">>, SslBin),
 				?assert(meck:validate(?con_module)),
 				gen_server:call(Server, stop)
 			end}
@@ -406,13 +445,16 @@ client_connect_test_() ->
 	end}.
 
 ssl_nommer(Socket) ->
-	ssl_nommer(Socket, []).
+	nommer(Socket, ssl, []).
 
-ssl_nommer(Socket, Acc) ->
-	case ssl:recv(Socket, 0, 1000) of
+tcp_nommer(Socket) ->
+	nommer(Socket, gen_tcp, []).
+
+nommer(Socket, Mod, Acc) ->
+	case Mod:recv(Socket, 0, 1000) of
 		{ok, Bin} ->
 			Acc0 = [Bin | Acc],
-			ssl_nommer(Socket, Acc0);
+			nommer(Socket, Mod, Acc0);
 		{error, timeout} ->
 			list_to_binary(lists:reverse(Acc));
 		{error, closed} ->

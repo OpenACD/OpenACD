@@ -282,6 +282,14 @@ service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
 			{exit, Json, State}
 	end;
 
+service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{version_check = undefined} = State) ->
+	Json = error(ReqId, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>),
+	{exit, Json, State};
+
+service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{socket_mod = gen_tcp, nonce = undefined} = State) ->
+	Json = error(ReqId, <<"MISSING_NONCE">>, <<"get nonce comes first">>),
+	{exit, Json, State};
+
 service_json_local(_, _, _, _, _) ->
 	{error, not_local}.
 
@@ -397,8 +405,8 @@ service_json_local_test_() ->
 	end},
 
 	{"login fail due to no version check pass", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"username">>, <<"username">>}, {<<"password">>, <<"password">>}]},
+		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+			{<<"args">>, [<<"username">>, <<"password">>]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
 			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
 			{<<"message">>, <<"version check comes first">>}],
@@ -408,12 +416,13 @@ service_json_local_test_() ->
 	end},
 
 	{"login fail due to missing nonce", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"username">>, <<"username">>}, {<<"password">>, <<"password">>}]},
+		% this check only matters over raw tcp, not ssl
+		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+			{<<"args">>, [<<"username">>, <<"password">>]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errocde">>, <<"MISSING_NONCE">>},
+			{<<"errcode">>, <<"MISSING_NONCE">>},
 			{<<"message">>, <<"get nonce comes first">>}],
-		State = #state{version_check = passed},
+		State = #state{version_check = passed, socket_mod = gen_tcp},
 		{E, Json, State} = service_json_local(Req, State),
 		?assertEqual(exit, E),
 		?assert(json_check(Expected, Json))
@@ -421,8 +430,8 @@ service_json_local_test_() ->
 
 	{"login fail due to bad un/pw (testing encrypted pw)", fun() ->
 		Password = public_key:encrypt_public("nonceypassword", get_pub_key()),
-		Req = {struct, [{<<"username">>, <<"username">>},
-			{<<"password">>, util:list_to_hextring(Password)}]},
+		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+			{<<"args">>, [<<"username">>, util:list_to_hextring(Password)]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
 			{<<"errcode">>, <<"INVALID_CREDENTIALS">>},
 			{<<"message">>, <<"username or password invalid">>}],

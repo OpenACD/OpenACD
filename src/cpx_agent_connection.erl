@@ -15,8 +15,8 @@
 %%
 %% A Json request will have the following form:
 %% <pre>{"request_id":any(),
-%% (optional)module_name() : string(),
-%% function_name() : string(),
+%% (optional)"module": module_name()(string()),
+%% "function": function_name()(string()),
 %% (optional)"args": any() | [any()]}</pre>
 %%
 %% If the module name is omitted, it is assumed to be this module

@@ -61,7 +61,9 @@
 	compression = none,
 	netstring = 10,
 	client_errs = 0,
-	err_threshold = 3 % 3 errors, and the connection ends.
+	err_threshold = 3, % 3 errors, and the connection ends.
+	version_check,
+	nonce
 }).
 
 % ================================================================
@@ -219,9 +221,15 @@ service_jsons([], State) ->
 	{ok, State};
 
 service_jsons([Json | Tail], State) ->
-	#state{agent_conn_state = AConn} = State,
-	{Exit, OutJson, Conn0} = cpx_agent_connection:handle_json(AConn, Json),
-	State0 = State#state{agent_conn_state = Conn0},
+	{Exit, OutJson, State0} = case service_json_local(Json, State) of
+		{error, not_local} ->
+			{E, J, C} = cpx_agent_connection:handle_json(State#state.agent_conn_state, Json),
+			{E, J, State#state{agent_conn_state = C}};
+		{ok, SendJson} ->
+			{ok, SendJson, State#state.agent_conn_state};
+		{exit, SendJson} ->
+			{exit, SendJson, State#state.agent_conn_state}
+	end,
 	case OutJson of
 		undefined -> ok;
 		_ -> send_json(OutJson, State0)
@@ -233,11 +241,44 @@ service_jsons([Json | Tail], State) ->
 			{exit, State0}
 	end.
 
+service_json_local(Json, State) ->
+	{error, not_local}.
+
 % ================================================================
 % Test
 % ================================================================
 
 -ifdef(TEST).
+
+service_json_local_test_() -> [
+	{"non-local function", fun() ->
+		?assert(false)
+	end},
+
+	{"version mismatch", fun() ->
+		?assert(false)
+	end},
+
+	{"version match", fun() ->
+		?assert(false)
+	end},
+
+	{"get nonce", fun() ->
+		?assert(false)
+	end},
+
+	{"login fail due to missing nonce", fun() ->
+		?assert(false)
+	end},
+
+	{"login fail due to bad un/pw", fun() ->
+		?assert(false)
+	end},
+
+	{"login success", fun() ->
+		?assert(false)
+	end}
+	].
 
 input_output_test_() -> [
 

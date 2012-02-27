@@ -220,9 +220,12 @@ service_jsons([], State) ->
 
 service_jsons([Json | Tail], State) ->
 	#state{agent_conn_state = AConn} = State,
-	{Exit, Json, Conn0} = cpx_agent_connection:handle_json(AConn, Json),
+	{Exit, OutJson, Conn0} = cpx_agent_connection:handle_json(AConn, Json),
 	State0 = State#state{agent_conn_state = Conn0},
-	send_json(Json, State0),
+	case OutJson of
+		undefined -> ok;
+		_ -> send_json(OutJson, State0)
+	end,
 	case Exit of
 		ok ->
 			service_jsons(Tail, State0);
@@ -307,15 +310,37 @@ input_output_test_() -> [
 		fun(State) -> [
 
 			{"too many client errors", fun() ->
-				?assert(false)
+				Binaries = [<<"not a json string">>, <<"also fail">>, <<"yeah, big fail">>],
+				Netstring = netstring:encode(Binaries),
+				Out = handle_info({tcp, sock, Netstring}, State),
+				?assertMatch({stop, client_errors, _NewState}, Out)
 			end},
 
 			{"one of the jsons demand exit", fun() ->
-				?assert(false)
+				Binaries = [<<"\"good\"">>, <<"\"evil\"">>],
+				Netstring = netstring:encode(Binaries),
+				meck:expect(cpx_agent_connection, handle_json, fun(1, <<"good">>) ->
+					{exit, undefined, 2}
+				end),
+				Out = handle_info({tcp, sock, Netstring}, State),
+				?assertMatch({stop, normal, _State}, Out)
 			end},
 
 			{"normal flow", fun() ->
-				?assert(false)
+				Binaries = [<<"\"first\"">>, <<"\"second\"">>],
+				Netstring = netstring:encode(Binaries),
+				meck:expect(cpx_agent_connection, handle_json, fun
+					(1, <<"first">>) ->
+						{ok, <<"first good">>, 2};
+					(2, <<"second">>) ->
+						{ok, <<"second good">>, 3}
+				end),
+				meck:expect(socket_mod, send, fun
+					(sock, <<"12:\"first good\",">>) -> ok;
+					(sock, <<"13:\"second good\",">>) -> ok
+				end),
+				Out = handle_info({tcp, sock, Netstring}, State),
+				?assertMatch({noreply, _State}, Out)
 			end}
 
 		] end}

@@ -268,6 +268,20 @@ service_json_local(ReqId, _Mod, <<"check_version">>, [_,_], State) ->
 	Json = error(ReqId, <<"VERSION_MISMATCH">>, <<"major version mismatch">>),
 	{exit, Json, State};
 
+service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
+	case State#state.version_check of
+		passed ->
+			[E, N] = util:get_pubkey(),
+			Salt = list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))),
+			Res = {struct, [{<<"nonce">>, Salt}, {<<"pubkey_e">>, E},
+				{<<"pubkey_n">>, N}]},
+			Json = success(ReqId, Res),
+			{ok, Json, State#state{nonce = Salt}};
+		_ ->
+			Json = error(ReqId, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>),
+			{exit, Json, State}
+	end;
+
 service_json_local(_, _, _, _, _) ->
 	{error, not_local}.
 
@@ -358,7 +372,7 @@ service_json_local_test_() ->
 		Req = {struct, [{<<"request_id">>, 1},
 			{<<"function">>, <<"get_nonce">>}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errcode">>, <<"FAIILED_VERSION_CHECK">>},
+			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
 			{<<"message">>, <<"version check comes first">>}
 		],
 		{E, Json, _State} = service_json_local(Req, #state{}),
@@ -369,6 +383,7 @@ service_json_local_test_() ->
 	{"get nonce", fun() ->
 		Req = {struct, [{<<"request_id">>, 1},
 			{<<"function">>, <<"get_nonce">>}]},
+		meck:new(util),
 		meck:expect(util, get_pubkey, fun() -> [23, 989898] end),
 		State = #state{version_check = passed},
 		{E, Json, State0} = service_json_local(Req, State),

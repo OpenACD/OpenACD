@@ -236,6 +236,49 @@ service_jsons([Json | Tail], State) ->
 
 -ifdef(TEST).
 
+send_json_test_() ->
+	{setup, fun() ->
+		meck:new(socket_mod),
+		Json = {struct, [{<<"success">>, true}]},
+		State = #state{socket_mod = socket_mod, socket = sock},
+		{Json, State}
+	end,
+	fun(_) ->
+		meck:unload(socket_mod)
+	end,
+	fun({Json, State0}) -> [
+
+		{"no compression", fun() ->
+			State = State0#state{compression = none},
+			Expect = netstring:encode(iolist_to_binary(mochijson2:encode(Json))),
+			Self = self(),
+			meck:expect(socket_mod, send, fun(sock, Bin) ->
+				AssertRes = ?assertEqual(Expect, Bin),
+				Self ! AssertRes,
+				ok
+			end),
+			send_json(Json, State),
+			AssertThis = receive
+				R -> R
+			after
+				100 -> timeout
+			end,
+			?assertEqual(ok, AssertThis)
+		end}
+
+	] end}.
+
+%send_json(Json, State) ->
+%	#state{socket_mod = Mod, socket = Sock, compression = Zip} = State,
+%	BigBin = iolist_to_binary(mochijson2:encode(Json)),
+%	Bin = case Zip of
+%		none -> BigBin;
+%		zip -> zlib:zip(BigBin);
+%		gzip -> zlib:gzip(BigBin)
+%	end,
+%	NetBin = netstring:encode(Bin),
+%	Mod:send(Sock, NetBin).
+
 %-define(MYSERVERFUNC,
 %	fun() ->
 %		{ok, Pid} = start_link("garbage data"),

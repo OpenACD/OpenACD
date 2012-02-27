@@ -58,8 +58,8 @@
 	agent_conn_state :: any(),
 	socket,
 	socket_mod,
-	compression,
-	netstring,
+	compression = none,
+	netstring = 10,
 	client_errs = 0,
 	err_threshold = 3 % 3 errors, and the connection ends.
 }).
@@ -235,6 +235,91 @@ service_jsons([Json | Tail], State) ->
 % =====
 
 -ifdef(TEST).
+
+input_output_test_() -> [
+
+		{"handle_cast", setup, fun() ->
+			meck:new(cpx_agent_connection),
+			meck:new(socket_mod),
+			InState = #state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock},
+			ExpectState = InState#state{agent_conn_state = 2},
+			{InState, ExpectState, 2}
+		end,
+		fun(_) ->
+			meck:unload(cpx_agent_connection),
+			meck:unload(socket_mod)
+		end,
+		fun({State, Expect, NewConnState}) -> [
+			{"no conn state, skipped", fun() ->
+				State0 = State#state{agent_conn_state = undefined},
+				?assertEqual({noreply, State0}, handle_cast(random_cast, State0))
+			end},
+
+			{"no json to return, carry on", fun() ->
+				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+					{ok, undefined, NewConnState}
+				end),
+				Out = handle_cast(random_cast, State),
+				?assertEqual({noreply, Expect}, Out)
+			end},
+
+			{"no json to return, exit", fun() ->
+				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+					{exit, undefined, NewConnState}
+				end),
+				Out = handle_cast(random_cast, State),
+				?assertEqual({stop, normal, Expect}, Out)
+			end},
+
+			{"json to return, carry on", fun() ->
+				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+					{ok, <<"a json string">>, NewConnState}
+				end),
+				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
+					ok
+				end),
+				Out = handle_cast(random_cast, State),
+				?assertEqual({noreply, Expect}, Out)
+			end},
+
+			{"json to return, exit", fun() ->
+				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+					{exit, <<"a json string">>, NewConnState}
+				end),
+				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
+					ok
+				end),
+				Out = handle_cast(random_cast, State),
+				?assertEqual({stop, normal, Expect}, Out)
+			end}
+
+		] end},
+
+		{"handle_info", setup, fun() ->
+			meck:new(cpx_agent_connection),
+			meck:new(socket_mod),
+			#state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock}
+		end,
+		fun(_) ->
+			meck:unload(cpx_agent_connection),
+			meck:unload(socket_mod)
+		end,
+		fun(State) -> [
+
+			{"too many client errors", fun() ->
+				?assert(false)
+			end},
+
+			{"one of the jsons demand exit", fun() ->
+				?assert(false)
+			end},
+
+			{"normal flow", fun() ->
+				?assert(false)
+			end}
+
+		] end}
+	].
 
 decode_bins_test_() ->
 	{setup, fun() ->

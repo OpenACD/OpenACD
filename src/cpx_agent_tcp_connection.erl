@@ -225,10 +225,10 @@ service_jsons([Json | Tail], State) ->
 		{error, not_local} ->
 			{E, J, C} = cpx_agent_connection:handle_json(State#state.agent_conn_state, Json),
 			{E, J, State#state{agent_conn_state = C}};
-		{ok, SendJson} ->
-			{ok, SendJson, State#state.agent_conn_state};
-		{exit, SendJson} ->
-			{exit, SendJson, State#state.agent_conn_state}
+		{ok, SendJson, NewState} ->
+			{ok, SendJson, NewState};
+		{exit, SendJson, NewState} ->
+			{exit, SendJson, NewState}
 	end,
 	case OutJson of
 		undefined -> ok;
@@ -250,35 +250,155 @@ service_json_local(Json, State) ->
 
 -ifdef(TEST).
 
-service_json_local_test_() -> [
-	{"non-local function", fun() ->
-		?assert(false)
+json_check(Props, {struct, CheckProps}) ->
+	json_check(Props, CheckProps);
+
+json_check(Props, CheckProps) ->
+	case lists:all(fun({_,_}) -> true; (_) -> false end, CheckProps) of
+		true -> json_check2(Props, CheckProps);
+		false -> {error, not_proplist}
+	end.
+
+json_check2([], _) ->
+	true;
+json_check2([{Key, Value} | Tail], Check) ->
+	case proplists:get_value(Key, Check) of
+		Value -> json_check2(Tail, Check);
+		X -> {error, {not_expected, X, Value}}
+	end.
+
+service_json_local_test_() ->
+	ssl:start(), [
+	{"unusable json", fun() ->
+		Json = <<"not a struct">>,
+		?assertEqual({error, not_local}, service_json_local(Json, state))
 	end},
 
-	{"version mismatch", fun() ->
-		?assert(false)
+	{"non-local function", fun() ->
+		Json = {struct, [
+			{<<"module">>, <<"plugin_land">>},
+			{<<"function">>, <<"do_stuff">>}
+		]},
+		?assertEqual({error, not_local}, service_json_local(Json, state))
+	end},
+
+	{"major version mismatch", fun() ->
+		Req = {struct, [
+			{<<"request_id">>, 1},
+			{<<"function">>, <<"check_version">>},
+			{<<"args">>, [?Major - 1,?Minor]}
+		]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false}, 
+			{<<"errcode">>, <<"VERSION_MISMATCH">>},
+			{<<"message">>, <<"major version mismatch">>}],
+		{E, GotJson, _State} = service_json_local(Req, #state{}),
+		?assertEqual(exit, E),
+		?assert(json_check(Expected, GotJson))
+	end},
+
+	{"minor version mismatch", fun() ->
+		Req = {stuct, [{<<"request_id">>, 1},
+			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major,?Minor + 1]}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
+			{<<"message">>, <<"minor version mismatch">>}],
+		{E, Json, _State} = service_json_local(Req, #state{}),
+		?assertEqual(exit, E),
+		?assert(json_check(Expected, Json))
 	end},
 
 	{"version match", fun() ->
-		?assert(false)
+		Req = {struct, [{<<"request_id">>, 1},
+			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major, ?Minor]}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
+		{E, Json, State} = service_json_local(Req, #state{}),
+		?assertEqual(ok, E),
+		?assert(json_check(Expected, Json)),
+		?assertEqual(passed, State#state.version_check)
+	end},
+
+	{"get nonce before version check", fun() ->
+		Req = {struct, [{<<"request_id">>, 1},
+			{<<"function">>, <<"get_nonce">>}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+			{<<"errcode">>, <<"FAIILED_VERSION_CHECK">>},
+			{<<"message">>, <<"version check comes first">>}
+		],
+		{E, Json, _State} = service_json_local(Req, #state{}),
+		?assertEqual(exit, E),
+		?assert(json_check(Expected, Json))
 	end},
 
 	{"get nonce", fun() ->
-		?assert(false)
+		Req = {struct, [{<<"request_id">>, 1},
+			{<<"function">>, <<"get_nonce">>}]},
+		meck:expect(util, get_pubkey, fun() -> [23, 989898] end),
+		State = #state{version_check = passed},
+		{E, Json, State0} = service_json_local(Req, State),
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
+			{<<"result">>, {struct, [
+			{<<"nonce">>, State0#state.nonce}, {<<"pubkey_e">>, 23}, {<<"pubkey_n">>, 989898}]}}],
+		?assertEqual(ok, E),
+		?assert(json_check(Expected, Json)),
+		?assertNotEqual(undefined, State0#state.nonce),
+		meck:unload(util)
+	end},
+
+	{"login fail due to no version check pass", fun() ->
+		Req = {struct, [{<<"request_id">>, 1},
+			{<<"username">>, <<"username">>}, {<<"password">>, <<"password">>}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
+			{<<"message">>, <<"version check comes first">>}],
+		{E, Json, _State} = service_json_local(Req, #state{}),
+		?assertEqual(exit, E),
+		?assert(json_check(Expected, Json))
 	end},
 
 	{"login fail due to missing nonce", fun() ->
-		?assert(false)
+		Req = {struct, [{<<"request_id">>, 1},
+			{<<"username">>, <<"username">>}, {<<"password">>, <<"password">>}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+			{<<"errocde">>, <<"MISSING_NONCE">>},
+			{<<"message">>, <<"get nonce comes first">>}],
+		State = #state{version_check = passed},
+		{E, Json, State} = service_json_local(Req, State),
+		?assertEqual(exit, E),
+		?assert(json_check(Expected, Json))
 	end},
 
-	{"login fail due to bad un/pw", fun() ->
-		?assert(false)
+	{"login fail due to bad un/pw (testing encrypted pw)", fun() ->
+		Password = public_key:encrypt_public("nonceypassword", get_pub_key()),
+		Req = {struct, [{<<"username">>, <<"username">>},
+			{<<"password">>, util:list_to_hextring(Password)}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+			{<<"errcode">>, <<"INVALID_CREDENTIALS">>},
+			{<<"message">>, <<"username or password invalid">>}],
+		State = #state{version_check = passed, nonce = "nonce"},
+		{E, Json, State} = service_json_local(Req, State),
+		?assertEqual(ok, E),
+		?assert(json_check(Expected, Json))
 	end},
 
-	{"login success", fun() ->
-		?assert(false)
+	{"login success (testing encrypted pw)", fun() ->
+		Password = public_key:encrypt_public("nonceypassword", get_pub_key()),
+		Req = {struct, [{<<"username">>, <<"username">>},
+			{<<"password">>, util:list_to_hextring(Password)}]},
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
+		State = #state{version_check = passed, nonce = "nonce"},
+		{E, Json, State} = service_json_local(Req, State),
+		?assertEqual(ok, E),
+		?assert(json_check(Expected, Json))
 	end}
+
 	].
+
+get_pub_key() ->
+	File = filename:join(util:run_dir(), "key.pub"),
+	{ok, Bin} = file:read_file(File),
+	[Entry] = public_key:pem_decode(Bin),
+	Entry.
+
+% ----------------------------------------------------------------
 
 input_output_test_() -> [
 

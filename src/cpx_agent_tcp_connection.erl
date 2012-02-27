@@ -236,6 +236,39 @@ service_jsons([Json | Tail], State) ->
 
 -ifdef(TEST).
 
+decode_bins_test_() ->
+	{setup, fun() ->
+		Jsons = [<<"string the first">>, {struct, [{<<"success">>, true}]}, 42],
+		Binaries = [iolist_to_binary(mochijson2:encode(X)) || X <- Jsons],
+		{Jsons, Binaries}
+	end,
+	fun({Jsons, Binaries}) -> [
+
+		{"no compressioned", fun() ->
+			?assertEqual({Jsons, 0}, decode_binaries(Binaries, none))
+		end},
+
+		{"zip", fun() ->
+			Compressed = [zlib:zip(B) || B <- Binaries],
+			?assertEqual({Jsons, 0}, decode_binaries(Compressed, zip))
+		end},
+
+		{"gzip", fun() ->
+			Compressed = [zlib:gzip(B) || B <- Binaries],
+			?assertEqual({Jsons, 0}, decode_binaries(Compressed, gzip))
+		end},
+
+		{"compression mismatch", fun() ->
+			?assertEqual({[], 3}, decode_binaries(Binaries, zip))
+		end},
+
+		{"json decode error", fun() ->
+			Binaries0 = [<<"not valid json">> | Binaries],
+			?assertEqual({Jsons, 1}, decode_binaries(Binaries0, none))
+		end}
+
+	] end}.
+
 send_json_test_() ->
 	{setup, fun() ->
 		meck:new(socket_mod),

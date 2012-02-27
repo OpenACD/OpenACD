@@ -241,8 +241,46 @@ service_jsons([Json | Tail], State) ->
 			{exit, State0}
 	end.
 
+service_json_local({struct, Props}, State) ->
+	ReqId = proplists:get_value(<<"request_id">>, Props),
+	Mod = proplists:get_value(<<"module">>, Props),
+	Func = proplists:get_value(<<"function">>, Props),
+	Args = proplists:get_value(<<"args">>, Props, []),
+	service_json_local(ReqId, Mod, Func, Args, State);
+
 service_json_local(Json, State) ->
 	{error, not_local}.
+
+service_json_local(_ReqId, Mod, _Func, _Args, _State) when Mod =/= undefined ->
+	{error, not_local};
+
+service_json_local(ReqId, _Mod, <<"check_version">>, [?Major, ?Minor], State) ->
+	OutJson = simple_success(ReqId),
+	State0 = State#state{version_check = passed},
+	{ok, OutJson, State0};
+
+service_json_local(ReqId, _Mod, <<"check_version">>, [?Major, _Minor], State) ->
+	OutJson = {struct, [{<<"request_id">>, ReqId}, {<<"success">>, true},
+		{<<"message">>, <<"minor version mismatch">>}]},
+	{ok, OutJson, State#state{version_check = passed}};
+
+service_json_local(ReqId, _Mod, <<"check_version">>, [_,_], State) ->
+	Json = error(ReqId, <<"VERSION_MISMATCH">>, <<"major version mismatch">>),
+	{exit, Json, State};
+
+service_json_local(_, _, _, _, _) ->
+	{error, not_local}.
+
+simple_success(Id) ->
+	{struct, [{<<"success">>, true}, {<<"request_id">>, Id}]}.
+
+success(Id, Res) ->
+	{struct, [{<<"request_id">>, Id}, {<<"success">>, true},
+		{<<"result">>, Res}]}.
+
+error(Id, Code, Msg) ->
+	{struct, [{<<"request_id">>, Id}, {<<"success">>, false},
+		{<<"errcode">>, Code}, {<<"message">>, Msg}]}.
 
 % ================================================================
 % Test
@@ -297,12 +335,12 @@ service_json_local_test_() ->
 	end},
 
 	{"minor version mismatch", fun() ->
-		Req = {stuct, [{<<"request_id">>, 1},
+		Req = {struct, [{<<"request_id">>, 1},
 			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major,?Minor + 1]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
 			{<<"message">>, <<"minor version mismatch">>}],
 		{E, Json, _State} = service_json_local(Req, #state{}),
-		?assertEqual(exit, E),
+		?assertEqual(ok, E),
 		?assert(json_check(Expected, Json))
 	end},
 

@@ -253,8 +253,7 @@ send_json_test_() ->
 			Expect = netstring:encode(iolist_to_binary(mochijson2:encode(Json))),
 			Self = self(),
 			meck:expect(socket_mod, send, fun(sock, Bin) ->
-				AssertRes = ?assertEqual(Expect, Bin),
-				Self ! AssertRes,
+				Self ! {ok, Bin},
 				ok
 			end),
 			send_json(Json, State),
@@ -263,7 +262,40 @@ send_json_test_() ->
 			after
 				100 -> timeout
 			end,
-			?assertEqual(ok, AssertThis)
+			?assertEqual({ok, Expect}, AssertThis)
+		end},
+
+		{"ziping it up", fun() ->
+			State = State0#state{compression = zip},
+			Expect = netstring:encode(zlib:zip(iolist_to_binary(mochijson2:encode(Json)))),
+			Self = self(),
+			meck:expect(socket_mod, send, fun(sock, Bin) ->
+				Self ! {ok, Bin},
+				ok
+			end),
+			send_json(Json, State),
+			AssertThis = receive
+				R -> R
+			after
+				100 -> timeout
+			end,
+			?assertEqual({ok, Expect}, AssertThis)
+		end},
+
+		{"gzip", fun() ->
+			State = State0#state{compression = gzip},
+			Expect = netstring:encode(zlib:gzip(iolist_to_binary(mochijson2:encode(Json)))),
+			Self = self(),
+			meck:expect(socket_mod, send, fun(sock, Bin) ->
+				Self ! {ok, Bin}
+			end),
+			send_json(Json, State),
+			AssertThis = receive
+				R -> R
+			after
+				100 -> timeout
+			end,
+			?assertEqual({ok, Expect}, AssertThis)
 		end}
 
 	] end}.

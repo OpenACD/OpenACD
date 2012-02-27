@@ -64,9 +64,9 @@
 	err_threshold = 3 % 3 errors, and the connection ends.
 }).
 
-% =====
+% ================================================================
 % API
-% =====
+% ================================================================
 
 -type(compression() :: 'zip' | 'gzip' | 'none').
 -type(socket_type() :: 'tcp' | 'ssl').
@@ -89,9 +89,9 @@ start_link(Socket, SocketMod, Radix, Compress) ->
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
-% =====
+% ================================================================
 % Init
-% =====
+% ================================================================
 
 %% @hidden
 init([Socket, SocketType, Radix, Compress]) ->
@@ -103,17 +103,17 @@ init([Socket, SocketType, Radix, Compress]) ->
 		compression = Compress, netstring = Radix},
 	{ok, State}.
 
-% =====
+% ================================================================
 % handle_call
-% =====
+% ================================================================
 
 %% @hidden
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
-% =====
+% ================================================================
 % handle_cast
-% =====
+% ================================================================
 
 %% @hidden
 handle_cast(negotiate, State) ->
@@ -139,9 +139,9 @@ handle_cast(Msg, State) ->
 			{stop, normal, State#state{agent_conn_state = Conn0}}
 	end.
 
-% =====
+% ================================================================
 % handle_info
-% =====
+% ================================================================
 
 %% @hidden
 handle_info({_Type, Socket, Packet}, #state{socket = Socket} = State) ->
@@ -163,25 +163,25 @@ handle_info({_Type, Socket, Packet}, #state{socket = Socket} = State) ->
 handle_info(_, State) ->
 	{noreply, State}.
 
-% =====
+% ================================================================
 % terminate
-% =====
+% ================================================================
 
 %% @hidden
 terminate(_Reason, _State) ->
 	ok.
 
-% =====
+% ================================================================
 % code_change
-% ======
+% =================================================================
 
 %% @hidden
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-% =====
+% ================================================================
 % Internal functions
-% =====
+% ================================================================
 
 send_json(Json, State) ->
 	#state{socket_mod = Mod, socket = Sock, compression = Zip} = State,
@@ -233,9 +233,9 @@ service_jsons([Json | Tail], State) ->
 			{exit, State0}
 	end.
 
-% =====
+% ================================================================
 % Test
-% =====
+% ================================================================
 
 -ifdef(TEST).
 
@@ -346,6 +346,8 @@ input_output_test_() -> [
 		] end}
 	].
 
+% ----------------------------------------------------------------
+
 decode_bins_test_() ->
 	{setup, fun() ->
 		Jsons = [<<"string the first">>, {struct, [{<<"success">>, true}]}, 42],
@@ -378,6 +380,8 @@ decode_bins_test_() ->
 		end}
 
 	] end}.
+
+% ----------------------------------------------------------------
 
 send_json_test_() ->
 	{setup, fun() ->

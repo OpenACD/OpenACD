@@ -31,7 +31,7 @@
 %% {@link agent_web_connection} to handle the details.  Uses Mochiweb for 
 %% the heavy lifting.
 %% 
-%% == Web Api ==
+%% == Agent Api ==
 %%
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
@@ -39,87 +39,20 @@
 %% speecific agent, or handle the login procedures.  For 
 %% functions dealing with a specific agent, {@link agent_web_connection}.
 %% 
-%% Some functions in this documentation will have {@web} in front of their 
-%% description.  These functions should not be called in the shell, as they
-%% likely won't work; they are exported only to aid in documentation.
-%% To call a function is very similar to using the json_api
-%% in {@link cpx_web_management}.  A request is a json object with a 
-%% `"function"' property and an `"args"' property.  Note unlike the 
-%% json api there is no need to define a `"module"' property.  In the 
-%% documentation of specific functions, references to a proplist should
-%% be sent as a json object.  The response is a json object with a 
-%% `"success"' property.  If the `"success"' property is set to true, 
-%% there may be a `"result"' property holding more data (defined in the 
-%% functions below).  If something went wrong, there will be a `"message"' 
-%% and `"errcode"' property.  Usually the `"message"' will have a human 
-%% readable message, while `"errcode"' could be used for translation.
+%% This module uses {@link cpx_agent_connection} for many of it's
+%% functions.  Login is handled in {@module} and
+%% {@link agent_web_connection}.  The functions for that system are
+%% tagged with {@agent_api}.
 %%
-%% The specifics of the args property will be described in the 
-%% documentation.  The number of arguments for the web api call will likely
-%% differ.
-%% 
-%% To make a web api call, make a post request to path "/api" with one
-%% field named `"request"'.  The value of the request field should be a 
-%% a json object:
-%% <pre> {
-%% 	"function":  string(),
-%% 	"args":      [any()]
-%% }</pre>
-%% See a functions documentation for what `"args"' should be.
-%% 
-%% A response will have 3 major forms.  Note that due to legacy reasons 
-%% there may be more properties then listed.  They should be ignored, as
-%% they will be phased out in favor of the more refined api.
-%% 
-%% A very simple success:
-%% <pre> {
-%% 	"success":  true
-%% }</pre>
-%% A success with a result:
-%% <pre> {
-%% 	"success":  true,
-%% 	"result":   any()
-%% }</pre>
-%% A failure:
-%% <pre> {
-%% 	"success":  false,
-%% 	"message":  string(),
-%% 	"errcode":  string()
-%% }</pre>
+%% Requests from a UI are made over HTTP using POST formatted in
+%% application/x-www-form-urlencoded (the default on most modern 
+%% browsers) to /api.  The json request object is put into a field labeled
+%% 'request'.
 %%
 %% == Hooks ==
 %%
 %% Hooks are available when a request is made that an agent connection
 %% cannot handle.
-%%
-%% === agent_web_call ===
-%% 
-%% Triggered when a function json request comes from the client, and the 
-%% agent connection itself doesn't recognize it.  First hook to respond
-%% wins.  This will only be triggered by logged in agents.
-%%
-%% ==== Arguments ====
-%%
-%% <ul>
-%%     <li>Agent :: agent{} - Agent associated with the request</li>
-%%     <li>Conn :: pid() - Agent connection pid associated with the
-%% request</li>
-%%     <li>Function :: binary() - Name of the function</li>
-%%     <li>Args :: [any()] - List of arguments passed in</li>
-%% </ul>
-%%
-%% ==== Returns ====
-%%
-%% Invalid returns are returned as an error.
-%%
-%% <dl>
-%%     <dt>ok</dt>
-%%        <dd>Simple success return</dd>
-%%     <dt>{ok, Json :: json()}</dt>
-%%        <dd>Success with a result</dd>
-%%     <dt>{error, ErrCode, ErrMessage}</dt>
-%%         <dd>Error return with given code and message.</dd>
-%% </dl>
 %%
 %% @see agent_web_connection
 %% @see cpx_web_management

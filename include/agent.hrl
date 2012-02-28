@@ -40,6 +40,9 @@
 -type(skill() :: atom() | {atom(), any()}).
 -type(skill_list() :: [skill()]).
 
+%% used in connections
+-type(json() :: {struct, [{binary(), json()}]} | binary() | integer() | float() | [json()]).
+
 %% Used as part of the internal state of the agent fsm, as well as often
 %% passed around as a representation of an agent.
 -record(agent, {

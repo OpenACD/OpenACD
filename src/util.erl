@@ -600,10 +600,13 @@ timemark_clear(Markname) ->
 priv_dir() ->
 	case code:priv_dir('OpenACD') of
 		{error, _} ->
-			case filelib:is_dir("priv") of
-				true ->
+			% could be we're running eunit
+			case {filelib:is_dir("priv"),filelib:is_dir("../priv")} of
+				{true, _} ->
 					"priv";
-				false ->
+				{_,true} ->
+					"../priv";
+				_ ->
 					{error, enoent}
 			end;
 		Dir ->

@@ -103,6 +103,9 @@ negotiate(Pid) ->
 %% tolerated, major version differences are not.  If the minor version
 %% does not match, the result object is a string saying as much, otherwise
 %% returns a simple success.
+-spec(check_version/3 :: (State :: #state{}, Major :: pos_integer(),
+	Minor :: pos_integer()) -> {ok, #state{}} | {ok, json(), #state{}} |
+	{exit, binary(), binary(), #state{}}).
 check_version(State, ?Major, ?Minor) ->
 	{ok, State#state{version_check = passed}};
 
@@ -113,7 +116,25 @@ check_version(State, ?Major, _Minor) ->
 check_version(State, _Major, _Minor) ->
 	{exit, <<"VERSION_MISMATCH">>, <<"major version mismatch">>, State}.
 
-get_nonce(State) -> ok.
+%% @doc {@agent_api} get the public key and nonce to encrypt the password.
+%% This can be skipped when using an ssl connection.  Sent back is a none,
+%% the public key exponent (pubkey_e) and public key modulus (pubkey_n).
+%% Use the exponent and modulus to build a public key.  Prepend the
+%% password with the nonce.  Then encrypt it with the public key.  The
+%% encrypted password is used in the next {@link login/3. login step}.
+-spec(get_nonce/1 :: (State :: #state{}) ->
+	{'exit', binary(), binary(), #state{}}).
+get_nonce(#state{version_check = undefined} = State) ->
+	{exit, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>, State};
+
+get_nonce(State) ->
+	[E, N] = util:get_pubkey(),
+	Salt = list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))),
+	Res = {struct, [{<<"nonce">>, Salt}, {<<"pubkey_e">>, E},
+		{<<"pubkey_n">>, N}]},
+	{ok, Res, State#state{nonce = Salt}}.
+
+
 
 login(State, Username, Password) -> ok.
 
@@ -295,18 +316,8 @@ service_json_local(ReqId, _Mod, <<"check_version">>, [Major, Minor], State) ->
 	wrap_api_return(ReqId, Out);
 	
 service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
-	case State#state.version_check of
-		passed ->
-			[E, N] = util:get_pubkey(),
-			Salt = list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))),
-			Res = {struct, [{<<"nonce">>, Salt}, {<<"pubkey_e">>, E},
-				{<<"pubkey_n">>, N}]},
-			Json = success(ReqId, Res),
-			{ok, Json, State#state{nonce = Salt}};
-		_ ->
-			Json = error(ReqId, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>),
-			{exit, Json, State}
-	end;
+	Out = get_nonce(State),
+	wrap_api_return(ReqId, Out);
 
 service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{version_check = undefined} = State) ->
 	Json = error(ReqId, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>),

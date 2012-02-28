@@ -64,6 +64,7 @@
 %% and an event stating which state the agent is in should also arrive.
 %%
 %% Encrypting the password is skipped if the connection is over SSL.
+%% @see cpx_agent_tcp_connection
 
 -module(cpx_agent_tcp_listener).
 
@@ -138,6 +139,7 @@
 %% assumed to be using the same compression scheme.</dd>
 %% <dt>poolsize :: pos_integer</dt><dd>`5'  How many acceptor processes to
 %% start for the listening socket.</dd>
+%% </dl>
 -spec(start_link/1 :: (Opts :: start_opts()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Options) when is_list(Options) ->
 	ssl:start(),

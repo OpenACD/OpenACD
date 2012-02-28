@@ -134,10 +134,10 @@ get_nonce(State) ->
 		{<<"pubkey_n">>, N}]},
 	{ok, Res, State#state{nonce = Salt}}.
 
-%% @doc Final step in logging in.  If the connection is over raw tcp, the
-%% password must be encrypted using the information gleaned from
-%% {@link get_nonce/1}.  Returns a simple representation of the agent that
-%% was created.
+%% @doc {@agent_api} Final step in logging in.  If the connection is over
+%% raw tcp, the password must be encrypted using the information gleaned
+%% from {@link get_nonce/1}.  Returns a simple representation of the agent
+%% that was created.
 login(#state{version_check = undefined} = State, _Username, _Password) ->
 	{exit, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>, State};
 

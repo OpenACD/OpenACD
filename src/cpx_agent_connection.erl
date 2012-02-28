@@ -95,6 +95,7 @@
 %% <li>`Module :: atom()': Module that was in the json</li>
 %% <li>`Function :: atom()': Function that was in the json</li>
 %% <li>`Args :: [any()]': Arguments list in the json</li>
+%% </ul>
 %%
 %% The alternative is more efficient, preventing a call to cpx_hooks,
 %% though there is no custom information passed to the module.  The module

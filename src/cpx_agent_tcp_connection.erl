@@ -134,10 +134,45 @@ get_nonce(State) ->
 		{<<"pubkey_n">>, N}]},
 	{ok, Res, State#state{nonce = Salt}}.
 
+%% @doc Final step in logging in.  If the connection is over raw tcp, the
+%% password must be encrypted using the information gleaned from
+%% {@link get_nonce/1}.  Returns a simple representation of the agent that
+%% was created.
+login(#state{version_check = undefined} = State, _Username, _Password) ->
+	{exit, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>, State};
 
+login(#state{socket_mod = gen_tcp, nonce = undefined} = State, _Username, _Password) ->
+	{exit, <<"MISSING_NONCE">>, <<"get nonce comes first">>, State};
 
-login(State, Username, Password) -> ok.
-
+login(State, Username, Password) ->
+	#state{nonce = Nonce} = State,
+	DecryptPw = case State#state.socket_mod of
+		ssl -> binary_to_list(Password);
+		gen_tcp ->
+			case util:decrypt_password(Password) of
+				{ok, NoncedPw} ->
+					Len = string:len(Nonce),
+					string:sub_string(NoncedPw, Len + 1);
+				DecryptElse ->
+					?INFO("Decrypt failed:  ~p", [DecryptElse]),
+					[]
+			end
+	end,
+	case agent_auth:auth(binary_to_list(Username), DecryptPw) of
+		deny ->
+			{ok, <<"INVALID_CREDENTIALS">>, <<"username or password invalid">>, State};
+		{allow, Id, Skills, Security, Profile} ->
+			Agent = #agent{id = Id, login = binary_to_list(Username),
+				skills = Skills, profile = Profile, security_level = Security},
+			Agent0 = case agent_manager:start_agent(Agent) of
+				{ok, APid} -> Agent#agent{source = APid};
+				{exists, APid} -> Agent#agent{source = APid}
+			end,
+			link(Agent0#agent.source),
+			{ok, AgentConn} = cpx_agent_connection:init(Agent0),
+			agent:set_connection(Agent0#agent.source, self()),
+			{ok, State#state{agent_conn_state = AgentConn}}
+	end.
 
 % ================================================================
 % Init
@@ -319,44 +354,9 @@ service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
 	Out = get_nonce(State),
 	wrap_api_return(ReqId, Out);
 
-service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{version_check = undefined} = State) ->
-	Json = error(ReqId, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>),
-	{exit, Json, State};
-
-service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{socket_mod = gen_tcp, nonce = undefined} = State) ->
-	Json = error(ReqId, <<"MISSING_NONCE">>, <<"get nonce comes first">>),
-	{exit, Json, State};
-
 service_json_local(ReqId, _Mod, <<"login">>, [Username, Password], State) ->
-	#state{nonce = Nonce} = State,
-	DecryptPw = case State#state.socket_mod of
-		ssl -> binary_to_list(Password);
-		gen_tcp ->
-			case util:decrypt_password(Password) of
-				{ok, NoncedPw} ->
-					Len = string:len(Nonce),
-					string:sub_string(NoncedPw, Len + 1);
-				DecryptElse ->
-					?INFO("Decrypt failed:  ~p", [DecryptElse]),
-					[]
-			end
-	end,
-	case agent_auth:auth(binary_to_list(Username), DecryptPw) of
-		deny ->
-			{ok, error(ReqId, <<"INVALID_CREDENTIALS">>, <<"username or password invalid">>), State};
-		{allow, Id, Skills, Security, Profile} ->
-			Agent = #agent{id = Id, login = binary_to_list(Username),
-				skills = Skills, profile = Profile, security_level = Security},
-			Agent0 = case agent_manager:start_agent(Agent) of
-				{ok, APid} -> Agent#agent{source = APid};
-				{exists, APid} -> Agent#agent{source = APid}
-			end,
-			link(Agent0#agent.source),
-			{ok, AgentConn} = cpx_agent_connection:init(Agent0),
-			agent:set_connection(Agent0#agent.source, self()),
-			Json = simple_success(ReqId),
-			{ok, Json, State#state{agent_conn_state = AgentConn}}
-	end;
+	Out = login(State, Username, Password),
+	wrap_api_return(ReqId, Out);
 
 service_json_local(_, _, _, _, _) ->
 	{error, not_local}.

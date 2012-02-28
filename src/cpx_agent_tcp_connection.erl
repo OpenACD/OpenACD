@@ -53,6 +53,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("queue.hrl").
+-include_lib("public_key/include/public_key.hrl").
 
 -record(state, {
 	agent_conn_state :: any(),
@@ -290,6 +291,37 @@ service_json_local(ReqId, _Mod, <<"login">>, [_,_], #state{socket_mod = gen_tcp,
 	Json = error(ReqId, <<"MISSING_NONCE">>, <<"get nonce comes first">>),
 	{exit, Json, State};
 
+service_json_local(ReqId, _Mod, <<"login">>, [Username, Password], State) ->
+	#state{nonce = Nonce} = State,
+	DecryptPw = case State#state.socket_mod of
+		ssl -> binary_to_list(Password);
+		gen_tcp ->
+			case util:decrypt_password(Password) of
+				{ok, NoncedPw} ->
+					Len = string:len(Nonce),
+					string:sub_string(NoncedPw, Len + 1);
+				DecryptElse ->
+					?INFO("Decrypt failed:  ~p", [DecryptElse]),
+					[]
+			end
+	end,
+	case agent_auth:auth(binary_to_list(Username), DecryptPw) of
+		deny ->
+			{ok, error(ReqId, <<"INVALID_CREDENTIALS">>, <<"username or password invalid">>), State};
+		{allow, Id, Skills, Security, Profile} ->
+			Agent = #agent{id = Id, login = binary_to_list(Username),
+				skills = Skills, profile = Profile, security_level = Security},
+			Agent0 = case agent_manager:start_agent(Agent) of
+				{ok, APid} -> Agent#agent{source = APid};
+				{exists, APid} -> Agent#agent{source = APid}
+			end,
+			link(Agent0#agent.source),
+			{ok, AgentConn} = cpx_agent_connection:init(Agent0),
+			agent:set_connection(Agent0#agent.source, self()),
+			Json = simple_success(ReqId),
+			{ok, Json, State#state{agent_conn_state = AgentConn}}
+	end;
+
 service_json_local(_, _, _, _, _) ->
 	{error, not_local}.
 
@@ -429,36 +461,77 @@ service_json_local_test_() ->
 	end},
 
 	{"login fail due to bad un/pw (testing encrypted pw)", fun() ->
-		Password = public_key:encrypt_public("nonceypassword", get_pub_key()),
+		meck:new(agent_auth),
+		meck:expect(agent_auth, auth, fun("username", "password") ->
+			deny
+		end),
+		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
 		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
-			{<<"args">>, [<<"username">>, util:list_to_hextring(Password)]}]},
+			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
 			{<<"errcode">>, <<"INVALID_CREDENTIALS">>},
 			{<<"message">>, <<"username or password invalid">>}],
-		State = #state{version_check = passed, nonce = "nonce"},
+		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
 		{E, Json, State} = service_json_local(Req, State),
 		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json))
+		?assert(json_check(Expected, Json)),
+		meck:unload(agent_auth)
 	end},
 
 	{"login success (testing encrypted pw)", fun() ->
-		Password = public_key:encrypt_public("nonceypassword", get_pub_key()),
-		Req = {struct, [{<<"username">>, <<"username">>},
-			{<<"password">>, util:list_to_hextring(Password)}]},
+		Zombie = util:zombie(),
+		Self = self(),
+		ExpectAgent = #agent{id = "agentId", login = "username", skills = [],
+			profile = "Default", security_level = agent},
+		meck:new([agent, agent_auth, agent_manager, cpx_agent_connection]),
+		meck:expect(agent_auth, auth, fun("username", "password") ->
+			Self ! truth,
+			{allow, "agentId", [], agent, "Default"}
+		end),
+		meck:expect(agent_manager, start_agent, fun(Agent) ->
+			ExpectAgent0 = ExpectAgent#agent{last_change = Agent#agent.last_change},
+			?assertEqual(ExpectAgent0, Agent),
+			Self ! truth,
+			{ok, Zombie}
+		end),
+		meck:expect(cpx_agent_connection, init, fun(Agent) ->
+			ExpectedAgent = ExpectAgent#agent{source = Zombie, last_change = 
+				Agent#agent.last_change},
+			?assertEqual(ExpectedAgent, Agent),
+			Self ! truth,
+			{ok, cpx_agent_connection}
+		end),
+		meck:expect(agent, set_connection, fun(InAgentPid, InSelf) ->
+			?assertEqual(Self, InSelf),
+			?assertEqual(Zombie, InAgentPid),
+			Self ! truth
+		end),
+		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
+		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
-		State = #state{version_check = passed, nonce = "nonce"},
-		{E, Json, State} = service_json_local(Req, State),
+		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
+		{E, Json, State0} = service_json_local(Req, State),
 		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json))
+		?assert(json_check(Expected, Json)),
+		?assertEqual(cpx_agent_connection, State0#state.agent_conn_state),
+		?assert(get_truths(4)),
+		[meck:unload(M) || M <- [agent, agent_auth, agent_manager, cpx_agent_connection]]
 	end}
 
 	].
 
+get_truths(0) ->
+	true;
+get_truths(X) when X > 0 ->
+	receive
+		truth -> get_truths(X - 1)
+	after 100 -> {truths_remaining, X}
+	end.
+
 get_pub_key() ->
-	File = filename:join(util:run_dir(), "key.pub"),
-	{ok, Bin} = file:read_file(File),
-	[Entry] = public_key:pem_decode(Bin),
-	Entry.
+	[Exponent,Modulus] = util:get_pubkey(),
+	#'RSAPublicKey'{ modulus = Modulus, publicExponent = Exponent }.
 
 % ----------------------------------------------------------------
 

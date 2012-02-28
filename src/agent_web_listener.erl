@@ -969,7 +969,7 @@ cookie_file_tests() ->
 			timer:sleep(10)
 		end, [
 		fun(_Httpc) -> {"Get a cookie on index page request", fun() ->
-			{ok, Result} = http:request(?url("/")),
+			{ok, Result} = httpc:request(?url("/")),
 			?assertMatch({_Statusline, _Headers, _Boddy}, Result),
 			{_Line, Head, _Body} = Result,
 			?CONSOLE("Das head:  ~p", [Head]),
@@ -986,7 +986,7 @@ cookie_file_tests() ->
 			?assert(lists:any(Test, Cookies))
 		end} end,
 		fun(_Httpc) -> {"Try to get a page with a bad cookie", fun() ->
-			{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
+			{ok, {{_Httpver, Code, _Message}, Head, _Body}} = httpc:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
 			?assertEqual(200, Code),
 			?CONSOLE("~p", [Head]),
 			Cookies = proplists:get_all_values("set-cookie", Head),
@@ -1001,10 +1001,10 @@ cookie_file_tests() ->
 			?assertEqual(true, lists:any(Test, Cookies))
 		end} end,
 		fun(_Httpc) -> {"Get a cookie, then a request with that cookie", fun() ->
-			{ok, {_Statusline, Head, _Body}} = http:request(?url("/")),
+			{ok, {_Statusline, Head, _Body}} = httpc:request(?url("/")),
 			Cookie = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
-			{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {?url(""), Cookielist}, [], []),
+			{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = httpc:request(get, {?url(""), Cookielist}, [], []),
 			Cookie2 = proplists:get_all_values("set-cookie", Head2),
 			Test = fun(C) ->
 				case util:string_split(C, "=", 2) of
@@ -1027,7 +1027,7 @@ get_salt_tests() ->
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof2}]),
 			?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
-			HttpRes = http:request(?url("")),
+			HttpRes = httpc:request(?url("")),
 			{ok, {_Statusline, Head, _Body}} = HttpRes,
 			Cookie = proplists:get_all_values("set-cookie", Head),
 			?CONSOLE("cookie_api_test_ setup ~p", [Cookie]),
@@ -1048,7 +1048,7 @@ get_salt_tests() ->
 				{"Get a salt with a valid cookie",
 				fun() ->
 					?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
-					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
+					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = httpc:request(get, {?url("/getsalt"), Cookielist}, [], []),
 					?CONSOLE("body:  ~p", [Body]),
 					{struct, Pairs} = mochijson2:decode(Body),
 					?assertEqual(200, Code),
@@ -1060,7 +1060,7 @@ get_salt_tests() ->
 			fun({_Httpc, _Cookie}) ->
 				{"Get a salt with an invalid cookie should issue a new cookie",
 				fun() ->
-					{ok, {{_Ver, Code, _Msg}, Head, Body}} = http:request(get, {?url("/getsalt"), [{"Cookie", "cpx_id=snot"}]}, [], []),
+					{ok, {{_Ver, Code, _Msg}, Head, Body}} = httpc:request(get, {?url("/getsalt"), [{"Cookie", "cpx_id=snot"}]}, [], []),
 					?assertEqual(200, Code),
 					?assertNot(noexist =:= proplists:get_value("set-cookie", Head, noexist)),
 					?assertMatch("{\"success\":true"++_, Body)
@@ -1081,14 +1081,14 @@ web_connection_login_tests() ->
 			agent_web_listener:start(),
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
-			{ok, {_Statusline, Head, _Body}} = http:request(?url("")),
+			{ok, {_Statusline, Head, _Body}} = httpc:request(?url("")),
 			?CONSOLE("request head ~p", [Head]),
 			Cookies = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookies), 
 			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
 			os:cmd("ssh-keygen -t rsa -f ../key -N \"\""),
 			Getsalt = fun() ->
-				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
+				{ok, {_Statusline2, _Head2, Body2}} = httpc:request(get, {?url("/getsalt"), Cookielist}, [], []),
 				?CONSOLE("Body2:  ~p", [Body2]),
 				{struct, Jsonlist} = mochijson2:decode(Body2),
 				binary_to_list(proplists:get_value(<<"salt">>, Jsonlist))
@@ -1112,7 +1112,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("123345", "badpass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1132,7 +1132,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, 
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, 
 						{?url("/api"), 
 						Cookie, 
 						"application/x-www-form-urlencoded",
@@ -1149,7 +1149,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"badpass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1169,7 +1169,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", RequestJson]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1181,7 +1181,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1201,7 +1201,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1214,7 +1214,7 @@ web_connection_login_tests() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salt(),
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("345678","pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1235,7 +1235,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1252,7 +1252,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(true, proplists:get_value(<<"success">>, Json))
@@ -1270,7 +1270,7 @@ web_connection_login_tests() ->
  							list_to_binary(util:bin_to_hexstr(Salted))
 						]}
 					]}),
-					{ok, {_, _, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", binary_to_list(list_to_binary(lists:flatten(["request=", BodyJson])))}, [], []),
+					{ok, {_, _, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", binary_to_list(list_to_binary(lists:flatten(["request=", BodyJson])))}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(true, proplists:get_value(<<"success">>, Json))
@@ -1311,14 +1311,9 @@ web_connection_login_tests() ->
 ).
 
 path_parse_test_() ->
-	{generator,
-	fun() ->
-		Test = fun({Path, Expected}) ->
-			Name = string:concat("Testing path ", Path),
-			{Name, fun() -> ?assertEqual(Expected, parse_path(Path)) end}
-		end,
-		lists:map(Test, ?PATH_TEST_SET)
-	end}.
+	[begin
+		?_assertEqual(Expect, parse_path(Path))
+	end || {Path, Expect} <- ?PATH_TEST_SET].
 
 cookie_good_test_() ->
 	[
@@ -1346,12 +1341,6 @@ cookie_good_test_() ->
 			ets:delete(web_connections)
 		end}
 	].
-	
-	
-
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start_link(), unlink(Pid), {?MODULE, fun() -> stop() end} end).
-
-%-include("gen_server_test.hrl").
 
 all_test_() ->
 	{inorder, [

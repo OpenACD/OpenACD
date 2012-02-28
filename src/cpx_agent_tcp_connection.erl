@@ -45,6 +45,8 @@
 % gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
+% agent api
+-export([check_version/3, get_nonce/1, login/3]).
 
 -define(Major, 2).
 -define(Minor, 0).
@@ -91,6 +93,30 @@ start_link(Socket, SocketMod, Radix, Compress) ->
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
+
+% ================================================================
+% json API
+% ================================================================
+
+%% @doc {@agent_api} Step one in logging in:  ensure the client version is in the same
+%% ballpark as the server.  Differenences in the minor version are
+%% tolerated, major version differences are not.  If the minor version
+%% does not match, the result object is a string saying as much, otherwise
+%% returns a simple success.
+check_version(State, ?Major, ?Minor) ->
+	{ok, State#state{version_check = passed}};
+
+check_version(State, ?Major, _Minor) ->
+	Json = <<"minor version mismatch">>,
+	{ok, Json, State#state{version_check = passed}};
+
+check_version(State, _Major, _Minor) ->
+	{exit, <<"VERSION_MISMATCH">>, <<"major version mismatch">>, State}.
+
+get_nonce(State) -> ok.
+
+login(State, Username, Password) -> ok.
+
 
 % ================================================================
 % Init
@@ -242,6 +268,15 @@ service_jsons([Json | Tail], State) ->
 			{exit, State0}
 	end.
 
+wrap_api_return(ReqId, {ok, State}) ->
+	{ok, simple_success(ReqId), State};
+
+wrap_api_return(ReqId, {Exit, Code, Message, State}) ->
+	{Exit, error(ReqId, Code, Message), State};
+
+wrap_api_return(ReqId, {Exit, Json, State}) ->
+	{Exit, success(ReqId, Json), State}.
+
 service_json_local({struct, Props}, State) ->
 	ReqId = proplists:get_value(<<"request_id">>, Props),
 	Mod = proplists:get_value(<<"module">>, Props),
@@ -255,20 +290,10 @@ service_json_local(Json, State) ->
 service_json_local(_ReqId, Mod, _Func, _Args, _State) when Mod =/= undefined ->
 	{error, not_local};
 
-service_json_local(ReqId, _Mod, <<"check_version">>, [?Major, ?Minor], State) ->
-	OutJson = simple_success(ReqId),
-	State0 = State#state{version_check = passed},
-	{ok, OutJson, State0};
-
-service_json_local(ReqId, _Mod, <<"check_version">>, [?Major, _Minor], State) ->
-	OutJson = {struct, [{<<"request_id">>, ReqId}, {<<"success">>, true},
-		{<<"message">>, <<"minor version mismatch">>}]},
-	{ok, OutJson, State#state{version_check = passed}};
-
-service_json_local(ReqId, _Mod, <<"check_version">>, [_,_], State) ->
-	Json = error(ReqId, <<"VERSION_MISMATCH">>, <<"major version mismatch">>),
-	{exit, Json, State};
-
+service_json_local(ReqId, _Mod, <<"check_version">>, [Major, Minor], State) ->
+	Out = check_version(State, Major, Minor),
+	wrap_api_return(ReqId, Out);
+	
 service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
 	case State#state.version_check of
 		passed ->
@@ -392,7 +417,7 @@ service_json_local_test_() ->
 		Req = {struct, [{<<"request_id">>, 1},
 			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major,?Minor + 1]}]},
 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
-			{<<"message">>, <<"minor version mismatch">>}],
+			{<<"result">>, <<"minor version mismatch">>}],
 		{E, Json, _State} = service_json_local(Req, #state{}),
 		?assertEqual(ok, E),
 		?assert(json_check(Expected, Json))

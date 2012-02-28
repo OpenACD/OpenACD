@@ -163,8 +163,6 @@
 -define(reply_success(Id, Struct), ?json({struct, [{request_id, Id},
 	{success, true}, {result, Struct}]})).
 
--type(json() :: {struct, [{binary(), json()}]} | binary() | integer() | float() | [json()]).
-
 -record(state, {
 	salt :: any(),
 	agent :: #agent{},

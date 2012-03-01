@@ -448,15 +448,7 @@ get_skills() ->
 %% @doc Returns `[#skill_rec{}]' in the system which have a group of `string()' `Group'.
 -spec(get_skills/1 :: (Group :: string()) -> [#skill_rec{}]).
 get_skills(Group) when is_list(Group) ->
-	case cpx_hooks:trigger_hooks(get_skills_by_group, [Group], all) of
-		{ok, Lists} ->
-			Skills = lists:append(Lists),
-			Compare = fun(Skill1, Skill2) ->
-				Skill1#skill_rec.name =< Skill2#skill_rec.name
-			end,
-			lists:sort(Compare, Skills);
-		_ -> []
-	end.
+	[X || X <- get_skills(), X#skill_rec.group =:= Group].
 
 %% @doc Removes the skill named `string()' `Skillname' from the database.  The 
 %% atom is still in the system, so this is just for looks.

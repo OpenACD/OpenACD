@@ -1,9 +1,9 @@
-Message-Id: <98EE8341-05D7-4BAD-846B-1A45979B01EA@spicecsm.com>
-From: Micah Warren <mwarren@spicecsm.com>
-To: test@devmicah.example.com
+Message-Id: <98EE8341-05D7-4BAD-846B-1A45979B01EA@example.com>
+From: John Doe <jdoe@example.com>
+To: test@example.com
 Content-Type: multipart/alternative;
 	boundary=Apple-Mail-24--712106862
-X-Smtp-Server: mail.example.com:micahw@example.com
+X-Smtp-Server: mail.example.com:jdoe@example.com
 Mime-Version: 1.0 (Apple Message framework v935.3)
 Subject: An unorder html list.
 Date: Mon, 1 Jun 2009 15:04:25 -0400

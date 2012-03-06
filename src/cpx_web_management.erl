@@ -98,6 +98,9 @@
 	parse_posted_skills/1
 ]).
 
+%% DEBUG
+-export([api/3, decode_endpoints/1]).
+
 -type(simple_json() :: {'struct', [{atom() | binary(), atom() | binary()}]}).
 
 %% @doc Start the web management server unlinked to the parent process.
@@ -636,71 +639,6 @@ api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
 
 %% =====
-%% agents -> spiceintegration
-%% =====
-api({agents, "spiceintegration", "get"}, ?COOKIE, _Post) ->
-	Settings = case cpx_supervisor:get_conf(spicecsm_integration) of
-		undefined ->
-			{struct, [{<<"spiceIntegrationEnabled">>, false}]};
-		#cpx_conf{start_args = [Args | _]} = Conf ->
-			?DEBUG("conf:  ~p", [Conf]),
-			{struct, [
-				{<<"spiceIntegrationEnabled">>, true},
-				{<<"server">>, list_to_binary(proplists:get_value(server, Args))},
-				{<<"username">>, list_to_binary(proplists:get_value(username, Args, ""))},
-				{<<"password">>, list_to_binary(proplists:get_value(password, Args, ""))}
-			]}
-	end,
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, Settings}]})};
-api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
-	case proplists:get_value("spiceIntegrationEnabled", Post) of
-		undefined ->
-			cpx_supervisor:destroy(spicecsm_integration),
-			{200, [], mochijson2:encode({struct, [{success, true}]})};
-		_Else ->
-			case proplists:get_value("server", Post) of
-				undefined ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Server required">>}]})};
-				Server ->
-					Username = proplists:get_value("username", Post, ""),
-					Password = proplists:get_value("password", Post, ""),
-					case proplists:get_value("spiceIntegratoinImport", Post) of
-						undefined ->
-							Conf = #cpx_conf{
-								id = spicecsm_integration,
-								module_name = spicecsm_integration,
-								start_function = start_link,
-								supervisor = agent_sup,
-								start_args = [[
-									{server, Server},
-									{username, Username},
-									{password, Password}
-								]]},
-							Addres = cpx_supervisor:update_conf(spicecsm_integration, Conf),
-							case Addres of
-								{atomic, _} ->
-									{200, [], mochijson2:encode({struct, [{success, true}]})};
-								Else ->
-									?WARNING("Could not start spicecsm integration:  ~p", [Else]),
-									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"service errored on start">>}]})}
-							end;
-						"spiceIntegrationImport" ->
-							Args = [
-								{server, Server},
-								{username, Username},
-								{password, Password},
-								add_conf
-							],
-							F = fun() ->
-								spicecsm_integration:import(Args)
-							end,
-							spawn(F),
-							{200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"import in progress">>}]})}
-					end
-			end
-	end;
-						
-%% =====
 %% agents -> profiles
 %% =====
 api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
@@ -787,13 +725,15 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
 				{lastname, proplists:get_value("lastname", Post)},
-				{firstname, proplists:get_value("firstname", Post)}
+				{firstname, proplists:get_value("firstname", Post)},
+				{endpoints, decode_endpoints(
+					proplists:get_value("endpoints", Post))}
 			]);
 		Confirmpw ->
 			?DEBUG("Updating password", []),
 			agent_auth:set_agent(Agent, [
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(proplists:get_value("password", Post)))},
+				{password, proplists:get_value("password", Post)},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
@@ -820,12 +760,14 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			Fixedskills = parse_posted_skills(Postedskills),
 			agent_auth:add_agent([
 				{login, proplists:get_value("login", Post)},
-				{password, util:bin_to_hexstr(erlang:md5(Confirmpw))},
+				{password, Confirmpw},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},
 				{lastname, proplists:get_value("lastname", Post)},
-				{firstname, proplists:get_value("firstname", Post)}
+				{firstname, proplists:get_value("firstname", Post)},
+				{endpoints, decode_endpoints(
+					proplists:get_value("endpoints", Post))}
 			]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
@@ -2524,8 +2466,6 @@ parse_path(Path) ->
 					end;
 				["", "agents", "modules", Action] ->
 					{api, {agents, "modules", Action}};
-				["", "agents", "spiceintegration", Action] ->
-					{api, {agents, "spiceintegration", Action}};
 				["", "agents", "profiles", Action] ->
 					{api, {agents, "profiles", Action}};
 				["", "agents", "profiles", Profile, Action] ->
@@ -2792,9 +2732,95 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)},
 		{lastname, list_to_binary(Agentrec#agent_auth.lastname)},
-		{firstname, list_to_binary(Agentrec#agent_auth.firstname)}
+		{firstname, list_to_binary(Agentrec#agent_auth.firstname)},
+		{endpoints, encode_endpoints(Agentrec#agent_auth.endpoints, [])}
 	]}.
+
+-spec(encode_endpoints/2 :: (Endpoints :: [{atom(), any()}], Acc :: [simple_json()]) -> [simple_json()]).
+encode_endpoints([], Acc) -> {struct, lists:reverse(Acc)};
+encode_endpoints([{freeswitch_media, Props}|T], Acc) ->
+	FwType = proplists:get_value(type, Props, null),
+	FwData = case proplists:get_value(data, Props) of
+		undefined -> null;
+		Dat -> list_to_binary(Dat)
+	end,
 	
+	Persistant = case proplists:get_value(persistant, Props) of
+		true -> true;
+		_ -> false
+	end,
+
+	Struct = {freeswitch_media, {struct, [{type, FwType}, {data, FwData},
+		{persistant, Persistant}]}},
+	encode_endpoints(T, [Struct|Acc]);
+encode_endpoints([{email_media, _Props}|T], Acc) ->
+	encode_endpoints(T, [{email_media, {struct, []}}|Acc]);
+encode_endpoints([{dummy_media, Opt}|T], Acc) ->
+	encode_endpoints(T, [{dummy_media, {struct, [{dummyMediaEndpoint, Opt}]}}|Acc]);
+encode_endpoints([_E|T], Acc) ->
+	?WARNING("cannot encode endpoint: ~p", [_E]),
+	encode_endpoints(T, Acc).
+
+
+	
+decode_endpoints(undefined) -> [];
+decode_endpoints(Bin) ->
+	case catch mochijson2:decode(Bin) of
+		{'EXIT', _} ->
+			?WARNING("error decoding endpoint json: ", [Bin]);
+		{struct, Props} ->
+			decode_endpoints(Props, [])
+	end.
+
+decode_endpoints([], Acc) -> lists:reverse(Acc);
+decode_endpoints([{<<"freeswitch_media">>, {struct, Props}}|T], Acc) ->
+	FwType = case proplists:get_value(<<"type">>, Props) of
+			<<"sip_registration">> -> sip_registration;
+			<<"sip">> -> sip;
+			<<"iax">> -> iax;
+			<<"h323">> -> h323;
+			<<"pstn">> -> pstn;
+			_ -> undefined
+		end,
+
+	case FwType of
+		undefined ->
+			?WARNING("not adding fw endpoint. unknown type: ~p", [FwType]),
+			Acc;
+		_ ->
+			FwData = binary_to_list(proplists:get_value(<<"data">>, 
+				Props, <<>>)),
+			Persistant = case proplists:get_value(<<"persistant">>, 
+				Props) of
+					true -> true;
+					_ -> undefined
+			end,
+			decode_endpoints(T, 
+				[{freeswitch_media, [{type, FwType},
+					{data, FwData}, {persistant, Persistant}]} | Acc])
+	end;
+decode_endpoints([{<<"email_media">>, _}|T], Acc) ->
+	decode_endpoints(T, [{email_media, []} | Acc]);
+decode_endpoints([{<<"dummy_media">>, {struct, Props}}|T], Acc) ->
+		Opt = case proplists:get_value(<<"dummyMediaEndpoint">>, Props) of
+			<<"ring_channel">> ->  ring_channel;
+			<<"inband">> -> inband;
+			<<"outband">> -> outband;
+			<<"persistant">> -> persistant;
+			_ -> {error, unknown_dummy_endpoint}
+		end,
+		case Opt of
+			{error, Err} ->
+				?WARNING("not adding dummy_media. error: ~p", [Err]),
+				Acc;
+			_ ->
+				decode_endpoints(T, [{dummy_media, Opt}|Acc])
+		end;
+decode_endpoints([_Other|T], Acc) ->
+	?WARNING("unknown endpoint: ~p", [_Other]),
+	Acc.
+
+
 decode_recipe([Test | Tail]) when is_tuple(Test) ->
 	decode_recipe([Test | Tail], []);
 decode_recipe("[]") ->
@@ -3177,6 +3203,69 @@ recipe_encode_decode_test_() ->
 	{"Simple decode",
 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
+decode_endpoints_test_() ->
+	[{"decode freeswitch_media endpoint type " ++ Str,
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(iolist_to_binary(["{\"freeswitch_media\":{\"type\": \"", Str, "\"}}"])),
+			?assertEqual(Atm, proplists:get_value(type, P))
+		end} || {Str, Atm} <- [{"sip_registration", sip_registration}, 
+		{"sip", sip}, {"iax", iax}, {"h323", h323}, {"pstn", pstn}]] ++
+
+	[{"decode freeswitch_media endpoint empty type",
+		?_assertEqual([], decode_endpoints(<<"{\"freeswitch_media\":{}}">>))
+	},
+	{"decode freeswitch_media endpoint data",
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(<<"{\"freeswitch_media\":{\"type\": \"sip\", \"data\":\"1001\"}}">>),
+			?assertEqual("1001", proplists:get_value(data, P))
+		end
+	},
+	{"decode freeswitch_media endpoint empty data",
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(<<"{\"freeswitch_media\":{\"type\": \"sip\"}}">>),
+			?assertEqual("", proplists:get_value(data, P))
+		end
+	},
+	{"decode freeswitch_media endpoint persistant true",
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(<<"{\"freeswitch_media\":{\"type\": \"sip\", \"persistant\": true}}">>),
+			?assertEqual(true, proplists:get_value(persistant, P))
+		end
+	},
+	{"decode freeswitch_media endpoint persistant false",
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(<<"{\"freeswitch_media\":{\"type\": \"sip\", \"persistant\": false}}">>),
+			?assertEqual(undefined, proplists:get_value(persistant, P))
+		end
+	},
+	{"decode freeswitch endpoint empty persistant",
+		fun() ->
+			[{freeswitch_media, P}] = 
+				decode_endpoints(<<"{\"freeswitch_media\":{\"type\": \"sip\"}}">>),
+			?assertEqual(undefined, proplists:get_value(persistant, P))
+		end
+	},
+	{"decode email_media endpoint",
+		?_assertMatch([{email_media, _}],
+			decode_endpoints(<<"{\"email_media\":{}}">>))
+	},
+	{"decode dummy_media endpoint",
+		[?_assertEqual([{dummy_media, ring_channel}],
+			decode_endpoints(<<"{\"dummy_media\":{\"dummyMediaEndpoint\":\"ring_channel\"}}">>)),
+		?_assertEqual([{dummy_media, inband}],
+			decode_endpoints(<<"{\"dummy_media\":{\"dummyMediaEndpoint\":\"inband\"}}">>)),
+		?_assertEqual([{dummy_media, outband}],
+			decode_endpoints(<<"{\"dummy_media\":{\"dummyMediaEndpoint\":\"outband\"}}">>)),
+		?_assertEqual([{dummy_media, persistant}],
+			decode_endpoints(<<"{\"dummy_media\":{\"dummyMediaEndpoint\":\"persistant\"}}">>)),
+		?_assertEqual([], decode_endpoints(<<"{\"dummy_media\":{\"dummyMediaEndpoint\":\"foobaz\"}}">>))]
+	}].
+
 api_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(cpx_web_management_api_tests),
@@ -3314,13 +3403,17 @@ api_test_() ->
 					{"skills", "{_brand,Somebrand}"},
 					{"login", "someagent"},
 					{"security", "agent"},
-					{"profile", "Default"}
+					{"profile", "Default"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				{200, [], _Json} = api({agents, "agents", "new"}, Cookie, Post),
 				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
 				?CONSOLE("~p", [Rec#agent_auth.skills]),
+
 				?assertEqual(true, lists:member(english, Rec#agent_auth.skills)),
 				?assertEqual(true, lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assertEqual([{data,"1001"}, {persistant,true}, {type,sip}],
+				 	lists:sort(proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints))),
 				agent_auth:destroy("someagent")
 			end}
 		end,
@@ -3335,7 +3428,8 @@ api_test_() ->
 					{"skills", "{_brand,Somebrand}"},
 					{"login", "someagent"},
 					{"security", "agent"},
-					{"profile", "Default"}
+					{"profile", "Default"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				?assertError({case_clause,"goober"}, api({agents, "agents", "new"}, Cookie, Post)),
 				%{200, [], Json} = api({agents, "agents", "new"}, Cookie, Post),
@@ -3364,7 +3458,8 @@ api_test_() ->
 					{"confirm", ""},
 					{"security", "agent"},
 					{"profile", "Default"},
-					{"login", "renamed"}
+					{"login", "renamed"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
@@ -3373,6 +3468,8 @@ api_test_() ->
 				?assert(lists:member(english, Rec#agent_auth.skills)),
 				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
 				?assertEqual(Oldrec#agent_auth.password, Rec#agent_auth.password),
+				?assertEqual([{data,"1001"}, {persistant,true}, {type,sip}],
+				 	lists:sort(proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints))),
 				agent_auth:destroy("renamed")
 			end}
 		end,
@@ -3388,7 +3485,8 @@ api_test_() ->
 					{"confirm", "newpass"},
 					{"security", "agent"},
 					{"profile", "Default"},
-					{"login", "renamed"}
+					{"login", "renamed"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
@@ -3397,6 +3495,8 @@ api_test_() ->
 				?assert(lists:member(english, Rec#agent_auth.skills)),
 				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
 				?assertNot(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				?assertEqual([{data,"1001"}, {persistant,true}, {type,sip}],
+				 	lists:sort(proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints))),
 				agent_auth:destroy("renamed")
 			end}
 		end,
@@ -3412,7 +3512,8 @@ api_test_() ->
 					{"confirm", "typoed"},
 					{"security", "agent"},
 					{"profile", "Default"},
-					{"login", "renamed"}
+					{"login", "renamed"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				?assertError({case_clause, "newpass"}, api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post)),
 				?assertEqual({atomic, []}, agent_auth:get_agent("renamed")),
@@ -3421,6 +3522,8 @@ api_test_() ->
 				?assertNot(lists:member(english, Rec#agent_auth.skills)),
 				?assertNot(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
 				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				?assertEqual(undefined,
+				 	proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints)),
 				agent_auth:destroy("someagent")
 			end}
 		end,
@@ -3436,7 +3539,8 @@ api_test_() ->
 					{"confirm", ""},
 					{"security", "agent"},
 					{"profile", "Default"},
-					{"login", "renamed"}
+					{"login", "renamed"},
+					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
 				],
 				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
@@ -3445,6 +3549,8 @@ api_test_() ->
 				?assert(lists:member(english, Rec#agent_auth.skills)),
 				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
 				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				?assertEqual(undefined,
+				 	proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints)),
 				agent_auth:destroy("renamed")
 			end}
 		end,

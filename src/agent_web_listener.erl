@@ -31,7 +31,7 @@
 %% {@link agent_web_connection} to handle the details.  Uses Mochiweb for 
 %% the heavy lifting.
 %% 
-%% {@web}
+%% == Agent Api ==
 %%
 %% The listener and connection are designed to be able to function with
 %% any ui that adheres to the api.  The api is broken up between the two
@@ -39,53 +39,21 @@
 %% speecific agent, or handle the login procedures.  For 
 %% functions dealing with a specific agent, {@link agent_web_connection}.
 %% 
-%% Some functions in this documentation will have {@web} in front of their 
-%% description.  These functions should not be called in the shell, as they
-%% likely won't work; they are exported only to aid in documentation.
-%% To call a function is very similar to using the json_api
-%% in {@link cpx_web_management}.  A request is a json object with a 
-%% `"function"' property and an `"args"' property.  Note unlike the 
-%% json api there is no need to define a `"module"' property.  In the 
-%% documentation of specific functions, references to a proplist should
-%% be sent as a json object.  The response is a json object with a 
-%% `"success"' property.  If the `"success"' property is set to true, 
-%% there may be a `"result"' property holding more data (defined in the 
-%% functions below).  If something went wrong, there will be a `"message"' 
-%% and `"errcode"' property.  Usually the `"message"' will have a human 
-%% readable message, while `"errcode"' could be used for translation.
+%% This module uses {@link cpx_agent_connection} for many of it's
+%% functions.  Login is handled in {@module} and
+%% {@link agent_web_connection}.  The functions for that system are
+%% tagged with {@agent_api}.
 %%
-%% The specifics of the args property will be described in the 
-%% documentation.  The number of arguments for the web api call will likely
-%% differ.
-%% 
-%% To make a web api call, make a post request to path "/api" with one
-%% field named `"request"'.  The value of the request field should be a 
-%% a json object:
-%% <pre> {
-%% 	"function":  string(),
-%% 	"args":      [any()]
-%% }</pre>
-%% See a functions documentation for what `"args"' should be.
-%% 
-%% A response will have 3 major forms.  Note that due to legacy reasons 
-%% there may be more properties then listed.  They should be ignored, as
-%% they will be phased out in favor of the more refined api.
-%% 
-%% A very simple success:
-%% <pre> {
-%% 	"success":  true
-%% }</pre>
-%% A success with a result:
-%% <pre> {
-%% 	"success":  true,
-%% 	"result":   any()
-%% }</pre>
-%% A failure:
-%% <pre> {
-%% 	"success":  false,
-%% 	"message":  string(),
-%% 	"errcode":  string()
-%% }</pre>
+%% Requests from a UI are made over HTTP using POST formatted in
+%% application/x-www-form-urlencoded (the default on most modern 
+%% browsers) to /api.  The json request object is put into a field labeled
+%% 'request'.
+%%
+%% == Hooks ==
+%%
+%% Hooks are available when a request is made that an agent connection
+%% cannot handle.
+%%
 %% @see agent_web_connection
 %% @see cpx_web_management
 
@@ -361,6 +329,10 @@ loop(Req, Table) ->
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
 			%?DEBUG("Cookielist:  ~p", [Cookielist]),
+			GregSecs = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
+			FutureWeek = GregSecs + (60 * 60 * 24 * 7),
+			DateTime = calendar:gregorian_seconds_to_datetime(FutureWeek),
+			CacheControl = {"Expires", util:http_datetime(DateTime)},
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -368,16 +340,27 @@ loop(Req, Table) ->
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
 					?DEBUG("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
+					Req:serve_file(File, Docroot, [CacheControl, {"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
+					Req:serve_file(File, Docroot, [CacheControl, {"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
 			Cookie = cookie_good(Req:parse_cookie()),
 			keep_alive(Cookie),
-			Out = api(Api, Cookie, Post),
-			Req:respond(Out)
+			{Status, Headers, OutBin}  = Res = api(Api, Cookie, Post),
+			case {Req:get_primary_header_value("If-None-Match"), proplists:get_value("ETag", Headers)}  of
+				{X, X} when is_list(X) ->
+					Req:respond({304, [{"ETag", X}], <<>>});
+				_ ->
+					case Status of
+						200 ->
+							ContentType = proplists:get_value("Content-Type", Headers, "text/plain"),
+							Req:ok({ContentType, Headers, OutBin});
+						_ ->
+							Req:respond(Res)
+					end
+			end
 	end.
 
 file_handler(Name, ContentType) ->
@@ -441,7 +424,15 @@ send_to_connection(ApiArea, Cookie, Func, Args) when is_binary(Func) ->
 			send_to_connection(ApiArea, Cookie, Atom, Args)
 	catch
 		error:badarg ->
-			?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>)
+			{_Ref, _Salt, Conn} = Cookie,
+			Agent = agent_web_connection:dump_agent(Conn),
+			case cpx_hooks:trigger_hooks(agent_web_call, [Agent, Conn, Func, Args]) of
+				{error, unhandled} ->
+					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+					{ok, ok} -> ?simple_success();
+					{ok, {error, Code, Msg}} -> ?reply_err(Msg, Code);
+					{ok, {ok, Json}} -> ?reply_success(Json)
+				end
 	end;
 send_to_connection(ApiArea, Cookie, Func, Arg) when is_binary(Arg) ->
 	send_to_connection(ApiArea, Cookie, Func, [Arg]);
@@ -451,9 +442,17 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 			ets:delete(web_connections, Ref),
 			api(checkcookie, badcookie, []);
 		{true, api} ->
+			?INFO("WebAPI: ~p ~p", [Function, Args]),
 			case agent_web_connection:is_web_api(Function, length(Args) + 1) of
 				false ->
-					?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+					Agent = agent_web_connection:dump_agent(Conn),
+					case cpx_hooks:trigger_hooks(agent_web_call, [Agent, Conn, Function, Args]) of
+						{error, unhandled} ->
+							?reply_err(<<"no such function">>, <<"FUNCTION_NOEXISTS">>);
+						{ok, ok} -> ?simple_success();
+						{ok, {error, Code, Msg}} -> ?reply_err(Msg, Code);
+						{ok, {ok, Json}} -> ?reply_success(Json)
+					end;
 				true ->
 					erlang:apply(agent_web_connection, Function, [Conn | Args])
 			end;
@@ -492,35 +491,21 @@ send_to_connection(ApiArea, {Ref, _Salt, Conn}, Function, Args) when is_pid(Conn
 -spec(check_cookie/1 :: (Cookie :: cookie_res()) -> web_reply()).
 check_cookie({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
 	%?DEBUG("Found agent_connection pid ~p", [Conn]),
-	{Agentrec, Security} = agent_web_connection:dump_agent(Conn),
-	{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
-	Peristence = case PersistAtom of
-		persistent -> true;
-		_ -> false
-	end,
+	Agentrec = agent_web_connection:dump_agent(Conn),
+	%{_, PersistAtom, EpType} = Agentrec#agent.endpointtype,
+%	Peristence = case PersistAtom of
+%		persistent -> true;
+%		_ -> false
+%	end,
 	Basejson = [
 		{<<"login">>, list_to_binary(Agentrec#agent.login)},
 		{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
-		{<<"securityLevel">>, Security},
-		{<<"state">>, Agentrec#agent.state},
-		{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-		{<<"statetime">>, Agentrec#agent.lastchange},
-		{<<"timestamp">>, util:now()},
-		{<<"endpointtype">>, EpType},
-		{<<"endpointdata">>, list_to_binary(Agentrec#agent.endpointdata)},
-		{<<"endpointpersist">>, Peristence}
+		{<<"securityLevel">>, Agentrec#agent.security_level},
+		{<<"timestamp">>, util:now()}
 	],
-	Fulljson = case Agentrec#agent.state of
-		oncall ->
-			case agent_web_connection:mediaload(Conn) of
-				undefined ->
-					Basejson;
-				MediaLoad ->
-					[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
-			end;
-		_ ->
-			Basejson
-	end,
+	% TODO when a new connection is established, the channels should do the
+	% media load command.
+	Fulljson = Basejson,
 	Json = {struct, [
 		{<<"success">>, true},
 		{<<"result">>, {struct, Fulljson}} |
@@ -728,34 +713,31 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>)
 							end;
 						{{allow, Id, Skills, Security, Profile}, _} ->
+							{atomic, [AgentAuth]} = agent_auth:get_agent(id, Id),
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = Bandedness, 
 								login = Username, 
 								skills = Skills, 
 								profile=Profile, 
-								password=DecryptedPassword,
-								endpointtype = Endpoint,
-								endpointdata = Endpointdata
+								security_level = Security
 							},
-							case agent_web_connection:start(Agent, Security) of
+							case agent_web_connection:start(Agent) of
 								{ok, Pid} ->
-									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-									%agent:set_endpoint(Pid, Endpoint, Endpointdata, Persistantness),
-									gen_server:call(Pid, {set_endpoint, Endpoint, Endpointdata, Persistantness}),
+									?INFO("~s logged in", [Username]),
 									linkto(Pid),
-									{#agent{lastchange = StateTime, profile = EffectiveProfile}, Security} = agent_web_connection:dump_agent(Pid),
+									{true, Apid} = agent_manager:query_agent(Username),
+									agent:set_endpoints(Apid, AgentAuth#agent_auth.endpoints),
+									% TODO make real profile
+%									#agent{profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Ref, Salt, Pid}),
 									?DEBUG("connection started for ~p ~p", [Ref, Username]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true},
 										{<<"result">>, {struct, [
-											{<<"profile">>, list_to_binary(EffectiveProfile)},
+											{<<"profile">>, list_to_binary(Profile)}, 
+											%{<<"profile">>, list_to_binary(EffectiveProfile)},
 											{<<"securityLevel">>, Security},
-											{<<"statetime">>, StateTime},
-											{<<"timestamp">>, util:now()}
-										]}}
-									]})};
+											{<<"timestamp">>, util:now()}]}}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p ~p", [Ref, Username]),
 									?reply_err(<<"login error">>, <<"UNKNOWN_ERROR">>);
@@ -987,7 +969,7 @@ cookie_file_tests() ->
 			timer:sleep(10)
 		end, [
 		fun(_Httpc) -> {"Get a cookie on index page request", fun() ->
-			{ok, Result} = http:request(?url("/")),
+			{ok, Result} = httpc:request(?url("/")),
 			?assertMatch({_Statusline, _Headers, _Boddy}, Result),
 			{_Line, Head, _Body} = Result,
 			?CONSOLE("Das head:  ~p", [Head]),
@@ -1004,7 +986,7 @@ cookie_file_tests() ->
 			?assert(lists:any(Test, Cookies))
 		end} end,
 		fun(_Httpc) -> {"Try to get a page with a bad cookie", fun() ->
-			{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
+			{ok, {{_Httpver, Code, _Message}, Head, _Body}} = httpc:request(get, {?url("/"), [{"Cookie", "goober=snot"}]}, [], []),
 			?assertEqual(200, Code),
 			?CONSOLE("~p", [Head]),
 			Cookies = proplists:get_all_values("set-cookie", Head),
@@ -1019,10 +1001,10 @@ cookie_file_tests() ->
 			?assertEqual(true, lists:any(Test, Cookies))
 		end} end,
 		fun(_Httpc) -> {"Get a cookie, then a request with that cookie", fun() ->
-			{ok, {_Statusline, Head, _Body}} = http:request(?url("/")),
+			{ok, {_Statusline, Head, _Body}} = httpc:request(?url("/")),
 			Cookie = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
-			{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {?url(""), Cookielist}, [], []),
+			{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = httpc:request(get, {?url(""), Cookielist}, [], []),
 			Cookie2 = proplists:get_all_values("set-cookie", Head2),
 			Test = fun(C) ->
 				case util:string_split(C, "=", 2) of
@@ -1045,7 +1027,7 @@ get_salt_tests() ->
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof2}]),
 			?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
-			HttpRes = http:request(?url("")),
+			HttpRes = httpc:request(?url("")),
 			{ok, {_Statusline, Head, _Body}} = HttpRes,
 			Cookie = proplists:get_all_values("set-cookie", Head),
 			?CONSOLE("cookie_api_test_ setup ~p", [Cookie]),
@@ -1066,7 +1048,7 @@ get_salt_tests() ->
 				{"Get a salt with a valid cookie",
 				fun() ->
 					?CONSOLE("Listener:  ~p", [whereis(agent_web_listener)]),
-					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
+					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = httpc:request(get, {?url("/getsalt"), Cookielist}, [], []),
 					?CONSOLE("body:  ~p", [Body]),
 					{struct, Pairs} = mochijson2:decode(Body),
 					?assertEqual(200, Code),
@@ -1078,7 +1060,7 @@ get_salt_tests() ->
 			fun({_Httpc, _Cookie}) ->
 				{"Get a salt with an invalid cookie should issue a new cookie",
 				fun() ->
-					{ok, {{_Ver, Code, _Msg}, Head, Body}} = http:request(get, {?url("/getsalt"), [{"Cookie", "cpx_id=snot"}]}, [], []),
+					{ok, {{_Ver, Code, _Msg}, Head, Body}} = httpc:request(get, {?url("/getsalt"), [{"Cookie", "cpx_id=snot"}]}, [], []),
 					?assertEqual(200, Code),
 					?assertNot(noexist =:= proplists:get_value("set-cookie", Head, noexist)),
 					?assertMatch("{\"success\":true"++_, Body)
@@ -1099,14 +1081,14 @@ web_connection_login_tests() ->
 			agent_web_listener:start(),
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
-			{ok, {_Statusline, Head, _Body}} = http:request(?url("")),
+			{ok, {_Statusline, Head, _Body}} = httpc:request(?url("")),
 			?CONSOLE("request head ~p", [Head]),
 			Cookies = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookies), 
 			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
 			os:cmd("ssh-keygen -t rsa -f ../key -N \"\""),
 			Getsalt = fun() ->
-				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {?url("/getsalt"), Cookielist}, [], []),
+				{ok, {_Statusline2, _Head2, Body2}} = httpc:request(get, {?url("/getsalt"), Cookielist}, [], []),
 				?CONSOLE("Body2:  ~p", [Body2]),
 				{struct, Jsonlist} = mochijson2:decode(Body2),
 				binary_to_list(proplists:get_value(<<"salt">>, Jsonlist))
@@ -1130,7 +1112,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("123345", "badpass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1150,7 +1132,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, 
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, 
 						{?url("/api"), 
 						Cookie, 
 						"application/x-www-form-urlencoded",
@@ -1167,7 +1149,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"badpass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1187,7 +1169,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", RequestJson]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1199,7 +1181,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1219,7 +1201,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1232,7 +1214,7 @@ web_connection_login_tests() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salt(),
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("345678","pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1253,7 +1235,7 @@ web_connection_login_tests() ->
 						]}
 					]}),
 					RequestBody = binary_to_list(list_to_binary(lists:flatten(["request=", Request]))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", RequestBody}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
@@ -1270,7 +1252,7 @@ web_connection_login_tests() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- util:get_pubkey()], % cheating a little here...
 					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = httpc:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(true, proplists:get_value(<<"success">>, Json))
@@ -1288,7 +1270,7 @@ web_connection_login_tests() ->
  							list_to_binary(util:bin_to_hexstr(Salted))
 						]}
 					]}),
-					{ok, {_, _, Body}} = http:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", binary_to_list(list_to_binary(lists:flatten(["request=", BodyJson])))}, [], []),
+					{ok, {_, _, Body}} = httpc:request(post, {?url("/api"), Cookie, "application/x-www-form-urlencoded", binary_to_list(list_to_binary(lists:flatten(["request=", BodyJson])))}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(true, proplists:get_value(<<"success">>, Json))
@@ -1329,14 +1311,9 @@ web_connection_login_tests() ->
 ).
 
 path_parse_test_() ->
-	{generator,
-	fun() ->
-		Test = fun({Path, Expected}) ->
-			Name = string:concat("Testing path ", Path),
-			{Name, fun() -> ?assertEqual(Expected, parse_path(Path)) end}
-		end,
-		lists:map(Test, ?PATH_TEST_SET)
-	end}.
+	[begin
+		?_assertEqual(Expect, parse_path(Path))
+	end || {Path, Expect} <- ?PATH_TEST_SET].
 
 cookie_good_test_() ->
 	[
@@ -1364,12 +1341,6 @@ cookie_good_test_() ->
 			ets:delete(web_connections)
 		end}
 	].
-	
-	
-
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start_link(), unlink(Pid), {?MODULE, fun() -> stop() end} end).
-
-%-include("gen_server_test.hrl").
 
 all_test_() ->
 	{inorder, [

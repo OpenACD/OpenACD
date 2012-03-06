@@ -172,40 +172,40 @@ function setTheme(theme) {
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
 }
 
-function storeTab(tab){
+function storeTab(tab, title, href){
 	var settings = {
-		'tabs': []
+		'tabs': {}
 	};
 	if(dojo.cookie('agentui-settings')){
 		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 		if(! settings.tabs){
-			settings.tabs = [];
+			settings.tabs = {};
 		}
 	}
-	for(var i = 0; i < settings.tabs.length; i++){
-		if(settings.tabs[i] == tab){
+	for(tabid in settings.tabs.length){
+		if(tabid == tab){
 			return true;
 		}
 	}
-	settings.tabs.push(tab);
+	settings.tabs[tab] = {'title':title,'href':href};
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
 	return true;
 }
 
 function dropTab(tab){
 	var settings = {
-		'tabs':[]
+		'tabs':{}
 	};
 	if(dojo.cookie('agentui-settings')){
 		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 		if(! settings.tabs){
-			settings.tabs = [];
+			settings.tabs = {};
 		}
 	}
-	var out = [];
-	for(var i = 0; i < settings.tabs.length; i++){
-		if(settings.tabs[i] != tab){
-			out.push(settings.tabs[i]);
+	var out = {};
+	for(tabid in settings.tabs){
+		if(tabid != tab){
+			out[tabid] = settings.tabs[tabid];
 		}
 	}
 	settings.tabs = out;
@@ -213,22 +213,8 @@ function dropTab(tab){
 	return true;
 }
 
-function loadTab(tabid){
-	var href = '';
-	var title = '';
-	switch(tabid){
-		/*case 'supervisorTab':
-			href = 'tabs/supervisor.html';
-			title = 'Supervisor';
-			break;*/
-		case 'dashboardTab':
-			href = 'tabs/dashboard.html';
-			title = 'Dashboard';
-			break;
-		default:
-			return false;
-	}
-
+function loadTab(title, href){
+	var tabid = 'tab-' + title.replace(/\s/g, "_");
 	if(! window.tabCloseListeners){
 		window.tabCloseListeners = {};
 	}
@@ -259,14 +245,33 @@ function loadTab(tabid){
 		this.closeChild(t);
 		dojo.unsubscribe(this[logoutListenerName]);
 	});
-	storeTab(tabid);
+	storeTab(tabid, title, href);
 }
 
+function loadMediaTab(options){
+	console.log("load media tab", options);
+	var pane = new agentUI.MediaTab(options);
+	var tabPane = dijit.byId('tabPanel');
+	tabPane.addChild(pane);
+	tabPane.selectChild(pane.id);
+	var deathSub = dojo.subscribe("OpenACD/AgentChannel", tabPane, function(channelId, eventArg){
+		console.log('death sub', pane.channel, channelId, eventArg);
+		if(channelId == pane.channel && eventArg == 'destroy'){
+			this.closeChild(pane);
+			dojo.unsubscribe(deathSub);
+		}
+	});
+	pane.startup();
+	return pane;
+}
 
 function load_media_tab(options){
 	console.log("load_media_tab");
 	if(! options.media){
 		throw "media is required for tab";
+	}
+	if(! options.channelId){
+		throw "channelId is required for tab";
 	}
 	if(! options.id){
 		options.id = options.media;
@@ -274,9 +279,9 @@ function load_media_tab(options){
 	if(! (options.href || options.content) ){
 		options.href = options.media + '_media.html';
 	}
-	if(options.fullpane == undefined){
+	//if(options.fullpane == undefined){
 		options.fullpane = true;
-	}
+	//}
 	if(! options.title){
 		options.title = options.media;
 	}
@@ -293,15 +298,19 @@ function load_media_tab(options){
 		return false;
 	}
 	
-	if(options.fullpane){
+	//if(options.fullpane){
 		var pane = new dojox.layout.ContentPane({
 			title:options.title,
 			executeScripts: "true",
 			id: options.id,
 			closable:options.closable 
 		});
+		pane.channelId = options.channelId;
 		if(options.autoClose){
-			pane.unloadListener = dojo.subscribe('OpenACD/Agent/state', function(data){
+			pane.unloadListener = dojo.subscribe('OpenACD/AgentChannel', function(inChannelId, data){
+				if(inChannelID != pane.channelId){
+					return false;
+				}
 				try{
 					if(data.state == 'wrapup'){
 						dojo.unsubscribe(pane.unloadListener);
@@ -321,7 +330,7 @@ function load_media_tab(options){
 				dijit.byId('tabPanel').closeChild(pane);
 			}
 			catch(err){
-				info(['media pan logout listener erred', err]);
+				info(['media pane logout listener erred', err]);
 			}
 		});
 		if(options.content){
@@ -331,7 +340,7 @@ function load_media_tab(options){
 		}
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
-	} else {
+	/*} else {
 		if(! options.width){
 			options.width = '160px';
 		}
@@ -381,7 +390,7 @@ function load_media_tab(options){
 				info(['media pan logout listener erred', err]);
 			}
 		});
-	}
+	}*/
 }
 
 function showErrorReportDialog(conf){
@@ -588,10 +597,10 @@ dojo.addOnLoad(function(){
 			profile:'',
 			statedata:'',
 			state:'',
-			voipendpoint:false,
-			voipendpointdata:false,
-			useoutbandring:true,
-			usepersistentchannel:false,
+			//voipendpoint:false,
+			//voipendpointdata:false,
+			//useoutbandring:true,
+			//usepersistantchannel:false,
 			mediaload:false,
 			timestamp:false
 		};
@@ -603,21 +612,15 @@ dojo.addOnLoad(function(){
 		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("OpenACD/Agent/logout", function(data){
 			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 		});
-		/*agent = new OpenACD.Agent(confs);
-		agent.profile = confs.profile;
-		agent.state = confs.state;
-		agent.statedata = confs.statedata;
-		if(agent.state){
-			dojo.publish("OpenACD/Agent/state", [{"state":agent.state, "statedata":agent.statedata}]);*/
 		if( (window.agentConnection.state == "oncall") && (confs.mediaload) ){
 			var fixedres = confs.mediaload;
 			fixedres.media = confobj.statedata.type;
 			dojo.publish("OpenACD/Agent/mediaload", [fixedres]);
 		}
-		/*}*/
 		buildReleaseMenu();
 		buildOutboundMenu();
 		buildQueueMenu();
+		window.agentConnection.agentApi("get_tabs_menu", {});
 		dojo.byId("agentname").innerHTML = confs.username;
 		dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + confs.profile;
 		window.agentConnection.stopwatch.onTick = function(){
@@ -633,13 +636,13 @@ dojo.addOnLoad(function(){
 			}
 		}
 		settings.username = confs.username;
-		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
+		/*settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpointdata;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
-		settings.usepersistentchannel = confs.usepersistentchannel ? confs.usepersistnatchannel : settings.usepersistentchannel;
+		settings.usepersistantchannel = confs.usepersistantchannel ? confs.usepersistnatchannel : settings.usepersistantchannel;*/
 		if(settings.tabs){
 			for(var i = 0; i < settings.tabs.length; i++){
-				loadTab(settings.tabs[i]);
+				loadTab(settings.tabs[i].title, settings.tabs[i].herf);
 			}
 		}
 		if(settings.voipendpoint == "rtmp"){
@@ -681,6 +684,7 @@ dojo.addOnLoad(function(){
 		seedConf.username = agent.username;
 		seedConf.securityLevel = agent.securityLevel;
 		seedConf.elapsed = parseInt(agent.stopwatch.time());
+		seedConf.profile = agent.profile;
 		seedConf.skew = agent.skew;
 		seedConf.voipendpoint = agent.loginOptions.voipendpoint;
 		seedConf.voipendpointdata = agent.loginOptions.voipendpointdata;
@@ -689,87 +693,6 @@ dojo.addOnLoad(function(){
 	window.agentConnection = new OpenACD.Agent({});
 	window.agentConnection.checkCookie(checkCookieOpts);
 	
-	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
-
-	
-	dojo.byId("brand").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var node = dojo.byId("brand");
-		debug(["byId('brand') stateChanger", data.statedata]);
-		switch(data.state){
-			case "ringing":
-			case "oncall":
-			case "outgoing":
-			case "wrapup":
-				node.innerHTML = data.statedata.brandname;
-				dojo.byId("agentbrandp").style.display = "block";
-			break;
-			case "precall":
-				node.innerHTML = data.statedata.brandname;
-				dojo.byId("agentbrandp").style.display = "block";
-				break;
-			default:
-				dojo.byId("agentbrandp").style.display = "none";
-		}
-	});
-
-	dojo.byId("callerid").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		switch(data.state){
-			case 'ringing':
-			case 'oncall':
-			case 'wrapup':
-				dojo.byId("callerid").innerHTML = encodeHTML(data.statedata.callerid);
-				dojo.byId("calleridp").style.display = "block";
-				break;
-			default:
-				dojo.byId("calleridp").style.display = "none";
-		}
-	});
-	
-	dojo.byId("calltypep").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		switch(data.state){
-			case 'ringing':
-			case 'oncall':
-			case 'wrapup':
-				dojo.byId("calltype").innerHTML = encodeHTML(data.statedata.type);
-				dojo.byId("calltypep").style.display = "block";
-				break;
-			default:
-				dojo.byId("calltypep").style.display = "none";
-		}
-	});
-	
-	dojo.byId("statedisp").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var node = dojo.byId("statedisp");
-		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
-		switch(data.state){
-			case "oncall":
-				node.innerHTML = innerh;
-				dojo.addClass(node, "profit");
-				dojo.removeClass(node, "loss");
-				break;
-			
-			case "wrapup":
-				node.innerHTML = innerh;
-				dojo.addClass(node, "loss");
-				dojo.removeClass(node, "profit");
-				break;
-			
-			default:
-				if(data.state == "released"){
-					if(data.statedata.constructor == String){
-						innerh += " (" + data.statedata + ")";
-					}
-					else{
-						innerh += " (" + data.statedata.reason + ")";
-					}
-				}
-				dojo.removeClass(node, "profit");
-				dojo.removeClass(node, "loss");
-				node.innerHTML = innerh;
-		}
-	});
-
 	dojo.byId("profiledisp").stateChanger = dojo.subscribe("OpenACD/Agent/profile", function(data){
 		var node = dojo.byId("profiledisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
@@ -777,22 +700,14 @@ dojo.addOnLoad(function(){
 		node.innerHTML = innerh;
 	});
 
-	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoreleased");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch (data.state) {
-			case 'idle':
-			case 'ringing':
-			case 'precall':
-				widget.attr('label', nlsStrings.GORELEASED);
-				widget.attr('style', 'display:inline');
-				break;
-			case 'released':
-				widget.attr('style', 'display:none');
-				break;
-			default:
-				widget.attr('label', nlsStrings.QUEUERELEASE);
-				widget.attr('style', 'display:inline');
+		if(data.releaseData){
+			widget.attr('style', 'display:none');
+		} else {
+			widget.attr('label', nlsStrings.GORELEASED);
+			widget.attr('style', 'display:inline');
 		}
 	});
 
@@ -801,183 +716,18 @@ dojo.addOnLoad(function(){
 		widget.destroyDescendants();
 	});
 	
-	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
+	// TODO this no longer pulls double duty of going out of wrapup.
+	dijit.byId("bgoavail").stateChanger = dojo.subscribe("OpenACD/Agent/release", function(data){
 		var widget = dijit.byId("bgoavail");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		switch(data.state){
-			case "released":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.GOAVAILABLE);
-				break;
-			case "wrapup":
-				widget.attr('style', 'display:inline');
-				widget.attr('label', nlsStrings.ENDWRAPUP);
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-
-	dijit.byId("transferToQueueMenuDyn").logout = dojo.subscribe("OpenACD/Agent/logout", function(data){
-		var menu = dijit.byId("transferToQueueMenuDyn");
-		menu.destroyDescendants();
-	});
-
-	dijit.byId("dialbox").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var div = dojo.byId("foo");
-		switch(data.state){
-			//case "warmtransfer":
-			case "precall":
-				div.style.display="inline";
-				break;
-			default:
-				div.style.display="none";
-		}
-	});
-
-	dijit.byId("bcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bcancel");
-		switch(data.state){
-			//case "warmtransfer":
-			case "precall":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("bdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bdial");
-		switch(data.state){
-			case "precall":
-			//case "warmtransfer":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("wtdial").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("wtdial");
-		switch(data.state){
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
-		if(data.event == 'warm_transfer_failed'){
-			this.attr('style', 'display:inline');
-			dojo.byId('foo').style.display = 'inline';
-		} else  {
-			dojo.byId('foo').style.display = 'none';
-			this.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("wtcancel").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcancel"), function(data){
-		if(this.suppressHide){
-			delete this.suppressHide;
-			return true;
-		}
-		
-		switch(data.state){
-			default:
-				this.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("OpenACD/Agent/state", dijit.byId("wtcomplete"), function(data){
-		this.attr('style', 'display:none');
-	});
-	
-	dijit.byId('wtcomplete').warmtransfer_listener = dojo.subscribe("OpenACD/Agent/mediaevent/voice", dijit.byId('wtcomplete'), function(data){
-		if(data.event == 'warm_transfer_succeeded'){
-			this.attr('style', 'display:inline');
+		if(data.releaseData){
+			widget.attr('style', 'display:inline');
+			widget.attr('label', nlsStrings.GOAVAILABLE);
 		} else {
-			this.attr('style', 'display:none');
-		}
-	});
-	
-	dojo.byId("state").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		dojo.byId("state").innerHTML = nlsStrings[data.state.toUpperCase()];
-	});
-	
-	dijit.byId("banswer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("banswer");
-		debug(["banswer", data]);
-		if(data.statedata && data.statedata.ringpath == "inband"){
-			if(data.state ==  "ringing"){
-				widget.attr('style', "display:inline");
-			} else {
-				widget.attr('style', 'display:none');
-			}
-		}
-		else{
 			widget.attr('style', 'display:none');
 		}
-	});
-	
-	dijit.byId("btransfer").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("btransfer");
-		switch(data.state){
-			case "oncall":
-			case "outgoing":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}
-	});
-	
-	dijit.byId('transferToAgentMenu').startup();
-	dojo.connect(dijit.byId('btransfer'), 'onClick', dijit.byId('btransfer'), function(){
-		console.log('time to build agent transfer list');
-		window.agentConnection.getAvailAgents({
-			success:function(agentList){
-				dojo.publish("OpenACD/Agent/available", [agentList]);
-			}
-		});
 	});
 
-	dijit.byId('transferToQueueMenu').startup();
-	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("OpenACD/Agent/available", function(data){
-		console.log("Got agents available list", data);
-		var widget = dijit.byId("transferToAgentMenuDyn");
-		widget.destroyDescendants();
-		dojo.forEach(data, function(i){
-			var m = new dijit.MenuItem({
-				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
-				onClick: function(){
-					window.agentConnection.agentTransfer(escape(i.name), {});
-				}
-			});
-			widget.addChild(m);
-		});
-	});
-	
-	dijit.byId("bhangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
-		var widget = dijit.byId("bhangup");
-		debug(["bhangup", data]);
-		if(data.statedata && data.statedata.mediapath == "inband"){
-			switch(data.state){
-				case "oncall":
-				case "warmtransfer":
-				case "outgoing":
-					widget.attr('style', 'display:inline');
-					break;
-				default:
-					widget.attr('style', 'display:none');
-			}
-		}
-		else{
-			widget.attr('style', 'display:none');
-		}
-	});
-	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("OpenACD/Agent/state", function(data){
 		var widget = dijit.byId("miHangup");
 		//if(data.statedata && data.statedata.mediapath == "inband"){
@@ -1046,15 +796,12 @@ dojo.addOnLoad(function(){
 			window.agentConnection.username = attrs.username;
 			window.agentConnection.password = attrs.password;
 			window.agentConnection.loginOptions = {
-				voipendpoint: attrs.voipendpoint,
-				voipendpointdata: attrs.voipendpointdata
+				/*voipendpoint: attrs.voipendpoint,
+				voipendpointdata: attrs.voipendpointdata*/
 			}
-			if(attrs.useoutbandring){
-				window.agentConnection.loginOptions.useoutbandring = true;
-			}
-			if(attrs.usepersistentringchannel != false){
-				window.agentConnection.loginOptions.usepersistentringchannel = true;
-			}
+			/*if(attrs.useoutbandring){
+				window.agentConnection.useoutbandring = true;
+			}*/
 			window.agentConnection.login();
 			if(window.agentConnection.loginOptions.voidendpoint == "rtmp"){
 				initializeFlashPhone(window.agentConnection.loginOptions.voipendpointdata);
@@ -1082,7 +829,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes errored", response]);
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			},
@@ -1091,12 +838,12 @@ dojo.addOnLoad(function(){
 				dojo.forEach(response, function(obj){
 					items.push(new dijit.MenuItem({
 						label: obj.label,
-						onClick:function(){window.agentConnection.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
+						onClick:function(){window.agentConnection.setRelease(obj.id + ":" + obj.label + ":" + obj.bias); }
 					}));
 				});
 				items.push(new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				}));
 				addItems(items);
 			},
@@ -1104,7 +851,7 @@ dojo.addOnLoad(function(){
 				warning(["getting release codes failed", response.message]);
 				item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
-					onClick:function(){window.agentConnection.setState("released", "Default"); }
+					onClick:function(){window.agentConnection.setRelease("Default"); }
 				});
 				addItems([item]);
 			}
@@ -1249,7 +996,7 @@ dojo.addOnLoad(function(){
 		
 		popOptions.id = popOptions.title + '_urlpop';
 		
-		load_media_tab(popOptions);
+		//load_media_tab(popOptions);
 	});
 
 	dijit.byId("main").blab = dojo.subscribe("OpenACD/Agent/blab", function(data){
@@ -1267,12 +1014,43 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	};
 	
+	dijit.byId("main").agentChannel = dojo.subscribe("OpenACD/AgentChannel", function(chanId, stateName, stateData){
+		console.log('agent channel sub', chanId, stateName, stateData);
+		var loadOpts = {
+			'channel':chanId,
+			'state':stateName,
+			'stateData':stateData
+		};
+		if(stateName == 'ringing'){
+			loadMediaTab(loadOpts);
+		} else if(stateName == 'precall'){
+			loadMediaTab(loadOpts);
+		}
+		return true;
+	});
+
 	dijit.byId("main").mediaload = dojo.subscribe("OpenACD/Agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
-		load_media_tab(eventdata);
+		//load_media_tab(eventdata);
+	});
+
+	dijit.byId("Tabsmenu").tabsListLoaded = dojo.subscribe("OpenACD/Agent/set_tabs_menu", function(tabsMenuList){
+		var tabsMenuDij = dijit.byId("Tabsmenu");
+		var addMenuItem = function(label, href){
+			tabsMenuDij.addChild(new dijit.MenuItem({
+				'label':label,
+				'onClick':function(){loadTab(label, href)}
+			}));
+		}
+		for(tabIndex in tabsMenuList.tabs){
+			var tabItem = tabsMenuList.tabs[tabIndex];
+			addMenuItem(tabItem.label, tabItem.href);
+		}
+		dijit.byId('tabsmenubutton').set('disabled', false);
+		console.log('tabs menu event', tabsMenuList);
 	});
 });
-
+/*
 function endpointselect() {
 	switch(dijit.byId("voipendpoint").attr('value')) {
 		case "Embedded Phone":
@@ -1296,4 +1074,4 @@ function endpointselect() {
 			//dijit.byId("voipendpointdatahint").label = "???";
 			break;
 	}
-}
+}*/

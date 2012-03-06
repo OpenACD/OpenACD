@@ -60,22 +60,26 @@
 %-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
 -type(socket_module() :: 'gen_tcp' | 'ssl').
 -type(socket_type() :: 'gen_tcp' | 'ssl_upgrade').
+-type(chan_state() :: atom()).
+-type(chan_state_data() :: any()).
+-type(chan_mediaload() :: any()).
+-record(chan_dict_entry, {
+	state :: chan_state(),
+	statedata :: chan_state_data(),
+	mediaload :: chan_mediaload()
+}).
 -record(state, {
 		salt :: pos_integer(),
 		socket :: {socket_module(), port()},
 		radix :: integer(),
 		agent_login :: string(),
 		agent_fsm :: pid(),
-		%send_queue = [] :: [string()],
-		%counter = 1 :: pos_integer(),
-		%unacked = [] :: [unacked_event()],
-		%resent = [] :: [unacked_event()],
-		%resend_counter = 0 :: non_neg_integer(),
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-		state,
-		statedata,
-		mediaload,
-		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade'
+		agent_state,
+		agent_statedata,
+		%mediaload,
+		socket_upgrade = 'never' :: 'never' | 'ssl_upgrade',
+		channels = dict:new()
 	}).
 
 -type(state() :: #state{}).
@@ -176,31 +180,6 @@ handle_cast(negotiate, #state{socket_upgrade = SockUpgrade} = State) ->
 handle_cast({change_state, Statename, Statedata}, State) ->
 	Statechange = case Statename of
 		idle -> #statechange{ agent_state = 'IDLE'};
-		ringing -> #statechange{
-			agent_state = 'RINGING',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		oncall -> #statechange{
-			agent_state = 'ONCALL',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		wrapup -> #statechange{
-			agent_state = 'WRAPUP',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
-		warmtransfer -> #statechange{
-			agent_state = 'WARMTRANSFER',
-			call_record = protobuf_util:call_to_protobuf(element(2, Statedata)),
-			warm_transfer_number = element(4, Statedata)
-		};
-		precall -> #statechange{
-			agent_state = 'PRECALL',
-			client = protobuf_util:call_to_protobuf(Statedata)
-		};
-		outgoing -> #statechange{
-			agent_state = 'OUTGOING',
-			call_record = protobuf_util:call_to_protobuf(Statedata)
-		};
 		released -> #statechange{
 			agent_state = 'RELEASED',
 			release = protobuf_util:release_to_protobuf(Statedata)
@@ -211,7 +190,7 @@ handle_cast({change_state, Statename, Statedata}, State) ->
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	{noreply, State#state{state = Statename, statedata = Statedata}};
+	{noreply, State#state{agent_state = Statename, agent_statedata = Statedata}};
 handle_cast({change_state, Statename}, State) ->
 	Statechange = #statechange{
 		agent_state = protobuf_util:statename_to_enum(Statename)
@@ -221,14 +200,51 @@ handle_cast({change_state, Statename}, State) ->
 		state_change = Statechange
 	},
 	server_event(State#state.socket, Command, State#state.radix),
-	{noreply, State#state{state = Statename}};
-handle_cast({mediaload, Callrec}, State) ->
-	% TODO implement
-	?INFO("mediaload nyi (~p)", [Callrec]),
-	{noreply, State#state{mediaload = []}};
-handle_cast({mediaload, _Callrec, Options}, State) ->
-	{noreply, State#state{mediaload = Options}};
-handle_cast({mediapush, Callrec, Data}, State) ->
+	{noreply, State#state{agent_state = Statename}};
+
+handle_cast({set_channel, Pid, StateName, Statedata}, #state{channels = AChannels} = State) ->
+	NewDict = case dict:find(Pid, AChannels) of
+		{ok, Data} ->
+			NewData = Data#chan_dict_entry{state = StateName, statedata = Statedata},
+			dict:store(Pid, NewData);
+		error ->
+			NewData = #chan_dict_entry{state = StateName, statedata = Statedata},
+			dict:store(Pid, NewData)
+	end,
+	ChanStateChange = #agentchannelstatechange{
+		statename = biggify_atom(StateName),
+		channel_id = pid_to_list(Pid),
+		call_record = case is_record(call, Statedata) of true -> Statedata; _ -> undefined end
+	},
+	Command = #serverevent{
+		command = 'ACHANNEL_STATE',
+		agent_channel_state_change = ChanStateChange
+	},
+	server_event(State#state.socket, Command, State#state.radix),
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({channel_died, Pid, NewAvail}, #state{channels = AChannels} = State) ->
+	NewDict = dict:erase(Pid, AChannels),
+	Command = #serverevent{
+		command = 'ACHANNEL_DOWN',
+		agent_channel_down = pid_to_list(Pid)
+	},
+	server_event(State#state.socket, Command, State#state.radix),
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({mediapush, ChanPid, _Callrec, {mediaload, Callrec}}, State) ->
+	#state{channels = ChanDict} = State,
+	NewDict = case dict:find(ChanPid, ChanDict) of
+		{ok, ChanData} ->
+			NewChanData = ChanData#chan_dict_entry{mediaload = Callrec},
+			dict:store(ChanPid, NewChanData);
+		error ->
+			NewChanData = #chan_dict_entry{mediaload = Callrec},
+			dict:store(ChanPid, NewChanData)
+	end,
+	{noreply, State#state{channels = NewDict}};
+
+handle_cast({mediapush, ChanPid, Callrec, Data}, State) ->
 	Newpush = translate_media_push(Callrec, Data, State),
 	case Newpush of
 		false -> 
@@ -253,10 +269,10 @@ handle_cast({change_profile, Profile}, State) ->
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
 handle_cast({url_pop, Url, Name}, State) ->
+	PopRec = #urlpopevent{ url = Url, window_id = Name },
 	Command = #serverevent{
 		command = 'AURLPOP',
-		url = Url,
-		url_window = Name
+    url_pop_event = PopRec
 	},
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
@@ -267,6 +283,10 @@ handle_cast({blab, Text}, State) ->
 	},
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State};
+handle_cast({plugin_event, Binary}, State) ->
+	send(State#state.socket, Binary, State#state.radix),
+	{noreply, State};
+
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled msg:  ~p", [Msg]),
 	{noreply, State}.
@@ -316,6 +336,16 @@ code_change(_OldVsn, State, _Extra) ->
 % Internal functions
 % =====
 
+biggify_atom(Atom) ->
+	biggify_atom(Atom, list_to_existing_atom).
+
+biggify_atom(Atom, unsafe) ->
+	biggify_atom(Atom, list_to_atom);
+biggify_atom(Atom, safe) ->
+	biggify_atom(Atom, list_to_existing_atom);
+biggify_atom(Atom, ToAtom) ->
+	ToAtom(string:to_upper(atom_to_list(Atom))).
+
 translate_media_push(#call{type = voice} = Callrec, Data, State) when is_atom(Data) ->
 	NewData = case Data of
 		'3rd_party' -> 'THIRD_PARTY';
@@ -347,11 +377,10 @@ server_event(Socket, Record, Radix) ->
 	},
 	send(Socket, Outrec, Radix).
 
-send({Mod, Socket}, Record, Radix) ->
+send(Target, Record, Radix) when is_record(Record, servermessage) ->
 	Bin = cpx_agent_pb:encode(Record),
-	%Size = list_to_binary(integer_to_list(size(Bin))),
-	%?DEBUG("Das size:  ~p", [Size]),
-	%Outbin = <<Size/binary, $:, Bin/binary, $,>>,
+	send(Target, Bin, Radix);
+send({Mod, Socket}, Bin, Radix) when is_binary(Bin) ->
 	Outbin = protobuf_util:bin_to_netstring(Bin, Radix),
 	ok = Mod:send(Socket, Outbin).
 
@@ -369,10 +398,10 @@ service_request(Bin, State) when is_binary(Bin) ->
 		success = false
 	},
 	{NewReply, NewState} = service_request(Request, BaseReply, State),
-	Message = #servermessage{
-		type_hint = 'REPLY',
-		reply = NewReply
-	},
+	Message = if
+		is_binary(NewReply) -> NewReply;
+		true -> #servermessage{ type_hint = 'REPLY', reply = NewReply }
+	end,
 	send(State#state.socket, Message, State#state.radix),
 	NewState.
 
@@ -416,51 +445,17 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			},
 			{Reply, State};
 		{allow, Id, Skills, Security, Profile} ->
-			EndpointType = case LoginRequest#loginrequest.voipendpoint of
-				'SIP' -> sip;
-				'SIP_REGISTRATION' -> sip_registration;
-				'IAX' -> iax;
-				'H323' -> h323;
-				'PSTN' -> pstn
-			end,
-			ProtoEndpointdata = LoginRequest#loginrequest.voipendpointdata,
-			Persistance = LoginRequest#loginrequest.use_persistent_ring,
-			Persisty = case LoginRequest#loginrequest.use_persistent_ring of
-				true -> persistent;
-				_ -> transient
-			end,
 			Username = LoginRequest#loginrequest.username,
-			{Endpoint, Endpointdata} = case {EndpointType, ProtoEndpointdata, Persistance} of
-				{undefined, _, true} ->
-					%{{persistent, sip_registration}, Username};
-					{{undefined, persistent, sip_registration}, Username};
-				{undefined, _, _} ->
-					%{sip_registration, Username};
-					{{undefined, transient, sip_registration}, Username};
-				{sip_registration, undefined, true} ->
-					%{{persistent, sip_registration}, Username};
-					{{undefined, persistent, sip_registration}, Username};
-				{sip_registration, undefined, false} ->
-					%{sip_registration, Username};
-					{{undefined, transient, sip_registration}, Username};
-				{EndpointType, _, true} ->
-					{{undefined, persistent, EndpointType}, ProtoEndpointdata};
-				{EndpointType, _, _} ->
-					{{undefined, transient, EndpointType}, ProtoEndpointdata}
-			end,
 			Agent = #agent{
 				id = Id, 
-				defaultringpath = outband, 
 				login = LoginRequest#loginrequest.username, 
 				skills = Skills, 
 				profile=Profile, 
-				password=DecryptedPass,
-				endpointtype = Endpoint,
-				endpointdata = Endpointdata
+				security_level = Security
 			},
 			case agent_manager:start_agent(Agent) of
 				{ok, Pid} ->
-					agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
+					%agent:set_endpoint(Pid, EndpointType, Endpointdata, Persisty),
 					ok = agent:set_connection(Pid, self()),
 					RawQueues = call_queue_config:get_queues(),
 					RawBrands = call_queue_config:get_clients(),
@@ -501,11 +496,10 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 						{allow, Id, Skills, Security, Profile} ->
 							Agent = #agent{
 								id = Id, 
-								defaultringpath = outband, 
 								login = LoginRequest#loginrequest.username, 
 								skills = Skills, 
 								profile=Profile, 
-								password=DecryptedPass
+								security_level = Security
 							},
 							case agent_manager:start_agent(Agent) of
 								{ok, Pid} ->
@@ -619,7 +613,7 @@ service_request(#agentrequest{request_hint = 'GET_PROFILES'}, BaseReply, State) 
 service_request(#agentrequest{request_hint = 'GET_AVAIL_AGENTS'}, BaseReply, State) ->
 	RawAgents = agent_manager:list(),
 	AgentStates = [agent:dump_state(Pid) || {_K, {Pid, _Id, _Time, _Skills}} <- RawAgents],
-	Agents = [{availagent, X#agent.login, X#agent.profile, state_to_pb(X#agent.state)} || X <- AgentStates],
+	Agents = [{availagent, X#agent.login, X#agent.profile} || X <- AgentStates],
 	Reply = BaseReply#serverreply{
 		success = true,
 		agents = Agents
@@ -633,81 +627,45 @@ service_request(#agentrequest{request_hint = 'GET_RELEASE_OPTS'}, BaseReply, Sta
 		release_opts = [protobuf_util:release_to_protobuf(default) | Opts]
 	},
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
-	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "invalid state change",
-				error_code = "INVALID_STATE_CHANGE"
-			};
-		ok ->
-			BaseReply#serverreply{
-				success = true
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
-	Reply = case whereis(freeswitch_media_manager) of
-		undefined ->
-			BaseReply#serverreply{
-				error_message = "freeswtich isn't available",
-				error_code = "MEDIA_NOEXISTS"
-			};
-		_Pid ->
-			case agent:dump_state(State#state.agent_fsm) of
-				#agent{state = released} = AgentRec ->
-					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
-					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
-						{ok, _} ->
-							BaseReply#serverreply{success = true};
-						{error, Error} ->
-							BaseReply#serverreply{
-								error_message = io_lib:format("ring test failed:  ~p", [Error]),
-								error_code = "UNKNOWN_ERROR"
-							}
-					end;
-				_ ->
-					BaseReply#serverreply{
-						error_message = "must be released to do a ring test",
-						error_code = "INVALID_STATE"
-					}
-			end
-	end,
-	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_BEGIN', warm_transfer_request = WarmTransRequest}, BaseReply, #state{state = oncall, statedata = C} = State) when is_record(C, call) ->
-%	Number = WarmTransRequest#warmtransferrequest.number,
-%	Reply = case gen_media:warm_transfer_begin(C#call.source, Number) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
+%service_request(#agentrequest{request_hint = 'MEDIA_HANGUP'}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+%	Reply = case agent:set_state(State#state.agent_fsm, {wrapup, C}) of
 %		invalid ->
 %			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
+%				error_message = "invalid state change",
+%				error_code = "INVALID_STATE_CHANGE"
+%			};
+%		ok ->
+%			BaseReply#serverreply{
+%				success = true
 %			}
 %	end,
 %	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_COMPLETE'}, BaseReply, #state{state = warmtransfer} = State) ->
-%	Call = State#state.statedata,
-%	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
-%		invalid ->
+%service_request(#agentrequest{request_hint = 'RING_TEST'}, BaseReply, State) ->
+%	Reply = case whereis(freeswitch_media_manager) of
+%		undefined ->
 %			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
-%			}
-%	end,
-%	{Reply, State};
-%service_request(#agentrequest{request_hint = 'WARM_TRANSFER_CANCEL'}, BaseReply, #state{state = warmtransfer} = State) ->
-%	Call = State#state.statedata,
-%	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
-%		ok ->
-%			BaseReply#serverreply{success = true};
-%		invalid ->
-%			BaseReply#serverreply{
-%				error_message = "media denied transfer",
-%				error_code = "INVALID_MEDIA_CALL"
-%			}
+%				error_message = "freeswtich isn't available",
+%				error_code = "MEDIA_NOEXISTS"
+%			};
+%		_Pid ->
+%			case agent:dump_state(State#state.agent_fsm) of
+%				#agent{release_data = undefined} ->
+%					BaseReply#serverreply{
+%						error_message = "must be released to do a ring test",
+%						error_code = "INVALID_STATE"
+%					};
+%				AgentRec ->
+%					Callrec = #call{id = "unused", source = self(), callerid= {"Echo test", "0000000"}},
+%					case freeswitch_media_manager:ring_agent_echo(State#state.agent_fsm, AgentRec, Callrec, 600) of
+%						{ok, _} ->
+%							BaseReply#serverreply{success = true};
+%						{error, Error} ->
+%							BaseReply#serverreply{
+%								error_message = io_lib:format("ring test failed:  ~p", [Error]),
+%								error_code = "UNKNOWN_ERROR"
+%							}
+%					end
+%			end
 %	end,
 %	{Reply, State};
 service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
@@ -715,33 +673,118 @@ service_request(#agentrequest{request_hint = 'LOGOUT'}, BaseReply, State) ->
 	%% TODO Not a very elegant shutdown from this point onward...
 	Reply = BaseReply#serverreply{success = true},
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, BaseReply, #state{state = precall} = State) ->
-	Call = State#state.statedata,
-	Reply = case Call#call.direction of
-		outbound ->
-			case gen_media:call(Call#call.source, {dial, Number}) of
-				ok ->
-					BaseReply#serverreply{success = true};
-				{error, Error} ->
-					?NOTICE("Outbound call error ~p", [Error]),
-					BaseReply#serverreply{
-						error_message = io_lib:format("Error:  ~p", [Error]),
-						error_code = "UNKNOWN_ERROR"
-					}
-			end;
-		_ ->
-			BaseReply#serverreply{
-				error_message = "invalid call direction",
-				error_code = "INVALID_MEDIA_CALL"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'AGENT_TRANSFER', agent_transfer = Transfer}, BaseReply, #state{state = oncall, statedata = Call} = State) ->
+%service_request(#agentrequest{request_hint = 'DIAL', dial_request = Number}, BaseReply, #state{state = precall} = State) ->
+%	Call = State#state.statedata,
+%	Reply = case Call#call.direction of
+%		outbound ->
+%			case gen_media:call(Call#call.source, {dial, Number}) of
+%				ok ->
+%					BaseReply#serverreply{success = true};
+%				{error, Error} ->
+%					?NOTICE("Outbound call error ~p", [Error]),
+%					BaseReply#serverreply{
+%						error_message = io_lib:format("Error:  ~p", [Error]),
+%						error_code = "UNKNOWN_ERROR"
+%					}
+%			end;
+%		_ ->
+%			BaseReply#serverreply{
+%				error_message = "invalid call direction",
+%				error_code = "INVALID_MEDIA_CALL"
+%			}
+%	end,
+%	{Reply, State};
+service_request(#agentrequest{request_hint = 'AGENT_CHANNEL_REQUEST',
+	agent_channel_request = ChanReq}, BaseReply, State) when
+	is_record(ChanReq, agentchannelrequest) ->
+		service_channel_request(ChanReq, BaseReply, State);
+%service_request(
+%	#agentrequest{request_hint = 'INIT_OUTBOUND', 
+%		init_outbound_request = Request}, 
+%	BaseReply, 
+%	#state{state = S} = State) when S =:= released; S =:= idle ->
+%	Reply = case Request#initoutboundrequest.media_type of
+%		"freeswitch" ->
+%			case whereis(freeswitch_media_manager) of
+%				undefined ->
+%					BaseReply#serverreply{
+%						error_message = "freeswitch not available",
+%						error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+%					};
+%				Pid ->
+%					case freeswitch_media_manager:make_outbound_call(Request#initoutboundrequest.client_id, State#state.agent_fsm, State#state.agent_login) of
+%						{ok, Pid} ->
+%							Call = gen_media:get_call(Pid),
+%							% yes, This should die horribly if it fails.
+%							ok = agent:set_state(State#state.agent_fsm, precal, Call),
+%							BaseReply#serverreply{success = true};
+%						{error, Reason} ->
+%							BaseReply#serverreply{
+%								error_message = io_lib:format("initializing outbound call failed (~p)", [Reason]),
+%								error_code = "UNKNOWN_ERROR"
+%							}
+%					end
+%			end;
+%		OtherMedia ->
+%			?INFO("Media ~s not yet available for outboundiness.", [OtherMedia]),
+%			BaseReply#serverreply{
+%				error_message = "Media not available for outbound",
+%				error_code = "MEDIA_TYPE_NOT_AVAILABLE"
+%			}
+%	end,
+%	{Reply, State};
+%service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{state = ringing} = State) ->
+%	Reply = case agent:set_state(State#state.agent_fsm, oncall) of
+%		ok ->
+%			BaseReply#serverreply{success = true};
+%		invalid ->
+%			BaseReply#serverreply{
+%				error_message = "invalid state change",
+%				error_code = "INVALID_STATE_CHANGE"
+%			}
+%	end,
+%	{Reply, State};
+service_request(#agentrequest{request_hint = 'PLUGIN_CALL',
+	plugin_app = Plugin} = Request, BaseReply, State) when
+	Plugin =/= undefined ->
+		RunningApps = application:which_applications(),
+		Apps = [App || {App, _, _} <- RunningApps,
+			atom_to_list(App) =:= Plugin],
+		case Apps of
+			[] ->
+				BaseReply#serverreply{
+					error_message = "No such plugin to call to",
+					error_code = "PLUGIN_NOEXISTS"
+				};
+			[App | _] ->
+				case application:get_env(App, agent_tcp_handler) of
+					undefined ->
+						BaseReply#serverreply{
+							error_message = "Plugin doesn't handle tcp",
+							error_code = "PLUGIN_NON_TCP"
+						};
+					{Mod, Func} ->
+						Fsm = State#state.agent_fsm,
+						erlang:apply(Mod, Func, [Fsm, BaseReply, Request])
+				end
+		end;
+
+service_request(_, BaseReply, State) ->
+	Reply = BaseReply#serverreply{
+		error_message = "request not implemented",
+		error_code = "INVALID_REQUEST"
+	},
+	{Reply, State}.
+
+service_channel_request(#agentchannelrequest{request_hint = 'AGENT_TRANSFER', agent_transfer_request = Transfer} = ChanReq, BaseReply, State)
+		when is_record(Transfer, agenttransferrequest) ->
+	%% TODO use the channel id to do this.
 	case Transfer#agenttransferrequest.other_data of
 		undefined ->
 			ok;
 		Caseid ->
-			gen_media:cast(Call#call.source, {set_caseid, Caseid})
+			%gen_media:cast(Call#call.source, {set_caseid, Caseid})
+			ok
 	end,
 	Reply = case agent_manager:query_agent(Transfer#agenttransferrequest.agent_id) of
 		{true, Target} ->
@@ -761,15 +804,15 @@ service_request(#agentrequest{request_hint = 'AGENT_TRANSFER', agent_transfer = 
 			}
 	end,
 	{Reply, State};
-service_request(
-	#agentrequest{
-		request_hint = 'MEDIA_COMMAND', 
-		media_command_request = Command}, 
-	BaseReply, 
-	#state{statedata = C} = State) when is_record(C, call) ->
+
+service_channel_request(#agentchannelrequest{request_hint =
+		'MEDIA_COMMAND', media_command_request = Command} = ChanReq,
+		BaseReply, State) when is_record(Command, mediacommandrequest) ->
+	% TODO kinda useless w/o pulling out the channel id.
 	Reply = case Command#mediacommandrequest.need_reply of
 		true ->
-			try gen_media:call(C#call.source, Command) of
+			%try gen_media:call(C#call.source, Command) of
+			try invalid of
 				invalid ->
 					BaseReply#serverreply{
 						error_message = "invalid media call",
@@ -789,15 +832,19 @@ service_request(
 					}
 			end;
 		false ->
-			gen_media:cast(C#call.source, Command),
+			%gen_media:cast(C#call.source, Command),
 			BaseReply#serverreply{success = true}
 	end,
 	{Reply, State};
-service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, #state{statedata = C} = State) when is_record(C, call) ->
+
+service_channel_request(#agentchannelrequest{request_hint =
+		'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, State)
+		when is_record(Trans, queuetransferrequest) ->
+	% TODO use the channel id.
 	TransOpts = Trans#queuetransferrequest.transfer_options,
-	gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
+	%gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
 	Skills = convert_skills(TransOpts#queuetransferoptions.skills),
-	gen_media:add_skills(C#call.source, Skills),
+	%gen_media:add_skills(C#call.source, Skills),
 	Reply = case agent:queue_transfer(State#state.agent_fsm, Trans#queuetransferrequest.queue_name) of
 		ok ->
 			BaseReply#serverreply{success = true};
@@ -807,59 +854,8 @@ service_request(#agentrequest{request_hint = 'QUEUE_TRANSFER', queue_transfer_re
 				error_code = "INVALID_STATE_CHANGE"
 			}
 	end,
-	{Reply, State};
-service_request(
-	#agentrequest{request_hint = 'INIT_OUTBOUND', 
-		init_outbound_request = Request}, 
-	BaseReply, 
-	#state{state = S} = State) when S =:= released; S =:= idle ->
-	Reply = case Request#initoutboundrequest.media_type of
-		"freeswitch" ->
-			case whereis(freeswitch_media_manager) of
-				undefined ->
-					BaseReply#serverreply{
-						error_message = "freeswitch not available",
-						error_code = "MEDIA_TYPE_NOT_AVAILABLE"
-					};
-				Pid ->
-					case freeswitch_media_manager:make_outbound_call(Request#initoutboundrequest.client_id, State#state.agent_fsm, State#state.agent_login) of
-						{ok, Pid} ->
-							Call = gen_media:get_call(Pid),
-							% yes, This should die horribly if it fails.
-							ok = agent:set_state(State#state.agent_fsm, precal, Call),
-							BaseReply#serverreply{success = true};
-						{error, Reason} ->
-							BaseReply#serverreply{
-								error_message = io_lib:format("initializing outbound call failed (~p)", [Reason]),
-								error_code = "UNKNOWN_ERROR"
-							}
-					end
-			end;
-		OtherMedia ->
-			?INFO("Media ~s not yet available for outboundiness.", [OtherMedia]),
-			BaseReply#serverreply{
-				error_message = "Media not available for outbound",
-				error_code = "MEDIA_TYPE_NOT_AVAILABLE"
-			}
-	end,
-	{Reply, State};
-service_request(#agentrequest{request_hint = 'MEDIA_ANSWER'}, BaseReply, #state{state = ringing} = State) ->
-	Reply = case agent:set_state(State#state.agent_fsm, oncall) of
-		ok ->
-			BaseReply#serverreply{success = true};
-		invalid ->
-			BaseReply#serverreply{
-				error_message = "invalid state change",
-				error_code = "INVALID_STATE_CHANGE"
-			}
-	end,
-	{Reply, State};
-service_request(_, BaseReply, State) ->
-	Reply = BaseReply#serverreply{
-		error_message = "request not implemented",
-		error_code = "INVALID_REQUEST"
-	},
 	{Reply, State}.
+% TODO add media_load and media_hangup handlings.
 
 state_to_pb(idle) ->
 	'IDLE';
@@ -900,449 +896,15 @@ convert_skills([Head | Tail], Acc) ->
 			convert_skills(Tail, Acc)
 	end.
 
--ifdef(TEST_DEPRICATED).
-% these will likely fail, and fail hard.
-unauthenticated_agent_test_() ->
-	{
-		foreach,
-		fun() ->
-			crypto:start(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			agent_auth:new_profile("Testprofile", [skill1, skill2]),
-			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
-			agent_manager:start([node()]),
-			#state{}
-		end,
-		fun(_State) ->
-			agent_auth:destroy_profile("Testprofile"),
-			agent_manager:stop(),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			ok
-		end,
-		[
-			fun(State) ->
-				{"Agent can only send GETSALT and LOGIN until they're authenticated",
-				fun() ->
-						{Reply, _State2} = handle_event(["PING",  1], State),
-						?assertEqual("ERR 1 This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN", Reply)
-				end}
-			end,
+-ifdef(TEST).
 
-			fun(State) ->
-				{"Agent must get a salt with GETSALT before sending LOGIN",
-				fun() ->
-					{Reply, _State2} = handle_event(["LOGIN",  2, "username:password"], State),
-					?assertEqual("ERR 2 Please request a salt with GETSALT first", Reply)
-				end}
-			end,
-
-			fun(State) ->
-				{"GETSALT returns a random number",
-				fun() ->
-					{Reply, _State2} = handle_event(["GETSALT",  3], State),
-
-					[_Ack, Counter, Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-					?assertEqual(Counter, "3"),
-
-					{Reply2, _State3} = handle_event(["GETSALT",  4], State),
-					[_Ack2, Counter2, Args2] = util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3),
-					?assertEqual(Counter2, "4"),
-					?assertNot(Args =:= Args2)
-				end}
-			end,
-
-			fun(State) ->
-				{"LOGIN with no password",
-				fun() ->
-					{_Reply, State2} = handle_event(["GETSALT",  3], State),
-					{Reply, _State3} = handle_event(["LOGIN",  2, "username"], State2),
-					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
-				end}
-			end,
-
-			fun(State) ->
-				{"LOGIN with blank password",
-				fun() ->
-					{_Reply, State2} = handle_event(["GETSALT",  3], State),
-					{Reply, _State3} = handle_event(["LOGIN",  2, "username:"], State2),
-					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
-				end}
-			end,
-
-			fun(State) ->
-				{"LOGIN with bad credentials",
-				fun() ->
-					{_Reply, State2} = handle_event(["GETSALT",  3], State),
-					{Reply, _State3} = handle_event(["LOGIN",  2, "username:password"], State2),
-					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
-				end}
-			end,
-			fun(State) ->
-				{"LOGIN with good credentials",
-				fun() ->
-					{Reply, State2} = handle_event(["GETSALT",  3], State),
-					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-					{Reply2, _State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3))
-				end}
-			end,
-			fun(State) ->
-				{"LOGIN twice fails",
-				fun() ->
-					{Reply, State2} = handle_event(["GETSALT",  3], State),
-					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-					{Reply2, _State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3)),
-					{Reply3, _State4} = handle_event(["LOGIN",  5, "Username:" ++ Password], State2),
-					?assertMatch(["ERR", "5", _Args], util:string_split(string:strip(util:string_chomp(Reply3)), " ", 3))
-				end}
-			end
-		]
-	}.
-
-authenticated_agent_test_() ->
-	{
-		foreach,
-		fun() ->
-			crypto:start(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			agent_auth:new_profile("Testprofile", [skill1, skill2]),
-			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
-			agent_manager:start([node()]),
-			State = #state{},
-			{Reply, State2} = handle_event(["GETSALT",  3], State),
-			[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-			Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-			{_Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-			State3
-		end,
-		fun(_State) ->
-			agent_auth:destroy_profile("Testprofile"),
-			agent_manager:stop(),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			ok
-		end,
-		[
-			fun(State) ->
-				{"LOGIN should be an unknown event",
-				fun() ->
-					{Reply, _State2} = handle_event(["LOGIN",  3, "username:password"], State),
-					?assertEqual("ERR 3 Unknown event LOGIN", Reply)
-				end}
-			end,
-
-			fun(State) ->
-				{"PING should return the current timestamp",
-				fun() ->
-					{MegaSecs, Secs, _MicroSecs} = now(),
-					Now = list_to_integer(integer_to_list(MegaSecs) ++ integer_to_list(Secs)),
-					timer:sleep(1000),
-					{Reply, _State2} = handle_event(["PING", 3], State),
-					["ACK", "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-					Pingtime = list_to_integer(Args),
-					?assert(Now < Pingtime),
-					timer:sleep(1000),
-					{MegaSecs2, Secs2, _MicroSecs2} = now(),
-					Now2 = list_to_integer(integer_to_list(MegaSecs2) ++ integer_to_list(Secs2)),
-					?assert(Now2 > Pingtime)
-				end}
-			end,
-
-			fun(State) ->
-				{"ENDWRAPUP should not work while in not in wrapup",
-				fun() ->
-					{Reply, _State2} = handle_event(["ENDWRAPUP", 3], State),
-					?assertEqual("ERR 3 Agent must be in wrapup to send an ENDWRAPUP", Reply)
-				end}
-			end,
-
-			fun(State) ->
-				{"ENDWRAPUP should work while in wrapup",
-				fun() ->
-					Call = #call{id="testcall", source=self()},
-					?assertEqual(ok, agent:set_state(State#state.agent_fsm, idle)),
-					?assertEqual(ok, agent:set_state(State#state.agent_fsm, ringing, Call)),
-					?assertEqual(ok, agent:set_state(State#state.agent_fsm, oncall, Call)),
-					?assertEqual(ok, agent:set_state(State#state.agent_fsm, wrapup, Call)),
-					{Reply, _State2} = handle_event(["ENDWRAPUP", 3], State),
-					?assertEqual("ACK 3", Reply)
-				end
-				}
-			end
-		]
-	}.
-
-socket_enabled_test_() ->
-	{
-		foreach,
-		fun() ->
-			crypto:start(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			agent_auth:new_profile("Testprofile", [skill1, skill2]),
-			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
-			agent_manager:start([node()]),
-			{ok, Pid} = agent_tcp_listener:start(),
-			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, false}, {packet, line}]),
-			%timer:sleep(1000),
-			%State = #state{},
-			%{Reply, State2} = handle_event(["GETSALT",  3], State),
-			%[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-			%Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-			%{_Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-			%State3
-			{Socket, Pid}
-		end,
-		fun({Socket, Pid}) ->
-			agent_auth:destroy_profile("Testprofile"),
-			agent_manager:stop(),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			agent_tcp_listener:stop(Pid),
-			gen_tcp:close(Socket),
-			ok
-		end,
-		[
-			fun({Socket, _Pid}) ->
-				{"Negiotiate protocol with correct version",
-				fun() ->
-					?debugFmt("getting initial banner~n", []),
-					{ok, Packet} = gen_tcp:recv(Socket, 0),
-					?assertEqual("Agent Server: -1\r\n", Packet),
-					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor])),
-					{ok, Packet2} = gen_tcp:recv(Socket, 0),
-					?assertEqual("0 OK\r\n", Packet2)
-				end}
-			end,
-			fun({Socket, _Pid}) ->
-				{"Negiotiate protocol with minor version mismatch",
-				fun() ->
-					?debugFmt("getting initial banner~n", []),
-					{ok, Packet} = gen_tcp:recv(Socket, 0),
-					?assertEqual("Agent Server: -1\r\n", Packet),
-					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor -1])),
-					{ok, Packet2} = gen_tcp:recv(Socket, 0),
-					?assertEqual("1 Protocol version mismatch. Please consider upgrading your client\r\n", Packet2)
-				end}
-			end,
-			fun({Socket, _Pid}) ->
-				{"Negiotiate protocol with major version mismatch",
-				fun() ->
-					?debugFmt("getting initial banner~n", []),
-					{ok, Packet} = gen_tcp:recv(Socket, 0),
-					?assertEqual("Agent Server: -1\r\n", Packet),
-					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major -1, ?Minor])),
-					{ok, Packet2} = gen_tcp:recv(Socket, 0),
-					?assertEqual("2 Protocol major version mismatch. Login denied\r\n", Packet2)
-				end}
-			end,
-			fun({Socket, _Pid}) ->
-				{"Negiotiate protocol with non-integer version",
-				fun() ->
-					?debugFmt("getting initial banner~n", []),
-					{ok, Packet} = gen_tcp:recv(Socket, 0),
-					?assertEqual("Agent Server: -1\r\n", Packet),
-					gen_tcp:send(Socket, "Protocol: a.b\r\n"),
-					{ok, Packet2} = gen_tcp:recv(Socket, 0),
-					?assertEqual("2 Invalid Response. Login denied\r\n", Packet2)
-				end}
-			end,
-			fun({Socket, _Pid}) ->
-				{"Negiotiate protocol with gibberish",
-				fun() ->
-					?debugFmt("getting initial banner~n", []),
-					{ok, Packet} = gen_tcp:recv(Socket, 0),
-					?assertEqual("Agent Server: -1\r\n", Packet),
-					gen_tcp:send(Socket, "asdfasdf\r\n"),
-					{ok, Packet2} = gen_tcp:recv(Socket, 0),
-					?assertEqual("2 Invalid Response. Login denied\r\n", Packet2)
-				end}
-			end
-		]
-	}.
-
-post_login_test_() ->
-	{
-		foreach,
-		local,
-		fun() ->
-			?CONSOLE("setup", []),
-			crypto:start(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			agent_auth:new_profile("Testprofile", [skill1, skill2]),
-			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
-			agent_manager:start([node()]),
-			{ok, Pid} = agent_tcp_listener:start(),
-			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, once}, {packet, line}]),
-			receive {tcp, Socket, _Packet} -> inet:setopts(Socket, [{active, once}]) end,
-			ok = gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor])),
-			receive {tcp, Socket, _Packet2} -> inet:setopts(Socket, [{active, once}]) end,
-			ok = gen_tcp:send(Socket, "GETSALT 3\r\n"),
-			receive {tcp, Socket, Reply} -> inet:setopts(Socket, [{active, once}]) end,
-			[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
-			Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-			?CONSOLE("agents:  ~p", [agent_manager:list()]),
-			ok = gen_tcp:send(Socket, "LOGIN 4 Username:" ++ Password ++ "\r\n"),
-			?CONSOLE("login sent...", []),
-			receive {tcp, Socket, Whatever} -> inet:setopts(Socket, [{active, once}]) end,
-			?CONSOLE("recv:  ~p", [Whatever]),
-			receive {tcp, Socket, Whatever2} -> inet:setopts(Socket, [{active, once}]) end,
-			?CONSOLE("recv:  ~p", [Whatever2]),
-			{true, APid} = agent_manager:query_agent("Username"),
-			{Pid, Socket, APid}
-		end,
-		fun({Tcplistener, Clientsock, APid}) ->
-			?CONSOLE("Cleanup", []),
-			agent:stop(APid),
-			agent_auth:destroy("Testprofile"),
-			agent_manager:stop(),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			agent_tcp_listener:stop(Tcplistener),
-			gen_tcp:close(Clientsock),
-			ok
-		end,
-		[
-			fun({_Tcplistener, Clientsock, APid}) ->
-				{"Set agent to idle",
-				fun() ->
-					?CONSOLE("Set agent to idle", []),
-					agent:set_state(APid, idle),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(idle)) ++ "\r\n", Packet),
-					?CONSOLE("post assert", [])
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, APid}) ->
-				{"Set agent to new released",
-				fun() ->
-					?CONSOLE("Set agent to new released", []),
-					agent:set_state(APid, released, "test reason"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(released)) ++ "\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, APid}) ->
-				{"set ringing",
-				fun() ->
-					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
-					agent:set_state(APid, ringing, Call),
-					receive {tcp, Clientsock, Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
-					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n", Packet),
-					receive {tcp, Clientsock, Packet2} -> ok end,
-					?assertEqual("CALLINFO 3 00570001 voice Unknown Unknown\r\n", Packet2)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Client request to go idle",
-				fun() ->
-					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(idle)) ++ "\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ACK 7\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Client requests invalid state change",
-				fun() ->
-					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(wrapup)) ++ "\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ERR 7 Invalid state change from released to wrapup\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Client state change request with data",
-				fun() ->
-					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(released)) ++ " 6\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ACK 7\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, APid}) ->
-				{"Client requests release, but it's queued",
-				fun() ->
-					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
-					agent:set_state(APid, ringing, Call),
-					receive {tcp, Clientsock, _Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
-					receive {tcp, Clientsock, _Packet2} -> inet:setopts(Clientsock, [{active, once}]) end,
-					agent:set_state(APid, oncall, Call),
-					receive {tcp, Clientsock, _Packet3} -> inet:setopts(Clientsock, [{active, once}]) end,
-					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(released)) ++ " 6\r\n"),
-					receive {tcp, Clientsock, Packet4} -> inet:setopts(Clientsock, [{active, once}]) end,
-					?assertEqual("ACK 7\r\n", Packet4)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Client requests invalid release option",
-				fun() ->
-					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(released)) ++ " notvalid\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ERR 7 Invalid release option\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Brandlist requested",
-				fun() ->
-					call_queue_config:build_tables(),
-					call_queue_config:new_client(#client{label = "Aclient", tenant = 10, brand = 1}),
-					call_queue_config:new_client(#client{label = "Bclient", tenant = 5, brand = 2}),
-					call_queue_config:new_client(#client{label = "Cclient", tenant = 20, brand = 3}),
-					gen_tcp:send(Clientsock, "BRANDLIST 7\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient),(00990099|Demo Client)\r\n", Packet)
-				end}
-			end,
-			fun({_Tcplistener, Clientsock, _APid}) ->
-				{"Release options requested",
-				fun() ->
-					agent_auth:new_release(#release_opt{label = "Bathroom", id=1, bias=0}),
-					agent_auth:new_release(#release_opt{label = "Default", id = 2, bias = -1}),
-					gen_tcp:send(Clientsock, "RELEASEOPTIONS 7\r\n"),
-					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ACK 7 1:Bathroom:0,2:Default:-1\r\n", Packet)
-				end}
-			end%,
-			%fun({_Tcplistener, _Client, APid}) ->
-%				{"Unresponsive client",
-%				timeout,
-%				60,
-%				fun() ->
-%					Call = #call{id="testcall", source = self()},
-%					agent:set_state(APid, ringing, Call),
-%					#agent{connection = Tcp} = agent:dump_state(APid),
-%					%timer:sleep(31),
-%					Tcp ! do_tick,
-%					Tcp ! do_tick,
-%					Tcp ! do_tick,
-%					?assertNot(is_process_alive(Tcp))
-%				%	?assertExit(noproc, gen_server:call(Tcplistener, garbage))
-%				end}
-%			end
-		]
-	}.
-
-clientrec_to_id_test() ->
-	Client = #client{label = "testclient", tenant = 50, brand = 7},
-	?assertEqual("00500007", clientrec_to_id(Client)).
-
-
--define(MYSERVERFUNC,
-	fun() ->
-		{ok, Pid} = start_link("garbage data"),
-		unlink(Pid),
-		{Pid, fun() -> exit(Pid, kill), ok end}
-	end).
-
--include("gen_server_test.hrl").
+%-define(MYSERVERFUNC,
+%	fun() ->
+%		{ok, Pid} = start_link("garbage data"),
+%		unlink(Pid),
+%		{Pid, fun() -> exit(Pid, kill), ok end}
+%	end).
+%
+%-include("gen_server_test.hrl").
 
 -endif.

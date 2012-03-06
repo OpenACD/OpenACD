@@ -1,4 +1,4 @@
-Build started: Tue Oct 04 2011 14:05:38 GMT-0500 (CDT)
+Build started: Mon Nov 07 2011 16:04:14 GMT-0600 (CST)
 Build application version: 1.7.0dev (23930)
 Messages:
 message-id(100) Assumed module uses legacy loader API.
@@ -42,20 +42,20 @@ message-id(100) Assumed module uses legacy loader API.
 	module: dojox/storage/GearsStorageProvider
 	module: dojox/cometd/RestChannels
 	module: dojox/widget/RollingList
-	module: dojox/lang/functional/curry
 	module: dojox/drawing/util/typeset
+	module: dojox/lang/functional/curry
 	module: dojox/drawing/tools/Arrow
 	module: dojox/lang/functional/zip
 	module: dojox/widget/rotator/Wipe
-	module: dojox/wire/ml/XmlHandler
 	module: dojox/wire/ml/util
+	module: dojox/wire/ml/XmlHandler
 	module: dojox/cometd/ack
 	module: dojox/xmpp/ChatService
 	module: dojox/drawing/tools/Ellipse
 	module: dojox/lang/aspect
 	module: dojox/wire/TextAdapter
-	module: dojox/lang/oo/aop
 	module: dojox/lang/aspect/cflow
+	module: dojox/lang/oo/aop
 	module: dojox/drawing/defaults
 	module: dojox/drawing/tools/Pencil
 	module: dojox/drawing/plugins/tools/Pan
@@ -121,8 +121,8 @@ message-id(100) Assumed module uses legacy loader API.
 	module: dojox/drawing/tools/Rect
 	module: dojox/widget/SortList
 	module: dojox/cometd/longPollTransportFormEncoded
-	module: dojox/lang/functional/tailrec
 	module: dojox/data/demos/widgets/FlickrViewList
+	module: dojox/lang/functional/tailrec
 	module: dojox/cometd/timestamp
 	module: dojox/jsonPath/query
 	module: dojox/mobile/app/_base
@@ -235,6 +235,8 @@ message-id(100) Assumed module uses legacy loader API.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/EmailPane
+	module: agentUI/MediaTab
 	module: agentUI/util
 info(101) Using dojo/loadInit plugin for module.
 	module: dojox/cometd/RestChannels
@@ -294,20 +296,20 @@ info(108) Interning strings.
 	module: dojox/storage/GearsStorageProvider
 	module: dojox/cometd/RestChannels
 	module: dojox/widget/RollingList
-	module: dojox/lang/functional/curry
 	module: dojox/drawing/util/typeset
+	module: dojox/lang/functional/curry
 	module: dojox/drawing/tools/Arrow
 	module: dojox/lang/functional/zip
 	module: dojox/widget/rotator/Wipe
-	module: dojox/wire/ml/XmlHandler
 	module: dojox/wire/ml/util
+	module: dojox/wire/ml/XmlHandler
 	module: dojox/cometd/ack
 	module: dojox/xmpp/ChatService
 	module: dojox/drawing/tools/Ellipse
 	module: dojox/lang/aspect
 	module: dojox/wire/TextAdapter
-	module: dojox/lang/oo/aop
 	module: dojox/lang/aspect/cflow
+	module: dojox/lang/oo/aop
 	module: dojox/atom/widget/FeedEntryEditor
 	module: dojox/drawing/defaults
 	module: dojox/drawing/tools/Pencil
@@ -383,8 +385,8 @@ info(108) Interning strings.
 	module: dojox/drawing/tools/Rect
 	module: dojox/widget/SortList
 	module: dojox/cometd/longPollTransportFormEncoded
-	module: dojox/lang/functional/tailrec
 	module: dojox/data/demos/widgets/FlickrViewList
+	module: dojox/lang/functional/tailrec
 	module: dojox/cometd/timestamp
 	module: dojox/jsonPath/query
 	module: dojox/mobile/app/_base
@@ -516,6 +518,8 @@ info(108) Interning strings.
 	module: agentUI/emailLib
 	module: agentUI/base
 	module: agentUI/logLib
+	module: agentUI/EmailPane
+	module: agentUI/MediaTab
 	module: agentUI/util
 warn(205) Module not tagged as pure AMD yet it contains AMD API applications.
 	module: dojox/form/MultiComboBox
@@ -558,10 +562,9 @@ warn(216) dojo/has plugin resource could not be resolved during build-time.
 	plugin resource id: dojo-firebug?./_firebug/firebug; reference module id: dojo/main
 error(310) Non-i18n module found in nls tree (copied only).
 	module: agentUI/nls/fr/labels
-	module: agentUI/nls/uk/labels
 	module: agentUI/nls/ru/labels
+	module: agentUI/nls/uk/labels
 	module: agentUI/nls/en/emailPane
-	module: agentUI/nls/emailPane
 	module: agentUI/nls/es/labels
 	module: agentUI/nls/en/labels
 error(311) Missing dependency.
@@ -569,13 +572,15 @@ error(311) Missing dependency.
 	module: dojox/gfx; dependency: ./gfx/renderer!
 	module: dojo/robot; dependency: doh/_browserRunner
 	module: dojo/robot; dependency: doh/robot
+	module: agentUI/EmailPane; dependency: dojo/i18n!agentUI/nls/EmailPane; error: Error: i18n resource (agentUI/nls/EmailPane) missing
 error(327) Multiple resources are destined for same filename.
-	source-1: /home/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js; source-2: /home/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js
+	source-1: /Users/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js; source-2: /Users/micahw/src/OpenACD/contrib/dojo/dojox/cometd/RestChannels.js
 Layer Contents:
 agentUI/base:
 	dijit/form/nls/validate
 	dijit/form/TextBox
 	dijit/_TemplatedMixin
+	dijit/_Templated
 	dijit/_CssStateMixin
 	dijit/layout/ScrollingTabController
 	dijit/DialogUnderlay
@@ -602,6 +607,7 @@ agentUI/base:
 	dijit/form/_TextBoxMixin
 	dijit/form/SimpleTextarea
 	dijit/layout/templates/_TabButton.html
+	dijit/form/templates/HorizontalSlider.html
 	dijit/main
 	dijit/_OnDijitClickMixin
 	dojo/dnd/autoscroll
@@ -629,6 +635,7 @@ agentUI/base:
 	dojo/dnd/Moveable
 	dojo/store/util/SimpleQueryEngine
 	dojox/encoding/digests/_base
+	dijit/typematic
 	dijit/MenuItem
 	dijit/layout/TabController
 	dijit/ToolbarSeparator
@@ -637,11 +644,14 @@ agentUI/base:
 	dijit/_base/manager
 	dijit/layout/StackController
 	dojo/dnd/Mover
+	dijit/form/HorizontalRule
 	dijit/layout/TabContainer
 	dijit/BackgroundIframe
+	agentUI/MediaTab
 	dijit/templates/Menu.html
 	dijit/form/Button
 	dijit/layout/templates/TabContainer.html
+	dojo/dnd/move
 	dijit/_WidgetBase
 	dijit/layout/_TabContainerBase
 	dijit/form/Form
@@ -682,6 +692,7 @@ agentUI/base:
 	dijit/form/FilteringSelect
 	dojo/data/util/sorter
 	dijit/form/_ButtonMixin
+	dijit/form/VerticalRule
 	dijit/_editor/range
 	dojo/store/util/QueryResults
 	dijit/form/_ListBase
@@ -702,6 +713,7 @@ agentUI/base:
 	dojo/fx
 	dijit/_DialogMixin
 	dijit/nls/common
+	dijit/form/HorizontalSlider
 	dojox/layout/ResizeHandle
 	dijit/form/_FormValueWidget
 
@@ -752,4 +764,4 @@ dojo/dojo:
 Process finished normally
 	errors: 12
 	warnings: 37
-	build time: 488.944 seconds
+	build time: 62.679 seconds

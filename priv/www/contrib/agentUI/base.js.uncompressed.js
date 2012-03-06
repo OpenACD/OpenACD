@@ -534,6 +534,80 @@ define("dijit/_TemplatedMixin", [
 });
 
 },
+'dijit/_Templated':function(){
+define("dijit/_Templated", [
+	"./_WidgetBase",
+	"./_TemplatedMixin",
+	"./_WidgetsInTemplateMixin",
+	"dojo/_base/array", // array.forEach
+	"dojo/_base/declare", // declare
+	"dojo/_base/lang", // lang.extend lang.isArray
+	"dojo/_base/kernel" // kernel.deprecated
+], function(_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, array, declare, lang, kernel){
+
+/*=====
+	var _WidgetBase = dijit._WidgetBase;
+	var _TemplatedMixin = dijit._TemplatedMixin;
+	var _WidgetsInTemplateMixin = dijit._WidgetsInTemplateMixin;
+=====*/
+
+	// module:
+	//		dijit/_Templated
+	// summary:
+	//		Deprecated mixin for widgets that are instantiated from a template.
+
+	// These arguments can be specified for widgets which are used in templates.
+	// Since any widget can be specified as sub widgets in template, mix it
+	// into the base widget class.  (This is a hack, but it's effective.)
+	lang.extend(_WidgetBase, {
+		waiRole: "",
+		waiState:""
+	});
+
+	return declare("dijit._Templated", [_TemplatedMixin, _WidgetsInTemplateMixin], {
+		// summary:
+		//		Deprecated mixin for widgets that are instantiated from a template.
+		//		Widgets should use _TemplatedMixin plus if necessary _WidgetsInTemplateMixin instead.
+
+		// widgetsInTemplate: [protected] Boolean
+		//		Should we parse the template to find widgets that might be
+		//		declared in markup inside it?  False by default.
+		widgetsInTemplate: false,
+
+		constructor: function(){
+			kernel.deprecated(this.declaredClass + ": dijit._Templated deprecated, use dijit._TemplatedMixin and if necessary dijit._WidgetsInTemplateMixin", "", "2.0");
+		},
+
+		_attachTemplateNodes: function(rootNode, getAttrFunc){
+
+			this.inherited(arguments);
+
+			// Do deprecated waiRole and waiState
+			var nodes = lang.isArray(rootNode) ? rootNode : (rootNode.all || rootNode.getElementsByTagName("*"));
+			var x = lang.isArray(rootNode) ? 0 : -1;
+			for(; x<nodes.length; x++){
+				var baseNode = (x == -1) ? rootNode : nodes[x];
+
+				// waiRole, waiState
+				var role = getAttrFunc(baseNode, "waiRole");
+				if(role){
+					baseNode.setAttribute("role", role);
+				}
+				var values = getAttrFunc(baseNode, "waiState");
+				if(values){
+					array.forEach(values.split(/\s*,\s*/), function(stateValue){
+						if(stateValue.indexOf('-') != -1){
+							var pair = stateValue.split('-');
+							baseNode.setAttribute("aria-"+pair[0], pair[1]);
+						}
+					});
+				}
+			}
+		}
+	});
+});
+
+},
 'dijit/_CssStateMixin':function(){
 define("dijit/_CssStateMixin", [
 	"dojo/touch",
@@ -7669,6 +7743,7 @@ return declare("dijit.form.SimpleTextarea", TextBox, {
 
 },
 'url:dijit/layout/templates/_TabButton.html':"<div role=\"presentation\" dojoAttachPoint=\"titleNode\" dojoAttachEvent='onclick:onClick'>\n    <div role=\"presentation\" class='dijitTabInnerDiv' dojoAttachPoint='innerDiv'>\n        <div role=\"presentation\" class='dijitTabContent' dojoAttachPoint='tabContent'>\n        \t<div role=\"presentation\" dojoAttachPoint='focusNode'>\n\t\t        <img src=\"${_blankGif}\" alt=\"\" class=\"dijitIcon dijitTabButtonIcon\" dojoAttachPoint='iconNode' />\n\t\t        <span dojoAttachPoint='containerNode' class='tabLabel'></span>\n\t\t        <span class=\"dijitInline dijitTabCloseButton dijitTabCloseIcon\" dojoAttachPoint='closeNode'\n\t\t        \t\tdojoAttachEvent='onclick: onClickCloseButton' role=\"presentation\">\n\t\t            <span dojoAttachPoint='closeText' class='dijitTabCloseText'>[x]</span\n\t\t        ></span>\n\t\t\t</div>\n        </div>\n    </div>\n</div>\n",
+'url:dijit/form/templates/HorizontalSlider.html':"<table class=\"dijit dijitReset dijitSlider dijitSliderH\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" rules=\"none\" dojoAttachEvent=\"onkeypress:_onKeyPress,onkeyup:_onKeyUp\"\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"topDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationT dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderDecrementIconH\" style=\"display:none\" dojoAttachPoint=\"decrementButton\"><span class=\"dijitSliderButtonInner\">-</span></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderLeftBumper\" dojoAttachEvent=\"press:_onClkDecBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><input dojoAttachPoint=\"valueNode\" type=\"hidden\" ${!nameAttrSetting}\n\t\t\t/><div class=\"dijitReset dijitSliderBarContainerH\" role=\"presentation\" dojoAttachPoint=\"sliderBarContainer\"\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"progressBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderProgressBar dijitSliderProgressBarH\" dojoAttachEvent=\"press:_onBarClick\"\n\t\t\t\t\t><div class=\"dijitSliderMoveable dijitSliderMoveableH\"\n\t\t\t\t\t\t><div dojoAttachPoint=\"sliderHandle,focusNode\" class=\"dijitSliderImageHandle dijitSliderImageHandleH\" dojoAttachEvent=\"press:_onHandleClick\" role=\"slider\" valuemin=\"${minimum}\" valuemax=\"${maximum}\"></div\n\t\t\t\t\t></div\n\t\t\t\t></div\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"remainingBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderRemainingBar dijitSliderRemainingBarH\" dojoAttachEvent=\"press:_onBarClick\"></div\n\t\t\t></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderRightBumper\" dojoAttachEvent=\"press:_onClkIncBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderIncrementIconH\" style=\"display:none\" dojoAttachPoint=\"incrementButton\"><span class=\"dijitSliderButtonInner\">+</span></div\n\t\t></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,bottomDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationB dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n></table>\n",
 'dijit/main':function(){
 define("dijit/main", [
 	"dojo/_base/kernel"
@@ -13742,6 +13817,213 @@ define("dojox/encoding/digests/_base", ["dojo/_base/kernel"], function(dojo){
 });
 
 },
+'dijit/typematic':function(){
+define("dijit/typematic", [
+	"dojo/_base/array", // array.forEach
+	"dojo/_base/connect", // connect.connect
+	"dojo/_base/event", // event.stop
+	"dojo/_base/kernel", // kernel.deprecated
+	"dojo/_base/lang", // lang.mixin
+	"dojo/_base/sniff", // has("ie")
+	"."		// setting dijit.typematic global
+], function(array, connect, event, kernel, lang, has, dijit){
+
+// module:
+//		dijit/typematic
+// summary:
+//		These functions are used to repetitively call a user specified callback
+//		method when a specific key or mouse click over a specific DOM node is
+//		held down for a specific amount of time.
+//		Only 1 such event is allowed to occur on the browser page at 1 time.
+
+return (dijit.typematic = {
+	// summary:
+	//		These functions are used to repetitively call a user specified callback
+	//		method when a specific key or mouse click over a specific DOM node is
+	//		held down for a specific amount of time.
+	//		Only 1 such event is allowed to occur on the browser page at 1 time.
+
+	_fireEventAndReload: function(){
+		this._timer = null;
+		this._callback(++this._count, this._node, this._evt);
+
+		// Schedule next event, timer is at most minDelay (default 10ms) to avoid
+		// browser overload (particularly avoiding starving DOH robot so it never gets to send a mouseup)
+		this._currentTimeout = Math.max(
+			this._currentTimeout < 0 ? this._initialDelay :
+				(this._subsequentDelay > 1 ? this._subsequentDelay : Math.round(this._currentTimeout * this._subsequentDelay)),
+			this._minDelay);
+		this._timer = setTimeout(lang.hitch(this, "_fireEventAndReload"), this._currentTimeout);
+	},
+
+	trigger: function(/*Event*/ evt, /*Object*/ _this, /*DOMNode*/ node, /*Function*/ callback, /*Object*/ obj, /*Number*/ subsequentDelay, /*Number*/ initialDelay, /*Number?*/ minDelay){
+		// summary:
+		//		Start a timed, repeating callback sequence.
+		//		If already started, the function call is ignored.
+		//		This method is not normally called by the user but can be
+		//		when the normal listener code is insufficient.
+		// evt:
+		//		key or mouse event object to pass to the user callback
+		// _this:
+		//		pointer to the user's widget space.
+		// node:
+		//		the DOM node object to pass the the callback function
+		// callback:
+		//		function to call until the sequence is stopped called with 3 parameters:
+		// count:
+		//		integer representing number of repeated calls (0..n) with -1 indicating the iteration has stopped
+		// node:
+		//		the DOM node object passed in
+		// evt:
+		//		key or mouse event object
+		// obj:
+		//		user space object used to uniquely identify each typematic sequence
+		// subsequentDelay (optional):
+		//		if > 1, the number of milliseconds until the 3->n events occur
+		//		or else the fractional time multiplier for the next event's delay, default=0.9
+		// initialDelay (optional):
+		//		the number of milliseconds until the 2nd event occurs, default=500ms
+		// minDelay (optional):
+		//		the maximum delay in milliseconds for event to fire, default=10ms
+		if(obj != this._obj){
+			this.stop();
+			this._initialDelay = initialDelay || 500;
+			this._subsequentDelay = subsequentDelay || 0.90;
+			this._minDelay = minDelay || 10;
+			this._obj = obj;
+			this._evt = evt;
+			this._node = node;
+			this._currentTimeout = -1;
+			this._count = -1;
+			this._callback = lang.hitch(_this, callback);
+			this._fireEventAndReload();
+			this._evt = lang.mixin({faux: true}, evt);
+		}
+	},
+
+	stop: function(){
+		// summary:
+		//		Stop an ongoing timed, repeating callback sequence.
+		if(this._timer){
+			clearTimeout(this._timer);
+			this._timer = null;
+		}
+		if(this._obj){
+			this._callback(-1, this._node, this._evt);
+			this._obj = null;
+		}
+	},
+
+	addKeyListener: function(/*DOMNode*/ node, /*Object*/ keyObject, /*Object*/ _this, /*Function*/ callback, /*Number*/ subsequentDelay, /*Number*/ initialDelay, /*Number?*/ minDelay){
+		// summary:
+		//		Start listening for a specific typematic key.
+		//		See also the trigger method for other parameters.
+		// keyObject:
+		//		an object defining the key to listen for:
+		// 		charOrCode:
+		//			the printable character (string) or keyCode (number) to listen for.
+		// 		keyCode:
+		//			(deprecated - use charOrCode) the keyCode (number) to listen for (implies charCode = 0).
+		// 		charCode:
+		//			(deprecated - use charOrCode) the charCode (number) to listen for.
+		// 		ctrlKey:
+		//			desired ctrl key state to initiate the callback sequence:
+		//			- pressed (true)
+		//			- released (false)
+		//			- either (unspecified)
+		// 		altKey:
+		//			same as ctrlKey but for the alt key
+		// 		shiftKey:
+		//			same as ctrlKey but for the shift key
+		// returns:
+		//		an array of dojo.connect handles
+		if(keyObject.keyCode){
+			keyObject.charOrCode = keyObject.keyCode;
+			kernel.deprecated("keyCode attribute parameter for dijit.typematic.addKeyListener is deprecated. Use charOrCode instead.", "", "2.0");
+		}else if(keyObject.charCode){
+			keyObject.charOrCode = String.fromCharCode(keyObject.charCode);
+			kernel.deprecated("charCode attribute parameter for dijit.typematic.addKeyListener is deprecated. Use charOrCode instead.", "", "2.0");
+		}
+		var handles = [
+			connect.connect(node, "onkeypress", this, function(evt){
+				if(evt.charOrCode == keyObject.charOrCode &&
+				(keyObject.ctrlKey === undefined || keyObject.ctrlKey == evt.ctrlKey) &&
+				(keyObject.altKey === undefined || keyObject.altKey == evt.altKey) &&
+				(keyObject.metaKey === undefined || keyObject.metaKey == (evt.metaKey || false)) && // IE doesn't even set metaKey
+				(keyObject.shiftKey === undefined || keyObject.shiftKey == evt.shiftKey)){
+					event.stop(evt);
+					dijit.typematic.trigger(evt, _this, node, callback, keyObject, subsequentDelay, initialDelay, minDelay);
+				}else if(dijit.typematic._obj == keyObject){
+					dijit.typematic.stop();
+				}
+			}),
+			connect.connect(node, "onkeyup", this, function(evt){
+				if(dijit.typematic._obj == keyObject){
+					dijit.typematic.stop();
+				}
+			})
+		];
+		return { remove: function(){ array.forEach(handles, function(h){ h.remove(); }); } };
+	},
+
+	addMouseListener: function(/*DOMNode*/ node, /*Object*/ _this, /*Function*/ callback, /*Number*/ subsequentDelay, /*Number*/ initialDelay, /*Number?*/ minDelay){
+		// summary:
+		//		Start listening for a typematic mouse click.
+		//		See the trigger method for other parameters.
+		// returns:
+		//		an array of dojo.connect handles
+		var dc = connect.connect;
+		var handles =  [
+			dc(node, "mousedown", this, function(evt){
+				event.stop(evt);
+				dijit.typematic.trigger(evt, _this, node, callback, node, subsequentDelay, initialDelay, minDelay);
+			}),
+			dc(node, "mouseup", this, function(evt){
+				if(this._obj){
+					event.stop(evt);
+				}
+				dijit.typematic.stop();
+			}),
+			dc(node, "mouseout", this, function(evt){
+				event.stop(evt);
+				dijit.typematic.stop();
+			}),
+			dc(node, "mousemove", this, function(evt){
+				evt.preventDefault();
+			}),
+			dc(node, "dblclick", this, function(evt){
+				event.stop(evt);
+				if(has("ie")){
+					dijit.typematic.trigger(evt, _this, node, callback, node, subsequentDelay, initialDelay, minDelay);
+					setTimeout(lang.hitch(this, dijit.typematic.stop), 50);
+				}
+			})
+		];
+		return { remove: function(){ array.forEach(handles, function(h){ h.remove(); }); } };
+	},
+
+	addListener: function(/*Node*/ mouseNode, /*Node*/ keyNode, /*Object*/ keyObject, /*Object*/ _this, /*Function*/ callback, /*Number*/ subsequentDelay, /*Number*/ initialDelay, /*Number?*/ minDelay){
+		// summary:
+		//		Start listening for a specific typematic key and mouseclick.
+		//		This is a thin wrapper to addKeyListener and addMouseListener.
+		//		See the addMouseListener and addKeyListener methods for other parameters.
+		// mouseNode:
+		//		the DOM node object to listen on for mouse events.
+		// keyNode:
+		//		the DOM node object to listen on for key events.
+		// returns:
+		//		an array of dojo.connect handles
+		var handles = [
+			this.addKeyListener(keyNode, keyObject, _this, callback, subsequentDelay, initialDelay, minDelay),
+			this.addMouseListener(mouseNode, _this, callback, subsequentDelay, initialDelay, minDelay)
+		];
+		return { remove: function(){ array.forEach(handles, function(h){ h.remove(); }); } };
+	}
+});
+
+});
+
+},
 'dijit/MenuItem':function(){
 require({cache:{
 'url:dijit/templates/MenuItem.html':"<tr class=\"dijitReset dijitMenuItem\" dojoAttachPoint=\"focusNode\" role=\"menuitem\" tabIndex=\"-1\"\n\t\tdojoAttachEvent=\"onmouseenter:_onHover,onmouseleave:_onUnhover,ondijitclick:_onClick\">\n\t<td class=\"dijitReset dijitMenuItemIconCell\" role=\"presentation\">\n\t\t<img src=\"${_blankGif}\" alt=\"\" class=\"dijitIcon dijitMenuItemIcon\" dojoAttachPoint=\"iconNode\"/>\n\t</td>\n\t<td class=\"dijitReset dijitMenuItemLabel\" colspan=\"2\" dojoAttachPoint=\"containerNode\"></td>\n\t<td class=\"dijitReset dijitMenuItemAccelKey\" style=\"display: none\" dojoAttachPoint=\"accelKeyNode\"></td>\n\t<td class=\"dijitReset dijitMenuArrowCell\" role=\"presentation\">\n\t\t<div dojoAttachPoint=\"arrowWrapper\" style=\"visibility: hidden\">\n\t\t\t<img src=\"${_blankGif}\" alt=\"\" class=\"dijitMenuExpand\"/>\n\t\t\t<span class=\"dijitMenuExpandA11y\">+</span>\n\t\t</div>\n\t</td>\n</tr>\n"}});
@@ -15726,6 +16008,85 @@ return dojo.dnd.Mover;
 });
 
 },
+'dijit/form/HorizontalRule':function(){
+define("dijit/form/HorizontalRule", [
+	"dojo/_base/declare",	// declare
+	"../_Widget",
+	"../_TemplatedMixin"
+], function(declare, _Widget, _TemplatedMixin){
+
+/*=====
+	var _Widget = dijit._Widget;
+	var _TemplatedMixin = dijit._TemplatedMixin;
+=====*/
+
+// module:
+//		dijit/form/HorizontalRule
+// summary:
+//		Hash marks for `dijit.form.HorizontalSlider`
+
+
+return declare("dijit.form.HorizontalRule", [_Widget, _TemplatedMixin], {
+	// summary:
+	//		Hash marks for `dijit.form.HorizontalSlider`
+
+	templateString: '<div class="dijitRuleContainer dijitRuleContainerH"></div>',
+
+	// count: Integer
+	//		Number of hash marks to generate
+	count: 3,
+
+	// container: String
+	//		For HorizontalSlider, this is either "topDecoration" or "bottomDecoration",
+	//		and indicates whether this rule goes above or below the slider.
+	container: "containerNode",
+
+	// ruleStyle: String
+	//		CSS style to apply to individual hash marks
+	ruleStyle: "",
+
+	_positionPrefix: '<div class="dijitRuleMark dijitRuleMarkH" style="left:',
+	_positionSuffix: '%;',
+	_suffix: '"></div>',
+
+	_genHTML: function(pos){
+		return this._positionPrefix + pos + this._positionSuffix + this.ruleStyle + this._suffix;
+	},
+
+	// _isHorizontal: [protected extension] Boolean
+	//		VerticalRule will override this...
+	_isHorizontal: true,
+
+	buildRendering: function(){
+		this.inherited(arguments);
+
+		var innerHTML;
+		if(this.count == 1){
+			innerHTML = this._genHTML(50, 0);
+		}else{
+			var i;
+			var interval = 100 / (this.count-1);
+			if(!this._isHorizontal || this.isLeftToRight()){
+				innerHTML = this._genHTML(0, 0);
+				for(i=1; i < this.count-1; i++){
+					innerHTML += this._genHTML(interval*i, i);
+				}
+				innerHTML += this._genHTML(100, this.count-1);
+			}else{
+				innerHTML = this._genHTML(100, 0);
+				for(i=1; i < this.count-1; i++){
+					innerHTML += this._genHTML(100-interval*i, i);
+				}
+				innerHTML += this._genHTML(0, this.count-1);
+			}
+		}
+		this.domNode.innerHTML = innerHTML;
+	}
+});
+
+});
+
+},
 'dijit/layout/TabContainer':function(){
 define("dijit/layout/TabContainer", [
 	"dojo/_base/lang", // lang.getObject
@@ -15925,6 +16286,143 @@ define("dijit/BackgroundIframe", [
 });
 
 },
+'agentUI/MediaTab':function(){
+// wrapped by build app
+define(["dojo","dijit","dojox","dojo/require!dijit/_Widget,dijit/_Templated,dijit/form/Button"], function(dojo,dijit,dojox){
+dojo.provide("agentUI.MediaTab");
+dojo.require("dijit._Widget");
+dojo.require("dijit._Templated");
+dojo.require("dijit.form.Button");
+
+dojo.declare("agentUI.MediaTab", [dijit._Widget, dijit._Templated], {
+	templateString:"<div style=\"width:100%; height: 100%\" class=\"mediaTab\">\n<div dojoType=\"dijit.layout.BorderContainer\" design=\"sidbar\" gutters=\"true\" liveSplitters=\"true\" style=\"width:100%;height:100%\" dojoAttachPoint=\"topNode\">\n\t<div dojoType=\"dojox.layout.ContentPane\" region=\"center\" splitter=\"true\" dojoAttachPoint=\"mediaPane\">This is where media data will go.</div>\n\t<div dojoType=\"dijit.layout.ContentPane\" region=\"trailing\" style=\"text-align:right; width:300px\" splitter=\"true\" dojoAttachPoint=\"controlBar\">\n\n\t\t\t<p>\n\t\t\t\t<label for=\"state\" class=\"narrow\">STATE</label>\n\t\t\t\t<span dojoAttachPoint=\"agentStateNode\"></span>\n\t\t\t</p>\n\t\t\t<p>\n\t\t\t\t<label for=\"brand\" class=\"narrow\">BRAND</label>\n\t\t\t\t<span dojoAttachPoint=\"agentBrandNode\"></span>\n\t\t\t</p>\n\t\t\t<p>\n\t\t\t\t<label for=\"callerid\" class=\"narrow\">CALLERID</label>\n\t\t\t\t<span dojoAttachPoint=\"calleridNode\"></span>\n\t\t\t</p>\n\t\t\t<p>\n\t\t\t\t<label for=\"calltype\" class=\"narrow\">MEDIATYPE</label>\n\t\t\t\t<span dojoAttachPoint=\"callTypeNode\"></span>\n\t\t\t</p>\n\t\t<select dojoAttachPoint=\"outboundcallSelect\"></select>\n\n\t\t<div dojoType=\"dijit.form.DropDownButton\" dojoAttachPoint=\"startTransferDropDown\" style=\"display:none\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").TRANSFERTOMENU);\n\t\t\t</script>\n\t\t\t<span>TRANSFERTOMENU</span>\n\t\t\t<div dojoType=\"dijit.Menu\" dojoAttachPoint=\"transfertoMenu\">\n\t\t\t\t<div dojoType=\"dijit.PopupMenuItem\" dojoAttachPoint=\"transferToAgentMenu\">\n\t\t\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").AGENT);\n\t\t\t\t\t</script>\n\t\t\t\t\t<script type=\"dojo/connect\" event=\"onMouseEnter\">\n\t\t\t\t\t\t//window.agentConnection.getAvailAgents();\n\t\t\t\t\t</script>\n\t\t\t\t\t<span>AGENT</span>\n\t\t\t\t\t<div dojoType=\"dijit.Menu\" dojoAttachPoint=\"transferToAgentMenuDyn\">\n\t\t\t\t\t</div>\n\t\t\t\t</div>\n\t\t\t\t<div dojoType=\"dijit.PopupMenuItem\" dojoAttachPoint=\"transferToQueueMenu\">\n\t\t\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").QUEUE);\n\t\t\t\t\t</script>\n\t\t\t\t\t<span>QUEUE</span>\n\t\t\t\t\t<div dojoType=\"dijit.Menu\" dojoAttachPoint=\"transferToQueueMenuDyn\">\n\t\t\t\t\t</div>\n\t\t\t\t</div>\n\t\t\t\t<div dojoType=\"dijit.MenuItem\" label=\"Transfer to 3rd Party\">\n\t\t\t\t\t<script type=\"dojo/connect\" event=\"onClick\">\n\t\t\t\t\t//onclick=\"Agent.warmtransfer('2440131');\">\n\t\t\t\t\t\t// TODO das fix\n\t\t\t\t\t\t//dojo.byId('foo').style.display = 'inline';\n\t\t\t\t\t\tdijit.byId('wtcancel').attr('style', 'display:inline');\n\t\t\t\t\t\tdijit.byId('wtdial').attr('style', 'display:inline');\n\t\t\t\t\t\tdijit.byId('btransfer').attr('style', 'display:none');\n\t\t\t\t\t</script>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t</div>\n\n\t\t<!-- was id=foo \n\t\t<div id=\"foo\" style=\"clear:both;\">-->\n\t\t\t<input type=\"text\" value=\"\" dojoType=\"dijit.form.ValidationTextBox\" \n\t\t\t\tregExp=\"[\\d]+\" invalidMessage=\"Invalid number - no spaces, parentheses or dashes\" purpose=\"dialbox\" />\n\t\t<!--</div>-->\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"warmtransferDialbutton\" style=\"display:none\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").DIAL);\n\t\t\t</script>\n\t\t\t<!--<script type=\"dojo/connect\" event=\"onClick\">\n\t\t\t\tdijit.byId('wtcancel').suppressHide = true;\n\t\t\t\twindow.agentConnection.warmtransfer(dijit.byId('dialbox').attr('value'));\n\t\t\t</script>-->\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"warmtransferCompleteButton\" style=\"display:none\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").COMPLETE);\n\t\t\t</script>\n\t\t\t<!--<script type=\"dojo/connect\" event=\"onClick\">\n\t\t\t\twindow.agentConnection.warmtransfercomplete();\n\t\t\t</script>-->\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"warmtransferCancelButton\" style=\"display:none\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").CANCEL);\n\t\t\t</script>\n\t\t\t<!--<script type=\"dojo/connect\" event=\"onClick\">\n\t\t\t\tdojo.byId('foo').style.display = 'none';\n\t\t\t\tdijit.byId('wtcancel').attr('style', 'display:none');\n\t\t\t\tdijit.byId('wtcomplete').attr('style', 'display:none');\n\t\t\t\tdijit.byId('wtdial').attr('style', 'display:none');\n\t\t\t\tdijit.byId('btransfer').attr('style', 'display:inline');\n\t\t\t\twindow.agentConnection.warmtransfercancel();\n\t\t\t</script>-->\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"dialButton\" style=\"display:none\"><!-- onclick=window.agentConnection.dial()>-->\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").DIAL);\n\t\t\t</script>\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"cancelButton\" style=\"display:none\"><!-- onclick=window.agentConnection.setState(\"idle\")>-->\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").CANCEL);\n\t\t\t</script>\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"answerButton\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").ANSWER);\n\t\t\t</script>\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"hangupButton\" style=\"display:none\"><!-- onclick=window.agentConnection.setState(\"wrapup\")>-->\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").HANGUP);\n\t\t\t</script>\n\t\t</button>\n\t\t<button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"endWrapupButton\" style=\"display:none\">\n\t\t\t<script type=\"dojo/method\" event=\"postCreate\">\n\t\t\t\tthis.inherited(\"postCreate\", arguments);\n\t\t\t\tthis.attr('label', dojo.i18n.getLocalization(\"agentUI\", \"labels\").ENDWRAPUP);\n\t\t\t</script>\n\t\t</button>\n\t</div>\n</div>\n</div>\n",
+	widgetsInTemplate: true,
+	//templateString: "",
+
+	constructor: function(args, srcNodeRef){
+		console.log('media tab', args, srcNodeRef);
+		dojo.safeMixin(this, args);
+		this.title = args.stateData.type + ' - ' + args.channel;
+
+		this._agentSub = dojo.subscribe("OpenACD/AgentChannel", this, this._handleAgentChannelPublish);
+		this._agentCommandSubs = {};
+
+		var subChan = 'OpenACD/AgentChannel/' + this.channel + '/mediaload';
+
+		console.log('media load chan', subChan);
+		this._agentCommandSubs.mediaload = dojo.subscribe(subChan, this, function(args){
+			console.log("loading media", args);
+			var loadHref = "tabs/" + this.stateData.source_module + ".html";
+			if(args['event']['href']){
+				loadHref = args['event']['href'];
+			}
+			this.mediaPane.attr('href', loadHref);
+		});
+		/*switch(args.state){
+			case 'ringing':
+				this.answerButton.domNode.style.display = '';
+				break;
+		}*/
+	},
+
+
+	postCreate: function(){
+		dojo.query('label.narrow', this.domNode).forEach(function(node){
+			var text = dojo.i18n.getLocalization("agentUI", "labels")[node.innerHTML];
+			node.innerHTML = text;
+		});
+		this.agentStateNode.innerHTML = dojo.i18n.getLocalization("agentUI", "labels")[this.state.toUpperCase()];
+
+		this.agentBrandNode.innerHTML = this.stateData.brandname;
+		this.calleridNode.innerHTML = this.stateData.callerid;
+		this.callTypeNode.innerHTML = this.stateData.type;
+		switch(this.state){
+			case "ringing":
+				if(this.stateData.ringpath == "outband"){
+					this.answerButton.domNode.style.display = 'none';
+				} else {
+					this.answerButton.domNode.style.display = 'inline';
+				}
+				break;
+			case "oncall":
+				if(this.stateData.mediapath == "outband"){
+					this.hangupButton.domNode.style.display = 'none';
+				} else {
+					this.hangupButton.domNode.style.display = 'inline';
+				}
+				break;
+		}
+
+		dojo.connect(this.answerButton, 'onClick', this, function(){
+			window.agentConnection.channels[this.channel].setState('oncall');
+		});
+		dojo.connect(this.hangupButton, 'onClick', this, function(){
+			window.agentConnection.channels[this.channel].setState('wrapup');
+		});
+		dojo.connect(this.endWrapupButton, 'onClick', this, function(){
+			window.agentConnection.channels[this.channel].endWrapup();
+		});
+		dojo.connect(this.mediaPane, 'onDownloadEnd', this, function(){
+			console.log('onDownloadEnd start');
+			var inits = dojo.query('[init]', this.mediaPane.domNode);
+			if(inits.length < 1){
+				return;
+			}
+			var initFunc = inits.attr('init')[0];
+			if(typeof(window[initFunc]) == 'function'){
+				console.log('init function found');
+				try{
+					window[initFunc](this.channel, this.mediaPane.domNode);
+					console.log('inits function call complete');
+				} catch(err) {
+					console.error('init failed', err);
+				}
+			}
+		});
+	},
+
+	_handleAgentChannelPublish: function(channelId, args){
+		if(channelId != this.channel){
+			return false;
+		}
+		console.log('event', this, arguments);
+		if(arguments.length > 1){
+			var stateText = dojo.i18n.getLocalization("agentUI", "labels")[arguments[1].toUpperCase()];
+			if(! stateText){
+				stateText = this.agentStateNode.innerHTML;
+			}
+		} else {
+			stateText = this.agentStateNode.innerHTML;
+		}
+		this.agentStateNode.innerHTML = stateText;
+		switch(args){
+
+			case 'oncall':
+				this.answerButton.domNode.style.display = 'none';
+				if(arguments[2].mediapath == 'inband'){
+					this.hangupButton.domNode.style.display = 'inline';
+				}
+				break;
+
+			case 'wrapup':
+				this.answerButton.domNode.style.display = 'none';
+				this.hangupButton.domNode.style.display = 'none';
+				this.endWrapupButton.domNode.style.display = 'inline';
+				break;
+		}
+	}/*,
+	doAnswer: function(opts){
+		if(opts.mode == 'href'){
+			this.mediaPane.attr('href', opts.content);
+		} else {
+			this.mediaPane.attr('content', opts.content);
+		}
+	}*/
+});
+
+});
+
+},
 'url:dijit/templates/Menu.html':"<table class=\"dijit dijitMenu dijitMenuPassive dijitReset dijitMenuTable\" role=\"menu\" tabIndex=\"${tabIndex}\" dojoAttachEvent=\"onkeypress:_onKeyPress\" cellspacing=\"0\">\n\t<tbody class=\"dijitReset\" dojoAttachPoint=\"containerNode\"></tbody>\n</table>\n",
 'dijit/form/Button':function(){
 require({cache:{
@@ -16055,6 +16553,167 @@ return declare("dijit.form.Button", [_FormWidget, _ButtonMixin], {
 
 },
 'url:dijit/layout/templates/TabContainer.html':"<div class=\"dijitTabContainer\">\n\t<div class=\"dijitTabListWrapper\" dojoAttachPoint=\"tablistNode\"></div>\n\t<div dojoAttachPoint=\"tablistSpacer\" class=\"dijitTabSpacer ${baseClass}-spacer\"></div>\n\t<div class=\"dijitTabPaneWrapper ${baseClass}-container\" dojoAttachPoint=\"containerNode\"></div>\n</div>\n",
+'dojo/dnd/move':function(){
+define("dojo/dnd/move", ["../main", "./Mover", "./Moveable"], function(dojo) {
+	// module:
+	//		dojo/dnd/move
+	// summary:
+	//		TODOC
+
+
+/*=====
+dojo.declare("dojo.dnd.move.__constrainedMoveableArgs", [dojo.dnd.__MoveableArgs], {
+	// constraints: Function
+	//		Calculates a constraint box.
+	//		It is called in a context of the moveable object.
+	constraints: function(){},
+
+	// within: Boolean
+	//		restrict move within boundaries.
+	within: false
+});
+=====*/
+
+dojo.declare("dojo.dnd.move.constrainedMoveable", dojo.dnd.Moveable, {
+	// object attributes (for markup)
+	constraints: function(){},
+	within: false,
+
+	// markup methods
+	markupFactory: function(params, node){
+		return new dojo.dnd.move.constrainedMoveable(node, params);
+	},
+
+	constructor: function(node, params){
+		// summary:
+		//		an object that makes a node moveable
+		// node: Node
+		//		a node (or node's id) to be moved
+		// params: dojo.dnd.move.__constrainedMoveableArgs?
+		//		an optional object with additional parameters;
+		//		the rest is passed to the base class
+		if(!params){ params = {}; }
+		this.constraints = params.constraints;
+		this.within = params.within;
+	},
+	onFirstMove: function(/* dojo.dnd.Mover */ mover){
+		// summary:
+		//		called during the very first move notification;
+		//		can be used to initialize coordinates, can be overwritten.
+		var c = this.constraintBox = this.constraints.call(this, mover);
+		c.r = c.l + c.w;
+		c.b = c.t + c.h;
+		if(this.within){
+			var mb = dojo._getMarginSize(mover.node);
+			c.r -= mb.w;
+			c.b -= mb.h;
+		}
+	},
+	onMove: function(/* dojo.dnd.Mover */ mover, /* Object */ leftTop){
+		// summary:
+		//		called during every move notification;
+		//		should actually move the node; can be overwritten.
+		var c = this.constraintBox, s = mover.node.style;
+		this.onMoving(mover, leftTop);
+		leftTop.l = leftTop.l < c.l ? c.l : c.r < leftTop.l ? c.r : leftTop.l;
+		leftTop.t = leftTop.t < c.t ? c.t : c.b < leftTop.t ? c.b : leftTop.t;
+		s.left = leftTop.l + "px";
+		s.top  = leftTop.t + "px";
+		this.onMoved(mover, leftTop);
+	}
+});
+
+/*=====
+dojo.declare("dojo.dnd.move.__boxConstrainedMoveableArgs", [dojo.dnd.move.__constrainedMoveableArgs], {
+	// box: Object
+	//		a constraint box
+	box: {}
+});
+=====*/
+
+dojo.declare("dojo.dnd.move.boxConstrainedMoveable", dojo.dnd.move.constrainedMoveable, {
+	// box:
+	//		object attributes (for markup)
+	box: {},
+
+	// markup methods
+	markupFactory: function(params, node){
+		return new dojo.dnd.move.boxConstrainedMoveable(node, params);
+	},
+
+	constructor: function(node, params){
+		// summary:
+		//		an object, which makes a node moveable
+		// node: Node
+		//		a node (or node's id) to be moved
+		// params: dojo.dnd.move.__boxConstrainedMoveableArgs?
+		//		an optional object with parameters
+		var box = params && params.box;
+		this.constraints = function(){ return box; };
+	}
+});
+
+/*=====
+dojo.declare("dojo.dnd.move.__parentConstrainedMoveableArgs", [dojo.dnd.move.__constrainedMoveableArgs], {
+	// area: String
+	//		A parent's area to restrict the move.
+	//		Can be "margin", "border", "padding", or "content".
+	area: ""
+});
+=====*/
+
+dojo.declare("dojo.dnd.move.parentConstrainedMoveable", dojo.dnd.move.constrainedMoveable, {
+	// area:
+	//		object attributes (for markup)
+	area: "content",
+
+	// markup methods
+	markupFactory: function(params, node){
+		return new dojo.dnd.move.parentConstrainedMoveable(node, params);
+	},
+
+	constructor: function(node, params){
+		// summary:
+		//		an object, which makes a node moveable
+		// node: Node
+		//		a node (or node's id) to be moved
+		// params: dojo.dnd.move.__parentConstrainedMoveableArgs?
+		//		an optional object with parameters
+		var area = params && params.area;
+		this.constraints = function(){
+			var n = this.node.parentNode,
+				s = dojo.getComputedStyle(n),
+				mb = dojo._getMarginBox(n, s);
+			if(area == "margin"){
+				return mb;	// Object
+			}
+			var t = dojo._getMarginExtents(n, s);
+			mb.l += t.l, mb.t += t.t, mb.w -= t.w, mb.h -= t.h;
+			if(area == "border"){
+				return mb;	// Object
+			}
+			t = dojo._getBorderExtents(n, s);
+			mb.l += t.l, mb.t += t.t, mb.w -= t.w, mb.h -= t.h;
+			if(area == "padding"){
+				return mb;	// Object
+			}
+			t = dojo._getPadExtents(n, s);
+			mb.l += t.l, mb.t += t.t, mb.w -= t.w, mb.h -= t.h;
+			return mb;	// Object
+		};
+	}
+});
+
+// patching functions one level up for compatibility
+
+dojo.dnd.constrainedMover = dojo.dnd.move.constrainedMover;
+dojo.dnd.boxConstrainedMover = dojo.dnd.move.boxConstrainedMover;
+dojo.dnd.parentConstrainedMover = dojo.dnd.move.parentConstrainedMover;
+
+return dojo.dnd.move;
+});
+
+},
 'dijit/_WidgetBase':function(){
 define("dijit/_WidgetBase", [
 	"require",			// require.toUrl
@@ -25488,6 +26147,43 @@ return declare("dijit.form._ButtonMixin", null, {
 });
 
 },
+'dijit/form/VerticalRule':function(){
+define("dijit/form/VerticalRule", [
+	"dojo/_base/declare", // declare
+	"./HorizontalRule"
+], function(declare, HorizontalRule){
+
+/*=====
+	var HorizontalRule = dijit.form.HorizontalRule;
+=====*/
+
+	// module:
+	//		dijit/form/VerticalRule
+	// summary:
+	//		Hash marks for the `dijit.form.VerticalSlider`
+
+	return declare("dijit.form.VerticalRule", HorizontalRule, {
+		// summary:
+		//		Hash marks for the `dijit.form.VerticalSlider`
+
+		templateString: '<div class="dijitRuleContainer dijitRuleContainerV"></div>',
+		_positionPrefix: '<div class="dijitRuleMark dijitRuleMarkV" style="top:',
+
+	/*=====
+		// container: String
+		//		This is either "leftDecoration" or "rightDecoration",
+		//		to indicate whether this rule goes to the left or to the right of the slider.
+		//		Note that on RTL system, "leftDecoration" would actually go to the right, and vice-versa.
+		container: "",
+	=====*/
+
+		// Overrides HorizontalRule._isHorizontal
+		_isHorizontal: false
+
+	});
+});
+
+},
 'dijit/_editor/range':function(){
 define("dijit/_editor/range", [
 	"dojo/_base/array", // array.every
@@ -29137,6 +29833,370 @@ define({ root:
 });
 
 },
+'dijit/form/HorizontalSlider':function(){
+require({cache:{
+'url:dijit/form/templates/HorizontalSlider.html':"<table class=\"dijit dijitReset dijitSlider dijitSliderH\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" rules=\"none\" dojoAttachEvent=\"onkeypress:_onKeyPress,onkeyup:_onKeyUp\"\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"topDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationT dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderDecrementIconH\" style=\"display:none\" dojoAttachPoint=\"decrementButton\"><span class=\"dijitSliderButtonInner\">-</span></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderLeftBumper\" dojoAttachEvent=\"press:_onClkDecBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><input dojoAttachPoint=\"valueNode\" type=\"hidden\" ${!nameAttrSetting}\n\t\t\t/><div class=\"dijitReset dijitSliderBarContainerH\" role=\"presentation\" dojoAttachPoint=\"sliderBarContainer\"\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"progressBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderProgressBar dijitSliderProgressBarH\" dojoAttachEvent=\"press:_onBarClick\"\n\t\t\t\t\t><div class=\"dijitSliderMoveable dijitSliderMoveableH\"\n\t\t\t\t\t\t><div dojoAttachPoint=\"sliderHandle,focusNode\" class=\"dijitSliderImageHandle dijitSliderImageHandleH\" dojoAttachEvent=\"press:_onHandleClick\" role=\"slider\" valuemin=\"${minimum}\" valuemax=\"${maximum}\"></div\n\t\t\t\t\t></div\n\t\t\t\t></div\n\t\t\t\t><div role=\"presentation\" dojoAttachPoint=\"remainingBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderRemainingBar dijitSliderRemainingBarH\" dojoAttachEvent=\"press:_onBarClick\"></div\n\t\t\t></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderRightBumper\" dojoAttachEvent=\"press:_onClkIncBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderIncrementIconH\" style=\"display:none\" dojoAttachPoint=\"incrementButton\"><span class=\"dijitSliderButtonInner\">+</span></div\n\t\t></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,bottomDecoration\" class=\"dijitReset dijitSliderDecoration dijitSliderDecorationB dijitSliderDecorationH\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n></table>\n"}});
+define("dijit/form/HorizontalSlider", [
+	"dojo/_base/array", // array.forEach
+	"dojo/_base/declare", // declare
+	"dojo/dnd/move",
+	"dojo/_base/event", // event.stop
+	"dojo/_base/fx", // fx.animateProperty
+	"dojo/dom-geometry", // domGeometry.position
+	"dojo/dom-style", // domStyle.getComputedStyle
+	"dojo/keys", // keys.DOWN_ARROW keys.END keys.HOME keys.LEFT_ARROW keys.PAGE_DOWN keys.PAGE_UP keys.RIGHT_ARROW keys.UP_ARROW
+	"dojo/_base/lang", // lang.hitch
+	"dojo/_base/sniff", // has("ie") has("mozilla")
+	"dojo/dnd/Moveable", // Moveable
+	"dojo/dnd/Mover", // Mover Mover.prototype.destroy.apply
+	"dojo/query", // query
+	"../_base/manager", // findWidgets
+	"../focus",		// focus.focus()
+	"../typematic",
+	"./Button",
+	"./_FormValueWidget",
+	"../_Container",
+	"dojo/text!./templates/HorizontalSlider.html"
+], function(array, declare, move, event, fx, domGeometry, domStyle, keys, lang, has, Moveable, Mover, query,
+			manager, focus, typematic, Button, _FormValueWidget, _Container, template){
+
+/*=====
+	var Button = dijit.form.Button;
+	var _FormValueWidget = dijit.form._FormValueWidget;
+	var _Container = dijit._Container;
+=====*/
+
+// module:
+//		dijit/form/HorizontalSlider
+// summary:
+//		A form widget that allows one to select a value with a horizontally draggable handle
+
+
+var _SliderMover = declare("dijit.form._SliderMover", Mover, {
+	onMouseMove: function(e){
+		var widget = this.widget;
+		var abspos = widget._abspos;
+		if(!abspos){
+			abspos = widget._abspos = domGeometry.position(widget.sliderBarContainer, true);
+			widget._setPixelValue_ = lang.hitch(widget, "_setPixelValue");
+			widget._isReversed_ = widget._isReversed();
+		}
+		var pixelValue = e[widget._mousePixelCoord] - abspos[widget._startingPixelCoord];
+		widget._setPixelValue_(widget._isReversed_ ? (abspos[widget._pixelCount]-pixelValue) : pixelValue, abspos[widget._pixelCount], false);
+	},
+
+	destroy: function(e){
+		Mover.prototype.destroy.apply(this, arguments);
+		var widget = this.widget;
+		widget._abspos = null;
+		widget._setValueAttr(widget.value, true);
+	}
+});
+
+var HorizontalSlider = declare("dijit.form.HorizontalSlider", [_FormValueWidget, _Container], {
+	// summary:
+	//		A form widget that allows one to select a value with a horizontally draggable handle
+
+	templateString: template,
+
+	// Overrides FormValueWidget.value to indicate numeric value
+	value: 0,
+
+	// showButtons: [const] Boolean
+	//		Show increment/decrement buttons at the ends of the slider?
+	showButtons: true,
+
+	// minimum:: [const] Integer
+	//		The minimum value the slider can be set to.
+	minimum: 0,
+
+	// maximum: [const] Integer
+	//		The maximum value the slider can be set to.
+	maximum: 100,
+
+	// discreteValues: Integer
+	//		If specified, indicates that the slider handle has only 'discreteValues' possible positions,
+	//		and that after dragging the handle, it will snap to the nearest possible position.
+	//		Thus, the slider has only 'discreteValues' possible values.
+	//
+	//		For example, if minimum=10, maxiumum=30, and discreteValues=3, then the slider handle has
+	//		three possible positions, representing values 10, 20, or 30.
+	//
+	//		If discreteValues is not specified or if it's value is higher than the number of pixels
+	//		in the slider bar, then the slider handle can be moved freely, and the slider's value will be
+	//		computed/reported based on pixel position (in this case it will likely be fractional,
+	//		such as 123.456789).
+	discreteValues: Infinity,
+
+	// pageIncrement: Integer
+	//		If discreteValues is also specified, this indicates the amount of clicks (ie, snap positions)
+	//		that the slider handle is moved via pageup/pagedown keys.
+	//		If discreteValues is not specified, it indicates the number of pixels.
+	pageIncrement: 2,
+
+	// clickSelect: Boolean
+	//		If clicking the slider bar changes the value or not
+	clickSelect: true,
+
+	// slideDuration: Number
+	//		The time in ms to take to animate the slider handle from 0% to 100%,
+	//		when clicking the slider bar to make the handle move.
+	slideDuration: dijit.defaultDuration,
+
+	// Map widget attributes to DOMNode attributes.
+	_setIdAttr: "",		// Override _FormWidget which sends id to focusNode
+
+	baseClass: "dijitSlider",
+
+	// Apply CSS classes to up/down arrows and handle per mouse state
+	cssStateNodes: {
+		incrementButton: "dijitSliderIncrementButton",
+		decrementButton: "dijitSliderDecrementButton",
+		focusNode: "dijitSliderThumb"
+	},
+
+	_mousePixelCoord: "pageX",
+	_pixelCount: "w",
+	_startingPixelCoord: "x",
+	_startingPixelCount: "l",
+	_handleOffsetCoord: "left",
+	_progressPixelSize: "width",
+
+	_onKeyUp: function(/*Event*/ e){
+		if(this.disabled || this.readOnly || e.altKey || e.ctrlKey || e.metaKey){ return; }
+		this._setValueAttr(this.value, true);
+	},
+
+	_onKeyPress: function(/*Event*/ e){
+		if(this.disabled || this.readOnly || e.altKey || e.ctrlKey || e.metaKey){ return; }
+		switch(e.charOrCode){
+			case keys.HOME:
+				this._setValueAttr(this.minimum, false);
+				break;
+			case keys.END:
+				this._setValueAttr(this.maximum, false);
+				break;
+			// this._descending === false: if ascending vertical (min on top)
+			// (this._descending || this.isLeftToRight()): if left-to-right horizontal or descending vertical
+			case ((this._descending || this.isLeftToRight()) ? keys.RIGHT_ARROW : keys.LEFT_ARROW):
+			case (this._descending === false ? keys.DOWN_ARROW : keys.UP_ARROW):
+			case (this._descending === false ? keys.PAGE_DOWN : keys.PAGE_UP):
+				this.increment(e);
+				break;
+			case ((this._descending || this.isLeftToRight()) ? keys.LEFT_ARROW : keys.RIGHT_ARROW):
+			case (this._descending === false ? keys.UP_ARROW : keys.DOWN_ARROW):
+			case (this._descending === false ? keys.PAGE_UP : keys.PAGE_DOWN):
+				this.decrement(e);
+				break;
+			default:
+				return;
+		}
+		event.stop(e);
+	},
+
+	_onHandleClick: function(e){
+		if(this.disabled || this.readOnly){ return; }
+		if(!has("ie")){
+			// make sure you get focus when dragging the handle
+			// (but don't do on IE because it causes a flicker on mouse up (due to blur then focus)
+			focus.focus(this.sliderHandle);
+		}
+		event.stop(e);
+	},
+
+	_isReversed: function(){
+		// summary:
+		//		Returns true if direction is from right to left
+		// tags:
+		//		protected extension
+		return !this.isLeftToRight();
+	},
+
+	_onBarClick: function(e){
+		if(this.disabled || this.readOnly || !this.clickSelect){ return; }
+		focus.focus(this.sliderHandle);
+		event.stop(e);
+		var abspos = domGeometry.position(this.sliderBarContainer, true);
+		var pixelValue = e[this._mousePixelCoord] - abspos[this._startingPixelCoord];
+		this._setPixelValue(this._isReversed() ? (abspos[this._pixelCount] - pixelValue) : pixelValue, abspos[this._pixelCount], true);
+		this._movable.onMouseDown(e);
+	},
+
+	_setPixelValue: function(/*Number*/ pixelValue, /*Number*/ maxPixels, /*Boolean?*/ priorityChange){
+		if(this.disabled || this.readOnly){ return; }
+		pixelValue = pixelValue < 0 ? 0 : maxPixels < pixelValue ? maxPixels : pixelValue;
+		var count = this.discreteValues;
+		if(count <= 1 || count == Infinity){ count = maxPixels; }
+		count--;
+		var pixelsPerValue = maxPixels / count;
+		var wholeIncrements = Math.round(pixelValue / pixelsPerValue);
+		this._setValueAttr((this.maximum-this.minimum)*wholeIncrements/count + this.minimum, priorityChange);
+	},
+
+	_setValueAttr: function(/*Number*/ value, /*Boolean?*/ priorityChange){
+		// summary:
+		//		Hook so set('value', value) works.
+		this._set("value", value);
+		this.valueNode.value = value;
+		this.focusNode.setAttribute("aria-valuenow", value);
+		this.inherited(arguments);
+		var percent = (value - this.minimum) / (this.maximum - this.minimum);
+		var progressBar = (this._descending === false) ? this.remainingBar : this.progressBar;
+		var remainingBar = (this._descending === false) ? this.progressBar : this.remainingBar;
+		if(this._inProgressAnim && this._inProgressAnim.status != "stopped"){
+			this._inProgressAnim.stop(true);
+		}
+		if(priorityChange && this.slideDuration > 0 && progressBar.style[this._progressPixelSize]){
+			// animate the slider
+			var _this = this;
+			var props = {};
+			var start = parseFloat(progressBar.style[this._progressPixelSize]);
+			var duration = this.slideDuration * (percent-start/100);
+			if(duration == 0){ return; }
+			if(duration < 0){ duration = 0 - duration; }
+			props[this._progressPixelSize] = { start: start, end: percent*100, units:"%" };
+			this._inProgressAnim = fx.animateProperty({ node: progressBar, duration: duration,
+				onAnimate: function(v){
+					remainingBar.style[_this._progressPixelSize] = (100 - parseFloat(v[_this._progressPixelSize])) + "%";
+				},
+				onEnd: function(){
+					delete _this._inProgressAnim;
+				},
+				properties: props
+			});
+			this._inProgressAnim.play();
+		}else{
+			progressBar.style[this._progressPixelSize] = (percent*100) + "%";
+			remainingBar.style[this._progressPixelSize] = ((1-percent)*100) + "%";
+		}
+	},
+
+	_bumpValue: function(signedChange, /*Boolean?*/ priorityChange){
+		if(this.disabled || this.readOnly){ return; }
+		var s = domStyle.getComputedStyle(this.sliderBarContainer);
+		var c = domGeometry.getContentBox(this.sliderBarContainer, s);
+		var count = this.discreteValues;
+		if(count <= 1 || count == Infinity){ count = c[this._pixelCount]; }
+		count--;
+		var value = (this.value - this.minimum) * count / (this.maximum - this.minimum) + signedChange;
+		if(value < 0){ value = 0; }
+		if(value > count){ value = count; }
+		value = value * (this.maximum - this.minimum) / count + this.minimum;
+		this._setValueAttr(value, priorityChange);
+	},
+
+	_onClkBumper: function(val){
+		if(this.disabled || this.readOnly || !this.clickSelect){ return; }
+		this._setValueAttr(val, true);
+	},
+
+	_onClkIncBumper: function(){
+		this._onClkBumper(this._descending === false ? this.minimum : this.maximum);
+	},
+
+	_onClkDecBumper: function(){
+		this._onClkBumper(this._descending === false ? this.maximum : this.minimum);
+	},
+
+	decrement: function(/*Event*/ e){
+		// summary:
+		//		Decrement slider
+		// tags:
+		//		private
+		this._bumpValue(e.charOrCode == keys.PAGE_DOWN ? -this.pageIncrement : -1);
+	},
+
+	increment: function(/*Event*/ e){
+		// summary:
+		//		Increment slider
+		// tags:
+		//		private
+		this._bumpValue(e.charOrCode == keys.PAGE_UP ? this.pageIncrement : 1);
+	},
+
+	_mouseWheeled: function(/*Event*/ evt){
+		// summary:
+		//		Event handler for mousewheel where supported
+		event.stop(evt);
+		var janky = !has("mozilla");
+		var scroll = evt[(janky ? "wheelDelta" : "detail")] * (janky ? 1 : -1);
+		this._bumpValue(scroll < 0 ? -1 : 1, true); // negative scroll acts like a decrement
+	},
+
+	startup: function(){
+		if(this._started){ return; }
+
+		array.forEach(this.getChildren(), function(child){
+			if(this[child.container] != this.containerNode){
+				this[child.container].appendChild(child.domNode);
+			}
+		}, this);
+
+		this.inherited(arguments);
+	},
+
+	_typematicCallback: function(/*Number*/ count, /*Object*/ button, /*Event*/ e){
+		if(count == -1){
+			this._setValueAttr(this.value, true);
+		}else{
+			this[(button == (this._descending? this.incrementButton : this.decrementButton)) ? "decrement" : "increment"](e);
+		}
+	},
+
+	buildRendering: function(){
+		this.inherited(arguments);
+		if(this.showButtons){
+			this.incrementButton.style.display="";
+			this.decrementButton.style.display="";
+		}
+
+		// find any associated label element and add to slider focusnode.
+		var label = query('label[for="'+this.id+'"]');
+		if(label.length){
+			label[0].id = (this.id+"_label");
+			this.focusNode.setAttribute("aria-labelledby", label[0].id);
+		}
+
+		this.focusNode.setAttribute("aria-valuemin", this.minimum);
+		this.focusNode.setAttribute("aria-valuemax", this.maximum);
+	},
+
+	postCreate: function(){
+		this.inherited(arguments);
+
+		if(this.showButtons){
+			this._connects.push(typematic.addMouseListener(
+				this.decrementButton, this, "_typematicCallback", 25, 500));
+			this._connects.push(typematic.addMouseListener(
+				this.incrementButton, this, "_typematicCallback", 25, 500));
+		}
+		this.connect(this.domNode, !has("mozilla") ? "onmousewheel" : "DOMMouseScroll", "_mouseWheeled");
+
+		// define a custom constructor for a SliderMover that points back to me
+		var mover = declare(_SliderMover, {
+			widget: this
+		});
+		this._movable = new Moveable(this.sliderHandle, {mover: mover});
+
+		this._layoutHackIE7();
+	},
+
+	destroy: function(){
+		this._movable.destroy();
+		if(this._inProgressAnim && this._inProgressAnim.status != "stopped"){
+			this._inProgressAnim.stop(true);
+		}
+		this._supportingWidgets = manager.findWidgets(this.domNode); // tells destroy about pseudo-child widgets (ruler/labels)
+		this.inherited(arguments);
+	}
+});
+
+HorizontalSlider._Mover = _SliderMover;	// for monkey patching
+
+return HorizontalSlider;
+});
+
+},
 'dojox/layout/ResizeHandle':function(){
 define("dojox/layout/ResizeHandle", [
 	"dojo/_base/kernel",
@@ -29572,7 +30632,7 @@ return declare("dijit.form._FormValueWidget", [_FormWidget, _FormValueMixin],
 }}});
 
 // wrapped by build app
-define("agentUI/base", ["dojo","dijit","dojox","dojo/require!agentUI/logLib,agentUI/util,dijit/layout/BorderContainer,dijit/layout/ContentPane,dijit/layout/TabContainer,dijit/form/SimpleTextarea,dijit/form/Button,dijit/form/Form,dijit/form/CheckBox,dijit/form/FilteringSelect,dijit/Dialog,dojox/encoding/digests/MD5,dijit/form/ComboBox,dojox/layout/ContentPane,dojox/layout/FloatingPane,dojo/data/ObjectStore,dojo/cookie,dojo/data/ItemFileReadStore,dijit/Editor,dojox/widget/Standby,agentUI/logLib,agentUI/util"], function(dojo,dijit,dojox){
+define("agentUI/base", ["dojo","dijit","dojox","dojo/require!agentUI/logLib,agentUI/util,dijit/layout/BorderContainer,dijit/layout/ContentPane,dijit/layout/TabContainer,dijit/form/SimpleTextarea,dijit/form/Button,dijit/form/Form,dijit/form/CheckBox,dijit/form/FilteringSelect,dijit/Dialog,dojox/encoding/digests/MD5,dijit/form/ComboBox,dijit/form/HorizontalSlider,dijit/form/VerticalRule,dojox/layout/ContentPane,dojox/layout/FloatingPane,dojo/data/ObjectStore,dojo/cookie,dojo/data/ItemFileReadStore,dijit/Editor,dojox/widget/Standby,agentUI/logLib,agentUI/util,agentUI/MediaTab"], function(dojo,dijit,dojox){
 dojo.provide('agentUI.base');
 
 dojo.require('agentUI.logLib');
@@ -29588,6 +30648,8 @@ dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.Dialog");
 dojo.require("dojox.encoding.digests.MD5");
 dojo.require("dijit.form.ComboBox");
+dojo.require("dijit.form.HorizontalSlider");
+dojo.require("dijit.form.VerticalRule");
 dojo.require("dojox.layout.ContentPane");
 dojo.require("dojox.layout.FloatingPane");
 dojo.require("dojo.data.ObjectStore");
@@ -29598,6 +30660,7 @@ dojo.require("dojox.widget.Standby");
 //dojo.require("dijit.Menu");
 dojo.require("agentUI.logLib");
 dojo.require("agentUI.util");
+dojo.require("agentUI.MediaTab");
 
 dojo.ready(function() {
 	console.log('base loaded');

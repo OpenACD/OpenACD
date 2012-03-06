@@ -1,0 +1,70 @@
+<div dojoType="dijit.layout.AccordionContainer" id="endpointsMain" style="height:900px">
+	<div dojoType="dijit.layout.ContentPane" id="freeswitchEndpointPane" title="FreeSWITCH (Voice)">
+		<form dojoType="dijit.form.Form" id="freeswitchEndpointForm" jsId="freeswitchEndpointForm" action="javascript:void(0);" method="post">
+
+			<p>
+				<label for="endpointType" class="translatecol">VOIPENDPOINT</label>
+				<select dojoType="dijit.form.FilteringSelect" id="freeswitchEndpointType" name="endpointType">
+				<script type="dojo/method" event="onChange">
+					//endpointselect()
+				</script>
+					<option value="rtmp" selected="selected" class="translate">EMBEDDED PHONE</option>
+					<option value="sip_registration" class="translate">SIP Registration</option>
+					<option value="sip" class="translate">SIP URI</option>
+					<option value="iax" class="translate">IAX2 URI</option>
+					<option value="h323" class="translate">H323 URI</option>
+					<option value="pstn" class="translate">PSTN Number</option>
+				</select>
+			</p>
+	
+			<p>
+				<label for="endpointData" class="translatecol">VOIPENDPOINTDATA</label>
+				<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
+			</p>
+	
+			<p>
+				<label>&nbsp;</label>
+				<input type="checkbox" name="usepersistantringchannel" id="freeswitchRingPersistant", value="true" dojoType="dijit.form.CheckBox" />
+				<span class="translate">USE_PERSISTANT_RING_CHANNEL</span>
+			</p>
+
+			<p>
+				<label>&nbsp;</label>
+				<input type="submit" dojoType="dijit.form.Button" class="translate" label="SAVE" />
+			</p>
+
+		</form>
+	</div>
+
+	<div dojoType="dijit.layout.ContentPane" id="emailEndpointPane" title="Email">
+		<p>
+			<input type="checkbox" name="emailEndpointEnable" dojoType="dijit.form.CheckBox" id="emailEndpointEnable" />
+			<label class="translate" for="emailEndpointEnable">ENABLE</label>
+		</p>
+	</div>
+
+	<div dojoType="dijit.layout.ContentPane" id="dummyEndpointPane" title="Dummy Media">
+		<form id="dummyMediaEndpointForm">
+			<p>
+				<input type="radio" name="dummyMediaEndpoint" id="dummyMediaEndpointDisable" />
+				<label class="translate" for="dummyMediaEndpointDisable">DISABLE</label>
+			</p>
+
+			<p>
+				<input type="radio" name="dummyMediaEndpoint" id="dummyMediaEndpointTransient" />
+				<label class="translate" for="dummyMediaEndpointTransient">TRANSIENT</label>
+			</p>
+
+			<p>
+				<input type="radio" name="dummyMediaEndpoint" id="dummyMediaEndpointPersistent" />
+				<label class="radio" for="dummyMediaEndpointPersistent">PERSISTENT</label>
+			</p>
+
+			<p>
+				<label>&nbsp;</label>
+				<input type="submit" dojoType="dijit.form.Button" label="SAVE" />
+			</p>
+		</form>
+	</div>
+</div>
+<script type="text/javascript" src="tabs/endpoints.js"></script>

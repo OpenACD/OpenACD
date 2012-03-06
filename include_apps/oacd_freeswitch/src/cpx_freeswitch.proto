@@ -1,0 +1,70 @@
+import "../../proto_src/cpx_base.proto";
+import "../../proto_src/cpx_agent.proto";
+
+package openacd.agent.freeswitch;
+
+// By the power vested in me by my OS and being at the keyboard,
+// I hearby declare Freeswitch reserves message extension range from
+// 3000 to 3050.  I doubt I'll need 50 new fields, but one never knows.
+
+enum FreeswitchEvent {
+	CALLER_ONHOLD = 1;
+	CALLER_OFFHOLD = 2;
+	IN_CONFERENCE = 3;
+	HOLD_CONFERENCE = 4;
+	THIRD_PARTY = 5;
+	HOLD_CONFERENCE_3RD_PARTY = 6;
+	IN_CONFERENCE_3RDPARTY = 7;
+}
+
+enum FreeswitchRequestHint {
+	SET_AUDIO_LEVEL = 1;
+	TOGGLE_HOLD = 2;
+	CONTACT_3RD_PARTY = 3;
+	RETRIEVE_CONFERENCE = 4;
+	MERGE_3RD_PARTY = 5;
+	BLIND_TRANSFER = 6;
+	RETRIEVE_3RD_PARTY = 7;
+	HANGUP_3RD_PARTY = 8;
+	PLAY_DTMF = 9;
+}
+
+enum FreeswitchVoicemailRequest {
+	REPLAY = 1;
+}
+
+message AudioLevelRequest {
+	enum AudioChannel {
+		SPEAKER = 1;
+		MIC = 2;
+	}
+	required AudioChannel channel = 1;
+	required int32 value = 2; // This is -4 to 4
+}
+
+message Contact3rdPartyRequest {
+	optional string target = 1;
+}
+
+message Merge3rdPartyRequest {
+	optional bool include_self = 1 [default=false];
+}
+
+message BlindTransferRequest {
+	required string target = 1;
+}
+
+extend MediaCommandRequest {
+	optional FreeswitchRequestHint freeswitch_request_hint = 3000;
+	optional AudioLevelRequest audio_level_request = 3001;
+	optional Contact3rdPartyRequest contact_3rd_party = 3002;
+	optional Merge3rdPartyRequest merge_3rd_party = 3003;
+	optional BlindTransferRequest blind_transfer = 3004;
+	optional FreeswitchVoicemailRequest freeswitch_voicemail_request_hint = 3005;
+	optional string dtmf_string = 3006;
+}
+
+extend MediaEvent {
+	optional FreeswitchEvent freeswitch_event = 3000;
+}
+

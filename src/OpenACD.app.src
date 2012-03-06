@@ -1,6 +1,6 @@
 {application, 'OpenACD', [
 	{description, "Call queuing and routing system"},
-	{vsn, "1.0.0"},
+	{vsn, "2.0.0"},
 	{modules, []},
 	{registered, [
 		agent_connection_sup,
@@ -27,5 +27,6 @@
 	{mod, {cpx, []}},
 	{env, []},
 	{applications, [kernel, stdlib, mnesia, crypto, public_key]}, %, mochiweb, gen_smtp]},
-	{start_phases, []}
+	{start_phases, []},
+	{included_applications, [oacd_freeswitch, oacd_dummy]}
 ]}.

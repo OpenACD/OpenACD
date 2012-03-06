@@ -44,11 +44,13 @@
 ).
 -export([
 	add_paths/0,
+	cover_mods/1,
 	get_modules/1,
 	eunit/1,
 	start_testnode/0,
 	start_testnode/1,
-	start_testnode/2
+	start_testnode/2,
+	zombie/0
 ]).
 -endif.
 
@@ -60,6 +62,7 @@
 	string_interpolate/2,
 	list_contains_all/2,
 	list_map_with_index/2,
+	dict_find_by_value/2,
 	bin_to_hexstr/1,
 	hexstr_to_bin/1,
 	build_table/2,
@@ -75,6 +78,8 @@
 	reload/2,
 	reload_all/0,
 	reload_all/1,
+	c/0,
+	c/1,
 	distribution/1,
 	get_number/1,
 	find_first_arc/2,
@@ -85,7 +90,9 @@
 	get_pubkey/0,
 	get_keyfile/0,
 	get_certfile/0,
-	decrypt_password/1
+	decrypt_password/1,
+	http_datetime/0,
+	http_datetime/1
 ]).
 %% time tracking util functions
 -export([
@@ -95,6 +102,40 @@
 	timemark_clear/0,
 	timemark_clear/1
 ]).
+
+%% @doc Take erlang:now() and pipe it through {@link http_datetime/1}
+-spec(http_datetime/0 :: () -> string()).
+http_datetime() ->
+	http_datetime(erlang:now()).
+
+%% @doc Take an erlang:now() format and turn it into something suitable for
+%% http headers, eg:  "Sun, 06 Nov 1994 08:49:37 GMT"
+-spec(http_datetime/1 :: (Now :: {pos_integer(), pos_integer(),
+	pos_integer()}) -> string()).
+http_datetime({_Mega, _Sec, _Micro} = Now) ->
+	Datetime = calendar:now_to_universal_time(Now),
+	http_datetime(Datetime);
+
+http_datetime({{Year, Month, Day} = YearMonDay, {Hour, Minute, Second}}) ->
+	DayOfWeekNum = calendar:day_of_the_week(YearMonDay),
+	DaysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+	DayOfWeekName = lists:nth(DayOfWeekNum, DaysOfWeek),
+	Months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+		"Sep", "Oct", "Nov", "Dec"],
+	MonthName = lists:nth(Month, Months),
+	Format = "~s, ~2..0B ~s ~B ~2..0B:~2..0B:~2..0B GMT",
+	Io = io_lib:format(Format, [DayOfWeekName, Day, MonthName, Year, Hour,
+		Minute, Second]),
+	lists:flatten(Io).
+
+-ifdef(TEST).
+
+http_datetime_test() ->
+	Expected = "Fri, 17 Feb 2012 21:42:46 GMT",
+	Got = lists:flatten(http_datetime({1329,514966,63165})),
+	?assertEqual(Expected, Got).
+
+-endif.
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -192,6 +233,17 @@ list_map_with_index(_Fun, [], _Counter, Acc) ->
 	lists:reverse(Acc);
 list_map_with_index(Fun, [H|T], Counter, Acc) ->
 	list_map_with_index(Fun, T, Counter + 1, [Fun(Counter, H) | Acc]).
+
+%% @doc Find the key(s) in the dictory by it's value.  Return's `error' if 
+%% the value is not in the dictionary.
+-spec(dict_find_by_value/2 :: (Value :: any(), Dict :: dict()) -> 'error' | {'ok', [any()]}).
+dict_find_by_value(InValue, Dict) ->
+	List = dict:to_list(Dict),
+	Found = [K || {K, Value} <- List, Value == InValue],
+	case Found of
+		[] -> error;
+		_ -> {ok, Found}
+	end.
 
 %% code below shamelessly 'borrowed' from Steve Vinoski in his comments at
 % http://necrobious.blogspot.com/2008/03/binary-to-hex-string-back-to-binary-in.html
@@ -454,6 +506,19 @@ reload_all(Mode) ->
 			{error, Errors}
 	end.
 
+%% @doc Not useful in a production enviroment, but for a dev enviroment.
+%% this will call do `util:c("rebar compile")' on the os command line, and 
+%% output the results.  Why?  Because I'm lazy and don't want to have to 
+%% swap screens just to recompile.
+-spec(c/0 :: () -> 'ok').
+c() ->
+	c("./rebar compile").
+
+%% @doc A generic "do this on the command line and print the results".
+-spec(c/1 :: (Cmd :: string()) -> 'ok').
+c(Cmd) ->
+	io:format("~s", [os:cmd(Cmd)]).
+
 -spec(distribution/1 :: (Mean :: pos_integer()) -> float()).
 distribution(Mean) ->
 	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
@@ -535,10 +600,13 @@ timemark_clear(Markname) ->
 priv_dir() ->
 	case code:priv_dir('OpenACD') of
 		{error, _} ->
-			case filelib:is_dir("priv") of
-				true ->
+			% could be we're running eunit
+			case {filelib:is_dir("priv"),filelib:is_dir("../priv")} of
+				{true, _} ->
 					"priv";
-				false ->
+				{_,true} ->
+					"../priv";
+				_ ->
 					{error, enoent}
 			end;
 		Dir ->
@@ -614,6 +682,8 @@ run_dir() ->
 
 -ifdef(TEST).
 
+zombie() -> spawn(fun() -> receive headshot -> exit(headshot) end end).
+
 add_paths() ->
 	{Pre, Deps} = case {file:list_dir("deps"), file:list_dir("../deps")} of
 		{{ok, Files}, _} -> {"deps/", Files};
@@ -622,6 +692,12 @@ add_paths() ->
 	end,
 	Paths = [Pre ++ X ++ "/ebin" || X <- Deps],
 	code:add_paths(Paths).
+
+cover_mods([]) ->
+	cover:start();
+cover_mods([Mod | Tail]) ->
+	{ok, Mod} = cover:compile_beam(Mod),
+	cover_mods(Tail).
 
 get_modules(Appfile) ->
 	{ok, [{application, 'OpenACD', Props}]} = file:consult(Appfile),
@@ -655,7 +731,9 @@ start_testnode(Name, Host) ->
 	start_testnode(),
 	case slave:start_link(Host, Name) of
 		{ok, N} -> 
-			rpc:cast(N, util, add_paths, []),
+			rpc:call(N, util, add_paths, []),
+			Covered = [Mod || {Mod, cover_compiled} <- code:all_loaded()],
+			rpc:call(N, util, cover_mods, [Covered]),
 			N;
 		{error, {already_running, N}} -> N
 	end.
@@ -906,5 +984,28 @@ list_index_test_() ->
 		?assertEqual(2, list_index(F, {a, b}, [{c, d}, {a, f}, {g, h}])),
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
-	
+
+floor_test_() -> [
+	?_assertEqual(0, floor(0.5)),
+	?_assertEqual(33, floor(33.8766)),
+	?_assertEqual(-27, floor(-26.449))
+].
+
+dict_find_by_value_test_() ->
+	{setup, fun() ->
+		List = [
+			{a, 1},
+			{b, "goober"},
+			{"woot", a},
+			{"keyber", a}
+		],
+		dict:from_list(List)
+	end,
+	fun(Dict) -> [
+		?_assertEqual({ok, [a]}, dict_find_by_value(1, Dict)),
+		?_assertEqual({ok, ["woot", "keyber"]}, dict_find_by_value(a, Dict)),
+		?_assertEqual({ok, [b]}, dict_find_by_value("goober", Dict)),
+		?_assertEqual(error, dict_find_by_value("Dave's not here man", Dict))
+	] end}.
+
 -endif.

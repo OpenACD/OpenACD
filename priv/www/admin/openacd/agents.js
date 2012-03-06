@@ -41,42 +41,6 @@ agents.getModules = function(targetform){
 	});
 };
 
-agents.getSpiceIntegration = function(targetform){
-	if(!!targetform == false){
-		return;
-	}
-	dojo.xhrGet({
-		url:"agents/spiceintegration/get",
-		handleAs:"json",
-		load:function(response){
-			targetform.set('value', response.result);
-			var kids = targetform.getDescendants();
-			for(var i in kids){
-				if(kids[i].id == 'spiceIntegrationEnabled'){
-					kids[i].set('checked', response.result.spiceIntegrationEnabled);
-				}
-			}
-		}
-	});
-};
-
-agents.setSpiceIntegration = function(subform){
-	dojo.xhrPost({
-		url:"agents/spiceintegration/set",
-		handleAs:"json",
-		form:subform,
-		error:function(response){
-			errMessage(["setting spicecsm integration errored", response]);
-			console.warn(["error setting spice integration", response]);
-		},
-		load:function(res){
-			if(! res.success){
-				errMessage(["Spice Integration Failed", res.message]);
-			}
-		}
-	});
-};
-
 /*agents.store = new dojo.data.ItemFileReadStore({
 	data:{
 		"items":[]

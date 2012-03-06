@@ -26,6 +26,8 @@ ebin
 OpenACD/
 include/commit_ver.hrl
 
+include_apps/**/doc
+
 # unique config files
 www/dynamic/tv_config.js
 www/dynamic/all.json

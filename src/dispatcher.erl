@@ -99,8 +99,8 @@ init([]) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
-	Call = State#state.call,
-	case agent_manager:filtered_route_list(Call#queued_call.skills) of
+	#queued_call{skills = Skills, channel = Chan, module = Mod} = Call = State#state.call,
+	case agent_manager:filtered_route_list(Skills, Chan, Mod) of
 		[] ->
 			gen_server:reply(From, []),
 			handle_cast(regrab, State);
@@ -142,7 +142,7 @@ handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
 		none -> 
-			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
+			%?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
 			case State#state.cook_mon of
@@ -359,6 +359,7 @@ agents_avail_test_() ->
 		{_, Q1} = queue_manager:add_queue("q1", []),
 		agent_manager:start([node()]),
 		dispatch_manager:start(),
+		cpx_agent_event:start(),
 		{_, A1} = agent_manager:start_agent(#agent{login = "a1", id = "a1"}),
 		{_, A2} = agent_manager:start_agent(#agent{login = "a2", id = "a2", skills = ['_all']}),
 		{Q1, A1, A2}
@@ -367,6 +368,7 @@ agents_avail_test_() ->
 		agent_manager:stop(),
 		dispatch_manager:stop(),
 		queue_manager:stop(),
+		cpx_agent_event:stop(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()])
 	end,
@@ -374,12 +376,14 @@ agents_avail_test_() ->
 		{"a call is routed even if the agent that can take it starts released",
 		fun() ->
 			dummy_media:q([{skills, [skills]}]),
-			agent:set_state(A1, idle),
+			agent:set_release(A1, none),
 			timer:sleep(10),
-			?assertEqual({ok, idle}, agent:query_state(A1)),
-			agent:set_state(A2, idle),
+			DumpedState = agent:dump_state(A1),
+			?assertEqual(dict:new(), DumpedState#agent.used_channels),
+			agent:set_release(A2, none),
 			timer:sleep(10),
-			?assertEqual({ok, ringing}, agent:query_state(A2))
+			DumpedA2 = agent:dump_state(A2),
+			?assertEqual(1, dict:size(DumpedA2#agent.used_channels))
 		end}
 	end]}.
 	
@@ -392,6 +396,7 @@ prevent_infinite_regrabbing_test_() ->
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		crypto:start(),
+		cpx_agent_event:start(),
 		queue_manager:start([node()]),
 		{_, Q1} = queue_manager:add_queue("q1", []),
 		{_, Q2} = queue_manager:add_queue("q2", []),
@@ -399,7 +404,7 @@ prevent_infinite_regrabbing_test_() ->
 		{_, A1} = agent_manager:start_agent(#agent{login = "a1"}),
 		{ok, M1} = dummy_media:q([{skills, [skills]}, {queues, ["q1"]}]),
 		{ok, M2} = dummy_media:q([{skills, [skills]}, {queues, ["q2"]}]),
-		agent:set_state(A1, idle),
+		agent:set_release(A1, none),
 		timer:sleep(100),
 		{ok, State} = init([]),
 		{Regrabs, Grab_bests} = O = recloop(0, 0, State),
@@ -413,6 +418,7 @@ prevent_infinite_regrabbing_test_() ->
 		% must remember to clean up the mess I've made.
 		agent_manager:stop(),
 		queue_manager:stop(),
+		cpx_agent_event:stop(),
 		mnesia:stop()
 	end}.
 	

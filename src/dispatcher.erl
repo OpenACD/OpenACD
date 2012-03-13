@@ -215,7 +215,7 @@ loop_queues([]) ->
 loop_queues(Queues) ->
 	%?DEBUG("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
-	Rand = random:uniform(Total),
+	Rand = case Total of 0 -> 0; _ -> random:uniform(Total) end,
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
 	%?DEBUG("grabbing call", []),
 	case call_queue:grab(Qpid) of

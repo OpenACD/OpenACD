@@ -297,7 +297,7 @@ message ServerEvent {
 	optional AgentChannelMediaEvent media_event = 14;
 	optional string agent_channel_down = 15; //when command == ACHANNEL_DOWN
 	optional string plugin_app = 16;
-	extenstions 2000 to max;
+	extensions 2000 to max;
 }
 
 message URLPopEvent {

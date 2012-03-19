@@ -181,7 +181,8 @@
 -export([
 	init/1,
 	encode_cast/2,
-	handle_json/2
+	handle_json/2,
+	get_agent/1
 ]).
 -export([
 	%% requests, exported for documentation happy.
@@ -243,6 +244,11 @@ init(Agent) ->
 	#agent{used_channels = Channels, connection = Conn} = Agent,
 	% TODO used_channels likely lacks what we want
 	{ok, #state{agent = Agent, channels = Channels, connection = Conn}}.
+
+%% @doc Pull the agent record out of the state.
+-spec(get_agent/1 :: (State :: #state{}) -> 'undefined' | #agent{}).
+get_agent(State) ->
+	State#state.agent.
 
 %% @doc When the connection gets a cast it cannot handle, this should be
 %% called.  It will either return an error, or json to pump out to the

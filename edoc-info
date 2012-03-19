@@ -1,0 +1,17 @@
+{application,'OpenACD'}.
+{packages,[]}.
+{modules,[agent,agent_auth,agent_auth_mnesia,agent_channel,
+          agent_dialplan_connection,agent_dialplan_listener,
+          agent_dummy_connection,agent_manager,agent_tcp_client,
+          agent_tcp_connection,agent_tcp_listener,agent_web_connection,
+          agent_web_listener,call_queue,call_queue_config,
+          call_queue_config_mnesia,cdr,cdr_csv,cdr_dets,cdr_odbc,cook,cpx,
+          cpx_agent_connection,cpx_agent_event,cpx_agent_tcp_connection,
+          cpx_agent_tcp_listener,cpx_hooks,cpx_middle_supervisor,cpx_monitor,
+          cpx_monitor_grapher,cpx_monitor_kgb_eventlog,cpx_monitor_kgb_odbc,
+          cpx_monitor_odbc_supervisor,cpx_monitor_passive,cpx_supervisor,
+          cpx_web_management,cpxlog,cpxlog_error_logger_redirect,cpxlog_file,
+          cpxlog_syslog,cpxlog_terminal,dispatch_manager,dispatcher,
+          email_media,email_media_manager,email_media_session,gen_cdr_dumper,
+          gen_media,integration,integration_file,protobuf_util,queue_manager,
+          sip_bot,sip_bot_manager,supervisor_web_connection,util]}.

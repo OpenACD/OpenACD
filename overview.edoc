@@ -1,5 +1,5 @@
 ** The overview page for OpenACD documentation
-@version 1.0
+@version {@version}
 @title OpenACD
 @doc OpenACD is an open source automated contact distributer.  It is 
 Designed to be media and agent endpoint agnostic.  Paired with 

@@ -1,0 +1,214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cdr</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cdr</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A gen_event based module to create and record Call Data Records to mnesia.
+
+<p><b>Behaviours:</b> <a href="gen_event.html"><tt>gen_event</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>A gen_event based module to create and record Call Data Records to mnesia.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_transfer-2">agent_transfer/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is being offered by <code>string() Offerer</code>
+  to <code>string() Recipient</code>.</td></tr>
+<tr><td valign="top"><a href="#cdrinit-1">cdrinit/1</a></td><td>Create a handler specifically for <code>#call{} Call</code> with default options.</td></tr>
+<tr><td valign="top"><a href="#dialoutgoing-2">dialoutgoing/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is now is dialing outbound to <code>string() Number</code>.</td></tr>
+<tr><td valign="top"><a href="#endwrapup-2">endwrapup/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> has had a wrapup ended by <code>string() Agent</code>.</td></tr>
+<tr><td valign="top"><a href="#get_raws-1">get_raws/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_summaries-1">get_summaries/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_unsummarized-0">get_unsummarized/0</a></td><td>return the call ids that are unsummarized.</td></tr>
+<tr><td valign="top"><a href="#hangup-2">hangup/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> has been hungup by <code>string() | agent By</code>.</td></tr>
+<tr><td valign="top"><a href="#inivr-2">inivr/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is now in IVR for <code>string() DNIS</code>.</td></tr>
+<tr><td valign="top"><a href="#inqueue-2">inqueue/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is now in queue <code>string() Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#media_custom-4">media_custom/4</a></td><td>Notify the cdr handler about a custom media vent for <code>#call{} Call</code>.</td></tr>
+<tr><td valign="top"><a href="#merge-3">merge/3</a></td><td>Given the list of nodes, merge the cdrs.</td></tr>
+<tr><td valign="top"><a href="#oncall-2">oncall/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is currently oncall with <code>string() Agent</code>.</td></tr>
+<tr><td valign="top"><a href="#precall-2">precall/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is now in precall for <code>string() Client</code>.</td></tr>
+<tr><td valign="top"><a href="#queue_transfer-2">queue_transfer/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is being offered by <code>string() Offerer</code>
+  to <code>string() Recipient</code>.</td></tr>
+<tr><td valign="top"><a href="#ringing-2">ringing/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is now ringing to <code>string() Agent</code>.</td></tr>
+<tr><td valign="top"><a href="#ringout-2">ringout/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> has rungout from <code>string() Agent</code>.</td></tr>
+<tr><td valign="top"><a href="#spawn_summarizer-1">spawn_summarizer/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>starts the cdr event server.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Starts the cdr event server linked.</td></tr>
+<tr><td valign="top"><a href="#status-1">status/1</a></td><td>Return the completed and partial transactions for <code>#call{} Call</code>.</td></tr>
+<tr><td valign="top"><a href="#transfer-2">transfer/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> is to be transfered to <code>string() Transferto</code>.</td></tr>
+<tr><td valign="top"><a href="#truncate-0">truncate/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#truncate-1">truncate/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#voicemail-2">voicemail/2</a></td><td>Notify the cdr handler the <code>#call{} Call</code> is being sent to voicemail
+  from <code>string() Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#warmxfer_begin-2">warmxfer_begin/2</a></td><td>Notify cdr handler that <code>#cll{} Call</code> is starting to be warm transfered.</td></tr>
+<tr><td valign="top"><a href="#warmxfer_cancel-2">warmxfer_cancel/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warmxfer_complete-2">warmxfer_complete/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warmxfer_fail-2">warmxfer_fail/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wrapup-2">wrapup/2</a></td><td>Notify cdr handler that <code>#call{} Call</code> has been put in wrapup by <code>string() Agent</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_transfer-2">agent_transfer/2</a></h3>
+<div class="spec">
+<p><tt>agent_transfer(Call::#call{}, X2::{Offerer::string() | pid(), Recipient::string() | pid()}) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is being offered by <code>string() Offerer</code>
+  to <code>string() Recipient</code>.</p>
+
+<h3 class="function"><a name="cdrinit-1">cdrinit/1</a></h3>
+<div class="spec">
+<p><tt>cdrinit(Call::#call{}) -&gt; ok | error</tt><br></p>
+</div><p>Create a handler specifically for <code>#call{} Call</code> with default options.</p>
+
+<h3 class="function"><a name="dialoutgoing-2">dialoutgoing/2</a></h3>
+<div class="spec">
+<p><tt>dialoutgoing(Call::#call{}, Number::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is now is dialing outbound to <code>string() Number</code>.</p>
+
+<h3 class="function"><a name="endwrapup-2">endwrapup/2</a></h3>
+<div class="spec">
+<p><tt>endwrapup(Call::#call{}, Agent::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> has had a wrapup ended by <code>string() Agent</code>.</p>
+
+<h3 class="function"><a name="get_raws-1">get_raws/1</a></h3>
+<div class="spec">
+<p><tt>get_raws(Time::pos_integer()) -&gt; {atomic, [#cdr_raw{}]}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_summaries-1">get_summaries/1</a></h3>
+<div class="spec">
+<p><tt>get_summaries(IDs::[string()]) -&gt; {atomic, [#cdr_rec{}]} | {aborted, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_unsummarized-0">get_unsummarized/0</a></h3>
+<div class="spec">
+<p><tt>get_unsummarized() -&gt; {atomic, [string()]}</tt><br></p>
+</div><p>return the call ids that are unsummarized</p>
+
+<h3 class="function"><a name="hangup-2">hangup/2</a></h3>
+<div class="spec">
+<p><tt>hangup(Call::#call{}, By::string() | agent) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> has been hungup by <code>string() | agent By</code>.</p>
+
+<h3 class="function"><a name="inivr-2">inivr/2</a></h3>
+<div class="spec">
+<p><tt>inivr(Call::#call{}, DNIS::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is now in IVR for <code>string() DNIS</code>.</p>
+
+<h3 class="function"><a name="inqueue-2">inqueue/2</a></h3>
+<div class="spec">
+<p><tt>inqueue(Call::#call{}, Queue::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is now in queue <code>string() Queue</code>.</p>
+
+<h3 class="function"><a name="media_custom-4">media_custom/4</a></h3>
+<div class="spec">
+<p><tt>media_custom(Call::#call{}, Name::atom(), EndedBy::[atom()], Data::any()) -&gt; ok</tt><br></p>
+</div><p>Notify the cdr handler about a custom media vent for <code>#call{} Call</code>.</p>
+
+<h3 class="function"><a name="merge-3">merge/3</a></h3>
+<div class="spec">
+<p><tt>merge(Nodes::[atom()], Time::pos_integer(), Replyto::pid()) -&gt; ok</tt><br></p>
+</div><p>Given the list of nodes, merge the cdrs.  Since this can take a long
+  time, it can help to just spawn a new process for it.</p>
+
+<h3 class="function"><a name="oncall-2">oncall/2</a></h3>
+<div class="spec">
+<p><tt>oncall(Call::#call{}, Agent::string() | pid()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is currently oncall with <code>string() Agent</code>.</p>
+
+<h3 class="function"><a name="precall-2">precall/2</a></h3>
+<div class="spec">
+<p><tt>precall(Call::#call{}, Client::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is now in precall for <code>string() Client</code>.</p>
+
+<h3 class="function"><a name="queue_transfer-2">queue_transfer/2</a></h3>
+<div class="spec">
+<p><tt>queue_transfer(Call::#call{}, Queue::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is being offered by <code>string() Offerer</code>
+  to <code>string() Recipient</code>.</p>
+
+<h3 class="function"><a name="ringing-2">ringing/2</a></h3>
+<div class="spec">
+<p><tt>ringing(Call::#call{}, Agent::string() | pid()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is now ringing to <code>string() Agent</code>.</p>
+
+<h3 class="function"><a name="ringout-2">ringout/2</a></h3>
+<div class="spec">
+<p><tt>ringout(Call::#call{}, Args::{atom(), string() | pid()}) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> has rungout from <code>string() Agent</code>.</p>
+
+<h3 class="function"><a name="spawn_summarizer-1">spawn_summarizer/1</a></h3>
+<div class="spec">
+<p><tt>spawn_summarizer(Call) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()}</tt><br></p>
+</div><p>starts the cdr event server.</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; {ok, pid()}</tt><br></p>
+</div><p>Starts the cdr event server linked.</p>
+
+<h3 class="function"><a name="status-1">status/1</a></h3>
+<div class="spec">
+<p><tt>status(Call::#call{} | string()) -&gt; {[tuple()], [tuple()]}</tt><br></p>
+</div><p>Return the completed and partial transactions for <code>#call{} Call</code>.</p>
+
+<h3 class="function"><a name="transfer-2">transfer/2</a></h3>
+<div class="spec">
+<p><tt>transfer(Call::#call{}, Transferto::string()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> is to be transfered to <code>string() Transferto</code>.</p>
+
+<h3 class="function"><a name="truncate-0">truncate/0</a></h3>
+<div class="spec">
+<p><tt>truncate() -&gt; [none | ok | pid()]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="truncate-1">truncate/1</a></h3>
+<div class="spec">
+<p><tt>truncate(Call::string() | #call{}) -&gt; ok | none | pid</tt><br></p>
+</div>
+
+<h3 class="function"><a name="voicemail-2">voicemail/2</a></h3>
+<div class="spec">
+<p><tt>voicemail(Call::#call{}, Queue::pid() | string()) -&gt; ok</tt><br></p>
+</div><p>Notify the cdr handler the <code>#call{} Call</code> is being sent to voicemail
+  from <code>string() Queue</code>.</p>
+
+<h3 class="function"><a name="warmxfer_begin-2">warmxfer_begin/2</a></h3>
+<div class="spec">
+<p><tt>warmxfer_begin(Call::#call{}, X2::{Agent::string() | pid(), Numdialed::string()}) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#cll{} Call</code> is starting to be warm transfered.</p>
+
+<h3 class="function"><a name="warmxfer_cancel-2">warmxfer_cancel/2</a></h3>
+<div class="spec">
+<p><tt>warmxfer_cancel(Call::#call{}, Agent::pid() | string()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="warmxfer_complete-2">warmxfer_complete/2</a></h3>
+<div class="spec">
+<p><tt>warmxfer_complete(Call::#call{}, Agent::pid() | string()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="warmxfer_fail-2">warmxfer_fail/2</a></h3>
+<div class="spec">
+<p><tt>warmxfer_fail(Call::#call{}, Agent::pid() | string()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="wrapup-2">wrapup/2</a></h3>
+<div class="spec">
+<p><tt>wrapup(Call::#call{}, Agent::string() | pid()) -&gt; ok</tt><br></p>
+</div><p>Notify cdr handler that <code>#call{} Call</code> has been put in wrapup by <code>string() Agent</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_agent_tcp_listener</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_agent_tcp_listener</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A tcp listener for agent tcp clients using json as the encoding  
+protocol.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>See also:</b> <a href="cpx_agent_tcp_connection.html">cpx_agent_tcp_connection</a>.</p>
+
+<h2><a name="description">Description</a></h2><p>A tcp listener for agent tcp clients using json as the encoding  
+protocol.  This is useful for desktop applications, or if a web poll  
+is not desired.  The Json api is the same as the web api, allowing it  
+to keep pace (aside from obvious protocol mismatches, like path  
+fetching).</p>
+ 
+  <p>Json, after being turned into a binary by mochijson2:encode/1, is  
+wrapped in a netstring:</p>
+ 
+  <pre>	[len] ":" [json] ","</pre>
+ 
+  <p>"len" being the the stringification of the length of the protobuf.  So,
+  a netstring of the binary <code>&lt;&lt;"hello"&gt;&gt;</code> would look like <code>&lt;&lt;"5:hello,"&gt;&gt;</code>.
+  For a long discussion, <a href="http://cr.yp.to/proto/netstrings.txt" target="_top"><tt>http://cr.yp.to/proto/netstrings.txt</tt></a>.</p>
+ 
+  When a client first connects, they will get a message stating the agent
+  is in the state <code>PRELOGIN</code>.  That is the signal to start the login
+  in ernest.  After that an agent should:
+  <ol>
+  <li>Verify it's version</li>
+  <li>Request a salt</li>
+  <li>Request to login</li>
+  </ol>
+ 
+  <p>The version verification will reply an error if the major version doesn't  
+match.  If only the minor version part doesn't match, success is  
+returned, but error_message is populated with a message stating as much.  
+A perfect match is, well, perfect.</p>
+ 
+  <p>The request for a salt gets a nonce to use for salting the password, as  
+well as the E and N parts of a public key to rsa encrypt the password.</p>
+ 
+  <p>Using the information from the get salt step, encrypt the password.  
+Then send a login request.  If successful, the server will reply as such,  
+and an event stating which state the agent is in should also arrive.</p>
+ 
+  Encrypting the password is skipped if the connection is over SSL.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-poolsize_opt">poolsize_opt()</a></h3>
+<p><tt>poolsize_opt() = {poolsize, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-port_opt">port_opt()</a></h3>
+<p><tt>port_opt() = {port, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-radix_opt">radix_opt()</a></h3>
+<p><tt>radix_opt() = {radix, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-socket_type_opt">socket_type_opt()</a></h3>
+<p><tt>socket_type_opt() = {socket_type, tcp | ssl_upgrade | ssl}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opt">start_opt()</a></h3>
+<p><tt>start_opt() = <a href="#type-port_opt">port_opt()</a> | <a href="#type-radix_opt">radix_opt()</a> | <a href="#type-socket_type_opt">socket_type_opt()</a> | <a href="#type-zip_opt">zip_opt()</a> | <a href="#type-poolsize_opt">poolsize_opt()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opts">start_opts()</a></h3>
+<p><tt>start_opts() = [<a href="#type-start_opt">start_opt()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-zip_mode_opt">zip_mode_opt()</a></h3>
+<p><tt>zip_mode_opt() = zip | gzip | boolean()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-zip_opt">zip_opt()</a></h3>
+<p><tt>zip_opt() = zip_json | {zip_json, <a href="#type-zip_mode_opt">zip_mode_opt()</a>}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#acceptor-1">acceptor/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>Start the listener unlinked using only default options; generally
+  best only for debugging or testing.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Start the listener linked to no process.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start the listener linked to parent process.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the listener pid() <code>Pid</code> with reason <code>normal</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="acceptor-1">acceptor/1</a></h3>
+<div class="spec">
+<p><tt>acceptor(State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener unlinked using only default options; generally
+  best only for debugging or testing.</p>
+<p><b>See also:</b> <a href="#start_link-1">start_link/1</a>.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Opts::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener linked to no process.  Generally only useful for
+  debugging or testing.</p>
+<p><b>See also:</b> <a href="#start_link-1">start_link/1</a>.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Opts::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener linked to parent process.  The Options (and
+  defaults) are:
+  <dl>
+  <dt>port :: pos_integer()</dt><dd><code>7331</code>  Port to listen for incoming
+  connections.</dd>
+  <dt>radix :: pos_integer()</dt><dd><code>10</code>  Represent netstring lengths in
+  the given numberical base.  Minimum is 2, maximum is 36.</dd>
+  <dt>socket_type</dt><dd><code>tcp</code>  If <code>tcp</code>, passwords must be encrypted by
+  rsa using the requested salt.  If <code>ssl_upgrade</code>, the socket must be
+  upgraded to ssl after the connection is established.  If <code>ssl</code>, the
+  initial connection must be over ssl.  In both ssl options, the password
+  is not encrypted (other than what ssl does).</dd>
+  <dt>zip_json :: boolean()</dt><dd><code>false</code>  If present, <code>true</code>, or <code>zip</code>,
+  the json binary is put through <code>zlib:zip/1</code> before being wrapped in a
+  netstring.  If <code>gzip</code>, the binary is put through <code>zlib:gzip/1</code> instead.
+  If missing or <code>false</code>, the json is not compressed.  The client is
+  assumed to be using the same compression scheme.</dd>
+  <dt>poolsize :: pos_integer</dt><dd><code>5</code>  How many acceptor processes to
+  start for the listening socket.</dd>
+  </dl></p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stop the listener pid() <code>Pid</code> with reason <code>normal</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

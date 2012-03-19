@@ -1,0 +1,377 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module util</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module util</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A utility module containing several handy functions not provided by
+  erlang's standard library.
+
+
+<h2><a name="description">Description</a></h2>A utility module containing several handy functions not provided by
+  erlang's standard library.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-word_entry">word_entry()</a></h3>
+<p><tt>word_entry() = {string(), string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-word_list">word_list()</a></h3>
+<p><tt>word_list() = [<a href="#type-word_entry">word_entry()</a>]</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add_paths-0">add_paths/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#bin_to_hexstr-1">bin_to_hexstr/1</a></td><td>Converts a bin to a lowercase hexidecimal string.</td></tr>
+<tr><td valign="top"><a href="#build_table-2">build_table/2</a></td><td>build the given mnesia table <code>Tablename</code> with <code>Options</code>.</td></tr>
+<tr><td valign="top"><a href="#c-0">c/0</a></td><td>Not useful in a production enviroment, but for a dev enviroment.</td></tr>
+<tr><td valign="top"><a href="#c-1">c/1</a></td><td>A generic "do this on the command line and print the results".</td></tr>
+<tr><td valign="top"><a href="#cover_mods-1">cover_mods/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#decrypt_password-1">decrypt_password/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dict_find_by_value-2">dict_find_by_value/2</a></td><td>Find the key(s) in the dictory by it's value.</td></tr>
+<tr><td valign="top"><a href="#distribution-1">distribution/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#eunit-1">eunit/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#find_first_arc-2">find_first_arc/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#floor-1">floor/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_certfile-0">get_certfile/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_keyfile-0">get_keyfile/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_modules-1">get_modules/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_number-1">get_number/1</a></td><td>Generally only used in the 'dummy' collection, these allow multiple ways
+  to get a random (or not) number.</td></tr>
+<tr><td valign="top"><a href="#get_pubkey-0">get_pubkey/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#group_by-2">group_by/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#group_by_with_key-2">group_by_with_key/2</a></td><td>groups a list into a list of lists where each sublist contains
+  the elements where <code>Fun(Element)</code> returned the same value.</td></tr>
+<tr><td valign="top"><a href="#hexstr_to_bin-1">hexstr_to_bin/1</a></td><td>Converts a hexidecimal string in any case to a binary.</td></tr>
+<tr><td valign="top"><a href="#http_datetime-0">http_datetime/0</a></td><td>Take erlang:now() and pipe it through <a href="#http_datetime-1"><code>http_datetime/1</code></a></td></tr>
+<tr><td valign="top"><a href="#http_datetime-1">http_datetime/1</a></td><td>Take an erlang:now() format and turn it into something suitable for
+  http headers, eg:  "Sun, 06 Nov 1994 08:49:37 GMT".</td></tr>
+<tr><td valign="top"><a href="#list_contains_all-2">list_contains_all/2</a></td><td>Check whether <code>List</code> contains all elements of <code>Members</code>.</td></tr>
+<tr><td valign="top"><a href="#list_index-2">list_index/2</a></td><td>Find the position of <code>Needle</code> (<code>any()</code>) in a list.</td></tr>
+<tr><td valign="top"><a href="#list_index-3">list_index/3</a></td><td>Find the position of <code>Needle</code> (<code>any()</code>) in a list using <code>Fun</code> (<code>fun()</code>) as the comparison.</td></tr>
+<tr><td valign="top"><a href="#list_map_with_index-2">list_map_with_index/2</a></td><td>Apply the <code>Fun(Index, Element)</code> to each element of <code>List</code> along with the element's index in <code>List</code>.</td></tr>
+<tr><td valign="top"><a href="#merge_skill_lists-2">merge_skill_lists/2</a></td><td>Merges 2 skill lists using lists:umerge and then ensures that only one
+  instance of each magic skill is present, at maximum.</td></tr>
+<tr><td valign="top"><a href="#merge_skill_lists-3">merge_skill_lists/3</a></td><td>merge_skill_lists/2 with an optional whitelist of unexpanded magic skills to ignore.</td></tr>
+<tr><td valign="top"><a href="#now-0">now/0</a></td><td>For those times when {Macro, Sec, Micro} is too much, this smooshes
+  Macro and Sec together.</td></tr>
+<tr><td valign="top"><a href="#priv_dir-0">priv_dir/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#priv_dir-1">priv_dir/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#reload-1">reload/1</a></td><td>For those times when you don't need a code reload with release files
+  and version.</td></tr>
+<tr><td valign="top"><a href="#reload-2">reload/2</a></td><td>Does a code reload for the given module.</td></tr>
+<tr><td valign="top"><a href="#reload_all-0">reload_all/0</a></td><td>Reloads code for all modules in the OpenACD path using soft purge.</td></tr>
+<tr><td valign="top"><a href="#reload_all-1">reload_all/1</a></td><td>Reloads code for all modules using either the hard or soft method for
+  purge, whichever <code>Mode</code> happens to be.</td></tr>
+<tr><td valign="top"><a href="#run_dir-0">run_dir/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#run_dir-0">run_dir/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_testnode-0">start_testnode/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_testnode-1">start_testnode/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_testnode-2">start_testnode/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#string_chomp-1">string_chomp/1</a></td><td>Remove any trailing newlines or carraige returns from <code>String</code>.</td></tr>
+<tr><td valign="top"><a href="#string_interpolate-2">string_interpolate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#string_split-2">string_split/2</a></td><td>Split <code>String</code> by <code>Separator</code>.</td></tr>
+<tr><td valign="top"><a href="#string_split-3">string_split/3</a></td><td>Split <code>String</code> string by <code>Separator</code> into a list of strings at most <code>SplitCount</code> long.</td></tr>
+<tr><td valign="top"><a href="#subtract_skill_lists-2">subtract_skill_lists/2</a></td><td>Returns all skills in <code>[{atom(), string()} | atom()] List1</code> where the
+ skills' atom  does not exist in <code>[{atom(), string()} | atom()} List2</code>.</td></tr>
+<tr><td valign="top"><a href="#timemark-0">timemark/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timemark-1">timemark/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timemark-2">timemark/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timemark_clear-0">timemark_clear/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timemark_clear-1">timemark_clear/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#zombie-0">zombie/0</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add_paths-0">add_paths/0</a></h3>
+<div class="spec">
+<p><tt>add_paths() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="bin_to_hexstr-1">bin_to_hexstr/1</a></h3>
+<div class="spec">
+<p><tt>bin_to_hexstr(Bin::binary()) -&gt; [48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 97 | 98 | 99 | 100 | 101 | 102]</tt><br></p>
+</div><p>Converts a bin to a lowercase hexidecimal string.</p>
+
+<h3 class="function"><a name="build_table-2">build_table/2</a></h3>
+<div class="spec">
+<p><tt>build_table(Tablename::atom(), Options::[any()]) -&gt; exists | {atomic, ok} | copied</tt><br></p>
+</div><p>build the given mnesia table <code>Tablename</code> with <code>Options</code>.
+  This will exit the calling process if mnesia is not started or if the schema is not stored on disc.
+  If you trying to create the same table twice, it returns <code>exists</code>.  If the table was copied from another node,
+  it returns <code>copied</code>.  Otherwise returns the raw mnesia create_table result, usually <code>{atomic, ok}</code>.
+  Takes the same parameters as mnesia:create_table.</p>
+<p><b>See also:</b> <a href="mnesia.html#create_table-2">mnesia:create_table/2</a>.</p>
+
+<h3 class="function"><a name="c-0">c/0</a></h3>
+<div class="spec">
+<p><tt>c() -&gt; ok</tt><br></p>
+</div><p>Not useful in a production enviroment, but for a dev enviroment.
+  this will call do <code>util:c("rebar compile")</code> on the os command line, and
+  output the results.  Why?  Because I'm lazy and don't want to have to
+  swap screens just to recompile.</p>
+
+<h3 class="function"><a name="c-1">c/1</a></h3>
+<div class="spec">
+<p><tt>c(Cmd::string()) -&gt; ok</tt><br></p>
+</div><p>A generic "do this on the command line and print the results".</p>
+
+<h3 class="function"><a name="cover_mods-1">cover_mods/1</a></h3>
+<div class="spec">
+<p><tt>cover_mods(Tail) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="decrypt_password-1">decrypt_password/1</a></h3>
+<div class="spec">
+<p><tt>decrypt_password(Password::string()) -&gt; {ok, string()} | {error, decrypt_failed}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="dict_find_by_value-2">dict_find_by_value/2</a></h3>
+<div class="spec">
+<p><tt>dict_find_by_value(Value::any(), Dict::dict()) -&gt; error | {ok, [any()]}</tt><br></p>
+</div><p>Find the key(s) in the dictory by it's value.  Return's <code>error</code> if
+  the value is not in the dictionary.</p>
+
+<h3 class="function"><a name="distribution-1">distribution/1</a></h3>
+<div class="spec">
+<p><tt>distribution(Mean::pos_integer()) -&gt; float()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="eunit-1">eunit/1</a></h3>
+<div class="spec">
+<p><tt>eunit(Mods) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="find_first_arc-2">find_first_arc/2</a></h3>
+<div class="spec">
+<p><tt>find_first_arc(Base::string(), Ext::string()) -&gt; string()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="floor-1">floor/1</a></h3>
+<div class="spec">
+<p><tt>floor(X::integer() | float()) -&gt; integer()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_certfile-0">get_certfile/0</a></h3>
+<div class="spec">
+<p><tt>get_certfile() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_keyfile-0">get_keyfile/0</a></h3>
+<div class="spec">
+<p><tt>get_keyfile() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_modules-1">get_modules/1</a></h3>
+<div class="spec">
+<p><tt>get_modules(Appfile) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_number-1">get_number/1</a></h3>
+<div class="spec">
+<p><tt>get_number(N::{distribution, pos_integer()} | random | {non_neg_integer(), pos_integer()} | pos_integer()) -&gt; pos_integer()</tt><br></p>
+</div><p>Generally only used in the 'dummy' collection, these allow multiple ways
+  to get a random (or not) number.</p>
+
+<h3 class="function"><a name="get_pubkey-0">get_pubkey/0</a></h3>
+<div class="spec">
+<p><tt>get_pubkey() -&gt; [non_neg_integer()]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="group_by-2">group_by/2</a></h3>
+<div class="spec">
+<p><tt>group_by(Fun::fun((Value::any()) -&gt; any()), List::[any()]) -&gt; [any()]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="group_by_with_key-2">group_by_with_key/2</a></h3>
+<div class="spec">
+<p><tt>group_by_with_key(Fun::fun((Value::any()) -&gt; any()), List::[any()]) -&gt; [{any, any()}]</tt><br></p>
+</div><p>groups a list into a list of lists where each sublist contains
+  the elements where <code>Fun(Element)</code> returned the same value.</p>
+
+<h3 class="function"><a name="hexstr_to_bin-1">hexstr_to_bin/1</a></h3>
+<div class="spec">
+<p><tt>hexstr_to_bin(S::string()) -&gt; binary() | error</tt><br></p>
+</div><p>Converts a hexidecimal string in any case to a binary.</p>
+
+<h3 class="function"><a name="http_datetime-0">http_datetime/0</a></h3>
+<div class="spec">
+<p><tt>http_datetime() -&gt; string()</tt><br></p>
+</div><p>Take erlang:now() and pipe it through <a href="#http_datetime-1"><code>http_datetime/1</code></a></p>
+
+<h3 class="function"><a name="http_datetime-1">http_datetime/1</a></h3>
+<div class="spec">
+<p><tt>http_datetime(Now::{pos_integer(), pos_integer(), pos_integer()}) -&gt; string()</tt><br></p>
+</div><p>Take an erlang:now() format and turn it into something suitable for
+  http headers, eg:  "Sun, 06 Nov 1994 08:49:37 GMT"</p>
+
+<h3 class="function"><a name="list_contains_all-2">list_contains_all/2</a></h3>
+<div class="spec">
+<p><tt>list_contains_all(List::[any()], Members::[]) -&gt; true</tt><br></p>
+</div><p>Check whether <code>List</code> contains all elements of <code>Members</code>.</p>
+
+<h3 class="function"><a name="list_index-2">list_index/2</a></h3>
+<div class="spec">
+<p><tt>list_index(Needle::any(), Haystack::[any()]) -&gt; non_neg_integer()</tt><br></p>
+</div><p>Find the position of <code>Needle</code> (<code>any()</code>) in a list.  Remember, the first element in an erlang list is 1.</p>
+
+<h3 class="function"><a name="list_index-3">list_index/3</a></h3>
+<div class="spec">
+<p><tt>list_index(Fun::fun((any(), any()) -&gt; boolean()), Needle::any(), List::[any()]) -&gt; non_neg_integer()</tt><br></p>
+</div><p>Find the position of <code>Needle</code> (<code>any()</code>) in a list using <code>Fun</code> (<code>fun()</code>) as the comparison.</p>
+
+<h3 class="function"><a name="list_map_with_index-2">list_map_with_index/2</a></h3>
+<div class="spec">
+<p><tt>list_map_with_index(Fun::fun((Counter::non_neg_integer(), Elem::any()) -&gt; any()), List::[any()]) -&gt; [any()]</tt><br></p>
+</div><p>Apply the <code>Fun(Index, Element)</code> to each element of <code>List</code> along with the element's index in <code>List</code>.</p>
+<p><b>See also:</b> <a href="lists.html#map-2">lists:map/2</a>.</p>
+
+<h3 class="function"><a name="merge_skill_lists-2">merge_skill_lists/2</a></h3>
+<div class="spec">
+<p><tt>merge_skill_lists(List1::[any()], List2::[any()]) -&gt; [any()]</tt><br></p>
+</div><p>Merges 2 skill lists using lists:umerge and then ensures that only one
+  instance of each magic skill is present, at maximum. If the same skill is present
+  in both lists, the instance from <code>List2</code> is the one retained. Any magic skills should
+  be expanded before calling this function.</p>
+
+<h3 class="function"><a name="merge_skill_lists-3">merge_skill_lists/3</a></h3>
+<div class="spec">
+<p><tt>merge_skill_lists(List1::[any()], List2::[any()], Whitelist::[atom()]) -&gt; [any()]</tt><br></p>
+</div><p>merge_skill_lists/2 with an optional whitelist of unexpanded magic skills to ignore.
+  This allows us to strip any duplicates of <code>_agent</code> (for example) but not i <code>_brand</code>.</p>
+
+<h3 class="function"><a name="now-0">now/0</a></h3>
+<div class="spec">
+<p><tt>now() -&gt; pos_integer()</tt><br></p>
+</div><p>For those times when {Macro, Sec, Micro} is too much, this smooshes
+  Macro and Sec together.</p>
+
+<h3 class="function"><a name="priv_dir-0">priv_dir/0</a></h3>
+<div class="spec">
+<p><tt>priv_dir() -&gt; string() | {error, enoent}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="priv_dir-1">priv_dir/1</a></h3>
+<div class="spec">
+<p><tt>priv_dir(Suffix::string()) -&gt; string() | {error, enoent}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="reload-1">reload/1</a></h3>
+<div class="spec">
+<p><tt>reload(Module::atom()) -&gt; {ok, atom()} | {error, any()}</tt><br></p>
+</div><p>For those times when you don't need a code reload with release files
+  and version.  For obvious reasons, this should be used for developement only.</p>
+
+<h3 class="function"><a name="reload-2">reload/2</a></h3>
+<div class="spec">
+<p><tt>reload(Module::atom(), Mode::soft | hard) -&gt; {ok, atom()} | {error, any()}</tt><br></p>
+</div><p>Does a code reload for the given module.  if Mode is <code>soft</code> a soft purge
+  is done; if it's <code>hard</code> a straight purge is done.</p>
+
+<h3 class="function"><a name="reload_all-0">reload_all/0</a></h3>
+<div class="spec">
+<p><tt>reload_all() -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Reloads code for all modules in the OpenACD path using soft purge.</p>
+
+<h3 class="function"><a name="reload_all-1">reload_all/1</a></h3>
+<div class="spec">
+<p><tt>reload_all(Mode::hard | soft) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Reloads code for all modules using either the hard or soft method for
+  purge, whichever <code>Mode</code> happens to be.</p>
+
+<h3 class="function"><a name="run_dir-0">run_dir/0</a></h3>
+<div class="spec">
+<p><tt>run_dir() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="run_dir-0">run_dir/0</a></h3>
+<div class="spec">
+<p><tt>run_dir() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_testnode-0">start_testnode/0</a></h3>
+<div class="spec">
+<p><tt>start_testnode() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_testnode-1">start_testnode/1</a></h3>
+<div class="spec">
+<p><tt>start_testnode(Name) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_testnode-2">start_testnode/2</a></h3>
+<div class="spec">
+<p><tt>start_testnode(Name, Host) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="string_chomp-1">string_chomp/1</a></h3>
+<div class="spec">
+<p><tt>string_chomp(String::string()) -&gt; string()</tt><br></p>
+</div><p>Remove any trailing newlines or carraige returns from <code>String</code>.</p>
+
+<h3 class="function"><a name="string_interpolate-2">string_interpolate/2</a></h3>
+<div class="spec">
+<p><tt>string_interpolate(String::string(), Words::<a href="#type-word_list">word_list()</a>) -&gt; string()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="string_split-2">string_split/2</a></h3>
+<div class="spec">
+<p><tt>string_split(String::[], Separator::[integer()]) -&gt; []</tt><br></p>
+</div><p>Split <code>String</code> by <code>Separator</code>.
+  If <code>Separator</code> is a blank string <code>String</code> is split into a list of single character strings.</p>
+
+<h3 class="function"><a name="string_split-3">string_split/3</a></h3>
+<div class="spec">
+<p><tt>string_split(String::[], Separator::[integer()], SplitCount::pos_integer()) -&gt; []</tt><br></p>
+</div><p>Split <code>String</code> string by <code>Separator</code> into a list of strings at most <code>SplitCount</code> long.
+  If <code>Separator</code> is a blank string <code>String</code> is split into a list of <code>SplitCount</code> single character
+  strings followed by the remainder of <code>String</code>, if any.</p>
+
+<h3 class="function"><a name="subtract_skill_lists-2">subtract_skill_lists/2</a></h3>
+<div class="spec">
+<p><tt>subtract_skill_lists(List1::[{atom(), string()} | atom()], List2::[{atom(), string()} | atom()]) -&gt; [{atom(), string()} | atom()]</tt><br></p>
+</div><p>Returns all skills in <code>[{atom(), string()} | atom()] List1</code> where the
+ skills' atom  does not exist in <code>[{atom(), string()} | atom()} List2</code>.</p>
+
+<h3 class="function"><a name="timemark-0">timemark/0</a></h3>
+<div class="spec">
+<p><tt>timemark() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="timemark-1">timemark/1</a></h3>
+<div class="spec">
+<p><tt>timemark(Markname::atom()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="timemark-2">timemark/2</a></h3>
+<div class="spec">
+<p><tt>timemark(Markname::atom(), Message::string()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="timemark_clear-0">timemark_clear/0</a></h3>
+<div class="spec">
+<p><tt>timemark_clear() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="timemark_clear-1">timemark_clear/1</a></h3>
+<div class="spec">
+<p><tt>timemark_clear(Markname::atom()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="zombie-0">zombie/0</a></h3>
+<div class="spec">
+<p><tt>zombie() -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

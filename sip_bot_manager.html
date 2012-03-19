@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module sip_bot_manager</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module sip_bot_manager</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A module designed to help load test OpenACD paired with freeswitch.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2><p>A module designed to help load test OpenACD paired with freeswitch.  
+This is expected to be run on a different (but not isolated) node  
+from OpenACD, paired with it's own freeswitch instance.  Obviously,  
+separate hardware is preffered.</p>
+ 
+  <p>Starts a given number of dummy agents, and then creates a config for  
+freeswitch with attempts to do a sip registration to OpenACD's freeswitch.</p>
+ 
+  <p>Setting up for a test is rather involved, but there are a couple of example  
+files to help.  tests/sip_bot_config_example.hrl is a basic file for starting  
+this.  tests/sip_bot_manager_dialplan_example.xml provides a simple  
+FreeSWITCH config for the bot setting.</p>
+ 
+  A full test will involve having OpenACD running on one machine with an
+  instance of FreeSWITCH, and sip_bot_manager running on another machine with
+  a separate instance of FreeSWITCH.  Ensure the two nodes OpenACD and sip_bot's
+  can talk to each other, otherwise sip_bot will not be able to start the
+  agents it needs to.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-acd_node">acd_node()</a></h3>
+<p><tt>acd_node() = {acd_node, atom()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-agent_option">agent_option()</a></h3>
+<p><tt>agent_option() = {max_life, pos_integer()} | {release_frequency, pos_integer()} | {release_percent, pos_integer()} | {ringing, pos_integer()} | {oncall, pos_integer()} | {wrapup, pos_integer()} | {maxcalls, pos_integer()} | {scale, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-agent_options">agent_options()</a></h3>
+<p><tt>agent_options() = {agent_options, [<a href="#type-agent_option">agent_option()</a>]}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-agent_tuple">agent_tuple()</a></h3>
+<p><tt>agent_tuple() = {<a href="#type-username">username()</a>, <a href="#type-password">password()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-agents">agents()</a></h3>
+<p><tt>agents() = {agents, [<a href="#type-agent_tuple">agent_tuple()</a>]}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-gateway">gateway()</a></h3>
+<p><tt>gateway() = {gateway, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-password">password()</a></h3>
+<p><tt>password() = string()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-profiles">profiles()</a></h3>
+<p><tt>profiles() = {profiles, [string()]}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-realm">realm()</a></h3>
+<p><tt>realm() = {realm, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-sip_bots">sip_bots()</a></h3>
+<p><tt>sip_bots() = {sip_bots, [sip_bot_option]}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_option">start_option()</a></h3>
+<p><tt>start_option() = <a href="#type-gateway">gateway()</a> | <a href="#type-agents">agents()</a> | <a href="#type-acd_node">acd_node()</a> | <a href="#type-realm">realm()</a> | <a href="#type-profiles">profiles()</a> | <a href="#type-sip_bots">sip_bots()</a> | <a href="#type-agent_options">agent_options()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_options">start_options()</a></h3>
+<p><tt>start_options() = [<a href="#type-start_option">start_option()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-username">username()</a></h3>
+<p><tt>username() = string()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#configuration_server-2">configuration_server/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#originate-1">originate/1</a></td><td>Attempts to dial the number or uri.</td></tr>
+<tr><td valign="top"><a href="#originate-2">originate/2</a></td><td>Attmepts <code>X</code> times to dial the number(s) or uri.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Start using the freeswitch node and all defaults.</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td>Start using the freeswitch node and the given configuration.</td></tr>
+<tr><td valign="top"><a href="#start_app-1">start_app/1</a></td><td>Uses a configuration file of "sip_bot_conf.hrl".</td></tr>
+<tr><td valign="top"><a href="#start_app-2">start_app/2</a></td><td>Starts cpxlog, then self.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Uses pure defaults.</td></tr>
+<tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Links to the resultant pid.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stops the madness.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="configuration_server-2">configuration_server/2</a></h3>
+<div class="spec">
+<p><tt>configuration_server(Node::atom(), State::<a href="#type-start_options">start_options()</a>) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="originate-1">originate/1</a></h3>
+<div class="spec">
+<p><tt>originate(TargetNum::string()) -&gt; ok</tt><br></p>
+</div><p>Attempts to dial the number or uri.</p>
+
+<h3 class="function"><a name="originate-2">originate/2</a></h3>
+<div class="spec">
+<p><tt>originate(X::pos_integer(), TargetNum::string() | [string()]) -&gt; ok</tt><br></p>
+</div><p>Attmepts <code>X</code> times to dial the number(s) or uri.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Node::atom()) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start using the freeswitch node and all defaults.</p>
+
+<h3 class="function"><a name="start-2">start/2</a></h3>
+<div class="spec">
+<p><tt>start(Node::atom(), Opts::<a href="#type-start_options">start_options()</a> | {file, string()}) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start using the freeswitch node and the given configuration.  The
+  configuration is either a proplist of options, or <code>{file, "path/to/conf"}</code></p>
+
+<h3 class="function"><a name="start_app-1">start_app/1</a></h3>
+<div class="spec">
+<p><tt>start_app(Node::atom()) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Uses a configuration file of "sip_bot_conf.hrl".</p>
+<p><b>See also:</b> <a href="#start_app-2">start_app/2</a>.</p>
+
+<h3 class="function"><a name="start_app-2">start_app/2</a></h3>
+<div class="spec">
+<p><tt>start_app(Node::atom(), File::string()) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Starts cpxlog, then self.  The second argument is a path to a
+  configuration file.</p>
+<p><b>See also:</b> <a href="#start-2">start/2</a>.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Node::atom()) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Uses pure defaults.</p>
+<p><b>See also:</b> <a href="#start_link-2">start_link/2</a>.</p>
+
+<h3 class="function"><a name="start_link-2">start_link/2</a></h3>
+<div class="spec">
+<p><tt>start_link(Node::atom(), Opts::<a href="#type-start_options">start_options()</a> | {file, string()}) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Links to the resultant pid.</p>
+<p><b>See also:</b> <a href="#start-2">start/2</a>.</p>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; ok</tt><br></p>
+</div><p>Stops the madness.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

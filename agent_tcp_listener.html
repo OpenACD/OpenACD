@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_tcp_listener</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_tcp_listener</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A non-blocking tcp listener for agent tcp clients.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2><p>A non-blocking tcp listener for agent tcp clients.  Based on the
+  tcp_listener module by %% Serge Aleynikov <a href="http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles" target="_top"><tt>http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles</tt></a>.
+  Similar in concept to <a href="agent_web_listener.html"><code>agent_web_listener</code></a>.  Advantage over web is
+  the ability for the server to push to the client without a messy poll.
+  However, this is still not as feature complete as the web interface,
+  primarily due to lack of an official client.  <a href="agent_tcp_client.html"><code>agent_tcp_client</code></a> is  
+a reference implementation built in erlang.</p>
+ 
+  <p>To create a client cablable of logging in, use the cpx_base.proto and  
+cpx_agent.proto files (found in src/).  Communication is done by  
+placing a protobuf message in a netstring.  A netstring is a binary:</p>
+ 
+  <pre>	[len]":"[protobuf]","</pre>
+ 
+  <p>"len" being the the stringification of the length of the protobuf.  So,
+  a netstring of the binary <code>&lt;&lt;"hello"&gt;&gt;</code> would look like <code>&lt;&lt;"5:hello,"&gt;&gt;</code>.
+  For a long discussion, <a href="http://cr.yp.to/proto/netstrings.txt" target="_top"><tt>http://cr.yp.to/proto/netstrings.txt</tt></a>.</p>
+ 
+  When a client first connects, they will get a message stating the agent
+  is in the state <code>PRELOGIN</code>.  That is the signal to start the login
+  in ernest.  After that an agent should:
+  <ol>
+  <li>Verify it's version</li>
+  <li>Request a salt</li>
+  <li>Request to login</li>
+  </ol>
+ 
+  <p>The version verification will reply an error if the major version doesn't  
+match.  If only the minor version part doesn't match, success is  
+returned, but error_message is populated with a message stating as much.  
+A perfect match is, well, perfect.</p>
+ 
+  <p>The request for a salt gets a nonce to use for salting the password, as  
+well as the E and N parts of a public key to rsa encrypt the password.</p>
+ 
+  Using the information from the get salt step, encrypt the password.
+  Then send a login request.  If successful, the server will reply as such,
+  and an event stating which state the agent is in should also arrive.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-port_opt">port_opt()</a></h3>
+<p><tt>port_opt() = {port, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-radix_opt">radix_opt()</a></h3>
+<p><tt>radix_opt() = {radix, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-socket_type_opt">socket_type_opt()</a></h3>
+<p><tt>socket_type_opt() = {socket_type, tcp | ssl_upgrade | ssl}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opt">start_opt()</a></h3>
+<p><tt>start_opt() = <a href="#type-port_opt">port_opt()</a> | <a href="#type-radix_opt">radix_opt()</a> | <a href="#type-socket_type_opt">socket_type_opt()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opts">start_opts()</a></h3>
+<p><tt>start_opts() = [<a href="#type-start_opt">start_opt()</a>]</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#start-0">start/0</a></td><td>Start the listener on the default port of 1337 linked to no process.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Start the listener on port <code>Port</code> linked to no process; or if a list
+  is given instead, use those settings.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start the listener linked to parent process.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the listener pid() <code>Pid</code> with reason <code>normal</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener on the default port of 1337 linked to no process.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Port::integer()) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener on port <code>Port</code> linked to no process; or if a list
+  is given instead, use those settings.</p>
+<p><b>See also:</b> <a href="#start_link-1">start_link/1</a>.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Port::integer() | <a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Start the listener linked to parent process.  If <code>Options</code> is an
+  integer, start the listener on the given port.  Otherwise, it uses start
+  options.  Defaults are to start on port 337, with a radix of 10, and to
+  just use straing tcp.  The socket options are <code>tcp</code>, <code>ssl_upgrade</code>, and
+  <code>ssl</code>.  <code>tcp</code> indicates tcp always, with the password being sent in an
+  rsa form.  <code>ssl</code> means the client must connect with ssl initially.
+  Password does not need special encryption in this case.  <code>ssl_upgrade</code>
+  means the listener/conneciton will request to upgrade to ssl asap.</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stop the listener pid() <code>Pid</code> with reason <code>normal</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module call_queue</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module call_queue</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>An inplementation of priority queues, with parallel call delivery.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>An inplementation of priority queues, with parallel call delivery.
+  The calls in queue can be re-prioritized at any time and they can have
+  skills added/removed to facilitate scripted/dynamic call delivery.
+  Each call can be 'bound' to by a single dispatcher from each node in a
+  cluster.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-call_key">call_key()</a></h3>
+<p><tt>call_key() = {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-key">key()</a></h3>
+<p><tt>key() = {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-opt_name">opt_name()</a></h3>
+<p><tt>opt_name() = weight | recipe | skills | group</tt></p>
+
+
+<h3 class="typedecl"><a name="type-opts">opts()</a></h3>
+<p><tt>opts() = [<a href="#type-start_opt">start_opt()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opt">start_opt()</a></h3>
+<p><tt>start_opt() = {<a href="#type-opt_name">opt_name()</a>, any()} | default_queue</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add-2">add/2</a></td><td>Add to queue at <code>pid()</code> <code>Pid</code> a call taken from <code>pid()</code> <code>Mediapid</code>.</td></tr>
+<tr><td valign="top"><a href="#add-3">add/3</a></td><td>Add to the queue at <code>pid()</code> <code>Pid</code> a call with default values.</td></tr>
+<tr><td valign="top"><a href="#add-4">add/4</a></td><td>Add to the queue at <code>pid()</code> <code>Pid</code> a new call with <code>pos_integer()</code>
+  <code>Priority</code>, <code>pid()</code> Mediapid, and <code>#call{}</code> Callrec.</td></tr>
+<tr><td valign="top"><a href="#add_at-3">add_at/3</a></td><td>Add to queue at <code>pid()</code> <code>Pid</code> a call taken from <code>pid()</code> <code>Mediapid</code>
+  with a given key <code>Key</code>.</td></tr>
+<tr><td valign="top"><a href="#add_skills-3">add_skills/3</a></td><td>Add <code>[atom(),...]</code> <code>Skills</code> to the call with the id of <code>string()</code>
+  <code>Callid</code> or <code>pid()</code> <code>Mediapid</code> in the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#ask-1">ask/1</a></td><td>Return the first <code>{key(), #queued_call{}} call in the queue at
+  `pid()</code> <code>Pid</code> that doesn't have a dispatcher from this node already
+  bound to it or <code>none</code>.</td></tr>
+<tr><td valign="top"><a href="#bgremove-2">bgremove/2</a></td><td>Non-blocking version of <a href="#remove-2"><code>remove/2</code></a></td></tr>
+<tr><td valign="top"><a href="#call_count-1">call_count/1</a></td><td>Return the number of calls in the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#call_count_by_client-2">call_count_by_client/2</a></td><td>Return the number of calls in the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#dump-1">dump/1</a></td><td>returns the state of the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#fake_dispatcher-0">fake_dispatcher/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_call-2">get_call/2</a></td><td>Query the queue at <code>pid()</code> <code>Pid</code> for a call with the ID <code>string()</code>
+  or <code>pid()</code> of <code>Callid</code>.</td></tr>
+<tr><td valign="top"><a href="#get_calls-1">get_calls/1</a></td><td>Return <code>[{key(), #queued_call{}]</code> from the queue at <code>pid()</code>.</td></tr>
+<tr><td valign="top"><a href="#get_weight-1">get_weight/1</a></td><td>Return the weight of the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#grab-1">grab/1</a></td><td>Bind to the first <code>{key, #queued_call{}} in the queue at `pid()</code>
+  <code>Pid</code> that doesn't have a dispatcher from this node already bound to it
+  or <code>none</code>.</td></tr>
+<tr><td valign="top"><a href="#migrate-2">migrate/2</a></td><td>Move the queue at <code>Pid</code> to <code>node() Node</code>.</td></tr>
+<tr><td valign="top"><a href="#remove-2">remove/2</a></td><td>Remove the call with id <code>string()</code> of <code>Calldata</code> or <code>pid()</code>
+  <code>Callpid</code> from the queue at <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#remove_skills-3">remove_skills/3</a></td><td>Remove <code>[atom(),...] `Skills</code> from the call with the id of
+  <code>string()</code> <code>Callid</code> or <code>pid()</code> <code>Mediapid</code> in the queue at <code>pid()</code>
+  <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#selection_info-1">selection_info/1</a></td><td>Retrieve info used to sort queues for dispatcher binding.</td></tr>
+<tr><td valign="top"><a href="#set_priority-3">set_priority/3</a></td><td>Alter the priority of the call with the id or media pid of <code>pid()</code>
+  <code>Mediaid</code> in the queue at <code>pid()</code> <code>Pid</code> to <code>non_neg_integer()</code>
+  <code>Priority</code>.</td></tr>
+<tr><td valign="top"><a href="#set_recipe-2">set_recipe/2</a></td><td>Set the queue at pid() <code>Pid</code>'s recipe to <code>recipe()</code> <code>Recipe</code>.</td></tr>
+<tr><td valign="top"><a href="#set_weight-2">set_weight/2</a></td><td>Set the queue at pid() <code>Pid</code>'s weight to <code>pos_integer()</code> <code>Weight</code>.</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td>Start a queue named <code>Name</code> with no link to the current process.</td></tr>
+<tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Start a queue names <code>Name</code> with a link to the current process.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#to_list-1">to_list/1</a></td><td>Returns a list of calls in queue at <code>pid()</code> <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#ungrab-2">ungrab/2</a></td><td>Reverse of <a href="#grab-1"><code>grab/1</code></a>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add-2">add/2</a></h3>
+<div class="spec">
+<p><tt>add(Pid::pid(), Calldata::pid()) -&gt; ok</tt><br></p>
+</div><p>Add to queue at <code>pid()</code> <code>Pid</code> a call taken from <code>pid()</code> <code>Mediapid</code>.
+  A call record is gather from the media server at <code>Mediapid</code>, and then
+  added to the queue with a priority of 1.</p>
+<p><b>See also:</b> <a href="#add-3">add/3</a>, <a href="#add-4">add/4</a>.</p>
+
+<h3 class="function"><a name="add-3">add/3</a></h3>
+<div class="spec">
+<p><tt>add(Pid::pid(), Priority::non_neg_integer(), Mediapid::pid()) -&gt; ok</tt><br></p>
+</div><p><p>Add to the queue at <code>pid()</code> <code>Pid</code> a call with default values.
+  Second paramter can be either <code>pos_integer()</code> <code>Priority</code> or <code>pid()</code>
+  <code>Mediapid</code>.  If the second parameter is <code>Priority</code>, the 3rd parameter
+  must be the <code>pid()</code> <code>Mediapid</code>.  A new call is queued using the given
+  <code>Priority</code>, <code>Mediapid</code>, and result of
+  <code>gen_server:call(Mediapid, get_call)</code>.</p>
+ 
+  If the second parameter is <code>Mediapid</code>, the 3rd parameter must be
+  <code>#call{}</code> <code>Callrec</code>.  A new call is queued using the default priority
+  of 1.</p>
+<p><b>See also:</b> <a href="#add-4">add/4</a>.</p>
+
+<h3 class="function"><a name="add-4">add/4</a></h3>
+<div class="spec">
+<p><tt>add(Pid::pid(), Priority::non_neg_integer(), Mediapid::pid(), Callrec::#call{}) -&gt; ok</tt><br></p>
+</div><p>Add to the queue at <code>pid()</code> <code>Pid</code> a new call with <code>pos_integer()</code>
+  <code>Priority</code>, <code>pid()</code> Mediapid, and <code>#call{}</code> Callrec.</p>
+
+<h3 class="function"><a name="add_at-3">add_at/3</a></h3>
+<div class="spec">
+<p><tt>add_at(Pid::pid(), Key::<a href="#type-call_key">call_key()</a>, Mediapid::pid()) -&gt; ok</tt><br></p>
+</div><p>Add to queue at <code>pid()</code> <code>Pid</code> a call taken from <code>pid()</code> <code>Mediapid</code>
+  with a given key <code>Key</code>.</p>
+
+<h3 class="function"><a name="add_skills-3">add_skills/3</a></h3>
+<div class="spec">
+<p><tt>add_skills(Pid::pid(), Callid::string() | pid(), Skills::[atom(), ...]) -&gt; none | ok</tt><br></p>
+</div><p>Add <code>[atom(),...]</code> <code>Skills</code> to the call with the id of <code>string()</code>
+  <code>Callid</code> or <code>pid()</code> <code>Mediapid</code> in the queue at <code>pid()</code> <code>Pid</code>.  Returns
+  <code>ok</code> on success, <code>none</code> on failure.</p>
+
+<h3 class="function"><a name="ask-1">ask/1</a></h3>
+<div class="spec">
+<p><tt>ask(Pid::pid()) -&gt; none | {<a href="#type-key">key()</a>, #queued_call{}}</tt><br></p>
+</div><p>Return the first <code>{key(), #queued_call{}} call in the queue at
+  `pid()</code> <code>Pid</code> that doesn't have a dispatcher from this node already
+  bound to it or <code>none</code>.</p>
+
+<h3 class="function"><a name="bgremove-2">bgremove/2</a></h3>
+<div class="spec">
+<p><tt>bgremove(Pid::pid(), Callid::pid() | string()) -&gt; ok</tt><br></p>
+</div><p>Non-blocking version of <a href="#remove-2"><code>remove/2</code></a></p>
+<p><b>See also:</b> <a href="#remove-2">remove/2</a>.</p>
+
+<h3 class="function"><a name="call_count-1">call_count/1</a></h3>
+<div class="spec">
+<p><tt>call_count(Pid::pid()) -&gt; non_neg_integer()</tt><br></p>
+</div><p>Return the number of calls in the queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="call_count_by_client-2">call_count_by_client/2</a></h3>
+<div class="spec">
+<p><tt>call_count_by_client(Pid::pid(), Client::#client{}) -&gt; non_neg_integer()</tt><br></p>
+</div><p>Return the number of calls in the queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="dump-1">dump/1</a></h3>
+<div class="spec">
+<p><tt>dump(Pid::pid()) -&gt; any()</tt><br></p>
+</div><p>returns the state of the queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="fake_dispatcher-0">fake_dispatcher/0</a></h3>
+<div class="spec">
+<p><tt>fake_dispatcher() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_call-2">get_call/2</a></h3>
+<div class="spec">
+<p><tt>get_call(Pid::pid(), Callid::pid()) -&gt; {<a href="#type-key">key()</a>, #queued_call{}} | none</tt><br></p>
+</div><p>Query the queue at <code>pid()</code> <code>Pid</code> for a call with the ID <code>string()</code>
+  or <code>pid()</code> of <code>Callid</code>.</p>
+
+<h3 class="function"><a name="get_calls-1">get_calls/1</a></h3>
+<div class="spec">
+<p><tt>get_calls(Pid::pid()) -&gt; [{<a href="#type-key">key()</a>, #queued_call{}}]</tt><br></p>
+</div><p>Return <code>[{key(), #queued_call{}]</code> from the queue at <code>pid()</code>.</p>
+
+<h3 class="function"><a name="get_weight-1">get_weight/1</a></h3>
+<div class="spec">
+<p><tt>get_weight(Pid::pid()) -&gt; pos_integer()</tt><br></p>
+</div><p>Return the weight of the queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="grab-1">grab/1</a></h3>
+<div class="spec">
+<p><tt>grab(Pid::pid()) -&gt; none | {<a href="#type-key">key()</a>, #queued_call{}}</tt><br></p>
+</div><p>Bind to the first <code>{key, #queued_call{}} in the queue at `pid()</code>
+  <code>Pid</code> that doesn't have a dispatcher from this node already bound to it
+  or <code>none</code>.</p>
+
+<h3 class="function"><a name="migrate-2">migrate/2</a></h3>
+<div class="spec">
+<p><tt>migrate(Qpid::pid(), Node::atom()) -&gt; ok</tt><br></p>
+</div><p>Move the queue at <code>Pid</code> to <code>node() Node</code>.</p>
+
+<h3 class="function"><a name="remove-2">remove/2</a></h3>
+<div class="spec">
+<p><tt>remove(Pid::pid(), Callid::pid() | string()) -&gt; none | ok</tt><br></p>
+</div><p>Remove the call with id <code>string()</code> of <code>Calldata</code> or <code>pid()</code>
+  <code>Callpid</code> from the queue at <code>Pid</code>.  Returns <code>ok</code> on success, <code>none</code> on
+  failure.</p>
+
+<h3 class="function"><a name="remove_skills-3">remove_skills/3</a></h3>
+<div class="spec">
+<p><tt>remove_skills(Pid::pid(), Callid::string() | pid(), Skills::[atom(), ...]) -&gt; none | ok</tt><br></p>
+</div><p>Remove <code>[atom(),...] `Skills</code> from the call with the id of
+  <code>string()</code> <code>Callid</code> or <code>pid()</code> <code>Mediapid</code> in the queue at <code>pid()</code>
+  <code>Pid</code>.  Returns <code>ok</code> on success, <code>none</code> on failure.</p>
+
+<h3 class="function"><a name="selection_info-1">selection_info/1</a></h3>
+<div class="spec">
+<p><tt>selection_info(Qpid::pid()) -&gt; {{<a href="#type-key">key()</a>, #queued_call{}} | none, pos_integer(), non_neg_integer()}</tt><br></p>
+</div><p>Retrieve info used to sort queues for dispatcher binding.</p>
+
+<h3 class="function"><a name="set_priority-3">set_priority/3</a></h3>
+<div class="spec">
+<p><tt>set_priority(Pid::pid(), Calldata::string() | pid(), Priority::non_neg_integer()) -&gt; none | ok</tt><br></p>
+</div><p>Alter the priority of the call with the id or media pid of <code>pid()</code>
+  <code>Mediaid</code> in the queue at <code>pid()</code> <code>Pid</code> to <code>non_neg_integer()</code>
+  <code>Priority</code>.  Returns <code>ok</code> on success, <code>none</code> on failure (such as
+  invalid <code>Priority</code>).</p>
+
+<h3 class="function"><a name="set_recipe-2">set_recipe/2</a></h3>
+<div class="spec">
+<p><tt>set_recipe(Pid::pid(), Recipe::<a href="#type-recipe">recipe()</a>) -&gt; ok | error</tt><br></p>
+</div><p>Set the queue at pid() <code>Pid</code>'s recipe to <code>recipe()</code> <code>Recipe</code>.</p>
+
+<h3 class="function"><a name="set_weight-2">set_weight/2</a></h3>
+<div class="spec">
+<p><tt>set_weight(Pid::pid(), Weight::pos_integer()) -&gt; ok | error</tt><br></p>
+</div><p>Set the queue at pid() <code>Pid</code>'s weight to <code>pos_integer()</code> <code>Weight</code>.</p>
+
+<h3 class="function"><a name="start-2">start/2</a></h3>
+<div class="spec">
+<p><tt>start(Name::string(), Opts::<a href="#type-opts">opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start a queue named <code>Name</code> with no link to the current process.
+  Passing in <code>default_queue</code> as a flag means the queue cannot exit when
+  empty.</p>
+
+<h3 class="function"><a name="start_link-2">start_link/2</a></h3>
+<div class="spec">
+<p><tt>start_link(Name::string(), Opts::<a href="#type-opts">opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start a queue names <code>Name</code> with a link to the current process.</p>
+<p><b>See also:</b> <a href="#start-3">start/3</a>.</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stop the queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="to_list-1">to_list/1</a></h3>
+<div class="spec">
+<p><tt>to_list(Pid::pid()) -&gt; [#queued_call{}]</tt><br></p>
+</div><p>Returns a list of calls in queue at <code>pid()</code> <code>Pid</code>.</p>
+
+<h3 class="function"><a name="ungrab-2">ungrab/2</a></h3>
+<div class="spec">
+<p><tt>ungrab(Pid::pid(), Callid::string() | pid()) -&gt; ok</tt><br></p>
+</div><p>Reverse of <a href="#grab-1"><code>grab/1</code></a>.  Releases the call identified by
+  <code>pid()</code> or <code>string()</code> <code>Callid</code> from any bound dispatchers at queue
+  <code>pid()</code> <code>Pid</code>.  Returns <code>ok</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

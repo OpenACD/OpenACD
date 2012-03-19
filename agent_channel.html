@@ -1,0 +1,275 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_channel</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_channel</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A gen_fsm for an agent channel.
+
+<p><b>Behaviours:</b> <a href="gen_fsm.html"><tt>gen_fsm</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>A gen_fsm for an agent channel.  When an agent is to go ringing
+  for a media, if the agent fsm has a channel available, a new process
+  of this module is started.  Once the agent has gone through the flow,
+  this process can die.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-start_opts">start_opts()</a></h3>
+<p><tt>start_opts() = [{atom(), any()}]</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_transfer-2">agent_transfer/2</a></td><td>Start the agent_transfer procedure.</td></tr>
+<tr><td valign="top"><a href="#code_change-4">code_change/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#end_wrapup-1">end_wrapup/1</a></td><td>End the channel while in wrapup.</td></tr>
+<tr><td valign="top"><a href="#get_media-1">get_media/1</a></td><td>Returns the #call{} of the current state if there is on, otherwise
+  returns <code>invalid</code>.</td></tr>
+<tr><td valign="top"><a href="#handle_event-3">handle_event/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-3">handle_info/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_sync_event-4">handle_sync_event/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#has_failed_ring-1">has_failed_ring/1</a></td><td>Inform the agent that it's failed a ring, usually an outbound.</td></tr>
+<tr><td valign="top"><a href="#has_successful_ring-1">has_successful_ring/1</a></td><td>Media saying the ring worked afterall; useful to confirm outband rings.</td></tr>
+<tr><td valign="top"><a href="#list_to_state-1">list_to_state/1</a></td><td>Translate the state <code>String</code> into the internally used atom.</td></tr>
+<tr><td valign="top"><a href="#media_call-2">media_call/2</a></td><td>The connection can request to call to the agent's media when oncall.</td></tr>
+<tr><td valign="top"><a href="#media_cast-2">media_cast/2</a></td><td>To cast to the media while oncall, use this.</td></tr>
+<tr><td valign="top"><a href="#media_push-3">media_push/3</a></td><td>attmept to push data from the media connection to the agent.</td></tr>
+<tr><td valign="top"><a href="#oncall-2">oncall/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#oncall-3">oncall/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#precall-2">precall/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#precall-3">precall/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#prering-2">prering/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#prering-3">prering/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#queue_transfer-2">queue_transfer/2</a></td><td>Start the queue_transfer procedure.</td></tr>
+<tr><td valign="top"><a href="#ringing-2">ringing/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#ringing-3">ringing/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_connection-2">set_connection/2</a></td><td>link the given agent  <code>Pid</code> to the given connection <code>Socket</code>.</td></tr>
+<tr><td valign="top"><a href="#set_state-2">set_state/2</a></td><td>Attempt to set the state of agent at <code>Pid</code> to <code>State</code>.</td></tr>
+<tr><td valign="top"><a href="#set_state-3">set_state/3</a></td><td>Attempt to set the state of the agent at <code>Pid</code> to <code>State</code> with data <code>Data</code>.</td></tr>
+<tr><td valign="top"><a href="#spy-2">spy/2</a></td><td>Make the give <code>pid() Spy</code> spy on <code>pid() Target</code>.</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td>start an fsm with the given options.</td></tr>
+<tr><td valign="top"><a href="#start-4">start/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Start an fsm linked to the calling process.</td></tr>
+<tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the passed agent fsm <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#terminate-3">terminate/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#url_pop-3">url_pop/3</a></td><td>Make the agent connection try to pop a given url.</td></tr>
+<tr><td valign="top"><a href="#warmtransfer_3rd_party-2">warmtransfer_3rd_party/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warmtransfer_3rd_party-3">warmtransfer_3rd_party/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warmtransfer_hold-2">warmtransfer_hold/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warmtransfer_hold-3">warmtransfer_hold/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wrapup-2">wrapup/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wrapup-3">wrapup/3</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_transfer-2">agent_transfer/2</a></h3>
+<div class="spec">
+<p><tt>agent_transfer(Pid::pid(), Target::pid()) -&gt; ok | invalid</tt><br></p>
+</div><p>Start the agent_transfer procedure.  Gernally the media will handle it from here.</p>
+
+<h3 class="function"><a name="code_change-4">code_change/4</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, StateName, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="end_wrapup-1">end_wrapup/1</a></h3>
+<div class="spec">
+<p><tt>end_wrapup(Pid::pid()) -&gt; ok | invalid</tt><br></p>
+</div><p>End the channel while in wrapup.</p>
+
+<h3 class="function"><a name="get_media-1">get_media/1</a></h3>
+<div class="spec">
+<p><tt>get_media(Apid::pid()) -&gt; {ok, #call{}} | invalid</tt><br></p>
+</div><p>Returns the #call{} of the current state if there is on, otherwise
+  returns <code>invalid</code>.</p>
+
+<h3 class="function"><a name="handle_event-3">handle_event/3</a></h3>
+<div class="spec">
+<p><tt>handle_event(Event, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-3">handle_info/3</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_sync_event-4">handle_sync_event/4</a></h3>
+<div class="spec">
+<p><tt>handle_sync_event(Event, From, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="has_failed_ring-1">has_failed_ring/1</a></h3>
+<div class="spec">
+<p><tt>has_failed_ring(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Inform the agent that it's failed a ring, usually an outbound.
+  Used by gen_media, prolly not anywhere else.</p>
+
+<h3 class="function"><a name="has_successful_ring-1">has_successful_ring/1</a></h3>
+<div class="spec">
+<p><tt>has_successful_ring(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Media saying the ring worked afterall; useful to confirm outband rings.</p>
+
+<h3 class="function"><a name="list_to_state-1">list_to_state/1</a></h3>
+<div class="spec">
+<p><tt>list_to_state(String::string()) -&gt; atom()</tt><br></p>
+</div><p>Translate the state <code>String</code> into the internally used atom.  <code>String</code> can either be the human readable string or a number in string form (<code>"1"</code>).</p>
+
+<h3 class="function"><a name="media_call-2">media_call/2</a></h3>
+<div class="spec">
+<p><tt>media_call(Apid::pid(), Request::any()) -&gt; any()</tt><br></p>
+</div><p>The connection can request to call to the agent's media when oncall.</p>
+
+<h3 class="function"><a name="media_cast-2">media_cast/2</a></h3>
+<div class="spec">
+<p><tt>media_cast(Apid::pid(), Request::any()) -&gt; ok</tt><br></p>
+</div><p>To cast to the media while oncall, use this.</p>
+
+<h3 class="function"><a name="media_push-3">media_push/3</a></h3>
+<div class="spec">
+<p><tt>media_push(Pid::pid(), Callrec::#call{}, Data::any()) -&gt; any()</tt><br></p>
+</div><p>attmept to push data from the media connection to the agent.  It's up to
+  the agent connection to interpret this correctly.</p>
+
+<h3 class="function"><a name="oncall-2">oncall/2</a></h3>
+<div class="spec">
+<p><tt>oncall(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="oncall-3">oncall/3</a></h3>
+<div class="spec">
+<p><tt>oncall(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="precall-2">precall/2</a></h3>
+<div class="spec">
+<p><tt>precall(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="precall-3">precall/3</a></h3>
+<div class="spec">
+<p><tt>precall(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="prering-2">prering/2</a></h3>
+<div class="spec">
+<p><tt>prering(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="prering-3">prering/3</a></h3>
+<div class="spec">
+<p><tt>prering(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="queue_transfer-2">queue_transfer/2</a></h3>
+<div class="spec">
+<p><tt>queue_transfer(Pid::pid(), Queue::string()) -&gt; ok | invalid</tt><br></p>
+</div><p>Start the queue_transfer procedure.  Gernally the media will handle it from here.</p>
+
+<h3 class="function"><a name="ringing-2">ringing/2</a></h3>
+<div class="spec">
+<p><tt>ringing(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="ringing-3">ringing/3</a></h3>
+<div class="spec">
+<p><tt>ringing(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="set_connection-2">set_connection/2</a></h3>
+<div class="spec">
+<p><tt>set_connection(Pid::pid(), Socket::pid()) -&gt; ok | error</tt><br></p>
+</div><p>link the given agent  <code>Pid</code> to the given connection <code>Socket</code>.</p>
+
+<h3 class="function"><a name="set_state-2">set_state/2</a></h3>
+<div class="spec">
+<p><tt>set_state(Pid::pid(), State::atom()) -&gt; ok | invalid</tt><br></p>
+</div><p>Attempt to set the state of agent at <code>Pid</code> to <code>State</code>.</p>
+
+<h3 class="function"><a name="set_state-3">set_state/3</a></h3>
+<div class="spec">
+<p><tt>set_state(Pid::pid(), State::idle | ringing | precall | oncall | outgoing | warmtransfer | wrapup, Data::any()) -&gt; ok | invalid</tt><br></p>
+</div><p>Attempt to set the state of the agent at <code>Pid</code> to <code>State</code> with data <code>Data</code>.  <code>Data</code> is related to the <code>State</code> the agent is going into.
+  Often <code>Data</code> will be <code>#call{} or a callid of type `string()</code>.</p>
+
+<h3 class="function"><a name="spy-2">spy/2</a></h3>
+<div class="spec">
+<p><tt>spy(Spy::pid(), Target::pid()) -&gt; ok | invalid</tt><br></p>
+</div><p>Make the give <code>pid() Spy</code> spy on <code>pid() Target</code>.</p>
+
+<h3 class="function"><a name="start-2">start/2</a></h3>
+<div class="spec">
+<p><tt>start(AgentRec::#agent{}, Options::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>start an fsm with the given options.</p>
+
+<h3 class="function"><a name="start-4">start/4</a></h3>
+<div class="spec">
+<p><tt>start(AgentRec, CallRec, EndpointData, InitState) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_link-2">start_link/2</a></h3>
+<div class="spec">
+<p><tt>start_link(AgentRec::#agent{}, Options::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start an fsm linked to the calling process.</p>
+
+<h3 class="function"><a name="start_link-4">start_link/4</a></h3>
+<div class="spec">
+<p><tt>start_link(AgentRec, CallRec, EndpointData, InitState) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stop the passed agent fsm <code>Pid</code>.</p>
+
+<h3 class="function"><a name="terminate-3">terminate/3</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="url_pop-3">url_pop/3</a></h3>
+<div class="spec">
+<p><tt>url_pop(Pid::pid(), Url::string(), Name::string()) -&gt; ok</tt><br></p>
+</div><p>Make the agent connection try to pop a given url.</p>
+
+<h3 class="function"><a name="warmtransfer_3rd_party-2">warmtransfer_3rd_party/2</a></h3>
+<div class="spec">
+<p><tt>warmtransfer_3rd_party(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="warmtransfer_3rd_party-3">warmtransfer_3rd_party/3</a></h3>
+<div class="spec">
+<p><tt>warmtransfer_3rd_party(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="warmtransfer_hold-2">warmtransfer_hold/2</a></h3>
+<div class="spec">
+<p><tt>warmtransfer_hold(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="warmtransfer_hold-3">warmtransfer_hold/3</a></h3>
+<div class="spec">
+<p><tt>warmtransfer_hold(Msg, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wrapup-2">wrapup/2</a></h3>
+<div class="spec">
+<p><tt>wrapup(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wrapup-3">wrapup/3</a></h3>
+<div class="spec">
+<p><tt>wrapup(Msg, From, State) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

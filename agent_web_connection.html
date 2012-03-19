@@ -1,0 +1,636 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_web_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_web_connection</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Handles the internal (cpx interaction) part of an agent web  
+connection.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>See also:</b> <a href="agent_web_listener.html">agent_web_listener</a>, <a href="cpx_hooks.html">cpx_hooks</a>, <a href="cpx_web_management.html">cpx_web_management</a>.</p>
+
+<h2><a name="description">Description</a></h2><p>Handles the internal (cpx interaction) part of an agent web  
+connection.</p>
+ 
+  <h3><a name="Hooks">Hooks</a></h3>
+ 
+  <p>This module can trigger the following <a href="cpx_hooks.html">hooks</a>:</p>
+ 
+  <h4><a name="agent_web_path">agent_web_path</a></h4>
+ 
+ 	<p>When the agent_web_connection gets an http request for a path that  
+is not handled internally or by the media (if the agent is oncall).</p>
+ 
+  <h5><a name="Arguments">Arguments</a></h5>
+ 
+  	<ul>
+ 		<li>Path :: string() - Path portion of URL requested</li>
+ 		<li>Post :: proplist() | undefined - Posted data</li>
+ 		<li>Call :: #call{} | undefined - Current media if available</li>
+ 	</ul>
+ 
+  <h5><a name="Returns">Returns</a></h5>
+ 
+  <p>Returns other than the ones listed are wrapped in an error with an  
+UNKNOWN_ERROR code.</p>
+ 
+ 	<dl>
+ 		<dt>Binary :: binary()</dt>
+  			<dd>The body to return for the request.
+  status code of 200 is used.</dd>
+ 
+ 		<dt>{Status :: http_status(), Headers :: proplist(),
+  			Binary :: binary()}</dt>
+ 			<dd>Allows control of the status code and headers</dd>
+ 
+ 		<dt>ok</dt>
+  			<dd>Returnes a simple json success message back to the client</dd>
+ 
+ 		<dt>{json, Json :: json()}</dt>
+  			<dd>Returns wrapped in a success message.</dd>
+ 
+ 		<dt>{Errcode :: binary(), ErrMessage :: binary()}</dt>
+  			<dd>Return gets wrapped in an error json return.</dd>
+ 	</dl>
+ 
+  <h4><a name="agent_web_tabs">agent_web_tabs</a></h4>
+ 
+  <p>When the agent logs in, this is triggered.  Each valid response is  
+added to the list of tabs an agent may open.</p>
+ 
+  <h5><a name="Arguments">Arguments</a></h5>
+ 
+  <ul>
+      <li>Agent :: agent{} - The agent that has logged in.</li>
+  </ul>
+ 
+  <h5><a name="Returns">Returns</a></h5>
+ 
+  <p>Invalid returns are ignored.</p>
+ 
+  <dl>
+      <dt>{TranslationTag :: binary(), Href :: binary()}</dt>
+      <dd>Translation tag is used to look up what to display in the tabs
+  menu for the user.  Href is the url path to load.  When the user
+  selects the tabe, an agent_web_path will be triggered.</dd>
+  </dl>
+ 
+  <h3><a name="Web_API">Web API</a></h3>
+ 
+  <p>The listener and connection are designed to be able to function with
+  any ui that adheres to the api.  The api is broken up between the two
+  modules.  agent_web_connection holds the functions that require communication with
+  a specific agent.  For login and utility functions,
+  <a href="agent_web_listener.html"><code>agent_web_listener</code></a>.</p>
+ 
+  <p>The functions in this documentation will have <b>Web Api </b> in front of their
+  description.  You should not call these functions in the shell as they
+  likely won't work.  They are exported only to aid documentation.
+  To call a function is very similar to using the json_api
+  in <a href="cpx_web_management.html"><code>cpx_web_management</code></a>.  A request is a json object with a
+  <code>"function"</code> property and an <code>"args"</code> property.  Note unlike the
+  json api there is no need to define a <code>"module"</code> property.  In the
+  documentation of specific functions, references to a proplist should
+  be sent as a json object.  The response is a json object with a
+  <code>"success"</code> property.  If the <code>"success"</code> property is set to true,
+  there may be a <code>"result"</code> property holding more data (defined in the
+  functions below).  If something went wrong, there will be a <code>"message"</code>
+  and <code>"errcode"</code> property.  Usually the <code>"message"</code> will have a human
+  readable message, while <code>"errcode"</code> could be used for translation.</p>
+ 
+  <p>The first argument in the web api functions MUST NOT be in the json
+  request.  The <a href="agent_web_listener.html"><code>agent_web_listener</code></a> will be able to figure out
+  which agent the request is meant for (assuming you logged in properly).
+  So, the args list in your ajax request will be one shorter then the
+  functions below.  If a function below has only <code>Conn</code> as it's arugment
+  the <code>"args"</code> property can be omitted completely.</p>
+ 
+  To make a web api call, make a post request to path "/api" with one
+  field named <code>"request"</code>.  The value of the request field should be a
+  a json object:
+  <pre> {
+  	"function":  string(),
+  	"args":      [any()]
+  }</pre><p>
+  See a functions documentation for what <code>"args"</code> should be.</p>
+ 
+  <p>A response will have 3 major forms.  Note that due to legacy reasons  
+there may be more properties then listed.  They should be ignored, as  
+they will be phased out in favor of the more refined api.</p>
+ 
+  A very simple success:
+  <pre> {
+  	"success":  true
+  }</pre>
+  A success with a result:
+  <pre> {
+  	"success":  true,
+  	"result":   any()
+  }</pre>
+  A failure:
+  <pre> {
+  	"success":  false,
+  	"message":  string(),
+  	"errcode":  string()
+  }</pre>
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-bin_string">bin_string()</a></h3>
+<p><tt>bin_string() = binary()</tt></p>
+<p> defined to indicate a string in binary</p>
+
+<h3 class="typedecl"><a name="type-json_simple">json_simple()</a></h3>
+<p><tt>json_simple() = {struct, [{binary(), binary()}]}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_transfer-2">agent_transfer/2</a></td><td><b>Web Api </b> Transfer the call to the given <code>Agent</code> login name.</td></tr>
+<tr><td valign="top"><a href="#agent_transfer-3">agent_transfer/3</a></td><td><b>Web Api </b> Transfer the call to the given <code>Agent</code> and associate the
+  media with the given <code>Caseid</code>.</td></tr>
+<tr><td valign="top"><a href="#api-2">api/2</a></td><td>Do a web api call.</td></tr>
+<tr><td valign="top"><a href="#arbitrary_command-3">arbitrary_command/3</a></td><td>Useful when a plugin needs to send information or results to the
+  agent ui.</td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dial-2">dial/2</a></td><td><b>Web Api </b> Attempt to dial the passed number.</td></tr>
+<tr><td valign="top"><a href="#dummy_plugin-3">dummy_plugin/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dump_agent-1">dump_agent/1</a></td><td>Dump the state of agent associated with the passed connection.</td></tr>
+<tr><td valign="top"><a href="#dump_state-1">dump_state/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_call-1">encode_call/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_client-1">encode_client/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_statedata-1">encode_statedata/1</a></td><td>Encode the given data into a structure suitable for mochijson2:encode.</td></tr>
+<tr><td valign="top"><a href="#end_wrapup-2">end_wrapup/2</a></td><td><b>Web Api </b> End wrapup the agent channel 'Channel'.</td></tr>
+<tr><td valign="top"><a href="#format_status-2">format_status/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agent_profiles-1">get_agent_profiles/1</a></td><td><b>Web Api </b> Get a list of the profiles that are in the system.</td></tr>
+<tr><td valign="top"><a href="#get_avail_agents-1">get_avail_agents/1</a></td><td><b>Web Api </b> Get a list of the agents that are currently available.</td></tr>
+<tr><td valign="top"><a href="#get_queue_transfer_options-1">get_queue_transfer_options/1</a></td><td><b>Web Api </b> Get the fields and skills an agent can assign to a media
+  before transfering it back into queue.</td></tr>
+<tr><td valign="top"><a href="#get_tabs_menu-1">get_tabs_menu/1</a></td><td><b>Web Api </b> Gathers the tabs an agent can access, and pushes the result
+  into the command queue.</td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init_outbound-3">init_outbound/3</a></td><td><b>Web Api </b> Set and agent to precall for a new media for <code>Client</code>
+  calling to <code>Type</code>.</td></tr>
+<tr><td valign="top"><a href="#is_web_api-2">is_web_api/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#keep_alive-1">keep_alive/1</a></td><td>keep alive, keep alive.</td></tr>
+<tr><td valign="top"><a href="#load_media-1">load_media/1</a></td><td><b>Web Api </b> If the media set anything to be loaded at call start,
+  retreive it.</td></tr>
+<tr><td valign="top"><a href="#logout-1">logout/1</a></td><td><b>Web Api </b> Logs the agent out.</td></tr>
+<tr><td valign="top"><a href="#media_call-3">media_call/3</a></td><td><b>Web Api </b> @see media_call/4.</td></tr>
+<tr><td valign="top"><a href="#media_call-4">media_call/4</a></td><td><b>Web Api </b> Forward a request to the media associated with an oncall
+  agent channel.</td></tr>
+<tr><td valign="top"><a href="#media_cast-3">media_cast/3</a></td><td><b>Web Api </b> @see media_cast/4.</td></tr>
+<tr><td valign="top"><a href="#media_cast-4">media_cast/4</a></td><td><b>Web Api </b> Forward a command to the media associated with an oncall
+  agent channel.</td></tr>
+<tr><td valign="top"><a href="#media_hangup-1">media_hangup/1</a></td><td><b>Web Api </b> Force the agent to disconnect the media; usually through a
+  brutal %% kill of the media pid.</td></tr>
+<tr><td valign="top"><a href="#mediaload-1">mediaload/1</a></td><td>Get the settings used for a media load.</td></tr>
+<tr><td valign="top"><a href="#plugin_call-3">plugin_call/3</a></td><td><b>Web Api </b> Forward the request to the given plugin_app.</td></tr>
+<tr><td valign="top"><a href="#poll-2">poll/2</a></td><td><b>Web Api </b> Register Frompid as the poll_pid; or in the case of the web
+  api, establish a connection to await events.</td></tr>
+<tr><td valign="top"><a href="#queue_transfer-3">queue_transfer/3</a></td><td><b>Web Api </b> Transfer the call the agent is in into <code>Queue</code> with the
+  given <code>Opts</code>.</td></tr>
+<tr><td valign="top"><a href="#ring_test-1">ring_test/1</a></td><td><b>Web Api </b> Test if freeswitch can ring an agent's softphone.</td></tr>
+<tr><td valign="top"><a href="#set_endpoint-3">set_endpoint/3</a></td><td><b>Web Api </b> Sets the agent's endpoint data to the given, well, data.</td></tr>
+<tr><td valign="top"><a href="#set_release-2">set_release/2</a></td><td><b>Web Api </b> Sets the release mode of the agent.</td></tr>
+<tr><td valign="top"><a href="#set_salt-2">set_salt/2</a></td><td>Sets the salt.</td></tr>
+<tr><td valign="top"><a href="#set_state-3">set_state/3</a></td><td><b>Web Api </b> Set the agent channel <code>Channel</code> to the given <code>Statename</code>
+  with default state data.</td></tr>
+<tr><td valign="top"><a href="#set_state-4">set_state/4</a></td><td><b>Web Api </b> Set the agent channel <code>Channel</code> to the given <code>Statename</code>
+  with the given <code>Statedata</code>.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Starts the passed agent at the given security level.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Starts the passed agent at the given security level.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stops the passed Web connection process.</td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#warm_transfer-2">warm_transfer/2</a></td><td><b>Web Api </b> Start a warmtransfer of the media associated with the
+  oncall agent to <code>Number</code>.</td></tr>
+<tr><td valign="top"><a href="#warm_transfer_cancel-1">warm_transfer_cancel/1</a></td><td><b>Web Api </b> Cancel a started transfer, implicitly putting the agent
+  oncall.</td></tr>
+<tr><td valign="top"><a href="#warm_transfer_complete-1">warm_transfer_complete/1</a></td><td><b>Web Api </b> Complete a started transfer; implicitly moves the agent to
+  wrapup.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_transfer-2">agent_transfer/2</a></h3>
+<div class="spec">
+<p><tt>agent_transfer(Conn::pid(), Agent::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Transfer the call to the given <code>Agent</code> login name.  No
+  result is sent back as it's a simple success or failure.</p>
+
+<h3 class="function"><a name="agent_transfer-3">agent_transfer/3</a></h3>
+<div class="spec">
+<p><tt>agent_transfer(Conn::pid(), Agent::<a href="#type-bin_string">bin_string()</a>, Caseid::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Transfer the call to the given <code>Agent</code> and associate the
+  media with the given <code>Caseid</code>.  No result is sent back as it's a simple
+  success or failure.</p>
+
+<h3 class="function"><a name="api-2">api/2</a></h3>
+<div class="spec">
+<p><tt>api(Pid::pid(), Apicall::any()) -&gt; any()</tt><br></p>
+</div><p>Do a web api call.</p>
+
+<h3 class="function"><a name="arbitrary_command-3">arbitrary_command/3</a></h3>
+<div class="spec">
+<p><tt>arbitrary_command(Conn::pid(), Command::binary() | atom(), JsonProps::[{binary() | atom(), any()}]) -&gt; ok</tt><br></p>
+</div><p>Useful when a plugin needs to send information or results to the
+  agent ui.</p>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="dial-2">dial/2</a></h3>
+<div class="spec">
+<p><tt>dial(Conn::pid(), Number::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Attempt to dial the passed number.  Implicitly sets the
+  agent from precall to outbound.  No results property as it either
+  worked or didn't.</p>
+
+<h3 class="function"><a name="dummy_plugin-3">dummy_plugin/3</a></h3>
+<div class="spec">
+<p><tt>dummy_plugin(AgentPid, ReplyBase, Error) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="dump_agent-1">dump_agent/1</a></h3>
+<div class="spec">
+<p><tt>dump_agent(Pid::pid()) -&gt; #agent{}</tt><br></p>
+</div><p>Dump the state of agent associated with the passed connection.</p>
+
+<h3 class="function"><a name="dump_state-1">dump_state/1</a></h3>
+<div class="spec">
+<p><tt>dump_state(Conn::pid) -&gt; #agent{}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_call-1">encode_call/1</a></h3>
+<div class="spec">
+<p><tt>encode_call(Call) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="encode_client-1">encode_client/1</a></h3>
+<div class="spec">
+<p><tt>encode_client(Client) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="encode_statedata-1">encode_statedata/1</a></h3>
+<div class="spec">
+<p><tt>encode_statedata(Callrec::#call{}) -&gt; <a href="#type-json_simple">json_simple()</a></tt><br></p>
+</div><p>Encode the given data into a structure suitable for mochijson2:encode</p>
+
+<h3 class="function"><a name="end_wrapup-2">end_wrapup/2</a></h3>
+<div class="spec">
+<p><tt>end_wrapup(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> End wrapup the agent channel 'Channel'.  This also kills
+  the channel, making it available for use again.  No result property as
+  it iether worked or didn't.</p>
+
+<h3 class="function"><a name="format_status-2">format_status/2</a></h3>
+<div class="spec">
+<p><tt>format_status(Cause::any(), Data::[any()]) -&gt; #state{}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_agent_profiles-1">get_agent_profiles/1</a></h3>
+<div class="spec">
+<p><tt>get_agent_profiles(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get a list of the profiles that are in the system.  Result
+  is:
+  <pre>[{
+  	"name":  string(),
+  	"order":  number()
+  }]</pre></p>
+
+<h3 class="function"><a name="get_avail_agents-1">get_avail_agents/1</a></h3>
+<div class="spec">
+<p><tt>get_avail_agents(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get a list of the agents that are currently available.
+  Result is:
+  <pre>[{
+  	"name":  string(),
+  	"profile":  string(),
+  	"state":  "idle" | "released"
+  }]</pre></p>
+
+<h3 class="function"><a name="get_queue_transfer_options-1">get_queue_transfer_options/1</a></h3>
+<div class="spec">
+<p><tt>get_queue_transfer_options(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get the fields and skills an agent can assign to a media
+  before transfering it back into queue.  Result:
+  <pre>{
+  	"curentVars":  [{
+  		string():  string()
+ 	}],
+ 	"prompts":  [{
+  		"name":  string(),
+  		"label":  string(),
+  		"regex":  regex_string()
+  	}],
+  	"skills":[
+ 		string() | {"atom":  string(),  "value":  string()}
+  	]
+  }</pre></p>
+
+<h3 class="function"><a name="get_tabs_menu-1">get_tabs_menu/1</a></h3>
+<div class="spec">
+<p><tt>get_tabs_menu(Conn) -&gt; any()</tt></p>
+</div><p><b>Web Api </b> Gathers the tabs an agent can access, and pushes the result
+  into the command queue.
+  {"command": "set_tabs_menu",
+  "tabs": [
+      {"label":string(),"href":string()}
+  ]}</p>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(Allothers, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init_outbound-3">init_outbound/3</a></h3>
+<div class="spec">
+<p><tt>init_outbound(Conn::pid(), Client::<a href="#type-bin_string">bin_string()</a>, Type::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Set and agent to precall for a new media for <code>Client</code>
+  calling to <code>Type</code>.  Currently only <code>Type</code> of <code>"freeswitch"</code> is allowed.
+  There is no result set as it's only a success or failure message.</p>
+
+<h3 class="function"><a name="is_web_api-2">is_web_api/2</a></h3>
+<div class="spec">
+<p><tt>is_web_api(Func::atom(), Arity::non_neg_integer()) -&gt; boolean()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="keep_alive-1">keep_alive/1</a></h3>
+<div class="spec">
+<p><tt>keep_alive(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>keep alive, keep alive.</p>
+
+<h3 class="function"><a name="load_media-1">load_media/1</a></h3>
+<div class="spec">
+<p><tt>load_media(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> If the media set anything to be loaded at call start,
+  retreive it.  This is useful if the client (such as web browser) needs
+  to refresh the page or crashes, but is able to recover before the
+  automatic logout occurs.  Results will vary from media to media.</p>
+
+<h3 class="function"><a name="logout-1">logout/1</a></h3>
+<div class="spec">
+<p><tt>logout(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Logs the agent out.  The result is a simple success.</p>
+
+<h3 class="function"><a name="media_call-3">media_call/3</a></h3>
+<div class="spec">
+<p><tt>media_call(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Command::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> @see media_call/4</p>
+
+<h3 class="function"><a name="media_call-4">media_call/4</a></h3>
+<div class="spec">
+<p><tt>media_call(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Command::<a href="#type-bin_string">bin_string()</a>, Args::[any()]) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Forward a request to the media associated with an oncall
+  agent channel.  <code>Command</code> is the name of the request to make.  <code>Args</code>
+  is a list of arguments to be sent with the <code>Command</code>.  Check the
+  documentation of the media modules to see what possible returns there
+  are.</p>
+
+<h3 class="function"><a name="media_cast-3">media_cast/3</a></h3>
+<div class="spec">
+<p><tt>media_cast(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Command::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> @see media_cast/4</p>
+
+<h3 class="function"><a name="media_cast-4">media_cast/4</a></h3>
+<div class="spec">
+<p><tt>media_cast(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Command::<a href="#type-bin_string">bin_string()</a>, Args::[any()]) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Forward a command to the media associated with an oncall
+  agent channel.  <code>Command</code> is the name of the command to send.  <code>Args</code>
+  is a list of arguments to send with the <code>Command</code>.  There is no reply
+  expected, so a simple success is always returned.</p>
+
+<h3 class="function"><a name="media_hangup-1">media_hangup/1</a></h3>
+<div class="spec">
+<p><tt>media_hangup(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Force the agent to disconnect the media; usually through a
+  brutal %% kill of the media pid.  Best used as an emergency escape
+  hatch, and not under normal call flow.  No result set as it's merely
+  success or failure.</p>
+
+<h3 class="function"><a name="mediaload-1">mediaload/1</a></h3>
+<div class="spec">
+<p><tt>mediaload(Conn::pid()) -&gt; [{any(), any()}] | undefined</tt><br></p>
+</div><p>Get the settings used for a media load.  Only useful for the web
+  listener, and then only useful in the checkcookie clause.</p>
+
+<h3 class="function"><a name="plugin_call-3">plugin_call/3</a></h3>
+<div class="spec">
+<p><tt>plugin_call(Conn::pid(), Plugin::string(), Args::[any()]) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Forward the request to the given plugin_app.  If the app
+  is missing, or the call fails, expect an error.  Results will vary
+  from plugin to plugin.</p>
+
+<h3 class="function"><a name="poll-2">poll/2</a></h3>
+<div class="spec">
+<p><tt>poll(Pid::pid(), Frompid::pid()) -&gt; ok</tt><br></p>
+</div><p><p><b>Web Api </b> Register Frompid as the poll_pid; or in the case of the web
+  api, establish a connection to await events.  As soon as a
+  <a href="agent_web_connection.html#login-4"><code>agent_web_connection:login/4</code></a> completes successfully, the client
+  should make a call to the path <code>"/poll"</code>, or a standard api call with
+  a function of <code>"poll"</code>.  No args needed.  If the status code is 408, it  
+means a new poll was started without finishing the current one.</p>
+ 
+  A result is a list of json object with at least one property <code>"command"</code>.
+  Common commands are:
+  <table>
+  	<tr>
+  		<th>Command</th>
+  		<th>Other Properties</th>
+  		<th>Description</th>
+  	</tr>
+  	<tr>
+  		<td>pong</td>
+  		<td>"timestamp":  integer()</td>
+  		<td>Nothing has happened in the last 20 seconds, but we don't want
+  		the conneciton to just die.  Sync up clocks based on what that
+  		timestamp from the server said if needed.  Start a new poll.</td>
+  	</tr>
+  	<tr>
+  		<td>astate</td>
+  		<td><ul>
+  			<li>"state":  string()</li>
+  			<li>"statedata":  object(); optional</li>
+  		</ul></td>
+  		<td>The agent fsm has changed state, and so should the agent ui.
+  		The statedata will vary wildly based on the state.  Released will
+  		have the reason and bias; oncall, wrapup, and ringing will have
+  		a mass of call data; idle will have no state data.</td>
+ 	</tr>
+  	<tr>
+  		<td>aprofile</td>
+  		<td><ul>
+  			<li>"profile":  string()</li>
+  		</ul></td>
+  		<td>The agent has been moved to a new profile.</td>
+  	</tr>
+  	<tr>
+  		<td>urlpop</td>
+  		<td><ul>
+  			<li>"url":  string()</li>
+  			<li>"name":  string()</li>
+  		</ul></td>
+  		<td>Open the url in the named view.  If the view exists, re-use
+  		ditching what is there.</td>
+  	</tr>
+  	<tr>
+  		<td>blab</td>
+  		<td><ul>
+  			<li>"text":  string()</li>
+  		</ul></td>
+  		<td>A supervisor has sent a message to the agent.  Text is the
+  		message.  A simple dialog box will suffice.</td>
+  	</tr>
+  	<tr>
+  		<td>mediaload</td>
+ 		<td><ul>
+  			<li>"media":  string()</li>
+  			<li>"fullpane":  boolean()</li>
+  		</ul></td>
+  		<td>Allows the media to have the client attempt to load extra
+  		Information from the media.  <code>"fullpane"</code> indicates if the window
+  		Or information panel the media is requesting be opened is to be
+  		as large as possible or simply a smaller window.  Defaults to
+  		<code>true</code>.</td>
+  	</tr>
+  	<tr>
+  		<td>mediaevent</td>
+  		<td><ul>
+  			<li>"media":  string()</li>
+  			<li>"event":  string()</li>
+  		</ul></td>
+  		<td>A media is able to send generic events to an agent interface,
+  		and this is the final result.  The media will likely add more
+  		properties.  No response is expected from the client.</td>
+  	</tr>
+   <tr>
+   	<td>pluginevent</td>
+ 		<td><ul>
+   		<li>"plugin_app": string()</li>
+   		<li>"event":  any()</li>
+   	</ul></td>
+   	<td>A Plugin can send events to specific agents.  Very plugin
+   	Specific.  Check the plugin documentation for details.</td>
+   </tr>
+  </table></p>
+
+<h3 class="function"><a name="queue_transfer-3">queue_transfer/3</a></h3>
+<div class="spec">
+<p><tt>queue_transfer(Conn::pid(), Queue::<a href="#type-bin_string">bin_string()</a>, X3::{struct, Opts::[{<a href="#type-bin_string">bin_string()</a>, any()}]}) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Transfer the call the agent is in into <code>Queue</code> with the
+  given <code>Opts</code>.  The options is a json object with any number of
+  properties that are passed to the media.  If there is a property
+  <code>"skills"</code> with a list, the list is interpreted as a set of skills to
+  apply to the media.  No result is set as it is merely success or
+  failure.</p>
+
+<h3 class="function"><a name="ring_test-1">ring_test/1</a></h3>
+<div class="spec">
+<p><tt>ring_test(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Test if freeswitch can ring an agent's softphone.  No
+  result set as it's either a success or false.  The true success is if
+  the agent's phone rings.</p>
+
+<h3 class="function"><a name="set_endpoint-3">set_endpoint/3</a></h3>
+<div class="spec">
+<p><tt>set_endpoint(Conn::pid(), Endpoint::<a href="#type-bin_string">bin_string()</a>, Data::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Sets the agent's endpoint data to the given, well, data.
+  Particularly useful if the flash phone is used, as all of the connection
+  data will not be available for that until it is started on in the
+  browser.</p>
+
+<h3 class="function"><a name="set_release-2">set_release/2</a></h3>
+<div class="spec">
+<p><tt>set_release(Conn::pid(), Release::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Sets the release mode of the agent.  If <code>Release</code> is
+  <code>none</code>, the agent will be set idle, otherwise set to the release mode
+  given.</p>
+
+<h3 class="function"><a name="set_salt-2">set_salt/2</a></h3>
+<div class="spec">
+<p><tt>set_salt(Pid::pid(), Salt::any()) -&gt; ok</tt><br></p>
+</div><p>Sets the salt.  Hmmm, salt....</p>
+
+<h3 class="function"><a name="set_state-3">set_state/3</a></h3>
+<div class="spec">
+<p><tt>set_state(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Statename::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Set the agent channel <code>Channel</code> to the given <code>Statename</code>
+  with default state data.  No result property as it either worked or
+  didn't.</p>
+
+<h3 class="function"><a name="set_state-4">set_state/4</a></h3>
+<div class="spec">
+<p><tt>set_state(Conn::pid(), Channel::<a href="#type-bin_string">bin_string()</a>, Statename::<a href="#type-bin_string">bin_string()</a>, Statedata::any()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Set the agent channel <code>Channel</code> to the given <code>Statename</code>
+  with the given <code>Statedata</code>.  No result property as it either worked or
+  it didn't.  State data will vary based on state.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Agent::#agent{}) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Starts the passed agent at the given security level.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Agent::#agent{}) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Starts the passed agent at the given security level.</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stops the passed Web connection process.</p>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="warm_transfer-2">warm_transfer/2</a></h3>
+<div class="spec">
+<p><tt>warm_transfer(Conn::pid(), Number::<a href="#type-bin_string">bin_string()</a>) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Start a warmtransfer of the media associated with the
+  oncall agent to <code>Number</code>.  No result is sent back as it's simply
+  success or failure.</p>
+
+<h3 class="function"><a name="warm_transfer_cancel-1">warm_transfer_cancel/1</a></h3>
+<div class="spec">
+<p><tt>warm_transfer_cancel(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Cancel a started transfer, implicitly putting the agent
+  oncall.  No result is set as it's a simple success or failure.</p>
+
+<h3 class="function"><a name="warm_transfer_complete-1">warm_transfer_complete/1</a></h3>
+<div class="spec">
+<p><tt>warm_transfer_complete(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Complete a started transfer; implicitly moves the agent to
+  wrapup.  No result is set as it's a simple success or failure.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module queue_manager</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module queue_manager</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Manages queues across nodes.
+
+<p><b>Behaviours:</b> <a href="/Users/micahw/src/OpenACDv2/deps/gen_leader/doc/gen_leader.html"><tt>gen_leader</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>Manages queues across nodes.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add_queue-2">add_queue/2</a></td><td>Add a queue named <code>Name</code> using the given Options.</td></tr>
+<tr><td valign="top"><a href="#get_best_bindable_queues-0">get_best_bindable_queues/0</a></td><td>Sort queues containing a bindable call.</td></tr>
+<tr><td valign="top"><a href="#get_leader-0">get_leader/0</a></td><td>Returns <code>{ok, pid()}</code> where <code>pid()</code> is the pid of the leader process.</td></tr>
+<tr><td valign="top"><a href="#get_queue-1">get_queue/1</a></td><td>Get the <code>pid()</code> of the passed queue name.</td></tr>
+<tr><td valign="top"><a href="#load_queue-1">load_queue/1</a></td><td>load a queue from call_queue_config and start it.</td></tr>
+<tr><td valign="top"><a href="#print-0">print/0</a></td><td>Returns the state.</td></tr>
+<tr><td valign="top"><a href="#query_queue-1">query_queue/1</a></td><td><code>true</code> or <code>false</code> if the passed queue name exists.</td></tr>
+<tr><td valign="top"><a href="#queues-0">queues/0</a></td><td>Spits out the queues as <code>[{Qname :: string(), Qpid :: pid()}]</code>.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>start unlinked to the parent process.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>start linked to the parent process.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stops the local <code>queue_manager</code> for reason <code>normal</code></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add_queue-2">add_queue/2</a></h3>
+<div class="spec">
+<p><tt>add_queue(Name::string(), Opts::[{atom(), any()}]) -&gt; {ok, pid()} | {exists, pid()}</tt><br></p>
+</div><p>Add a queue named <code>Name</code> using the given Options.</p>
+
+<h3 class="function"><a name="get_best_bindable_queues-0">get_best_bindable_queues/0</a></h3>
+<div class="spec">
+<p><tt>get_best_bindable_queues() -&gt; [{string(), pid(), {any(), #queued_call{}} | none, pos_integer()}]</tt><br></p>
+</div><p>Sort queues containing a bindable call.  The queues are sorted from most important to
+  least by weight, priority of first bindable call, then by the time the first bindable call
+  has been in queue, influenced by queue service time.</p>
+
+<h3 class="function"><a name="get_leader-0">get_leader/0</a></h3>
+<div class="spec">
+<p><tt>get_leader() -&gt; {ok, pid()}</tt><br></p>
+</div><p>Returns <code>{ok, pid()}</code> where <code>pid()</code> is the pid of the leader process.</p>
+
+<h3 class="function"><a name="get_queue-1">get_queue/1</a></h3>
+<div class="spec">
+<p><tt>get_queue(Name::string()) -&gt; pid() | undefined</tt><br></p>
+</div><p>Get the <code>pid()</code> of the passed queue name.  If there is no queue, returns 'undefined'.
+  If the queue is not running, it is looked up in the config database and started
+  if found there.  If that also fails, undefined is returned.</p>
+
+<h3 class="function"><a name="load_queue-1">load_queue/1</a></h3>
+<div class="spec">
+<p><tt>load_queue(Name::string()) -&gt; ok | noexists</tt><br></p>
+</div><p>load a queue from call_queue_config and start it</p>
+
+<h3 class="function"><a name="print-0">print/0</a></h3>
+<div class="spec">
+<p><tt>print() -&gt; any()</tt><br></p>
+</div><p>Returns the state.</p>
+
+<h3 class="function"><a name="query_queue-1">query_queue/1</a></h3>
+<div class="spec">
+<p><tt>query_queue(Name::string()) -&gt; boolean()</tt><br></p>
+</div><p><code>true</code> or <code>false</code> if the passed queue name exists.</p>
+
+<h3 class="function"><a name="queues-0">queues/0</a></h3>
+<div class="spec">
+<p><tt>queues() -&gt; [{string(), pid()}]</tt><br></p>
+</div><p>Spits out the queues as <code>[{Qname :: string(), Qpid :: pid()}]</code>.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Nodes::[atom(), ...]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>start unlinked to the parent process.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Nodes::[atom(), ...]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>start linked to the parent process.</p>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; ok</tt><br></p>
+</div><p>Stops the local <code>queue_manager</code> for reason <code>normal</code></p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

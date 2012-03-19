@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_agent_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_agent_connection</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Common functions for the web and tcp-json agent connections.
+
+
+<h2><a name="description">Description</a></h2><p>Common functions for the web and tcp-json agent connections.  
+It is up to the connection to handle login and agent launching.  After  
+that, json should be sent into this module, as well as cast messages  
+the connection does not handle internally.</p>
+ 
+  <h3><a name="Json_API">Json API</a></h3>
+ 
+  <p>The Json API as two sides, client requests and server events.  OpenACD's  
+policy is to assume the client connections are complete idiots, and  
+therefore not worth asking about anything; not event if an event has been  
+handled.  Thus, requests always come from the client, and events always  
+come from the server.</p>
+ 
+  <h4><a name="Requests">Requests</a></h4>
+ 
+  A Json request will have the following form:
+  <pre>{"request_id":any(),
+  (optional)"module": module_name()(string()),
+  "function": function_name()(string()),
+  (optional)"args": any() | [any()]}</pre>
+ 
+  <p>If the module name is omitted, it is assumed to be this module
+  (cpx_agent_connection); ie: handled intenrally.  If args is not an array, it is
+  wrapped in an array of length 1.  If args is omitted, it is assumed to
+  be an array of length 0.  This way, requests match up to erlang
+  Module:Function/Arity format.  Erlang functions in this module that have %% <b>Agent Api</b> at the beginning of thier documentation conform to the form %% above with one caveat:  The first argument is always the internal state  
+of the connection, and is obviously not sent with the json requests.  
+Thus, a properly documented project will be useful to agent connection  
+and agent client developers.</p>
+ 
+  <p>Request_id is an opaque type sent by the client; it is sent back with  
+the reply to enable asynchronous requests.</p>
+ 
+  <p>A json response will have 3 major forms.</p>
+ 
+  A very simple success:
+  <pre> {
+   "request_id": any(),
+  	"success":  true
+  }</pre>
+  A success with a result:
+  <pre> {
+   "request_id": any(),
+  	"success":  true,
+  	"result":   any()
+  }</pre>
+  A failure:
+  <pre> {
+   "request_id":  any(),
+  	"success":  false,
+  	"message":  string(),
+  	"errcode":  string()
+  }</pre>
+ 
+  <h4><a name="Events">Events</a></h4>
+ 
+  <p>A server event is a json object with at least a "command" property.  If  
+the command references a specific agent channel, it will also have a  
+"channel_id" property.  All other properties are specific to the server  
+events.</p>
+ 
+  <h3><a name="Erlang_API">Erlang API</a></h3>
+ 
+  <p>There are two sides to the erlang API, the connection facing side (such  
+as a web or tcp connection), and the api handler side, such as this  
+module or plugins handing agent requests.</p>
+ 
+  <h4><a name="Agent_Connections">Agent Connections</a></h4>
+ 
+  <p>After the login procedure, init/1 should be called, passing in the agent
+  record (prefereably after the connection is set).  If a reply of
+  <code>{ok, #state{}}</code> is returned, stash the state.  It will be used in the  
+encode_cast, and handle_json functions.</p>
+ 
+  Both encode_cast and handle_json have the same return types.
+  <dl>
+  <dt><code>{ok, json(), state()}</code></dt><dd>If json() is undefined, no json is
+  to be sent.  Otherwise the json should be encoded using
+  mochijson2:encode/1 and sent over the wire.</dd>
+  <dt><code>{exit, json(), state()}</code></dt><dd>the connection should commit
+  hari-kari.  If json() is undefined, that's all that needs to happen,
+  otherwise json should be sent, then death.</dd>
+  </dl>
+ 
+  <h4><a name="Api_Handlers">Api Handlers</a></h4>
+ 
+  Modules intended to handle json calls can do so in two ways.  The first
+  is to register a hook to <a href="cpx_hooks.html">agent_api_call</a>.  This hook
+  is triggered if the module and function with the appropriate arity is
+  not found using the method described below.  The valid return values are
+  the same as for the static functions.  The hook is triggered with the
+  arguments:
+  <ul>
+  <li><code>Connection :: #state{}</code>: internal state of connection</li>
+  <li><code>Module :: atom()</code>: Module that was in the json</li>
+  <li><code>Function :: atom()</code>: Function that was in the json</li>
+  <li><code>Args :: [any()]</code>: Arguments list in the json</li>
+  </ul>
+ 
+  <p>The alternative is more efficient, preventing a call to cpx_hooks,
+  though there is no custom information passed to the module.  The module
+  has an attribute <code>agent_api_functions</code>, which is a list of tuples of
+  type <code>{FunctionAtom, Arity}</code>.  The arity must be one more than the  
+number of arguments sent with the json request; this is because the  
+state of the agent connection is sent as the first argument.</p>
+ 
+  An api handler function (either kind) should return one of the following:
+  <dl>
+  <dt><code>ok</code></dt><dd>A simple success json is returned</dd>
+  <dt><code>{ok, json()}</code></dt><dd>A json success is sent with the given json
+  set as the result</dd>
+  <dt><code>{error, bin_string(), bin_string()}}</code></dt><dd>An error is
+  returned</dd>
+  <dt> <code>exit</code></dt><dd>The connection should exit, likely taking the agent
+  fsm with it.  A simple success is returned.</dd>
+  <dt><code>{exit, json()}</code></dt><dd>The connection should exit, likely taking
+  the agent with it.  A success is returned, with the json as the result.
+  </dd>
+  </dl>
+ 
+  Plugins that want to send server events to agents should send one of the
+  two arbitrary command messages.
+  <ul>
+  <li><code>{arbitrary_command, Command, Props}</code></li>
+  <li><code>{arbitrary_command, ChannelPidOrId, Command, Props}</code></li>
+  </ul>
+ 
+  <p>In both cases, <code>Command</code> should be either an atom or binary string.  
+Props can be either a json object struct, or a property list that can  
+be put into a json object struct.</p>
+ 
+  <p><code>ChannelPidOrId</code> is the channel id either in its pid form, string form,  
+or binary string form.  In any form, if the channel does not exist, the  
+message is ignored.</p>
+ 
+  <p>When the event is sent, the command property and channelid (if given)  
+properties are automatically pre-pended onto the json struct.  The  
+result is sent to the connection for encoding and being sent over the  
+wire:</p>
+ 
+  <pre>{"command": string(),
+  "channelid": string(),
+  "field1": any(),
+  "field2": any(),...
+  "fieldN": any()
+  }</pre>
+ 
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_transfer-3">agent_transfer/3</a></td><td><b>Agent Api</b> Transfer the call on the given <code>Channel</code> to <code>Agent</code>
+  login name.</td></tr>
+<tr><td valign="top"><a href="#encode_cast-2">encode_cast/2</a></td><td>When the connection gets a cast it cannot handle, this should be
+  called.</td></tr>
+<tr><td valign="top"><a href="#end_wrapup-2">end_wrapup/2</a></td><td><b>Agent Api</b> End wrapup the agent channel 'Channel'.</td></tr>
+<tr><td valign="top"><a href="#get_agent-1">get_agent/1</a></td><td>Pull the agent record out of the state.</td></tr>
+<tr><td valign="top"><a href="#get_agent_profiles-1">get_agent_profiles/1</a></td><td><b>Agent Api</b> Get a list of the profiles that are in the system.</td></tr>
+<tr><td valign="top"><a href="#get_avail_agents-1">get_avail_agents/1</a></td><td><b>Agent Api</b> Get a list of the agents that are currently available.</td></tr>
+<tr><td valign="top"><a href="#get_endpoint-2">get_endpoint/2</a></td><td><b>Agent Api</b> Get the agent's endpoint data for a given module.</td></tr>
+<tr><td valign="top"><a href="#get_queue_transfer_options-2">get_queue_transfer_options/2</a></td><td><b>Agent Api</b> Get the fields and skills an agent can assign to a
+  media before transfering it back into queue.</td></tr>
+<tr><td valign="top"><a href="#get_tabs_menu-1">get_tabs_menu/1</a></td><td><b>Agent Api</b> Gathers the tabs an agent can access, and pushes the
+  result into the command queue.</td></tr>
+<tr><td valign="top"><a href="#handle_json-2">handle_json/2</a></td><td>After unwrapping the binary that will hold json, and connection
+  should call this.</td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td>After the connection has been started, this should be called to
+  seed the state.</td></tr>
+<tr><td valign="top"><a href="#logout-1">logout/1</a></td><td><b>Agent Api</b> Logs the agent out.</td></tr>
+<tr><td valign="top"><a href="#media_call-3">media_call/3</a></td><td><b>Agent Api</b> @see media_call/5.</td></tr>
+<tr><td valign="top"><a href="#media_call-4">media_call/4</a></td><td><b>Agent Api</b> Forward a request to the media associated with an
+  oncall agent channel.</td></tr>
+<tr><td valign="top"><a href="#media_cast-3">media_cast/3</a></td><td><b>Agent Api</b> @see media_cast/5.</td></tr>
+<tr><td valign="top"><a href="#media_cast-4">media_cast/4</a></td><td><b>Agent Api</b> Forward a command to the media associated with an
+  oncall agent channel.</td></tr>
+<tr><td valign="top"><a href="#queue_transfer-4">queue_transfer/4</a></td><td><b>Agent Api</b> Transfer the channel's call into <code>Queue</code> with
+  the given <code>Opts</code>.</td></tr>
+<tr><td valign="top"><a href="#set_endpoint-3">set_endpoint/3</a></td><td><b>Agent Api</b> Sets the agent's endpoint data to the given, well, data.</td></tr>
+<tr><td valign="top"><a href="#set_release-2">set_release/2</a></td><td><b>Agent Api</b> Sets the release mode of the agent.</td></tr>
+<tr><td valign="top"><a href="#set_state-3">set_state/3</a></td><td><b>Agent Api</b> Set the agent channel <code>Channel</code> to the given
+  <code>Statename</code> with default state data.</td></tr>
+<tr><td valign="top"><a href="#set_state-4">set_state/4</a></td><td><b>Agent Api</b> Set the agent channel <code>Channel</code> to the given
+  <code>Statename</code> with the given <code>Statedata</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_transfer-3">agent_transfer/3</a></h3>
+<div class="spec">
+<p><tt>agent_transfer(State::#state{}, ChannelBin::binary(), Agent::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Transfer the call on the given <code>Channel</code> to <code>Agent</code>
+  login name.  No result is sent back as it's a simple success or failure.</p>
+
+<h3 class="function"><a name="encode_cast-2">encode_cast/2</a></h3>
+<div class="spec">
+<p><tt>encode_cast(State::#state{}, Cast::any()) -&gt; {error, any(), #state{}} | {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p>When the connection gets a cast it cannot handle, this should be
+  called.  It will either return an error, or json to pump out to the
+  client.</p>
+
+<h3 class="function"><a name="end_wrapup-2">end_wrapup/2</a></h3>
+<div class="spec">
+<p><tt>end_wrapup(State::#state{}, ChanBin::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> End wrapup the agent channel 'Channel'.  This also
+  kills the channel, making it available for use again.  No result
+  property as it iether worked or didn't.  There will also be an event
+  later sent by the agent fsm.  It is recommended that no UI changes
+  occur until that event comes in.</p>
+
+<h3 class="function"><a name="get_agent-1">get_agent/1</a></h3>
+<div class="spec">
+<p><tt>get_agent(State::#state{}) -&gt; undefined | #agent{}</tt><br></p>
+</div><p>Pull the agent record out of the state.</p>
+
+<h3 class="function"><a name="get_agent_profiles-1">get_agent_profiles/1</a></h3>
+<div class="spec">
+<p><tt>get_agent_profiles(State::#state{}) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Get a list of the profiles that are in the system.
+  Result is:
+  <pre>[{
+  	"name":  string(),
+  	"order":  number()
+  }]</pre></p>
+
+<h3 class="function"><a name="get_avail_agents-1">get_avail_agents/1</a></h3>
+<div class="spec">
+<p><tt>get_avail_agents(State::#state{}) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Get a list of the agents that are currently available.
+  Result is:
+  <pre>[{
+  	"name":  string(),
+  	"profile":  string(),
+  	"state":  "idle" | "released"
+  }]</pre></p>
+
+<h3 class="function"><a name="get_endpoint-2">get_endpoint/2</a></h3>
+<div class="spec">
+<p><tt>get_endpoint(State::#state{}, TypeBin::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Get the agent's endpoint data for a given module.</p>
+
+<h3 class="function"><a name="get_queue_transfer_options-2">get_queue_transfer_options/2</a></h3>
+<div class="spec">
+<p><tt>get_queue_transfer_options(State::#state{}, Channel::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Get the fields and skills an agent can assign to a
+  media before transfering it back into queue.  Result:
+  <pre>{
+  	"curentVars":  [{
+  		string():  string()
+ 	}],
+ 	"prompts":  [{
+  		"name":  string(),
+  		"label":  string(),
+  		"regex":  regex_string()
+  	}],
+  	"skills":[
+ 		string() | {"atom":  string(),  "value":  string()}
+  	]
+  }</pre></p>
+
+<h3 class="function"><a name="get_tabs_menu-1">get_tabs_menu/1</a></h3>
+<div class="spec">
+<p><tt>get_tabs_menu(State) -&gt; any()</tt></p>
+</div><p><b>Agent Api</b> Gathers the tabs an agent can access, and pushes the
+  result into the command queue.
+  {"command": "set_tabs_menu",
+  "tabs": [
+      {"label":string(),"href":string()}
+  ]}
+ TODO freaking special snowflake.</p>
+
+<h3 class="function"><a name="handle_json-2">handle_json/2</a></h3>
+<div class="spec">
+<p><tt>handle_json(State::#state{}, Json::<a href="#type-json">json()</a>) -&gt; {ok, <a href="#type-json">json()</a>, #state{}} | {error, any(), #state{}} | {exit, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p>After unwrapping the binary that will hold json, and connection
+  should call this.</p>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(Agent::#agent{}) -&gt; {ok, #state{}}</tt><br></p>
+</div><p>After the connection has been started, this should be called to
+  seed the state.</p>
+
+<h3 class="function"><a name="logout-1">logout/1</a></h3>
+<div class="spec">
+<p><tt>logout(State::#state{}) -&gt; exit</tt><br></p>
+</div><p><b>Agent Api</b> Logs the agent out.  The result is a simple success.</p>
+
+<h3 class="function"><a name="media_call-3">media_call/3</a></h3>
+<div class="spec">
+<p><tt>media_call(State::#state{}, Channel::binary(), Command::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> @see media_call/5</p>
+
+<h3 class="function"><a name="media_call-4">media_call/4</a></h3>
+<div class="spec">
+<p><tt>media_call(State::#state{}, ChannelBin::binary(), Command::binary(), Args::[any()]) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Forward a request to the media associated with an
+  oncall agent channel.  <code>Command</code> is the name of the request to make.
+  <code>Args</code> is a list of arguments to be sent with the <code>Command</code>.  Check the
+  documentation of the media modules to see what possible returns there
+  are.</p>
+
+<h3 class="function"><a name="media_cast-3">media_cast/3</a></h3>
+<div class="spec">
+<p><tt>media_cast(State::#state{}, Channel::binary(), Command::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> @see media_cast/5</p>
+
+<h3 class="function"><a name="media_cast-4">media_cast/4</a></h3>
+<div class="spec">
+<p><tt>media_cast(State::#state{}, Channel::binary(), Command::binary(), Args::[any()]) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Forward a command to the media associated with an
+  oncall agent channel.  <code>Command</code> is the name of the command to send.
+  <code>Args</code> is a list of arguments to send with the <code>Command</code>.  There is no
+  reply expected, so a simple success is always returned.</p>
+
+<h3 class="function"><a name="queue_transfer-4">queue_transfer/4</a></h3>
+<div class="spec">
+<p><tt>queue_transfer(State::#state{}, QueueBin::binary(), Channel::binary(), Opts::<a href="#type-json">json()</a>) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Transfer the channel's call into <code>Queue</code> with
+  the given <code>Opts</code>.  The options is a json object with any number of
+  properties that are passed to the media.  If there is a property
+  <code>"skills"</code> with a list, the list is interpreted as a set of skills to
+  apply to the media.  No result is set as it is merely success or
+  failure.</p>
+
+<h3 class="function"><a name="set_endpoint-3">set_endpoint/3</a></h3>
+<div class="spec">
+<p><tt>set_endpoint(State::#state{}, Endpoint::binary(), Data::binary()) -&gt; any()</tt><br></p>
+</div><p><b>Agent Api</b> Sets the agent's endpoint data to the given, well, data.
+  Particularly useful if the flash phone is used, as all of the connection
+  data will not be available for that until it is started on in the
+  browser.
+ TODO make this not media specific.</p>
+
+<h3 class="function"><a name="set_release-2">set_release/2</a></h3>
+<div class="spec">
+<p><tt>set_release(State::#state{}, Release::binary() | false) -&gt; {ok, <a href="#type-json">json()</a>, #state{}} | {error, any(), #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Sets the release mode of the agent.  To set an agent in
+  a release mode, pass <code>&lt;&lt;"Default"&gt;&gt;</code>, <code>&lt;&lt;"default"&gt;&gt;</code>, or
+  <code>&lt;&lt;"Id:Name:Bias"&gt;&gt;</code> as the arguement.  Setting the agent idle is done
+  by sending <code>&lt;&lt;"none"&gt;&gt;</code> or <code>false</code>.</p>
+
+<h3 class="function"><a name="set_state-3">set_state/3</a></h3>
+<div class="spec">
+<p><tt>set_state(State::#state{}, Channel::binary(), Statename::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Set the agent channel <code>Channel</code> to the given
+  <code>Statename</code> with default state data.  No result property as it either
+  worked or didn't.  There will likely be an event as well to set the agent
+  state, so it is recommended that no actual change occur on the agent UI
+  side until that event is received.</p>
+
+<h3 class="function"><a name="set_state-4">set_state/4</a></h3>
+<div class="spec">
+<p><tt>set_state(State::#state{}, ChannelBin::binary(), StateBin::binary(), StateDataBin::binary()) -&gt; {ok, <a href="#type-json">json()</a>, #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Set the agent channel <code>Channel</code> to the given
+  <code>Statename</code> with the given <code>Statedata</code>.  No result property as it either %% worked or it didn't.  State data will vary based on state.  Furthermore,
+  in the case of success, an event is sent later by the agent fsm.  It is
+  recommended that no change to the UI occur until that event is received.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

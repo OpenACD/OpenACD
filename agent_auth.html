@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_auth</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_auth</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Connection to the local authenication cache and integration to  
+another module.
+
+
+<h2><a name="description">Description</a></h2><p>Connection to the local authenication cache and integration to  
+another module.  Authentication is first checked by the integration  
+module (if any).  If that fails, this module will fall back to it's  
+local cache in the mnesia 'agent_auth' table.  The cache table is both  
+ram and disc copies on all nodes.</p>
+ 
+  <h3><a name="Hooks">Hooks</a></h3>
+ 
+  <p>Many many hooks; adding, droping, updating, and fetching.</p>
+ 
+  <h4><a name="agent_auth_profile_create">agent_auth_profile_create</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when a profile is created.  
+Args :: [Rec :: #agent_profile{}]</p>
+ 
+  <h4><a name="agent_auth_profile_update">agent_auth_profile_update</a></h4>
+ 
+  <p>Aynchronously triggers all hooks when a profile is updated.  
+Args :: [OldName :: string(), NewRec :: #agent_profile{}]</p>
+ 
+  <h4><a name="agent_auth_profile_destroy">agent_auth_profile_destroy</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when a profile is removed.  
+Args :: [Name :: string()].</p>
+ 
+  <h4><a name="agent_auth_agent_update">agent_auth_agent_update</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when an agent is updated.  
+Args :: [OldAgent :: #agent_auth{}, NewAgent :: #agent_auth{}]</p>
+ 
+  <h4><a name="agent_auth_agent_set_endpoint">agent_auth_agent_set_endpoint</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when an agent's endpoint is set.  
+Args :: [{Type :: 'id' | 'login', AgentVal :: string()},      
+Endpoint :: atom(), Data :: any()]</p>
+ 
+  <h4><a name="agent_auth_agent_drop_endpoint">agent_auth_agent_drop_endpoint</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when an agent has an endpoint removed.  
+Args :: [{Type :: 'id' | 'login', AgentVal :: string()},      
+Endpoint :: atom()]</p>
+ 
+  <h4><a name="agent_auth_agent_set_extended">agent_auth_agent_set_extended</a></h4>
+ 
+  <p>Asynchronously triggers all hooks when an agent has an extended property  
+set.  
+Args :: [{Type :: 'id' | 'login', AgentVal :: string()},      
+Prop :: any(), Val :: any()]</p>
+ 
+  <h4><a name="agent_auth_agent_drop_extended">agent_auth_agent_drop_extended</a></h4>
+ 
+  <p>Asynchrously triggers all hooks when an agent has an extended property  
+removed.  
+Args :: [{Type :: 'id' | 'login', AgentVal :: string()},      
+Prop :: any()]</p>
+ 
+  <h4><a name="agent_auth_agent_add">agent_auth_agent_add</a></h4>
+ 
+  Aysnchronously triggers all hooks when an agent is created.
+  Args :: [Record :: #agent_auth{}]
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-profile_name">profile_name()</a></h3>
+<p><tt>profile_name() = string()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add_agent-1">add_agent/1</a></td><td>adds a user to the local cache.</td></tr>
+<tr><td valign="top"><a href="#add_agent-5">add_agent/5</a></td><td>(<em>Deprecated</em>.) adds a user to the local cache bypassing the integrated at check.</td></tr>
+<tr><td valign="top"><a href="#add_agent-7">add_agent/7</a></td><td>(<em>Deprecated</em>.) adds a user to the local cache bypassing the integrated at check.</td></tr>
+<tr><td valign="top"><a href="#auth-2">auth/2</a></td><td>Take the plaintext username and password and attempt to
+  authenticate the agent.</td></tr>
+<tr><td valign="top"><a href="#destroy-1">destroy/1</a></td><td>Removes the passed user with login of <code>Username</code> from the local cache.</td></tr>
+<tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destory either by id or login.</td></tr>
+<tr><td valign="top"><a href="#destroy_profile-1">destroy_profile/1</a></td><td>Remove the profile <code>string() Name</code>.</td></tr>
+<tr><td valign="top"><a href="#destroy_release-1">destroy_release/1</a></td><td>Remove the release option <code>string() Label</code> from the database.</td></tr>
+<tr><td valign="top"><a href="#destroy_release-2">destroy_release/2</a></td><td>Remove the release option with the key (id, label) of value from the
+  database.</td></tr>
+<tr><td valign="top"><a href="#drop_endpoint-2">drop_endpoint/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#drop_extended_prop-2">drop_extended_prop/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_password-1">encode_password/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agent-1">get_agent/1</a></td><td>Gets <code>#agent_auth{}</code> associated with <code>string() Login</code>.</td></tr>
+<tr><td valign="top"><a href="#get_agent-2">get_agent/2</a></td><td>Get an agent who's <code>Key</code> is <code>Value</code>.</td></tr>
+<tr><td valign="top"><a href="#get_agents-0">get_agents/0</a></td><td>Gets All the agents.</td></tr>
+<tr><td valign="top"><a href="#get_agents-1">get_agents/1</a></td><td>Gets all the agents associated with <code>string() Profile</code>.</td></tr>
+<tr><td valign="top"><a href="#get_extended_prop-2">get_extended_prop/2</a></td><td>Get an extened property either from the database or a record
+  directly.</td></tr>
+<tr><td valign="top"><a href="#get_profile-1">get_profile/1</a></td><td>Gets the profile <code>string() Name</code></td></tr>
+<tr><td valign="top"><a href="#get_profiles-0">get_profiles/0</a></td><td>Return all agent profiles.</td></tr>
+<tr><td valign="top"><a href="#get_releases-0">get_releases/0</a></td><td>Get all <code>#release_opt</code>.</td></tr>
+<tr><td valign="top"><a href="#new_profile-1">new_profile/1</a></td><td>Create a new agent profile.</td></tr>
+<tr><td valign="top"><a href="#new_profile-2">new_profile/2</a></td><td>Create a new agent profile <code>string() Name</code> with <code>[atom()] Skills</code>.</td></tr>
+<tr><td valign="top"><a href="#new_release-1">new_release/1</a></td><td>Add <code>#release_opt{} Rec</code> to the database.</td></tr>
+<tr><td valign="top"><a href="#set_agent-2">set_agent/2</a></td><td>Sets the agent <code>string() Oldlogin</code> with new data in <code>proplist Props</code>;
+  does not change data that is not in the proplist.</td></tr>
+<tr><td valign="top"><a href="#set_agent-5">set_agent/5</a></td><td>(<em>Deprecated</em>.) Update the agent <code>string() Oldlogin</code> without changing the password.</td></tr>
+<tr><td valign="top"><a href="#set_agent-6">set_agent/6</a></td><td>(<em>Deprecated</em>.) Update the agent <code>string() Oldlogin</code> with a new password (as well
+  as everything else).</td></tr>
+<tr><td valign="top"><a href="#set_agent-8">set_agent/8</a></td><td>(<em>Deprecated</em>.) Update the agent <code>string() Oldlogin</code> with a new password (as well
+  as everything else).</td></tr>
+<tr><td valign="top"><a href="#set_endpoint-3">set_endpoint/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_extended_prop-3">set_extended_prop/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_profile-2">set_profile/2</a></td><td>Update the profile <code>string() Oldname</code> to the given rec.</td></tr>
+<tr><td valign="top"><a href="#set_profile-3">set_profile/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#update_release-2">update_release/2</a></td><td>Update the release option <code>string() Label</code> to <code>#release_opt{} Rec</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add_agent-1">add_agent/1</a></h3>
+<div class="spec">
+<p><tt>add_agent(Proplist::[{atom(), any()}, ...] | #agent_auth{}) -&gt; {atomic, ok} | {abort, any()}</tt><br></p>
+</div><p>adds a user to the local cache.  Accepts either <code>#agent_auth{}</code> or
+  a proplist as the initial argument.  If an agent with the given login
+  already exists, this throws an error.  An id is created for ye.  The
+  password should not be encoded.</p>
+
+<h3 class="function"><a name="add_agent-5">add_agent/5</a></h3>
+<div class="spec">
+<p><tt>add_agent(Username::string(), Password::string(), Skills::[atom()], Security::admin | agent | supervisor, Profile::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Please use <a href="#add_agent-1"><code>add_agent/1</code></a> instead.</p>
+<p>adds a user to the local cache bypassing the integrated at check.
+  Note that unlike <a href="#cache-4"><code>cache/4</code></a> this expects the password in plain
+  text!</p>
+
+<h3 class="function"><a name="add_agent-7">add_agent/7</a></h3>
+<div class="spec">
+<p><tt>add_agent(Username::string(), Firstname::string(), Lastname::string(), Password::string(), Skills::[atom()], Security::admin | agent | supervisor, Profile::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Please use <a href="#add_agent-1"><code>add_agent/1</code></a> instead.</p>
+<p>adds a user to the local cache bypassing the integrated at check.
+  Note that unlike <a href="#cache-4"><code>cache/4</code></a> this expects the password in plain
+  text!</p>
+
+<h3 class="function"><a name="auth-2">auth/2</a></h3>
+<div class="spec">
+<p><tt>auth(Username::string(), Password::string()) -&gt; deny | {allow, string(), <a href="#type-skill_list">skill_list()</a>, <a href="#type-security_level">security_level()</a>, <a href="#type-profile_name">profile_name()</a>}</tt><br></p>
+</div><p>Take the plaintext username and password and attempt to
+  authenticate the agent.</p>
+
+<h3 class="function"><a name="destroy-1">destroy/1</a></h3>
+<div class="spec">
+<p><tt>destroy(Username::string()) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Removes the passed user with login of <code>Username</code> from the local cache.  Called when integration returns a deny.</p>
+
+<h3 class="function"><a name="destroy-2">destroy/2</a></h3>
+<div class="spec">
+<p><tt>destroy(Key::id | login, Value::string()) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Destory either by id or login.</p>
+
+<h3 class="function"><a name="destroy_profile-1">destroy_profile/1</a></h3>
+<div class="spec">
+<p><tt>destroy_profile(Name::string()) -&gt; {error, any()} | {atomic, ok}</tt><br></p>
+</div><p>Remove the profile <code>string() Name</code>.  Returns <code>error</code> if you try to remove the profile <code>"Default"</code>.</p>
+
+<h3 class="function"><a name="destroy_release-1">destroy_release/1</a></h3>
+<div class="spec">
+<p><tt>destroy_release(Label::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Remove the release option <code>string() Label</code> from the database.</p>
+
+<h3 class="function"><a name="destroy_release-2">destroy_release/2</a></h3>
+<div class="spec">
+<p><tt>destroy_release(Key::id | label, Value::pos_integer() | string()) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Remove the release option with the key (id, label) of value from the
+  database.</p>
+
+<h3 class="function"><a name="drop_endpoint-2">drop_endpoint/2</a></h3>
+<div class="spec">
+<p><tt>drop_endpoint(Key::{login | id, string()}, Endpoint::atom()) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="drop_extended_prop-2">drop_extended_prop/2</a></h3>
+<div class="spec">
+<p><tt>drop_extended_prop(Key::{login | id, string()}, Prop::atom()) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_password-1">encode_password/1</a></h3>
+<div class="spec">
+<p><tt>encode_password(Password) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_agent-1">get_agent/1</a></h3>
+<div class="spec">
+<p><tt>get_agent(Login::string()) -&gt; {atomic, [#agent_auth{}]}</tt><br></p>
+</div><p>Gets <code>#agent_auth{}</code> associated with <code>string() Login</code>.</p>
+
+<h3 class="function"><a name="get_agent-2">get_agent/2</a></h3>
+<div class="spec">
+<p><tt>get_agent(Key::id | login, Value::string()) -&gt; {atomic, [#agent_auth{}]}</tt><br></p>
+</div><p>Get an agent who's <code>Key</code> is <code>Value</code>.</p>
+
+<h3 class="function"><a name="get_agents-0">get_agents/0</a></h3>
+<div class="spec">
+<p><tt>get_agents() -&gt; [#agent_auth{}]</tt><br></p>
+</div><p>Gets All the agents.</p>
+
+<h3 class="function"><a name="get_agents-1">get_agents/1</a></h3>
+<div class="spec">
+<p><tt>get_agents(Profile::string()) -&gt; [#agent_auth{}]</tt><br></p>
+</div><p>Gets all the agents associated with <code>string() Profile</code>.</p>
+
+<h3 class="function"><a name="get_extended_prop-2">get_extended_prop/2</a></h3>
+<div class="spec">
+<p><tt>get_extended_prop(Key::{login | id, string()}, Prop::atom()) -&gt; {ok, any()} | {error, noagent} | undefined</tt><br></p>
+</div><p>Get an extened property either from the database or a record
+  directly.</p>
+
+<h3 class="function"><a name="get_profile-1">get_profile/1</a></h3>
+<div class="spec">
+<p><tt>get_profile(Name::string()) -&gt; #agent_profile{} | undefined</tt><br></p>
+</div><p>Gets the profile <code>string() Name</code></p>
+
+<h3 class="function"><a name="get_profiles-0">get_profiles/0</a></h3>
+<div class="spec">
+<p><tt>get_profiles() -&gt; [#agent_profile{}]</tt><br></p>
+</div><p>Return all agent profiles.</p>
+
+<h3 class="function"><a name="get_releases-0">get_releases/0</a></h3>
+<div class="spec">
+<p><tt>get_releases() -&gt; [#release_opt{}]</tt><br></p>
+</div><p>Get all <code>#release_opt</code>.</p>
+
+<h3 class="function"><a name="new_profile-1">new_profile/1</a></h3>
+<div class="spec">
+<p><tt>new_profile(Rec::#agent_profile{}) -&gt; {error, any()} | {atomic, ok}</tt><br></p>
+</div><p>Create a new agent profile.</p>
+
+<h3 class="function"><a name="new_profile-2">new_profile/2</a></h3>
+<div class="spec">
+<p><tt>new_profile(Name::string(), Skills::[atom()]) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Create a new agent profile <code>string() Name</code> with <code>[atom()] Skills</code>.</p>
+
+<h3 class="function"><a name="new_release-1">new_release/1</a></h3>
+<div class="spec">
+<p><tt>new_release(Rec::#release_opt{}) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Add <code>#release_opt{} Rec</code> to the database.</p>
+
+<h3 class="function"><a name="set_agent-2">set_agent/2</a></h3>
+<div class="spec">
+<p><tt>set_agent(Oldlogin::string(), Props::[{atom(), any()}]) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Sets the agent <code>string() Oldlogin</code> with new data in <code>proplist Props</code>;
+  does not change data that is not in the proplist.  The proplist's
+  <code>endpoints</code> field can also contain a partial list, preserving existing
+  settings.</p>
+
+<h3 class="function"><a name="set_agent-5">set_agent/5</a></h3>
+<div class="spec">
+<p><tt>set_agent(Id::string(), Newlogin::string(), Newskills::[atom()], NewSecurity::<a href="#type-security_level">security_level()</a>, Newprofile::string()) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Use <a href="#set_agent-2"><code>set_agent/2</code></a> instead.</p>
+<p>Update the agent <code>string() Oldlogin</code> without changing the password.</p>
+
+<h3 class="function"><a name="set_agent-6">set_agent/6</a></h3>
+<div class="spec">
+<p><tt>set_agent(Oldlogin::string(), Newlogin::string(), Newpass::string(), Newskills::[atom()], NewSecurity::<a href="#type-security_level">security_level()</a>, Newprofile::string()) -&gt; {atomic, error} | {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Use <a href="#set_agent-2"><code>set_agent/2</code></a> instead.</p>
+<p>Update the agent <code>string() Oldlogin</code> with a new password (as well
+  as everything else).</p>
+
+<h3 class="function"><a name="set_agent-8">set_agent/8</a></h3>
+<div class="spec">
+<p><tt>set_agent(Oldlogin::string(), Newlogin::string(), Newpass::string(), Newskills::[atom()], NewSecurity::<a href="#type-security_level">security_level()</a>, Newprofile::string(), Newfirstname::string(), Newlastname::string()) -&gt; {atomic, error} | {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Use <a href="#set_agent-2"><code>set_agent/2</code></a> instead.</p>
+<p>Update the agent <code>string() Oldlogin</code> with a new password (as well
+  as everything else).</p>
+
+<h3 class="function"><a name="set_endpoint-3">set_endpoint/3</a></h3>
+<div class="spec">
+<p><tt>set_endpoint(Key::{login | id, string()}, Endpoint::atom(), Data::any()) -&gt; {atomic, ok} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_extended_prop-3">set_extended_prop/3</a></h3>
+<div class="spec">
+<p><tt>set_extended_prop(Key::{login | id, string()}, Prop::atom(), Val::any()) -&gt; {atomic, ok} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_profile-2">set_profile/2</a></h3>
+<div class="spec">
+<p><tt>set_profile(Oldname::string(), Rec::#agent_profile{}) -&gt; {atomic, ok} | {error, any()}</tt><br></p>
+</div><p>Update the profile <code>string() Oldname</code> to the given rec.</p>
+
+<h3 class="function"><a name="set_profile-3">set_profile/3</a></h3>
+<div class="spec">
+<p><tt>set_profile(Oldname::string(), Name::string(), Skills::[atom()]) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="update_release-2">update_release/2</a></h3>
+<div class="spec">
+<p><tt>update_release(Label::string(), Rec::#release_opt{}) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Update the release option <code>string() Label</code> to <code>#release_opt{} Rec</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

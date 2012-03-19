@@ -1,0 +1,288 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_auth_mnesia</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_auth_mnesia</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Connection to the local authenication cache and integration to another module.
+
+
+<h2><a name="description">Description</a></h2>Connection to the local authenication cache and integration to another module.
+  Authentication is first checked by the integration module (if any).  If that fails,
+  this module will fall back to it's local cache in the mnesia 'agent_auth' table.
+  the cache table is both ram and disc copies on all nodes.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-profile">profile()</a></h3>
+<p><tt>profile() = string()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-profile_data">profile_data()</a></h3>
+<p><tt>profile_data() = {<a href="#type-profile">profile()</a>, <a href="#type-skill_list">skill_list()</a>} | <a href="#type-profile">profile()</a> | <a href="#type-skill_list">skill_list()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-profile_name">profile_name()</a></h3>
+<p><tt>profile_name() = string()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add_agent-1">add_agent/1</a></td><td>adds a user to the local cache.</td></tr>
+<tr><td valign="top"><a href="#add_agent-5">add_agent/5</a></td><td>(<em>Deprecated</em>.) adds a user to the local cache bypassing the integrated at check.</td></tr>
+<tr><td valign="top"><a href="#add_agent-7">add_agent/7</a></td><td>(<em>Deprecated</em>.) adds a user to the local cache bypassing the integrated at check.</td></tr>
+<tr><td valign="top"><a href="#auth-2">auth/2</a></td><td>Take the plaintext username and password and attempt to
+  authenticate the agent.</td></tr>
+<tr><td valign="top"><a href="#build_tables-0">build_tables/0</a></td><td>Starts mnesia and creates the tables.</td></tr>
+<tr><td valign="top"><a href="#cache-6">cache/6</a></td><td>(<em>Deprecated</em>.) Caches the passed <code>Username</code>, <code>Password</code>, <code>Skills</code>, and <code>Security</code>
+  type.</td></tr>
+<tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destory either by id or login.</td></tr>
+<tr><td valign="top"><a href="#destroy_profile-1">destroy_profile/1</a></td><td>Remove the profile <code>string() Name</code>.</td></tr>
+<tr><td valign="top"><a href="#destroy_release-1">destroy_release/1</a></td><td>Remove the release option <code>string() Label</code> from the database.</td></tr>
+<tr><td valign="top"><a href="#destroy_release-2">destroy_release/2</a></td><td>Remove the release option with the key (id, label) of value from the
+  database.</td></tr>
+<tr><td valign="top"><a href="#drop_endpoint-2">drop_endpoint/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#drop_extended_prop-2">drop_extended_prop/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_password-1">encode_password/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agent-1">get_agent/1</a></td><td>Gets <code>#agent_auth{}</code> associated with <code>string() Login</code>.</td></tr>
+<tr><td valign="top"><a href="#get_agent-2">get_agent/2</a></td><td>Get an agent who's <code>Key</code> is <code>Value</code>.</td></tr>
+<tr><td valign="top"><a href="#get_agents-0">get_agents/0</a></td><td>Gets All the agents.</td></tr>
+<tr><td valign="top"><a href="#get_agents-1">get_agents/1</a></td><td>Gets all the agents associated with <code>string() Profile</code>.</td></tr>
+<tr><td valign="top"><a href="#get_extended_prop-2">get_extended_prop/2</a></td><td>Get an extened property either from the database or a record
+  directly.</td></tr>
+<tr><td valign="top"><a href="#get_profile-1">get_profile/1</a></td><td>Gets the proflie <code>string() Name</code></td></tr>
+<tr><td valign="top"><a href="#get_profiles-0">get_profiles/0</a></td><td>Return all profiles as <code>[{string() Name, [atom] Skills}]</code>.</td></tr>
+<tr><td valign="top"><a href="#get_releases-0">get_releases/0</a></td><td>Get all <code>#release_opt</code>.</td></tr>
+<tr><td valign="top"><a href="#merge-3">merge/3</a></td><td>Utility function to handle merging data after a net split.</td></tr>
+<tr><td valign="top"><a href="#new_profile-1">new_profile/1</a></td><td>Create a new agent profile.</td></tr>
+<tr><td valign="top"><a href="#new_profile-2">new_profile/2</a></td><td>Create a new agent profile <code>string() Name</code> with <code>[atom()] Skills</code>.</td></tr>
+<tr><td valign="top"><a href="#new_release-1">new_release/1</a></td><td>Add <code>#release_opt{} Rec</code> to the database.</td></tr>
+<tr><td valign="top"><a href="#query_agent_auth-1">query_agent_auth/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#query_profiles-1">query_profiles/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#query_release-1">query_release/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_agent-2">set_agent/2</a></td><td>Sets the agent <code>string() Oldlogin</code> with new data in <code>proplist Props</code>;
+  does not change data that is not in the proplist.</td></tr>
+<tr><td valign="top"><a href="#set_endpoint-3">set_endpoint/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_extended_prop-3">set_extended_prop/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_profile-2">set_profile/2</a></td><td>Update the profile <code>string() Oldname</code> to the given rec.</td></tr>
+<tr><td valign="top"><a href="#set_profile-3">set_profile/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#update_release-2">update_release/2</a></td><td>Update the release option <code>string() Label</code> to <code>#release_opt{} Rec</code>.</td></tr>
+<tr><td valign="top"><a href="#upgrade_v1_table-0">upgrade_v1_table/0</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add_agent-1">add_agent/1</a></h3>
+<div class="spec">
+<p><tt>add_agent(Proplist::[{atom(), any()}, ...] | #agent_auth{}) -&gt; {atomic, ok}</tt><br></p>
+</div><p>adds a user to the local cache.  Accepts either <code>#agent_auth{}</code> or
+  a proplist as the initial argument.  If an agent with the given login
+  already exists, this throws an error.  An id is created for ye.  The
+  password should not be encoded.</p>
+
+<h3 class="function"><a name="add_agent-5">add_agent/5</a></h3>
+<div class="spec">
+<p><tt>add_agent(Username::string(), Password::string(), Skills::[atom()], Security::admin | agent | supervisor, Profile::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Please use <a href="#add_agent-1"><code>add_agent/1</code></a> instead.</p>
+<p>adds a user to the local cache bypassing the integrated at check.
+  Note that unlike <a href="#cache-4"><code>cache/4</code></a> this expects the password in plain
+  text!</p>
+
+<h3 class="function"><a name="add_agent-7">add_agent/7</a></h3>
+<div class="spec">
+<p><tt>add_agent(Username::string(), Firstname::string(), Lastname::string(), Password::string(), Skills::[atom()], Security::admin | agent | supervisor, Profile::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Please use <a href="#add_agent-1"><code>add_agent/1</code></a> instead.</p>
+<p>adds a user to the local cache bypassing the integrated at check.
+  Note that unlike <a href="#cache-4"><code>cache/4</code></a> this expects the password in plain
+  text!</p>
+
+<h3 class="function"><a name="auth-2">auth/2</a></h3>
+<div class="spec">
+<p><tt>auth(Username::string(), Password::string()) -&gt; {ok, deny} | {ok, {allow, string(), <a href="#type-skill_list">skill_list()</a>, <a href="#type-security_level">security_level()</a>, <a href="#type-profile_name">profile_name()</a>}} | pass</tt><br></p>
+</div><p>Take the plaintext username and password and attempt to
+  authenticate the agent.</p>
+
+<h3 class="function"><a name="build_tables-0">build_tables/0</a></h3>
+<div class="spec">
+<p><tt>build_tables() -&gt; ok</tt><br></p>
+</div><p>Starts mnesia and creates the tables.  If the tables already exist,
+  returns <code>ok</code>.  Otherwise, a default username of <code>"agent"</code> is stored
+  with password <code>"Password123"</code> and skill <code>[english]</code>.</p>
+
+<h3 class="function"><a name="cache-6">cache/6</a></h3>
+<div class="spec">
+<p><tt>cache(Id::string(), Username::string(), Password::string(), Profile::<a href="#type-profile_data">profile_data()</a>, Security::agent | supervisor | admin, Extended::[{atom(), any()}]) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p><b>This function is deprecated:</b> Use <a href="#cache-2"><code>cache/2</code></a> instead.</p>
+<p>Caches the passed <code>Username</code>, <code>Password</code>, <code>Skills</code>, and <code>Security</code>
+  type.  to the mnesia database.  <code>Username</code> is the plaintext name and
+  used as the key.  <code>Password</code> is assumed to be plaintext; will be
+  erlang:md5'ed.  <code>Security</code> is either <code>agent</code>, <code>supervisor</code>, or <code>admin</code>.</p>
+
+<h3 class="function"><a name="destroy-2">destroy/2</a></h3>
+<div class="spec">
+<p><tt>destroy(Key::id | login, Value::string()) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div><p>Destory either by id or login.</p>
+
+<h3 class="function"><a name="destroy_profile-1">destroy_profile/1</a></h3>
+<div class="spec">
+<p><tt>destroy_profile(Name::string()) -&gt; {atomic, ok} | {error, any()}</tt><br></p>
+</div><p>Remove the profile <code>string() Name</code>.  Returns <code>error</code> if you try to remove the profile <code>"Default"</code>.</p>
+
+<h3 class="function"><a name="destroy_release-1">destroy_release/1</a></h3>
+<div class="spec">
+<p><tt>destroy_release(Label::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Remove the release option <code>string() Label</code> from the database.</p>
+
+<h3 class="function"><a name="destroy_release-2">destroy_release/2</a></h3>
+<div class="spec">
+<p><tt>destroy_release(Key::id | label, Value::pos_integer() | string()) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div><p>Remove the release option with the key (id, label) of value from the
+  database.</p>
+
+<h3 class="function"><a name="drop_endpoint-2">drop_endpoint/2</a></h3>
+<div class="spec">
+<p><tt>drop_endpoint(Key::{login | id, string()}, Endpoint::atom()) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="drop_extended_prop-2">drop_extended_prop/2</a></h3>
+<div class="spec">
+<p><tt>drop_extended_prop(Key::{login | id, string()}, Prop::atom()) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_password-1">encode_password/1</a></h3>
+<div class="spec">
+<p><tt>encode_password(Password) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_agent-1">get_agent/1</a></h3>
+<div class="spec">
+<p><tt>get_agent(Login::string()) -&gt; {ok, #agent_auth{}} | none</tt><br></p>
+</div><p>Gets <code>#agent_auth{}</code> associated with <code>string() Login</code>.</p>
+
+<h3 class="function"><a name="get_agent-2">get_agent/2</a></h3>
+<div class="spec">
+<p><tt>get_agent(Key::id | login, Value::string()) -&gt; {ok, #agent_auth{}} | none</tt><br></p>
+</div><p>Get an agent who's <code>Key</code> is <code>Value</code>.</p>
+
+<h3 class="function"><a name="get_agents-0">get_agents/0</a></h3>
+<div class="spec">
+<p><tt>get_agents() -&gt; {ok, [#agent_auth{}]}</tt><br></p>
+</div><p>Gets All the agents.</p>
+
+<h3 class="function"><a name="get_agents-1">get_agents/1</a></h3>
+<div class="spec">
+<p><tt>get_agents(Profile::string()) -&gt; {ok, [#agent_auth{}]}</tt><br></p>
+</div><p>Gets all the agents associated with <code>string() Profile</code>.</p>
+
+<h3 class="function"><a name="get_extended_prop-2">get_extended_prop/2</a></h3>
+<div class="spec">
+<p><tt>get_extended_prop(Key::{login | id, string()}, Prop::atom()) -&gt; {ok, any()} | {error, noagent} | undefined</tt><br></p>
+</div><p>Get an extened property either from the database or a record
+  directly.</p>
+
+<h3 class="function"><a name="get_profile-1">get_profile/1</a></h3>
+<div class="spec">
+<p><tt>get_profile(Name::string() | {id, string()} | {name, string()}) -&gt; {ok, #agent_profile{}} | undefined</tt><br></p>
+</div><p>Gets the proflie <code>string() Name</code></p>
+
+<h3 class="function"><a name="get_profiles-0">get_profiles/0</a></h3>
+<div class="spec">
+<p><tt>get_profiles() -&gt; {ok, [#agent_profile{}]}</tt><br></p>
+</div><p>Return all profiles as <code>[{string() Name, [atom] Skills}]</code>.</p>
+
+<h3 class="function"><a name="get_releases-0">get_releases/0</a></h3>
+<div class="spec">
+<p><tt>get_releases() -&gt; {ok, [#release_opt{}]}</tt><br></p>
+</div><p>Get all <code>#release_opt</code>.</p>
+
+<h3 class="function"><a name="merge-3">merge/3</a></h3>
+<div class="spec">
+<p><tt>merge(Nodes::[atom()], Time::pos_integer(), Replyto::pid()) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Utility function to handle merging data after a net split.  Takes the
+  given nodes, selects all records with a timestamp greater than the given
+  time, merges them, and passes the resulting list back to Pid.  Best if used
+  inside a spawn.</p>
+
+<h3 class="function"><a name="new_profile-1">new_profile/1</a></h3>
+<div class="spec">
+<p><tt>new_profile(Rec::#agent_profile{}) -&gt; {error, any()} | {ok, any()}</tt><br></p>
+</div><p>Create a new agent profile.</p>
+
+<h3 class="function"><a name="new_profile-2">new_profile/2</a></h3>
+<div class="spec">
+<p><tt>new_profile(Name::string(), Skills::[atom()]) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Create a new agent profile <code>string() Name</code> with <code>[atom()] Skills</code>.</p>
+
+<h3 class="function"><a name="new_release-1">new_release/1</a></h3>
+<div class="spec">
+<p><tt>new_release(Rec::#release_opt{}) -&gt; {ok, any()} | {aborted, any()}</tt><br></p>
+</div><p>Add <code>#release_opt{} Rec</code> to the database.</p>
+
+<h3 class="function"><a name="query_agent_auth-1">query_agent_auth/1</a></h3>
+<div class="spec">
+<p><tt>query_agent_auth(Time::pos_integer()) -&gt; {atomic, [#agent_auth{}]}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="query_profiles-1">query_profiles/1</a></h3>
+<div class="spec">
+<p><tt>query_profiles(Time::pos_integer()) -&gt; {atomic, [#agent_profile{}]}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="query_release-1">query_release/1</a></h3>
+<div class="spec">
+<p><tt>query_release(Time::pos_integer()) -&gt; {atomic, [#release_opt{}]}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_agent-2">set_agent/2</a></h3>
+<div class="spec">
+<p><tt>set_agent(Id::string(), Props::[{atom(), any()}]) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div><p>Sets the agent <code>string() Oldlogin</code> with new data in <code>proplist Props</code>;
+  does not change data that is not in the proplist.  The proplist's
+  <code>endpoints</code> field can also contain a partial list, preserving existing
+  settings.</p>
+
+<h3 class="function"><a name="set_endpoint-3">set_endpoint/3</a></h3>
+<div class="spec">
+<p><tt>set_endpoint(Key::{login | id, string()}, Endpoint::atom(), Data::any()) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_extended_prop-3">set_extended_prop/3</a></h3>
+<div class="spec">
+<p><tt>set_extended_prop(Key::{login | id, string()}, Prop::atom(), Val::any()) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_profile-2">set_profile/2</a></h3>
+<div class="spec">
+<p><tt>set_profile(Oldname::string(), Rec::#agent_profile{}) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div><p>Update the profile <code>string() Oldname</code> to the given rec.</p>
+
+<h3 class="function"><a name="set_profile-3">set_profile/3</a></h3>
+<div class="spec">
+<p><tt>set_profile(Oldname::string(), Name::string(), Skills::[atom()]) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="update_release-2">update_release/2</a></h3>
+<div class="spec">
+<p><tt>update_release(Label::string(), Rec::#release_opt{}) -&gt; {ok, any()} | {error, any()}</tt><br></p>
+</div><p>Update the release option <code>string() Label</code> to <code>#release_opt{} Rec</code>.</p>
+
+<h3 class="function"><a name="upgrade_v1_table-0">upgrade_v1_table/0</a></h3>
+<div class="spec">
+<p><tt>upgrade_v1_table() -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

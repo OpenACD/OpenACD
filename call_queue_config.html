@@ -1,0 +1,363 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module call_queue_config</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module call_queue_config</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The helper module to config the call_queues, skills, clients, and  
+queue groups.
+
+
+<h2><a name="description">Description</a></h2><p>The helper module to config the call_queues, skills, clients, and  
+queue groups.</p>
+ 
+  <h3>Call Queue</h3><p>  
+A Call Queue has a name, weight, skills, hold_music, group, and recipe.  
+The name is a unique identifier of the queue.  There can be only one  
+queue with a given name in a cluster.</p>
+ 
+  <p>The wieght is how important media in the queue are relative to other  
+queues.  A higher wieght indicates more importance.</p>
+ 
+  <p>Skills is a list of skills to add to media that is placed in the queue.  
+Note that media automatically get the magic '_node' skill assigned to  
+them.</p>
+ 
+  <p>Hold music really only matters to freeswitch or voice media.  It is a  
+string that defines the file the hold music is located in.</p>
+ 
+  <p>Group is which Queue Group the queue is a member of.  The skills and  
+recipe of a queue is combined with it's group on start up.</p>
+ 
+  <p>Finally, there is the recipe.  A reciepe is a list of recipe steps.  
+A recipe step is a list of contions, what actions to take when those  
+conditions are met, whether to run multiple times or only once, and  
+finally a comment describing the step.</p>
+ 
+  <p>The full description of a recipe:
+  	recipe_runs() :: run_once | run_many
+  	recipe_comparison() :: &lt; | &gt; | =	  
+recipe_condition() ::		 
+{ticks, pos_integer()} |		 
+{eligible_agents, recipe_comparison(), non_neg_integer()} |		 
+{available_agents, recipe_comparison(), non_neg_integer()} |		 
+{queue_position, recipe_comparison(), non_neg_integer()} |		 
+{calls_queued, recipe_comparison(), non_neg_integer()}).</p>
+ 
+ 	<p>recipe_operation() ::		 
+{add_skills, [atom(), ...]} |		 
+{remove_skills, [atom(), ...]} |		 
+{set_priority, integer()} |		 
+{prioritize, []} |		 
+{deprioritize, []} |		 
+{voicemail, []} |		 
+{announce, string()} |		 
+{add_recipe, recipe_step()}</p>
+ 
+ 	<p>recipe_comment() :: binary()</p>
+ 
+ 	<p>recipe_step() ::		 
+{[recipe_condition(), ...], [recipe_operation(), ...],			 
+recipe_runs(), recipe_comment()}</p>
+ 
+ 	<p>recipe() :: [recipe_step()]</p>
+ 
+  <h3>Skills</h3>
+ 
+  <p>A skill configuration has an atom, name, protected, description, and  
+group.</p>
+ 
+  The atom is the key, and is used when routing.  Certain skills are
+  'magic' in that they expand to {atom(), string()} values under the
+  correct conditions.  A magic skill is denoted by an atom starting with
+  an underscore by convetion, such as '_queue'.  It is an error to assign
+  an unexpanded magic skill under conditions when it cannot expand.  The
+  magic skills are:
+  <table style="border:black solid 1px">
+  <tr><th>Atom</th><th>Expands When</th><th>Other Notes</th></tr>
+  <tr><td>_agent</td><td>Assigned to an agent</td>
+  	<td>Expands to the agent's login</td></tr>
+  <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the
+  	name of the agent's profile.</td></tr>
+  <tr><td>_queue&gt;</td><td>Assigned to a media that is in a queue</td>
+  	<td>Expands to the name of the queue media is in</td></tr>
+  <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the
+  	client's label.</td></tr>
+  <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to
+  	the node the agent fsm or gen_media process is running on.</td></tr>
+  <tr><td>_all</td><td>Always</td><td>Does not actually expand, but
+  	overrides other skills, making that agent able to take any media, or
+  	the media answerable by any agent.</td></tr>
+  </table>
+ 
+  <p>The remaining configuration options only matter to the configuration for  
+human's sake.  The only one that's not obvious is protected.  If  
+protected is set to true, the skill cannot be edited or deleted.  The  
+magic skills are protected.</p>
+ 
+  <h3>Queue Group</h3>
+ 
+  <p>A queue group is a recipe and list of skills that each queue in the  
+group shares.</p>
+ 
+  <h3>Clients</h3>
+ 
+  A client is an id, label, and list of options.  Currently the only two
+  options available are url_pop and autoend_wrapup.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#build_tables-0">build_tables/0</a></td><td>Attempts to set-up and create the required mnesia table <code>call_queue</code> on
+  the local node if it does not exist.</td></tr>
+<tr><td valign="top"><a href="#destroy_client-1">destroy_client/1</a></td><td>Removed the client id <code>Id</code> from the client database.</td></tr>
+<tr><td valign="top"><a href="#destroy_client-2">destroy_client/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#destroy_queue-1">destroy_queue/1</a></td><td>Attempt to remove the queue <code>#call_queue{}</code> or <code>string()</code> <code>Queue</code> from the configuration database.</td></tr>
+<tr><td valign="top"><a href="#destroy_queue_group-1">destroy_queue_group/1</a></td><td>remove the queue_group named <code>Groupname</code> from the database.</td></tr>
+<tr><td valign="top"><a href="#destroy_skill-1">destroy_skill/1</a></td><td>Removes the skill named <code>string()</code> <code>Skillname</code> from the database.</td></tr>
+<tr><td valign="top"><a href="#get_client-1">get_client/1</a></td><td>Get the <code>#client{}</code> associated with the id <code>Id</code> using integration
+  if possible.</td></tr>
+<tr><td valign="top"><a href="#get_client-2">get_client/2</a></td><td>Get the <code>#client{}</code> associated with the give <code>Key Value</code>.</td></tr>
+<tr><td valign="top"><a href="#get_clients-0">get_clients/0</a></td><td>Gets <code>[#client{}]</code> sorted by <code>#client.label</code>.</td></tr>
+<tr><td valign="top"><a href="#get_default_client-0">get_default_client/0</a></td><td>Gets the default client.</td></tr>
+<tr><td valign="top"><a href="#get_merged_queue-1">get_merged_queue/1</a></td><td>Get the configureation for the passed <code>string()</code> <code>Queue</code> name and
+  merge it with the queue group's skills and recipe.</td></tr>
+<tr><td valign="top"><a href="#get_queue-1">get_queue/1</a></td><td>Get the configuration for the passed <code>string()</code> <code>Queue</code> name.</td></tr>
+<tr><td valign="top"><a href="#get_queue_group-1">get_queue_group/1</a></td><td>get a <code>#queue_group{}</code> named <code>Name</code></td></tr>
+<tr><td valign="top"><a href="#get_queue_groups-0">get_queue_groups/0</a></td><td>Gets all <code>#queue_group{}</code> in a list sorted by group.</td></tr>
+<tr><td valign="top"><a href="#get_queues-0">get_queues/0</a></td><td>Get all the queue configurations (<code>[#call_queue{}]</code>).</td></tr>
+<tr><td valign="top"><a href="#get_queues-1">get_queues/1</a></td><td>Get all the queues that are members of the specified Group (<code>string()</code>).</td></tr>
+<tr><td valign="top"><a href="#get_skill-1">get_skill/1</a></td><td>get a single <code>#skill_rec{}</code></td></tr>
+<tr><td valign="top"><a href="#get_skills-0">get_skills/0</a></td><td>Return <code>[#skill_rec{}]</code> in the system sorted by group.</td></tr>
+<tr><td valign="top"><a href="#get_skills-1">get_skills/1</a></td><td>Returns <code>[#skill_rec{}]</code> in the system which have a group of <code>string()</code> <code>Group</code>.</td></tr>
+<tr><td valign="top"><a href="#new_client-1">new_client/1</a></td><td>Add a new client based on <code>#client{}</code> <code>Rec</code>.</td></tr>
+<tr><td valign="top"><a href="#new_client-3">new_client/3</a></td><td>Add a new client with <code>string()</code> <code>Label</code>, <code>integer()</code> <code>Tenantid</code>, and <code>integer()</code> <code>Brandid</code>.</td></tr>
+<tr><td valign="top"><a href="#new_queue-1">new_queue/1</a></td><td>Create a new default queue configuraiton from <code>#call_queue{} Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#new_queue-5">new_queue/5</a></td><td>Create a new queue from the given <code>string() Name, pos_integer() Weight, [atom()] Skills, recipe() Recipe, string() Group</code>.</td></tr>
+<tr><td valign="top"><a href="#new_queue_group-1">new_queue_group/1</a></td><td>Add a new group to the configuation database.</td></tr>
+<tr><td valign="top"><a href="#new_queue_group-3">new_queue_group/3</a></td><td>Add a new group with name, sort order and recipe.</td></tr>
+<tr><td valign="top"><a href="#new_skill-1">new_skill/1</a></td><td>Add <code>#skill_rec{}</code> <code>Rec</code> to the configuration database.</td></tr>
+<tr><td valign="top"><a href="#new_skill-4">new_skill/4</a></td><td>Add a new skill to the configuration database.</td></tr>
+<tr><td valign="top"><a href="#rename_skill_group-2">rename_skill_group/2</a></td><td>Move every skill in Oldgroup to Newgroup.</td></tr>
+<tr><td valign="top"><a href="#set_client-2">set_client/2</a></td><td>Update the client <code>string() Id</code> to the <code>#client{}</code> <code>Client</code>.</td></tr>
+<tr><td valign="top"><a href="#set_client-3">set_client/3</a></td><td>Update the client <code>string() Id</code> to <code>string()</code> <code>Newlabel</code>, 'client_opts() Options'.</td></tr>
+<tr><td valign="top"><a href="#set_queue-2">set_queue/2</a></td><td>Sets the queue name <code>Queue</code> to the passed <code>#call_queue{}</code>.</td></tr>
+<tr><td valign="top"><a href="#set_queue-6">set_queue/6</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_queue_group-2">set_queue_group/2</a></td><td>Set the <code>#queue_group{}</code> named <code>Oldname</code> to the passed <code>#queue_group{}</code> <code>Rec</code>.</td></tr>
+<tr><td valign="top"><a href="#set_queue_group-4">set_queue_group/4</a></td><td>Set the Name, Sort, and recipe of the <code>#queue_group{}</code> named <code>Oldname</code> to <code>Newname</code>, <code>Newsort</code>, and <code>Newrecipe</code>.</td></tr>
+<tr><td valign="top"><a href="#set_skill-2">set_skill/2</a></td><td>updates the skill Old skill with the data in the Newrec; the atom remains unchanged.</td></tr>
+<tr><td valign="top"><a href="#set_skill-4">set_skill/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#skill_exists-1">skill_exists/1</a></td><td>Check if the given <code>string()</code> <code>Skillname</code> exists.</td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="build_tables-0">build_tables/0</a></h3>
+<div class="spec">
+<p><tt>build_tables() -&gt; ok</tt><br></p>
+</div><p>Attempts to set-up and create the required mnesia table <code>call_queue</code> on
+  the local node if it does not exist.</p>
+
+<h3 class="function"><a name="destroy_client-1">destroy_client/1</a></h3>
+<div class="spec">
+<p><tt>destroy_client(Id::string()) -&gt; {atomic, ok} | {aborted, protected}</tt><br></p>
+</div><p>Removed the client id <code>Id</code> from the client database.</p>
+
+<h3 class="function"><a name="destroy_client-2">destroy_client/2</a></h3>
+<div class="spec">
+<p><tt>destroy_client(Key::id | label, Value::string()) -&gt; {atomic, ok} | {aborted, protected}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="destroy_queue-1">destroy_queue/1</a></h3>
+<div class="spec">
+<p><tt>destroy_queue(Queue::#call_queue{}) -&gt; {atom(), any()}</tt><br></p>
+</div><p>Attempt to remove the queue <code>#call_queue{}</code> or <code>string()</code> <code>Queue</code> from the configuration database.</p>
+
+<h3 class="function"><a name="destroy_queue_group-1">destroy_queue_group/1</a></h3>
+<div class="spec">
+<p><tt>destroy_queue_group(Groupname::string()) -&gt; {atomic, ok} | {atomic, {error, protected}}</tt><br></p>
+</div><p>remove the queue_group named <code>Groupname</code> from the database.</p>
+
+<h3 class="function"><a name="destroy_skill-1">destroy_skill/1</a></h3>
+<div class="spec">
+<p><tt>destroy_skill(Skillname::string()) -&gt; {atomic, ok} | {error, protected}</tt><br></p>
+</div><p>Removes the skill named <code>string()</code> <code>Skillname</code> from the database.  The
+  atom is still in the system, so this is just for looks.</p>
+
+<h3 class="function"><a name="get_client-1">get_client/1</a></h3>
+<div class="spec">
+<p><tt>get_client(Label::string() | undefined) -&gt; #client{} | none</tt><br></p>
+</div><p>Get the <code>#client{}</code> associated with the id <code>Id</code> using integration
+  if possible.</p>
+
+<h3 class="function"><a name="get_client-2">get_client/2</a></h3>
+<div class="spec">
+<p><tt>get_client(Key::label | id, Value::string() | undefined) -&gt; #client{} | none</tt><br></p>
+</div><p>Get the <code>#client{}</code> associated with the give <code>Key Value</code>.</p>
+
+<h3 class="function"><a name="get_clients-0">get_clients/0</a></h3>
+<div class="spec">
+<p><tt>get_clients() -&gt; [#client{}]</tt><br></p>
+</div><p>Gets <code>[#client{}]</code> sorted by <code>#client.label</code>.</p>
+
+<h3 class="function"><a name="get_default_client-0">get_default_client/0</a></h3>
+<div class="spec">
+<p><tt>get_default_client() -&gt; #client{}</tt><br></p>
+</div><p>Gets the default client.</p>
+
+<h3 class="function"><a name="get_merged_queue-1">get_merged_queue/1</a></h3>
+<div class="spec">
+<p><tt>get_merged_queue(Queue::string()) -&gt; #call_queue{} | {noexists, any()} | noexists</tt><br></p>
+</div><p>Get the configureation for the passed <code>string()</code> <code>Queue</code> name and
+  merge it with the queue group's skills and recipe.</p>
+
+<h3 class="function"><a name="get_queue-1">get_queue/1</a></h3>
+<div class="spec">
+<p><tt>get_queue(Queue::string()) -&gt; #call_queue{} | {noexists, any()} | noexists</tt><br></p>
+</div><p>Get the configuration for the passed <code>string()</code> <code>Queue</code> name.	</p>
+
+<h3 class="function"><a name="get_queue_group-1">get_queue_group/1</a></h3>
+<div class="spec">
+<p><tt>get_queue_group(Name::string()) -&gt; {atomic, [#queue_group{}]}</tt><br></p>
+</div><p>get a <code>#queue_group{}</code> named <code>Name</code></p>
+
+<h3 class="function"><a name="get_queue_groups-0">get_queue_groups/0</a></h3>
+<div class="spec">
+<p><tt>get_queue_groups() -&gt; [#queue_group{}]</tt><br></p>
+</div><p>Gets all <code>#queue_group{}</code> in a list sorted by group.</p>
+
+<h3 class="function"><a name="get_queues-0">get_queues/0</a></h3>
+<div class="spec">
+<p><tt>get_queues() -&gt; [#call_queue{}]</tt><br></p>
+</div><p>Get all the queue configurations (<code>[#call_queue{}]</code>).</p>
+
+<h3 class="function"><a name="get_queues-1">get_queues/1</a></h3>
+<div class="spec">
+<p><tt>get_queues(Group::string()) -&gt; [#call_queue{}]</tt><br></p>
+</div><p>Get all the queues that are members of the specified Group (<code>string()</code>).</p>
+
+<h3 class="function"><a name="get_skill-1">get_skill/1</a></h3>
+<div class="spec">
+<p><tt>get_skill(Skill::atom() | string()) -&gt; #skill_rec{} | undefined</tt><br></p>
+</div><p>get a single <code>#skill_rec{}</code></p>
+
+<h3 class="function"><a name="get_skills-0">get_skills/0</a></h3>
+<div class="spec">
+<p><tt>get_skills() -&gt; [#skill_rec{}]</tt><br></p>
+</div><p>Return <code>[#skill_rec{}]</code> in the system sorted by group</p>
+
+<h3 class="function"><a name="get_skills-1">get_skills/1</a></h3>
+<div class="spec">
+<p><tt>get_skills(Group::string()) -&gt; [#skill_rec{}]</tt><br></p>
+</div><p>Returns <code>[#skill_rec{}]</code> in the system which have a group of <code>string()</code> <code>Group</code>.</p>
+
+<h3 class="function"><a name="new_client-1">new_client/1</a></h3>
+<div class="spec">
+<p><tt>new_client(Rec::#client{}) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Add a new client based on <code>#client{}</code> <code>Rec</code>.</p>
+
+<h3 class="function"><a name="new_client-3">new_client/3</a></h3>
+<div class="spec">
+<p><tt>new_client(Label::string(), Id::string(), Options::<a href="#type-client_opts">client_opts()</a>) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Add a new client with <code>string()</code> <code>Label</code>, <code>integer()</code> <code>Tenantid</code>, and <code>integer()</code> <code>Brandid</code>.</p>
+<p><b>See also:</b> <a href="#new_client-1">new_client/1</a>.</p>
+
+<h3 class="function"><a name="new_queue-1">new_queue/1</a></h3>
+<div class="spec">
+<p><tt>new_queue(QueueName::#call_queue{}) -&gt; {aborted, any()} | {atomic, #call_queue{}}</tt><br></p>
+</div><p>Create a new default queue configuraiton from <code>#call_queue{} Queue</code>.</p>
+<p><b>See also:</b> <a href="#new_queue-2">new_queue/2</a>.</p>
+
+<h3 class="function"><a name="new_queue-5">new_queue/5</a></h3>
+<div class="spec">
+<p><tt>new_queue(Name::string(), Weight::pos_integer(), Skills::[atom() | {atom(), any()}], Recipe::<a href="#type-recipe">recipe()</a>, Group::string()) -&gt; {aborted, any()} | {atomic, #call_queue{}}</tt><br></p>
+</div><p>Create a new queue from the given <code>string() Name, pos_integer() Weight, [atom()] Skills, recipe() Recipe, string() Group</code>.</p>
+
+<h3 class="function"><a name="new_queue_group-1">new_queue_group/1</a></h3>
+<div class="spec">
+<p><tt>new_queue_group(Rec::#queue_group{}) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Add a new group to the configuation database</p>
+
+<h3 class="function"><a name="new_queue_group-3">new_queue_group/3</a></h3>
+<div class="spec">
+<p><tt>new_queue_group(Name::string(), Sort::non_neg_integer(), Recipe::<a href="#type-recipe">recipe()</a>) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Add a new group with name, sort order and recipe</p>
+
+<h3 class="function"><a name="new_skill-1">new_skill/1</a></h3>
+<div class="spec">
+<p><tt>new_skill(Rec::#skill_rec{}) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Add <code>#skill_rec{}</code> <code>Rec</code> to the configuration database.</p>
+
+<h3 class="function"><a name="new_skill-4">new_skill/4</a></h3>
+<div class="spec">
+<p><tt>new_skill(Skillatom::atom(), Skillname::string(), Skilldesc::string(), Group::string()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Add a new skill to the configuration database.  <code>atom()</code> <code>Skillatom</code>, <code>string()</code> <code>Skillname</code>,
+  <code>string()</code> <code>Skilldesc</code>, <code>string()</code> <code>Creator</code>.</p>
+<p><b>See also:</b> <a href="new_skill.html">new_skill</a>.</p>
+
+<h3 class="function"><a name="rename_skill_group-2">rename_skill_group/2</a></h3>
+<div class="spec">
+<p><tt>rename_skill_group(Oldgroup::string(), Newgroup::string()) -&gt; {atomic, ok} | {error, {exists, string()}}</tt><br></p>
+</div><p>Move every skill in Oldgroup to Newgroup.</p>
+
+<h3 class="function"><a name="set_client-2">set_client/2</a></h3>
+<div class="spec">
+<p><tt>set_client(Id::string() | undefined, Client::#client{}) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Update the client <code>string() Id</code> to the <code>#client{}</code> <code>Client</code>.</p>
+
+<h3 class="function"><a name="set_client-3">set_client/3</a></h3>
+<div class="spec">
+<p><tt>set_client(Id::string() | undefined, Newlabel::string(), Options::<a href="#type-client_opts">client_opts()</a>) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Update the client <code>string() Id</code> to <code>string()</code> <code>Newlabel</code>, 'client_opts() Options'.</p>
+<p><b>See also:</b> <a href="#set_client-2">set_client/2</a>.</p>
+
+<h3 class="function"><a name="set_queue-2">set_queue/2</a></h3>
+<div class="spec">
+<p><tt>set_queue(Queue::string(), Rec::#call_queue{}) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>Sets the queue name <code>Queue</code> to the passed <code>#call_queue{}</code>.</p>
+
+<h3 class="function"><a name="set_queue-6">set_queue/6</a></h3>
+<div class="spec">
+<p><tt>set_queue(OldName::string(), Name::string(), Weight::pos_integer(), Skills::[atom() | {atom(), any()}], Recipe::<a href="#type-recipe">recipe()</a>, Group::string()) -&gt; {aborted, any()} | {atomic, #call_queue{}}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_queue_group-2">set_queue_group/2</a></h3>
+<div class="spec">
+<p><tt>set_queue_group(Oldname::string(), Rec::#queue_group{}) -&gt; {atomic, atom()} | {aborted, atom()}</tt><br></p>
+</div><p>Set the <code>#queue_group{}</code> named <code>Oldname</code> to the passed <code>#queue_group{}</code> <code>Rec</code>.</p>
+
+<h3 class="function"><a name="set_queue_group-4">set_queue_group/4</a></h3>
+<div class="spec">
+<p><tt>set_queue_group(Oldname::string(), Newname::string(), Newsort::non_neg_integer(), Newrecipe::<a href="#type-recipe">recipe()</a>) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Set the Name, Sort, and recipe of the <code>#queue_group{}</code> named <code>Oldname</code> to <code>Newname</code>, <code>Newsort</code>, and <code>Newrecipe</code>.</p>
+
+<h3 class="function"><a name="set_skill-2">set_skill/2</a></h3>
+<div class="spec">
+<p><tt>set_skill(Oldskill::atom(), Newrec::#skill_rec{}) -&gt; {atomic, ok} | {atomic, undefined}</tt><br></p>
+</div><p>updates the skill Old skill with the data in the Newrec; the atom remains unchanged</p>
+
+<h3 class="function"><a name="set_skill-4">set_skill/4</a></h3>
+<div class="spec">
+<p><tt>set_skill(Skillatom::atom(), Skillname::string(), Skilldesc::string(), Group::string()) -&gt; {atomic, ok}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="skill_exists-1">skill_exists/1</a></h3>
+<div class="spec">
+<p><tt>skill_exists(Skillname::string()) -&gt; atom()</tt><br></p>
+</div><p>Check if the given <code>string()</code> <code>Skillname</code> exists.
+  Returns the <code>atom()</code> of <code>Skillname</code> or <code>undefined</code></p>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; any()</tt><br></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cook</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cook</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The cook is a process that is spawned per call in queue, it
+  executes the queue's 'recipe' on the call and kicks off call delivery
+  to agents.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>See also:</b> <a href="call_queue.html">call_queue</a>, <a href="dispatcher.html">dispatcher</a>, <a href="gen_media.html">gen_media</a>.</p>
+
+<h2><a name="description">Description</a></h2>The cook is a process that is spawned per call in queue, it
+  executes the queue's 'recipe' on the call and kicks off call delivery
+  to agents. When it finds one or more dispatchers bound to its call it
+  requests that each dispatcher generate a list of local agents matching
+  the call's criteria and selects the best one to offer it to.  It then
+  has gen_media try to ring that agent.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-call_key">call_key()</a></h3>
+<p><tt>call_key() = {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#restart_tick-1">restart_tick/1</a></td><td>Restart the cook at <code>Pid</code>.</td></tr>
+<tr><td valign="top"><a href="#start-5">start/5</a></td><td>Starts a cook not linked to the parent process for <code>Call</code> processed by <code>Recipe</code> for call_queue named <code>Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#start_at-6">start_at/6</a></td><td>starts a new cook on the give <code>node()</code> <code>Node</code> for <code>Call</code> to be process by <code>Recipe</code> for the call_queue named <code>Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#start_link-5">start_link/5</a></td><td>Starts a cook linked to the parent process for <code>Call</code> processed by <code>Recipe</code> for call_queue named <code>Queue</code>.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stop the cook with reason <code>normal</code>.</td></tr>
+<tr><td valign="top"><a href="#stop_tick-1">stop_tick/1</a></td><td>Pause the cook running at <code>Pid</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="restart_tick-1">restart_tick/1</a></h3>
+<div class="spec">
+<p><tt>restart_tick(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Restart the cook at <code>Pid</code>.</p>
+
+<h3 class="function"><a name="start-5">start/5</a></h3>
+<div class="spec">
+<p><tt>start(Call::pid(), Recipe::<a href="#type-recipe">recipe()</a>, Queue::string(), Qpid::pid(), Key::<a href="#type-call_key">call_key()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Starts a cook not linked to the parent process for <code>Call</code> processed by <code>Recipe</code> for call_queue named <code>Queue</code>.</p>
+
+<h3 class="function"><a name="start_at-6">start_at/6</a></h3>
+<div class="spec">
+<p><tt>start_at(Node::atom(), Call::pid(), Recipe::<a href="#type-recipe">recipe()</a>, Queue::string(), Qpid::pid(), Key::<a href="#type-call_key">call_key()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>starts a new cook on the give <code>node()</code> <code>Node</code> for <code>Call</code> to be process by <code>Recipe</code> for the call_queue named <code>Queue</code>.
+  This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
+  the media exists on.</p>
+
+<h3 class="function"><a name="start_link-5">start_link/5</a></h3>
+<div class="spec">
+<p><tt>start_link(Call::pid(), Recipe::<a href="#type-recipe">recipe()</a>, Queue::string(), Qpid::pid(), Key::<a href="#type-call_key">call_key()</a>) -&gt; {ok, pid()} | ignore | {error, any()}</tt><br></p>
+</div><p>Starts a cook linked to the parent process for <code>Call</code> processed by <code>Recipe</code> for call_queue named <code>Queue</code>.</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Stop the cook with reason <code>normal</code>.</p>
+
+<h3 class="function"><a name="stop_tick-1">stop_tick/1</a></h3>
+<div class="spec">
+<p><tt>stop_tick(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Pause the cook running at <code>Pid</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_agent_tcp_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_agent_tcp_connection</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The connection handler that communicates with a client UI over tcp
+  using json as the encoding mechanism.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>See also:</b> <a href="cpx_agent_tcp_listener.html">cpx_agent_tcp_listener</a>.</p>
+
+<h2><a name="description">Description</a></h2>The connection handler that communicates with a client UI over tcp
+  using json as the encoding mechanism.  Works as a go between the wire
+  and <a href="cpx_agent_connection.html"><code>cpx_agent_connection</code></a>.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-compression">compression()</a></h3>
+<p><tt>compression() = zip | gzip | none</tt></p>
+
+
+<h3 class="typedecl"><a name="type-socket_type">socket_type()</a></h3>
+<p><tt>socket_type() = tcp | ssl</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#check_version-3">check_version/3</a></td><td><b>Agent Api</b> Step one in logging in:  ensure the client version is in the same
+  ballpark as the server.</td></tr>
+<tr><td valign="top"><a href="#get_nonce-1">get_nonce/1</a></td><td><b>Agent Api</b> get the public key and nonce to encrypt the password.</td></tr>
+<tr><td valign="top"><a href="#login-3">login/3</a></td><td><b>Agent Api</b> Final step in logging in.</td></tr>
+<tr><td valign="top"><a href="#negotiate-1">negotiate/1</a></td><td>Notify the connection that it should set the socket to recieve
+  requets, and sent events to the client.</td></tr>
+<tr><td valign="top"><a href="#start-4">start/4</a></td><td>start the conection unlinked.</td></tr>
+<tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td>start the conection linked to calling process.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="check_version-3">check_version/3</a></h3>
+<div class="spec">
+<p><tt>check_version(State::#state{}, Major::pos_integer(), Minor::pos_integer()) -&gt; {ok, #state{}} | {ok, <a href="#type-json">json()</a>, #state{}} | {exit, binary(), binary(), #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> Step one in logging in:  ensure the client version is in the same
+  ballpark as the server.  Differenences in the minor version are
+  tolerated, major version differences are not.  If the minor version
+  does not match, the result object is a string saying as much, otherwise
+  returns a simple success.</p>
+
+<h3 class="function"><a name="get_nonce-1">get_nonce/1</a></h3>
+<div class="spec">
+<p><tt>get_nonce(State::#state{}) -&gt; {exit, binary(), binary(), #state{}}</tt><br></p>
+</div><p><b>Agent Api</b> get the public key and nonce to encrypt the password.
+  This can be skipped when using an ssl connection.  Sent back is a none,
+  the public key exponent (pubkey_e) and public key modulus (pubkey_n).
+  Use the exponent and modulus to build a public key.  Prepend the
+  password with the nonce.  Then encrypt it with the public key.  The
+  encrypted password is used in the next <a href="#login-3">login step</a>.</p>
+
+<h3 class="function"><a name="login-3">login/3</a></h3>
+<div class="spec">
+<p><tt>login(State, Username, Password) -&gt; any()</tt></p>
+</div><p><b>Agent Api</b> Final step in logging in.  If the connection is over
+  raw tcp, the password must be encrypted using the information gleaned
+  from <a href="#get_nonce-1"><code>get_nonce/1</code></a>.  Returns a simple representation of the agent
+  that was created.</p>
+
+<h3 class="function"><a name="negotiate-1">negotiate/1</a></h3>
+<div class="spec">
+<p><tt>negotiate(Pid::pid()) -&gt; ok</tt><br></p>
+</div><p>Notify the connection that it should set the socket to recieve
+  requets, and sent events to the client.</p>
+
+<h3 class="function"><a name="start-4">start/4</a></h3>
+<div class="spec">
+<p><tt>start(Socket::port(), SocketMod::<a href="#type-socket_type">socket_type()</a>, Radix::pos_integer(), Compress::<a href="#type-compression">compression()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>start the conection unlinked.</p>
+
+<h3 class="function"><a name="start_link-4">start_link/4</a></h3>
+<div class="spec">
+<p><tt>start_link(Socket::port(), SocketMod::<a href="#type-socket_type">socket_type()</a>, Radix::pos_integer(), Compress::<a href="#type-compression">compression()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>start the conection linked to calling process.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

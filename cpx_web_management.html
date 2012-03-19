@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_web_management</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_web_management</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The web management module.
+
+
+<h2><a name="description">Description</a></h2><p>The web management module.  Uses mochiweb for the heavy lifting.   
+Listens on port 9999 by default.</p>
+ 
+  <p>Handles json api requests on /api.  A well formed api request is a post  
+with one field:  "request".  "request" should consist of a json object  
+of three properties:  module, function, and args.  the module and  
+function should both be strings.  Args is a json representation of  
+what the erlang module:function() would accept as arguments (as best as  
+can be represented in json).  Proplists should be represented as json  
+objects, and will be decoded as such.  For any function of arity 1  
+(takes one argument), the args should be that argument.  Otherwise it  
+should be a list/array.</p>
+ 
+  <p>The json_api is always enabled, but protected behind http basic  
+authentication and an ip whitelist.  If either of those conditions are  
+met, the api call is allowed.  Obviously this is not something you want  
+to expose to the internet.</p>
+ 
+  <p>An error is generated if either the module or function do not exist,  
+the function is not exported by the module.</p>
+ 
+  The currently exported funtions are listed below.  In theory, there is
+  documentation on therm either in the auto generated docs, the built-in
+  documentation, or the wiki.
+  <ul><li>cpx:kick_agent("agent_login")</li>
+  <li> agent_manager:list()</li>
+  <li> freeswitch_dialer:start_fg/1</li>
+  <li> freeswitch_dialer:start_fg/6</li>
+  <li> freeswitch_monitor:monitor_agent("agent_login",
+  "spy/dialstring", "freeswith@nodename")</li>
+  <li> freeswitch_monitor:monitor_client("client_label",
+  "spy/dialstring", "freeswitch@nodename")</li></ul>
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-raw_skill">raw_skill()</a></h3>
+<p><tt>raw_skill() = atom() | {atom(), any()} | #skill_rec{}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-simple_json">simple_json()</a></h3>
+<p><tt>simple_json() = {struct, [{atom() | binary(), atom() | binary()}]}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#api-3">api/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#decode_endpoints-1">decode_endpoints/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_agent-1">encode_agent/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_agents-1">encode_agents/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_queue-1">encode_queue/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_queues-1">encode_queues/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_skill-1">encode_skill/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#encode_skills-1">encode_skills/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#loop-2">loop/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#parse_posted_skills-1">parse_posted_skills/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>Start the web management server unlinked to the parent process.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stops the web management.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="api-3">api/3</a></h3>
+<div class="spec">
+<p><tt>api(Apirequest, Cookie, Post) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="decode_endpoints-1">decode_endpoints/1</a></h3>
+<div class="spec">
+<p><tt>decode_endpoints(Bin) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="encode_agent-1">encode_agent/1</a></h3>
+<div class="spec">
+<p><tt>encode_agent(Agentrec::#agent_auth{}) -&gt; <a href="#type-simple_json">simple_json()</a></tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_agents-1">encode_agents/1</a></h3>
+<div class="spec">
+<p><tt>encode_agents(Agent::[#agent{}]) -&gt; [<a href="#type-simple_json">simple_json()</a>]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_queue-1">encode_queue/1</a></h3>
+<div class="spec">
+<p><tt>encode_queue(Queue::#call_queue{}) -&gt; <a href="#type-simple_json">simple_json()</a></tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_queues-1">encode_queues/1</a></h3>
+<div class="spec">
+<p><tt>encode_queues(Queues::[#call_queue{}]) -&gt; [<a href="#type-simple_json">simple_json()</a>]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_skill-1">encode_skill/1</a></h3>
+<div class="spec">
+<p><tt>encode_skill(Skill::<a href="#type-raw_skill">raw_skill()</a>) -&gt; <a href="#type-simple_json">simple_json()</a></tt><br></p>
+</div>
+
+<h3 class="function"><a name="encode_skills-1">encode_skills/1</a></h3>
+<div class="spec">
+<p><tt>encode_skills(Skills::[<a href="#type-raw_skill">raw_skill()</a>]) -&gt; [<a href="#type-simple_json">simple_json()</a>]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="loop-2">loop/2</a></h3>
+<div class="spec">
+<p><tt>loop(Req::atom(), Opts::[any()]) -&gt; any()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="parse_posted_skills-1">parse_posted_skills/1</a></h3>
+<div class="spec">
+<p><tt>parse_posted_skills(PostedSkills::[string()]) -&gt; [atom() | {atom(), string()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start the web management server unlinked to the parent process.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Port::pos_integer()) -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Port::pos_integer()) -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; ok</tt><br></p>
+</div><p>Stops the web management.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_hooks</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_hooks</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Manager for plugins to OpenACD.
+
+
+<h2><a name="description">Description</a></h2><p>Manager for plugins to OpenACD.  Sometimes it is useful for OpenACD  
+to be able to get information from other sources, or to allow other  
+sources to provide some information when a particular event occurs.  
+This module allows callback functions to be set when certain events  
+occur.  See the documentation of other modules to see what hooks they  
+trigger, what arguments they send, and the mode they use.</p>
+ 
+  <p>Plugins may also trigger hooks, though it is ill-advised to trigger  
+system hooks, or hooks defined by other plugins.</p>
+ 
+  <p>When a hook is triggered, the arguments for a callback are appended to  
+the arugments passed in when the hook was triggered.  Thus, the arity of  
+the callback function must be equal to the length of the trigger's  
+arguments plus the length of the hook's arguments.</p>
+ 
+  <p>Hooks are called in order of priority going from lowest number to  
+highest.</p>
+ 
+  <p>A hook can be triggered in one oftwo modes:  first or all.  If a hook is
+  triggered in 'first' mode, the first callback to return <code>{ok, Term}</code>
+  stops other hooks from being called, and <code>{ok, Term}</code> is returned.  If
+  no callback returns <code>{ok, Term}</code>, <code>{error, not_handled}</code> is returned.
+  In 'all' mode, each callback that returns <code>{ok, Term}</code> is collected in
+  a list, and <code>{ok, [Term]}</code> is returned.</p>
+ 
+  If a callback errors, it is removed from the list no matter which mode
+  the hook was triggered in.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#async_trigger_hooks-2">async_trigger_hooks/2</a></td><td>Trigger hooks asynchronously, thus ignoring the results.</td></tr>
+<tr><td valign="top"><a href="#async_trigger_hooks-3">async_trigger_hooks/3</a></td><td>Trigger hooks asynchronsouly.</td></tr>
+<tr><td valign="top"><a href="#drop_hook-1">drop_hook/1</a></td><td>Remove a hook from being triggered.</td></tr>
+<tr><td valign="top"><a href="#drop_hooks-1">drop_hooks/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_hooks-1">get_hooks/1</a></td><td>Get all hooks to the trigger event Hook.</td></tr>
+<tr><td valign="top"><a href="#set_hook-3">set_hook/3</a></td><td>Add a new hook to the trigger event <code>Hook</code>.</td></tr>
+<tr><td valign="top"><a href="#set_hook-6">set_hook/6</a></td><td>Add a new hook to the trigger event <code>Hook</code>.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Creates the hooks ets table.</td></tr>
+<tr><td valign="top"><a href="#trigger_hooks-2">trigger_hooks/2</a></td><td>Begin calling the callbacks for trigger event <code>Hook</code> in the <code>first</code>
+  mode.</td></tr>
+<tr><td valign="top"><a href="#trigger_hooks-3">trigger_hooks/3</a></td><td>Begin calling the callbacks for trigger event <code>Hook</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="async_trigger_hooks-2">async_trigger_hooks/2</a></h3>
+<div class="spec">
+<p><tt>async_trigger_hooks(Hook::atom(), Args::[any()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Trigger hooks asynchronously, thus ignoring the results.  This
+  goes through all the hooks.</p>
+
+<h3 class="function"><a name="async_trigger_hooks-3">async_trigger_hooks/3</a></h3>
+<div class="spec">
+<p><tt>async_trigger_hooks(Hook::atom(), Args::[any()], StopWhen::first | all) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Trigger hooks asynchronsouly.  Ignores the result.</p>
+
+<h3 class="function"><a name="drop_hook-1">drop_hook/1</a></h3>
+<div class="spec">
+<p><tt>drop_hook(Id::any()) -&gt; true</tt><br></p>
+</div><p>Remove a hook from being triggered.</p>
+
+<h3 class="function"><a name="drop_hooks-1">drop_hooks/1</a></h3>
+<div class="spec">
+<p><tt>drop_hooks(Hook::atom()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_hooks-1">get_hooks/1</a></h3>
+<div class="spec">
+<p><tt>get_hooks(Hook::atom()) -&gt; [{Id::any(), M::atom(), F::atom(), A::[any()], Priority::integer()}]</tt><br></p>
+</div><p>Get all hooks to the trigger event Hook.</p>
+
+<h3 class="function"><a name="set_hook-3">set_hook/3</a></h3>
+<div class="spec">
+<p><tt>set_hook(Id::any(), Hook::atom(), X3::{M::atom(), F::atom(), A::[any()]}) -&gt; true</tt><br></p>
+</div><p>Add a new hook to the trigger event <code>Hook</code>.</p>
+
+<h3 class="function"><a name="set_hook-6">set_hook/6</a></h3>
+<div class="spec">
+<p><tt>set_hook(Id::any(), Hook::atom(), M::atom(), F::atom(), A::[any()], Priority::integer()) -&gt; true</tt><br></p>
+</div><p>Add a new hook to the trigger event <code>Hook</code>.</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; any()</tt></p>
+</div><p>Creates the hooks ets table.</p>
+
+<h3 class="function"><a name="trigger_hooks-2">trigger_hooks/2</a></h3>
+<div class="spec">
+<p><tt>trigger_hooks(Hook::atom(), Args::[any()]) -&gt; {ok, any()} | {error, not_handled}</tt><br></p>
+</div><p>Begin calling the callbacks for trigger event <code>Hook</code> in the <code>first</code>
+  mode.</p>
+
+<h3 class="function"><a name="trigger_hooks-3">trigger_hooks/3</a></h3>
+<div class="spec">
+<p><tt>trigger_hooks(Hook::atom(), Args::[any()], StopWhen::first | all) -&gt; {ok, any()} | {error, not_handled}</tt><br></p>
+</div><p>Begin calling the callbacks for trigger event <code>Hook</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

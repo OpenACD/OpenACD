@@ -1,0 +1,85 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_web_session</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_web_session</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>library module for getting, setting, and deleting agent web
+  sessions.
+
+
+<h2><a name="description">Description</a></h2>library module for getting, setting, and deleting agent web
+  sessions.  It uses cpx_agent_web_connection as a tracking pid for each
+  session.  If the session pid dies, the associated session id is
+  removed as well, effectively logging the user out.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-cpx_web_session">cpx_web_session()</a></h3>
+<p><tt>cpx_web_session() = {string(), pid()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-web_request">web_request()</a></h3>
+<p><tt>web_request() = any()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#create-1">create/1</a></td><td>Create a new session for the request.</td></tr>
+<tr><td valign="top"><a href="#destroy-1">destroy/1</a></td><td>Destroy an session that happens to be associated with the request.</td></tr>
+<tr><td valign="top"><a href="#get-1">get/1</a></td><td>Get the session id and pid assicated with the webmachine request.</td></tr>
+<tr><td valign="top"><a href="#get_or_create-1">get_or_create/1</a></td><td>Get the session id and pid associated with the webmachine request
+  object.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Start the session manager and build the ets table.</td></tr>
+<tr><td valign="top"><a href="#start_session-0">start_session/0</a></td><td>Creates a session pid linked to the session manager, as well as
+  a uuid for the session id.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="create-1">create/1</a></h3>
+<div class="spec">
+<p><tt>create(ReqData::<a href="#type-web_request">web_request()</a>) -&gt; {ok, <a href="#type-cpx_web_session">cpx_web_session()</a>, <a href="#type-web_request">web_request()</a>}</tt><br></p>
+</div><p>Create a new session for the request.  If there is an old session,
+  it is destroyed.  For a non-destruction ensurance of a session, use
+  <a href="#get_or_create-1"><code>get_or_create/1</code></a> instead.</p>
+
+<h3 class="function"><a name="destroy-1">destroy/1</a></h3>
+<div class="spec">
+<p><tt>destroy(ReqOrId::undefined | string() | <a href="#type-web_request">web_request()</a>) -&gt; ok | {ok, web_request}</tt><br></p>
+</div><p>Destroy an session that happens to be associated with the request.
+  If a webmachine request is passed in, appropriate http headers are set
+  to destroy the cookie client side and returned.  Otherwise just informs
+  the session pid it should kill itself.</p>
+
+<h3 class="function"><a name="get-1">get/1</a></h3>
+<div class="spec">
+<p><tt>get(ReqData::<a href="#type-web_request">web_request()</a>) -&gt; {error, notfound} | {ok, <a href="#type-cpx_web_session">cpx_web_session()</a>}</tt><br></p>
+</div><p>Get the session id and pid assicated with the webmachine request.</p>
+
+<h3 class="function"><a name="get_or_create-1">get_or_create/1</a></h3>
+<div class="spec">
+<p><tt>get_or_create(ReqData::<a href="#type-web_request">web_request()</a>) -&gt; {ok, <a href="#type-cpx_web_session">cpx_web_session()</a>, <a href="#type-web_request">web_request()</a>}</tt><br></p>
+</div><p>Get the session id and pid associated with the webmachine request
+  object.  If it does not exist, make one and set the correct headers.</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start the session manager and build the ets table.</p>
+
+<h3 class="function"><a name="start_session-0">start_session/0</a></h3>
+<div class="spec">
+<p><tt>start_session() -&gt; any()</tt></p>
+</div><p>Creates a session pid linked to the session manager, as well as
+  a uuid for the session id.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 29 2012, 11:09:19.</i></p>
+</body>
+</html>

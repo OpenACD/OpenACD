@@ -1,0 +1,325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The application module, as well as primary shell interface module.
+
+<p><b>Behaviours:</b> <a href="application.html"><tt>application</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>The application module, as well as primary shell interface module.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-find_cdr_test">find_cdr_test()</a></h3>
+<p><tt>find_cdr_test() = any()</tt></p>
+<p> TODO flesh this out.  there's a lot of em</p>
+
+<h3 class="typedecl"><a name="type-find_cdr_tests">find_cdr_tests()</a></h3>
+<p><tt>find_cdr_tests() = [<a href="#type-find_cdr_test">find_cdr_test()</a>]</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_state-1">agent_state/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#agent_states-0">agent_states/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#agent_states-1">agent_states/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#backup_config-0">backup_config/0</a></td><td>Backups the mnesia database for use with the restore functions.</td></tr>
+<tr><td valign="top"><a href="#backup_config-1">backup_config/1</a></td><td>Same as above, but you give the file to store the backup in.</td></tr>
+<tr><td valign="top"><a href="#call_state-1">call_state/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#find_cdr-1">find_cdr/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agent-1">get_agent/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agent_status-0">get_agent_status/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agents-0">get_agents/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_agents-1">get_agents/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_commit-0">get_commit/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_env-1">get_env/1</a></td><td>The erlang application:get_env and get_key functions don't allow for
+  a default value.</td></tr>
+<tr><td valign="top"><a href="#get_env-2">get_env/2</a></td><td>@see gen_env/1.</td></tr>
+<tr><td valign="top"><a href="#get_key-1">get_key/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_key-2">get_key/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_media-1">get_media/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_queue-1">get_queue/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_queue_status-0">get_queue_status/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_queues-0">get_queues/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_queues-1">get_queues/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#help-0">help/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#help-1">help/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#help-2">help/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#in_progress-0">in_progress/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#is_running-0">is_running/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#is_running-1">is_running/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#kick_agent-1">kick_agent/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#kick_call-1">kick_call/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#kick_media-1">kick_media/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#load_plugin-1">load_plugin/1</a></td><td>Add the plugin to the path and start it.</td></tr>
+<tr><td valign="top"><a href="#media_state-1">media_state/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#plugins_running-0">plugins_running/0</a></td><td>Return which plugins are running and which are stopped.</td></tr>
+<tr><td valign="top"><a href="#prep_stop-1">prep_stop/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#print_cdr-1">print_cdr/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#print_raws-1">print_raws/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#reload_plugin-1">reload_plugin/1</a></td><td>Reload the code the plugin and applications plugin depends on using
+  <a href="util.html#reload-0"><code>util:reload/0</code></a>.</td></tr>
+<tr><td valign="top"><a href="#reload_plugins-0">reload_plugins/0</a></td><td>Reload the code for all plugins using <a href="util.html#reload-0"><code>util:reload/0</code></a>.</td></tr>
+<tr><td valign="top"><a href="#reload_recipe-1">reload_recipe/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#restore_config-1">restore_config/1</a></td><td>Restore all the config files from the given back up file.</td></tr>
+<tr><td valign="top"><a href="#restore_config-2">restore_config/2</a></td><td>Restore only the passed in table names from the given back up file.</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#status-0">status/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#unload_plugin-1">unload_plugin/1</a></td><td>Stop the plugin (but not always what the plugin depends on).</td></tr>
+<tr><td valign="top"><a href="#uptime-0">uptime/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#uptime-1">uptime/1</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_state-1">agent_state/1</a></h3>
+<div class="spec">
+<p><tt>agent_state(Agent::any()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="agent_states-0">agent_states/0</a></h3>
+<div class="spec">
+<p><tt>agent_states() -&gt; [{string(), string(), atom()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="agent_states-1">agent_states/1</a></h3>
+<div class="spec">
+<p><tt>agent_states(Profiles::any | string() | [string()]) -&gt; [{string(), string(), atom()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="backup_config-0">backup_config/0</a></h3>
+<div class="spec">
+<p><tt>backup_config() -&gt; ok</tt><br></p>
+</div><p>Backups the mnesia database for use with the restore functions.  Does a
+  full backup, so the mnesia restore funtions could be used directly to restore
+  even the cdr and agent state tables.</p>
+
+<h3 class="function"><a name="backup_config-1">backup_config/1</a></h3>
+<div class="spec">
+<p><tt>backup_config(Filename::string()) -&gt; {ok, string()} | {error, any()}</tt><br></p>
+</div><p>Same as above, but you give the file to store the backup in.</p>
+
+<h3 class="function"><a name="call_state-1">call_state/1</a></h3>
+<div class="spec">
+<p><tt>call_state(Media::any()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="find_cdr-1">find_cdr/1</a></h3>
+<div class="spec">
+<p><tt>find_cdr(Tests::<a href="#type-find_cdr_tests">find_cdr_tests()</a>) -&gt; [#cdr_rec{}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_agent-1">get_agent/1</a></h3>
+<div class="spec">
+<p><tt>get_agent(Agent::string()) -&gt; pid() | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_agent_status-0">get_agent_status/0</a></h3>
+<div class="spec">
+<p><tt>get_agent_status() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_agents-0">get_agents/0</a></h3>
+<div class="spec">
+<p><tt>get_agents() -&gt; [{string(), pid()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_agents-1">get_agents/1</a></h3>
+<div class="spec">
+<p><tt>get_agents(Profile::string()) -&gt; [{string(), pid()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_commit-0">get_commit/0</a></h3>
+<div class="spec">
+<p><tt>get_commit() -&gt; undefined | string()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_env-1">get_env/1</a></h3>
+<div class="spec">
+<p><tt>get_env(Key::any()) -&gt; {ok, any()} | undefined</tt><br></p>
+</div><p>The erlang application:get_env and get_key functions don't allow for
+  a default value.  These do.</p>
+
+<h3 class="function"><a name="get_env-2">get_env/2</a></h3>
+<div class="spec">
+<p><tt>get_env(Key::any(), Default::any()) -&gt; {ok, any()}</tt><br></p>
+</div><p>@see gen_env/1</p>
+
+<h3 class="function"><a name="get_key-1">get_key/1</a></h3>
+<div class="spec">
+<p><tt>get_key(Key::any()) -&gt; {ok, any()} | undefined</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_key-2">get_key/2</a></h3>
+<div class="spec">
+<p><tt>get_key(Key::any(), Default::any()) -&gt; {ok, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_media-1">get_media/1</a></h3>
+<div class="spec">
+<p><tt>get_media(IsPid::string() | pid()) -&gt; pid() | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_queue-1">get_queue/1</a></h3>
+<div class="spec">
+<p><tt>get_queue(Queue::string()) -&gt; pid() | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_queue_status-0">get_queue_status/0</a></h3>
+<div class="spec">
+<p><tt>get_queue_status() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_queues-0">get_queues/0</a></h3>
+<div class="spec">
+<p><tt>get_queues() -&gt; [{string(), pid()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="get_queues-1">get_queues/1</a></h3>
+<div class="spec">
+<p><tt>get_queues(Group::string()) -&gt; [{string(), pid()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="help-0">help/0</a></h3>
+<div class="spec">
+<p><tt>help() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="help-1">help/1</a></h3>
+<div class="spec">
+<p><tt>help(Module::atom()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="help-2">help/2</a></h3>
+<div class="spec">
+<p><tt>help(Module::atom(), Chapter::any()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="in_progress-0">in_progress/0</a></h3>
+<div class="spec">
+<p><tt>in_progress() -&gt; [#cdr_rec{}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="is_running-0">is_running/0</a></h3>
+<div class="spec">
+<p><tt>is_running() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="is_running-1">is_running/1</a></h3>
+<div class="spec">
+<p><tt>is_running(Specid::atom) -&gt; pid() | stopped | noexists</tt><br></p>
+</div>
+
+<h3 class="function"><a name="kick_agent-1">kick_agent/1</a></h3>
+<div class="spec">
+<p><tt>kick_agent(AgentRef::string() | pid()) -&gt; ok | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="kick_call-1">kick_call/1</a></h3>
+<div class="spec">
+<p><tt>kick_call(Callref::string() | pid()) -&gt; ok | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="kick_media-1">kick_media/1</a></h3>
+<div class="spec">
+<p><tt>kick_media(Mediaref::string() | pid()) -&gt; ok | none</tt><br></p>
+</div>
+
+<h3 class="function"><a name="load_plugin-1">load_plugin/1</a></h3>
+<div class="spec">
+<p><tt>load_plugin(Plugin) -&gt; any()</tt></p>
+</div><p>Add the plugin to the path and start it.</p>
+
+<h3 class="function"><a name="media_state-1">media_state/1</a></h3>
+<div class="spec">
+<p><tt>media_state(Media::any()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="plugins_running-0">plugins_running/0</a></h3>
+<div class="spec">
+<p><tt>plugins_running() -&gt; any()</tt></p>
+</div><p>Return which plugins are running and which are stopped.</p>
+
+<h3 class="function"><a name="prep_stop-1">prep_stop/1</a></h3>
+<div class="spec">
+<p><tt>prep_stop(State::any()) -&gt; any()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="print_cdr-1">print_cdr/1</a></h3>
+<div class="spec">
+<p><tt>print_cdr(Cdr::#cdr_rec{}) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="print_raws-1">print_raws/1</a></h3>
+<div class="spec">
+<p><tt>print_raws(Cdr::string() | #cdr_rec{}) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="reload_plugin-1">reload_plugin/1</a></h3>
+<div class="spec">
+<p><tt>reload_plugin(Plugin) -&gt; any()</tt></p>
+</div><p>Reload the code the plugin and applications plugin depends on using
+  <a href="util.html#reload-0"><code>util:reload/0</code></a>.</p>
+
+<h3 class="function"><a name="reload_plugins-0">reload_plugins/0</a></h3>
+<div class="spec">
+<p><tt>reload_plugins() -&gt; any()</tt></p>
+</div><p>Reload the code for all plugins using <a href="util.html#reload-0"><code>util:reload/0</code></a>.</p>
+
+<h3 class="function"><a name="reload_recipe-1">reload_recipe/1</a></h3>
+<div class="spec">
+<p><tt>reload_recipe(Queue::string()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="restore_config-1">restore_config/1</a></h3>
+<div class="spec">
+<p><tt>restore_config(Filename::string()) -&gt; {atomic, [atom()]} | {aborted, any()}</tt><br></p>
+</div><p>Restore all the config files from the given back up file.</p>
+
+<h3 class="function"><a name="restore_config-2">restore_config/2</a></h3>
+<div class="spec">
+<p><tt>restore_config(Filename::string(), Tables::[atom()] | atom()) -&gt; {atomic, [atom()]} | {aborted, any()}</tt><br></p>
+</div><p>Restore only the passed in table names from the given back up file.</p>
+
+<h3 class="function"><a name="start-2">start/2</a></h3>
+<div class="spec">
+<p><tt>start(Type::normal | {takeover, atom()} | {failover, atom()}, StartArgs::[any()]) -&gt; {ok, pid(), any()} | {ok, pid()} | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="status-0">status/0</a></h3>
+<div class="spec">
+<p><tt>status() -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(State::any()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="unload_plugin-1">unload_plugin/1</a></h3>
+<div class="spec">
+<p><tt>unload_plugin(Plugin) -&gt; any()</tt></p>
+</div><p>Stop the plugin (but not always what the plugin depends on).</p>
+
+<h3 class="function"><a name="uptime-0">uptime/0</a></h3>
+<div class="spec">
+<p><tt>uptime() -&gt; non_neg_integer() | stopped</tt><br></p>
+</div>
+
+<h3 class="function"><a name="uptime-1">uptime/1</a></h3>
+<div class="spec">
+<p><tt>uptime(Fallback::boolean()) -&gt; non_neg_integer() | stopped</tt><br></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

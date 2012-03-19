@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module integration</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module integration</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Helper module to facilitate speaking to an integration gen_server.
+
+
+<h2><a name="description">Description</a></h2><p>Helper module to facilitate speaking to an integration gen_server.  The
+  integration server is assumed to have already been started with the name of
+  <code>integration</code>.  If it has not, the functions will return
+  <code>{error, nointegration}</code>.</p>
+ 
+  <p>This tries to enforce valid returns from the integration server.  If it
+  detects an invalid reply, it will throw an exection with a tuple; the first
+  element being <code>badreturn</code>.</p>
+ 
+  A module attempting to act as an integration point MUST respond properly
+  to handle_call, otherwise it might as well not event run.
+  <table border="1">
+ 	<tr>
+  		<th>Message</th>
+ 		<th>Reply</th>
+ 	</tr>
+  	<tr>
+ 		<td><code>{agent_exists, LoginName :: string()}</code></td>
+ 		<td><code>true | false</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{agent_auth, LoginName :: string(), PlainPassword :: string(), Extended :: [any()]}</code></td>
+ 		<td><code>deny | destroy | {ok, Id :: string(), Profile :: string(), agent | admin | supervisor, Extended :: [any()]}</code></td>
+ 	</tr>
+ 	<tr>
+  		<td><code>{client_exists, id, Id :: string()}</code></td>
+ 		<td><code>true | false</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{client_exists, label, Label :: string()}</code></td>
+ 		<td><code>true | false</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_client, id, Id :: string()}</code></td>
+ 		<td><code>none | {ok, Id :: string(), Label :: string(), Options :: [any()]}</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_client, label, Label :: string()}</code></td>
+ 		<td><code>none | {ok, Id :: string(), Label :: string(), Options :: [any()]}</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_queue, Queue :: string()}</code></td>
+ 		<td><code>none | {ok, Name :: string(), Weight :: non_neg_integer(), Skills :: [skill()], HoldMusic :: string() | undefined, Group :: string()}</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_queue_group, QueueGroup :: string()}</code></td>
+ 		<td><code>none | {ok, Name :: string(), Recipe :: recipe(), Skills :: [skill()], Sort :: non_neg_integer(), Protected :: boolean()}</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_skill, Skill :: atom()}</code></td>
+ 		<td><code>none | {ok, SkillAtom :: atom(), Name :: string(), Protected :: boolean(), Desc :: string(), Group :: string()}</code></td>
+ 	</tr>
+ 	<tr>
+ 		<td><code>{get_profile, Name :: string()}</code></td>
+ 		<td><code>none | {ok, Name :: string(), Id :: string(), Order :: non_neg_integer(), Skills :: [skill()]}</code></td>
+ 	</tr>
+  </table>
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-client_id">client_id()</a></h3>
+<p><tt>client_id() = string()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-client_key">client_key()</a></h3>
+<p><tt>client_key() = label | id</tt></p>
+
+
+<h3 class="typedecl"><a name="type-client_option">client_option()</a></h3>
+<p><tt>client_option() = <a href="#type-url_option">url_option()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-client_options">client_options()</a></h3>
+<p><tt>client_options() = [<a href="#type-client_option">client_option()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-label">label()</a></h3>
+<p><tt>label() = string()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-profile">profile()</a></h3>
+<p><tt>profile() = string()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-profile_data">profile_data()</a></h3>
+<p><tt>profile_data() = {<a href="#type-profile">profile()</a>, <a href="#type-skill_list">skill_list()</a>} | <a href="#type-profile">profile()</a> | <a href="#type-skill_list">skill_list()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-security">security()</a></h3>
+<p><tt>security() = admin | agent | supervisor</tt></p>
+
+
+<h3 class="typedecl"><a name="type-skill">skill()</a></h3>
+<p><tt>skill() = atom() | {atom(), any()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-skill_list">skill_list()</a></h3>
+<p><tt>skill_list() = [<a href="#type-skill">skill()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-url_option">url_option()</a></h3>
+<p><tt>url_option() = {url_pop, string()}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_auth-3">agent_auth/3</a></td><td>Attempts to authenticate <code>Agent</code> with plaintext password <code>Password</code>.</td></tr>
+<tr><td valign="top"><a href="#agent_exists-1">agent_exists/1</a></td><td>Returns <code>true</code> if an agent with the loging <code>Agent</code> exists, <code>false</code>
+  otherwise.</td></tr>
+<tr><td valign="top"><a href="#client_exists-1">client_exists/1</a></td><td>Same as <code>client_exists(label, Label)</code>.</td></tr>
+<tr><td valign="top"><a href="#client_exists-2">client_exists/2</a></td><td><code>true</code> or <code>false</code> based on the existance of a client who's <code>Key</code> is <code>Value</code>.</td></tr>
+<tr><td valign="top"><a href="#get_client-2">get_client/2</a></td><td>Retrieve a client who's unique Attribute (label or comboid) is Value.</td></tr>
+<tr><td valign="top"><a href="#get_profile-1">get_profile/1</a></td><td>Retrieve a profile (agent group).</td></tr>
+<tr><td valign="top"><a href="#get_queue-1">get_queue/1</a></td><td>Retrieve a queue by name.</td></tr>
+<tr><td valign="top"><a href="#get_queue_group-1">get_queue_group/1</a></td><td>Retrieve a queue by name.</td></tr>
+<tr><td valign="top"><a href="#get_skill-1">get_skill/1</a></td><td>Retrieve a skill.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_auth-3">agent_auth/3</a></h3>
+<div class="spec">
+<p><tt>agent_auth(Agent::string(), Password::string(), Extended::[{atom(), any()}]) -&gt; {ok, string(), <a href="#type-profile_data">profile_data()</a>, <a href="#type-security">security()</a>, [{atom(), any()}]} | deny | destroy | {error, nointegration}</tt><br></p>
+</div><p>Attempts to authenticate <code>Agent</code> with plaintext password <code>Password</code>.</p>
+
+<h3 class="function"><a name="agent_exists-1">agent_exists/1</a></h3>
+<div class="spec">
+<p><tt>agent_exists(Agent::string()) -&gt; boolean()</tt><br></p>
+</div><p>Returns <code>true</code> if an agent with the loging <code>Agent</code> exists, <code>false</code>
+  otherwise.</p>
+
+<h3 class="function"><a name="client_exists-1">client_exists/1</a></h3>
+<div class="spec">
+<p><tt>client_exists(Label::string()) -&gt; boolean()</tt><br></p>
+</div><p>Same as <code>client_exists(label, Label)</code>.</p>
+
+<h3 class="function"><a name="client_exists-2">client_exists/2</a></h3>
+<div class="spec">
+<p><tt>client_exists(Key::<a href="#type-client_key">client_key()</a>, Value::string()) -&gt; boolean()</tt><br></p>
+</div><p><code>true</code> or <code>false</code> based on the existance of a client who's <code>Key</code> is <code>Value</code>.</p>
+
+<h3 class="function"><a name="get_client-2">get_client/2</a></h3>
+<div class="spec">
+<p><tt>get_client(Key::<a href="#type-client_key">client_key()</a>, Value::string()) -&gt; none | {ok, <a href="#type-client_id">client_id()</a>, <a href="#type-label">label()</a>, <a href="#type-client_options">client_options()</a>} | {error, nointegration}</tt><br></p>
+</div><p>Retrieve a client who's unique Attribute (label or comboid) is Value.</p>
+
+<h3 class="function"><a name="get_profile-1">get_profile/1</a></h3>
+<div class="spec">
+<p><tt>get_profile(Profile) -&gt; any()</tt></p>
+</div><p>Retrieve a profile (agent group)</p>
+
+<h3 class="function"><a name="get_queue-1">get_queue/1</a></h3>
+<div class="spec">
+<p><tt>get_queue(Name::string()) -&gt; none | {ok, string(), non_neg_integer(), [atom()], <a href="#type-recipe">recipe()</a> | undefined, string()} | {error, nointegration}</tt><br></p>
+</div><p>Retrieve a queue by name</p>
+
+<h3 class="function"><a name="get_queue_group-1">get_queue_group/1</a></h3>
+<div class="spec">
+<p><tt>get_queue_group(Name::string()) -&gt; none | {ok, string(), <a href="#type-recipe">recipe()</a>, [atom()], boolean()} | {error, nointegration}</tt><br></p>
+</div><p>Retrieve a queue by name</p>
+
+<h3 class="function"><a name="get_skill-1">get_skill/1</a></h3>
+<div class="spec">
+<p><tt>get_skill(Atom::atom()) -&gt; none | {ok, atom(), string(), boolean(), string(), string()}</tt><br></p>
+</div><p>Retrieve a skill</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

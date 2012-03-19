@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_agent_event</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_agent_event</h1>
+<ul class="index"><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_channel_init-4">agent_channel_init/4</a></td><td>Create a handler specifically for the given agent channel.</td></tr>
+<tr><td valign="top"><a href="#agent_init-1">agent_init/1</a></td><td>Create a handler specifically for the given agent.</td></tr>
+<tr><td valign="top"><a href="#change_agent-2">change_agent/2</a></td><td>An agent has changed in some way.</td></tr>
+<tr><td valign="top"><a href="#change_agent_channel-3">change_agent_channel/3</a></td><td>Alert the appropriate handler that an agent channel has changed
+  in some way (usually state).</td></tr>
+<tr><td valign="top"><a href="#change_profile-2">change_profile/2</a></td><td>An agent has changed profiles.</td></tr>
+<tr><td valign="top"><a href="#change_state-2">change_state/2</a></td><td>An agent has changed state (idle &lt;-&gt; released).</td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td>starts the agent event server.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Starts teh agent event server linked.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stops the agent event server.</td></tr>
+<tr><td valign="top"><a href="#truncate-1">truncate/1</a></td><td>Purge all state information about an agent from mnesia, both
+  idleness and channel data.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_channel_init-4">agent_channel_init/4</a></h3>
+<div class="spec">
+<p><tt>agent_channel_init(Agent::string(), ChannelId::pid(), Statename::atom(), Statedata::any()) -&gt; ok | {atom(), any()}</tt><br></p>
+</div><p>Create a handler specifically for the given agent channel.</p>
+
+<h3 class="function"><a name="agent_init-1">agent_init/1</a></h3>
+<div class="spec">
+<p><tt>agent_init(Agent::#agent{}) -&gt; ok | {atom(), any()}</tt><br></p>
+</div><p>Create a handler specifically for the given agent.  Handles profile
+  login, logout, profile changes, release, and idle states.</p>
+
+<h3 class="function"><a name="change_agent-2">change_agent/2</a></h3>
+<div class="spec">
+<p><tt>change_agent(OldAgent::#agent{}, NewAgent::#agent{}) -&gt; ok</tt><br></p>
+</div><p>An agent has changed in some way.  The handler will figure out
+  how and send the correct state change or profile change</p>
+
+<h3 class="function"><a name="change_agent_channel-3">change_agent_channel/3</a></h3>
+<div class="spec">
+<p><tt>change_agent_channel(Chanid::pid(), Statename::atom(), Statedata::any()) -&gt; ok</tt><br></p>
+</div><p>Alert the appropriate handler that an agent channel has changed
+  in some way (usually state).</p>
+
+<h3 class="function"><a name="change_profile-2">change_profile/2</a></h3>
+<div class="spec">
+<p><tt>change_profile(OldAgent::#agent{}, NewAgent::#agent{}) -&gt; ok</tt><br></p>
+</div><p>An agent has changed profiles</p>
+
+<h3 class="function"><a name="change_state-2">change_state/2</a></h3>
+<div class="spec">
+<p><tt>change_state(OldAgent::#agent{}, NewAgent::#agent{}) -&gt; ok</tt><br></p>
+</div><p>An agent has changed state (idle &lt;-&gt; released)</p>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()}</tt><br></p>
+</div><p>starts the agent event server.</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; {ok, pid()}</tt><br></p>
+</div><p>Starts teh agent event server linked.</p>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; ok</tt><br></p>
+</div><p>Stops the agent event server.</p>
+
+<h3 class="function"><a name="truncate-1">truncate/1</a></h3>
+<div class="spec">
+<p><tt>truncate(AgentId::string()) -&gt; ok</tt><br></p>
+</div><p>Purge all state information about an agent from mnesia, both
+  idleness and channel data.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:44.</i></p>
+</body>
+</html>

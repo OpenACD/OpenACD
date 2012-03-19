@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module cpx_supervisor</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module cpx_supervisor</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The top-most supervisor of the cpx system.
+
+<p><b>Behaviours:</b> <a href="supervisor.html"><tt>supervisor</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2><p>The top-most supervisor of the cpx system.  This is responsible for starting and monitoring the primary supervisors  
+as well as any additional modules that are configured.  
+There 4 branches off of cpx_supervisor:  routing_sup,  
+mediamanager_sup, agent_sup, and management_sup.  They are started in  
+that order.</p>
+ 
+  <p>routing_sup starts the following process in the listed order (they  
+cannot be configured aside from applicatoin options):  
+cpxlog, cpx_monitor, cpx_hooks, dispatch_manager, queue_manager,  
+cpx_agent_event, and cdr.  Any additions to this branch MUST NOT be  
+dependant on other branches running and MUST be hard-coded in a  
+specific order.</p>
+ 
+  <p>mediamanager_sup loads it's children from the cpx_conf table in mnesia.  
+Start order is undefined.  Any of those children MAY be dependant on  
+children in routing sup, and MUST NOT be dependant on children from  
+the other branches.</p>
+ 
+  <p>agent_sup loads the agent_manager and starts the agent_connection_sup  
+supervisor.  This follows the same dependancies as mediamanager_sup.  
+Integration tools should go here.</p>
+ 
+  <p>management_sup contains most other optional modules.  It MAY be  
+dependant on children in routing_sup, MUST NOT de dependant on  
+specific children from mediamanager_sup (ie, it should handle the  
+possibility those process are no longer configured to run).</p>
+ 
+  <p>Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include  
+those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table  
+the supervisor does not start, thus halting all of cpx from starting.</p>
+ 
+  <p>If the system starts without a cpx_conf table, it will build one, placing some default information there.  
+#cpx_conf{agent_tcp_listener} is the only one.</p>
+ 
+  The 2 most important function are <a href="#destroy-1"><code>destroy/1</code></a>, <a href="#update_conf-4"><code>update_conf/4</code></a>.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-supervisor_name">supervisor_name()</a></h3>
+<p><tt>supervisor_name() = routing_sup | agent_sup | agent_connection_sup | management_sup</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#build_spec-1">build_spec/1</a></td><td>Attempts to build a valid childspec suitable for a supervisor module from the <code>#cpx_conf{}</code>.</td></tr>
+<tr><td valign="top"><a href="#build_tables-0">build_tables/0</a></td><td>Attempts to build the <code>cpx_conf</code> table.</td></tr>
+<tr><td valign="top"><a href="#default_conf-0">default_conf/0</a></td><td>Adds the default configuration to the database.</td></tr>
+<tr><td valign="top"><a href="#destroy-1">destroy/1</a></td><td>Removes the passed <code>childspec()</code> or <code>#cpx_conf{}</code> from the database.</td></tr>
+<tr><td valign="top"><a href="#drop_value-1">drop_value/1</a></td><td>Drop the node data <code>Key</code>.</td></tr>
+<tr><td valign="top"><a href="#get_archive_path-1">get_archive_path/1</a></td><td>interpolate the system's archivepath with date and call info.</td></tr>
+<tr><td valign="top"><a href="#get_conf-0">get_conf/0</a></td><td>Pull all <code>#cpx_conf{}</code>s from the database.</td></tr>
+<tr><td valign="top"><a href="#get_conf-1">get_conf/1</a></td><td>Pull the <code>#cpx_conf{}</code> from the database for the given id.</td></tr>
+<tr><td valign="top"><a href="#get_value-1">get_value/1</a></td><td>Get the value for node data <code>Key</code>.</td></tr>
+<tr><td valign="top"><a href="#restart-2">restart/2</a></td><td>In case of a branch going down, this funciton will restart the specified branch.</td></tr>
+<tr><td valign="top"><a href="#restart_spec-1">restart_spec/1</a></td><td>restart the conf.</td></tr>
+<tr><td valign="top"><a href="#set_value-2">set_value/2</a></td><td>Set a node data <code>Key</code> to <code>Value</code>.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Start the cpx_supervisor unlinked.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start the cpx_supervisor linked to the parent process.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Exit with reason <code>shutdown</code></td></tr>
+<tr><td valign="top"><a href="#stop_spec-1">stop_spec/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#submit_bug_report-1">submit_bug_report/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#submit_bug_report-4">submit_bug_report/4</a></td><td>Try to submit a bug report to a (possibly) configred mantis.</td></tr>
+<tr><td valign="top"><a href="#update_conf-2">update_conf/2</a></td><td>updates the conf with key <code>Name</code> with new <code>Mod</code>, <code>Start</code>, and <code>Args</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="build_spec-1">build_spec/1</a></h3>
+<div class="spec">
+<p><tt>build_spec(Spec::#cpx_conf{}) -&gt; <a href="#type-child_spec">child_spec()</a> | {error, any()}</tt><br></p>
+</div><p>Attempts to build a valid childspec suitable for a supervisor module from the <code>#cpx_conf{}</code>.</p>
+
+<h3 class="function"><a name="build_tables-0">build_tables/0</a></h3>
+<div class="spec">
+<p><tt>build_tables() -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Attempts to build the <code>cpx_conf</code> table.</p>
+
+<h3 class="function"><a name="default_conf-0">default_conf/0</a></h3>
+<div class="spec">
+<p><tt>default_conf() -&gt; {atomic, ok}</tt><br></p>
+</div><p>Adds the default configuration to the database.</p>
+
+<h3 class="function"><a name="destroy-1">destroy/1</a></h3>
+<div class="spec">
+<p><tt>destroy(Spec::<a href="#type-child_spec">child_spec()</a> | atom()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Removes the passed <code>childspec()</code> or <code>#cpx_conf{}</code> from the database.</p>
+
+<h3 class="function"><a name="drop_value-1">drop_value/1</a></h3>
+<div class="spec">
+<p><tt>drop_value(Key::any()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Drop the node data <code>Key</code>.</p>
+
+<h3 class="function"><a name="get_archive_path-1">get_archive_path/1</a></h3>
+<div class="spec">
+<p><tt>get_archive_path(Call::#call{}) -&gt; none | {error, any(), string()} | string()</tt><br></p>
+</div><p>interpolate the system's archivepath with date and call info</p>
+
+<h3 class="function"><a name="get_conf-0">get_conf/0</a></h3>
+<div class="spec">
+<p><tt>get_conf() -&gt; undefined | [#cpx_conf{}]</tt><br></p>
+</div><p>Pull all <code>#cpx_conf{}</code>s from the database</p>
+
+<h3 class="function"><a name="get_conf-1">get_conf/1</a></h3>
+<div class="spec">
+<p><tt>get_conf(Name::atom()) -&gt; undefined | #cpx_conf{}</tt><br></p>
+</div><p>Pull the <code>#cpx_conf{}</code> from the database for the given id.  Most
+  times it will be the same as the module name.</p>
+
+<h3 class="function"><a name="get_value-1">get_value/1</a></h3>
+<div class="spec">
+<p><tt>get_value(Key::any()) -&gt; none | {ok, any()}</tt><br></p>
+</div><p>Get the value for node data <code>Key</code>.  Note that this is specifically
+  for getting it from the database.  Usual code should just go got for
+  cpx:get_env/1, /2.</p>
+
+<h3 class="function"><a name="restart-2">restart/2</a></h3>
+<div class="spec">
+<p><tt>restart(Branch::<a href="#type-supervisor_name">supervisor_name()</a>, Args::[any()]) -&gt; ok</tt><br></p>
+</div><p>In case of a branch going down, this funciton will restart the specified branch.</p>
+
+<h3 class="function"><a name="restart_spec-1">restart_spec/1</a></h3>
+<div class="spec">
+<p><tt>restart_spec(Spec::#cpx_conf{} | atom()) -&gt; {ok, pid()} | {ok, pid(), any()} | {error, any()}</tt><br></p>
+</div><p>restart the conf</p>
+
+<h3 class="function"><a name="set_value-2">set_value/2</a></h3>
+<div class="spec">
+<p><tt>set_value(Key::any(), Value::any()) -&gt; {atomic, ok}</tt><br></p>
+</div><p>Set a node data <code>Key</code> to <code>Value</code>.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Nodes::[atom()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start the cpx_supervisor unlinked.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Nodes::[atom()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start the cpx_supervisor linked to the parent process.</p>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; true</tt><br></p>
+</div><p>Exit with reason <code>shutdown</code></p>
+
+<h3 class="function"><a name="stop_spec-1">stop_spec/1</a></h3>
+<div class="spec">
+<p><tt>stop_spec(Spec::#cpx_conf{}) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="submit_bug_report-1">submit_bug_report/1</a></h3>
+<div class="spec">
+<p><tt>submit_bug_report(Options::[{binary(), binary()}]) -&gt; ok | {error, any()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="submit_bug_report-4">submit_bug_report/4</a></h3>
+<div class="spec">
+<p><tt>submit_bug_report(Summary::binary(), Description::binary(), Reproduce::binary(), Other::binary()) -&gt; ok | {error, any()}</tt><br></p>
+</div><p>Try to submit a bug report to a (possibly) configred mantis.</p>
+
+<h3 class="function"><a name="update_conf-2">update_conf/2</a></h3>
+<div class="spec">
+<p><tt>update_conf(Id::atom(), Conf::#cpx_conf{}) -&gt; {atomic, ok} | {aborted, any()}</tt><br></p>
+</div><p>updates the conf with key <code>Name</code> with new <code>Mod</code>, <code>Start</code>, and <code>Args</code>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

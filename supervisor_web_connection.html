@@ -1,0 +1,331 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module supervisor_web_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module supervisor_web_connection</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Helper module to represent an supervisor logged in, but not  
+always as a routable agent.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+<p><b>See also:</b> <a href="agent_web_connection.html">agent_web_connection</a>, <a href="agent_web_listener.html">agent_web_listener</a>, <a href="cpx_web_management.html">cpx_web_management</a>.</p>
+
+<h2><a name="description">Description</a></h2><p>Helper module to represent an supervisor logged in, but not  
+always as a routable agent.</p>
+ 
+  <p><b>Web Api </b></p>
+ 
+  <p>This is similar to the <a href="agent_web_connection.html"><code>agent_web_connection</code></a> in that it exposes an  
+api meant for web calls and not the shell.</p>
+ 
+  <p>The functions in this documentation will have <b>Web Api </b> in front of their
+  description.  You should not call these functions in the shell as they
+  likely won't work.  They are exported only to aid documentation.
+  To call a function is very similar to using the json_api
+  in <a href="cpx_web_management.html"><code>cpx_web_management</code></a>.  A request is a json object with a
+  <code>"function"</code> property and an <code>"args"</code> property.  Note unlike the
+  json api there is no need to define a <code>"module"</code> property.  In the
+  documentation of specific functions, references to a proplist should
+  be sent as a json object.  The response is a json object with a
+  <code>"success"</code> property.  If the <code>"success"</code> property is set to true,
+  there may be a <code>"result"</code> property holding more data (defined in the
+  functions below).  If something went wrong, there will be a <code>"message"</code>
+  and <code>"errcode"</code> property.  Usually the <code>"message"</code> will have a human
+  readable message, while <code>"errcode"</code> could be used for translation.</p>
+ 
+  <p>The first argument in the web api functions MUST NOT be in the json
+  request.  The <a href="agent_web_listener.html"><code>agent_web_listener</code></a> will be able to figure out
+  which agent the request is meant for (assuming you logged in properly).
+  So, the args list in your ajax request will be one shorter then the
+  functions below.  If a function below has only <code>Conn</code> as it's arugment
+  the <code>"args"</code> property can be omitted completely.</p>
+ 
+  To make a web api call, make a post request to path "/supervisor" with
+  one field named <code>"request"</code>.  The value of the request field should be a
+  a json object:
+  <pre> {
+  	"function":  string(),
+  	"args":      [any()]
+  }</pre><p>
+  See a function's documentation for what <code>"args"</code> should be.</p>
+ 
+  <p>A response will have 3 major forms.</p>
+ 
+  A very simple success:
+  <pre> {
+  	"success":  true
+  }</pre>
+  A success with a result:
+  <pre> {
+  	"success":  true,
+  	"result":   any()
+  }</pre>
+  A failure:
+  <pre> {
+  	"success":  false,
+  	"message":  string(),
+  	"errcode":  string()
+  }</pre>
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-endpoint_opt">endpoint_opt()</a></h3>
+<p><tt>endpoint_opt() = {endpoint, sip | sip_registration | pstn | h323 | iax2}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-endpointdata_opt">endpointdata_opt()</a></h3>
+<p><tt>endpointdata_opt() = {endpointdata, any()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-login_opt">login_opt()</a></h3>
+<p><tt>login_opt() = {login, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-ring_path_opt">ring_path_opt()</a></h3>
+<p><tt>ring_path_opt() = {ring_path, inband | outband}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opt">start_opt()</a></h3>
+<p><tt>start_opt() = <a href="#type-login_opt">login_opt()</a> | <a href="#type-endpoint_opt">endpoint_opt()</a> | <a href="#type-endpointdata_opt">endpointdata_opt()</a> | <a href="#type-ring_path_opt">ring_path_opt()</a> | <a href="#type-suppress_poll_opt">suppress_poll_opt()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_opts">start_opts()</a></h3>
+<p><tt>start_opts() = [<a href="#type-start_opt">start_opt()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-suppress_poll_opt">suppress_poll_opt()</a></h3>
+<p><tt>suppress_poll_opt() = suppress_poll</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#agent_ring-4">agent_ring/4</a></td><td><b>Web Api </b> Send a call in queue to a specified agent.</td></tr>
+<tr><td valign="top"><a href="#agent_state-3">agent_state/3</a></td><td><b>Web Api </b> Change the agent's state.</td></tr>
+<tr><td valign="top"><a href="#agent_state-4">agent_state/4</a></td><td><b>Web Api </b> Change the agent's state and state data.</td></tr>
+<tr><td valign="top"><a href="#blab-4">blab/4</a></td><td><b>Web Api </b> Send a blab to an agent or group of agents.</td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#drop_media-3">drop_media/3</a></td><td><b>Web Api </b> <b>Not yet fully implemented.</b>  Terminate the media
+  while it is in queue.</td></tr>
+<tr><td valign="top"><a href="#get_motd-1">get_motd/1</a></td><td><b>Web Api </b> Get the message of the day (a blab automatically told to
+  agents on login).</td></tr>
+<tr><td valign="top"><a href="#get_profiles-1">get_profiles/1</a></td><td><b>Web Api </b> Get a list of the agent profiles.</td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#is_web_api-2">is_web_api/2</a></td><td>Return if a function of given arity is a valid web api call.</td></tr>
+<tr><td valign="top"><a href="#kick_agent-2">kick_agent/2</a></td><td><b>Web Api </b> Force an agent to logout.</td></tr>
+<tr><td valign="top"><a href="#nuke_poll_queue-1">nuke_poll_queue/1</a></td><td>Extract the poll queue from a state record and 0 it out.</td></tr>
+<tr><td valign="top"><a href="#poll-2">poll/2</a></td><td><b>Web Api </b> See <a href="agent_web_connection.html#poll-2"><code>agent_web_connection:poll/2</code></a>.</td></tr>
+<tr><td valign="top"><a href="#remove_problem_recording-2">remove_problem_recording/2</a></td><td><b>Web Api </b> Removes a previously made recording for a given client.</td></tr>
+<tr><td valign="top"><a href="#set_motd-3">set_motd/3</a></td><td><b>Web Api </b> Set the message of the day (a blab automatically told to
+  agents on login).</td></tr>
+<tr><td valign="top"><a href="#set_profile-3">set_profile/3</a></td><td><b>Web Api </b> Change the agent's profile for the duration of that agent's
+  session.</td></tr>
+<tr><td valign="top"><a href="#spy-2">spy/2</a></td><td><b>Web Api </b> Listen in or view media the specified agent is on call with.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>Start unlinked.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start linked.</td></tr>
+<tr><td valign="top"><a href="#start_problem_recording-2">start_problem_recording/2</a></td><td><b>Web Api </b> Start recording a message to be used for problem
+  Announcements on voice calls in queue.</td></tr>
+<tr><td valign="top"><a href="#status-1">status/1</a></td><td><b>Web Api </b> Get the overall status cached in cpx_monitor; ie, a
+  snapshot of The system as it currently is.</td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#unsubscribe-1">unsubscribe/1</a></td><td><b>Web Api </b> Subscribe the supervisor to the cpx_monitor feed.</td></tr>
+<tr><td valign="top"><a href="#voicemail-3">voicemail/3</a></td><td><b>Web Api </b> Send a media to voicemail (if possible).</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="agent_ring-4">agent_ring/4</a></h3>
+<div class="spec">
+<p><tt>agent_ring(Conn::pid(), Queue::string(), MediaId::string(), Agent::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Send a call in queue to a specified agent.</p>
+
+<h3 class="function"><a name="agent_state-3">agent_state/3</a></h3>
+<div class="spec">
+<p><tt>agent_state(Conn::pid(), Agent::string(), State::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Change the agent's state.</p>
+
+<h3 class="function"><a name="agent_state-4">agent_state/4</a></h3>
+<div class="spec">
+<p><tt>agent_state(Conn::pid(), Agent::string(), State::string(), Statedata::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Change the agent's state and state data.  Note when setting
+  an agent released from oncall or wrapup, the do not go released
+  immediately.  They are flagged to go released instead of idle once the
+  call is completed.</p>
+
+<h3 class="function"><a name="blab-4">blab/4</a></h3>
+<div class="spec">
+<p><tt>blab(Conn::pid(), Message::string(), Grouping::string(), Target::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Send a blab to an agent or group of agents.</p>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(Old, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="drop_media-3">drop_media/3</a></h3>
+<div class="spec">
+<p><tt>drop_media(Conn::pid(), Queue::string(), MediaId::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> <b>Not yet fully implemented.</b>  Terminate the media
+  while it is in queue.</p>
+
+<h3 class="function"><a name="get_motd-1">get_motd/1</a></h3>
+<div class="spec">
+<p><tt>get_motd(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get the message of the day (a blab automatically told to
+  agents on login).</p>
+
+<h3 class="function"><a name="get_profiles-1">get_profiles/1</a></h3>
+<div class="spec">
+<p><tt>get_profiles(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get a list of the agent profiles.</p>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(X1, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(Opts) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="is_web_api-2">is_web_api/2</a></h3>
+<div class="spec">
+<p><tt>is_web_api(Function::atom(), Arity::non_neg_integer()) -&gt; boolean()</tt><br></p>
+</div><p>Return if a function of given arity is a valid web api call.</p>
+
+<h3 class="function"><a name="kick_agent-2">kick_agent/2</a></h3>
+<div class="spec">
+<p><tt>kick_agent(Conn::pid(), Agent::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Force an agent to logout.  Does not force an agent currently
+  oncall to logout.  Lookup is done by login name.</p>
+
+<h3 class="function"><a name="nuke_poll_queue-1">nuke_poll_queue/1</a></h3>
+<div class="spec">
+<p><tt>nuke_poll_queue(State::#state{}) -&gt; {[any()], #state{}}</tt><br></p>
+</div><p>Extract the poll queue from a state record and 0 it out.  Used
+  when the supervisor is logged in as an agent rather than independent of
+  routing.  The list is returned in the order the events were recieved.</p>
+
+<h3 class="function"><a name="poll-2">poll/2</a></h3>
+<div class="spec">
+<p><tt>poll(Pid::pid(), Frompid::pid()) -&gt; ok</tt><br></p>
+</div><p><b>Web Api </b> See <a href="agent_web_connection.html#poll-2"><code>agent_web_connection:poll/2</code></a>.  Basically the
+  same thing.  Supervisors get 2 extra commands:
+  <table>
+  	<tr>
+  		<th>Command</th>
+  		<th>Other Properties</th>
+  		<th>Description</th>
+  	</tr>
+  	<tr>
+  		<td>supervisorSet</td>
+  		<td><ul>
+  			<li>"id":  string()</li>
+  			<li>"type":  "agent" | "queue" | "media"</li>
+  			<li>"name":  string()</li>
+  			<li>"display":  string()</li>
+  			<li>"details":  Object()</li>
+  		</ul></td>
+  		<td>A media, agent, or queue has been changed or updated.</td>
+  	</tr>
+  	<tr>
+  		<td>supervisorDrop</td>
+  		<td><ul>
+  			<li>"type":  "agent" | "queue" | "media"</li>
+  			<li>"id":  string()</li>
+  			<li>"name":  string()</li>
+  		</ul></td>
+  		<td>A media, agent, or queue has stopped/ended it's life cycle.  For
+  		example, an agent may have logged out, or a media had it's wrapup
+  		completed.  In the case of queue, usually means it's removed from the
+  		system.</td>
+ 	</tr>
+  </table></p>
+
+<h3 class="function"><a name="remove_problem_recording-2">remove_problem_recording/2</a></h3>
+<div class="spec">
+<p><tt>remove_problem_recording(Conn::pid(), Clientid::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Removes a previously made recording for a given client.</p>
+
+<h3 class="function"><a name="set_motd-3">set_motd/3</a></h3>
+<div class="spec">
+<p><tt>set_motd(Conn::pid(), Message::string(), Node::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Set the message of the day (a blab automatically told to
+  agents on login).  If the message passed is an empty string, the motd
+  is cleared.  If <code>Node</code> is <code>&lt;&lt;"system"&gt;&gt;</code> all nodes get the same motd.</p>
+
+<h3 class="function"><a name="set_profile-3">set_profile/3</a></h3>
+<div class="spec">
+<p><tt>set_profile(Conn::pid(), Agent::string(), NewProf::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Change the agent's profile for the duration of that agent's
+  session.</p>
+
+<h3 class="function"><a name="spy-2">spy/2</a></h3>
+<div class="spec">
+<p><tt>spy(Conn::pid(), Agent::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Listen in or view media the specified agent is on call with.
+  You cannot spy on yourself.  Agent lookup is by login name.  If you are
+  logged in as an agent (rather than just supervisor mode), you must be
+  released.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Opts::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start unlinked.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Opts::<a href="#type-start_opts">start_opts()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>Start linked.</p>
+
+<h3 class="function"><a name="start_problem_recording-2">start_problem_recording/2</a></h3>
+<div class="spec">
+<p><tt>start_problem_recording(Conn::pid(), Clientid::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Start recording a message to be used for problem
+  Announcements on voice calls in queue.  Starts by trying to call the
+  agent/supervisor making the recording request.</p>
+
+<h3 class="function"><a name="status-1">status/1</a></h3>
+<div class="spec">
+<p><tt>status(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Get the overall status cached in cpx_monitor; ie, a
+  snapshot of The system as it currently is.  Subscribes the connection to
+  The cpx feed as well.</p>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Cause, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="unsubscribe-1">unsubscribe/1</a></h3>
+<div class="spec">
+<p><tt>unsubscribe(Conn::pid()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Subscribe the supervisor to the cpx_monitor feed.</p>
+
+<h3 class="function"><a name="voicemail-3">voicemail/3</a></h3>
+<div class="spec">
+<p><tt>voicemail(Conn::pid(), Queue::string(), MediaId::string()) -&gt; any()</tt><br></p>
+</div><p><b>Web Api </b> Send a media to voicemail (if possible).</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:43.</i></p>
+</body>
+</html>

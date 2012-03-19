@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module agent_dummy_connection</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module agent_dummy_connection</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The connection handler that communicates with a client UI; in this case it's a dummy.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2>The connection handler that communicates with a client UI; in this case it's a dummy.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-endpoint_data">endpoint_data()</a></h3>
+<p><tt>endpoint_data() = {endpoint_data, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-endpoint_type">endpoint_type()</a></h3>
+<p><tt>endpoint_type() = {endpoint_type, <a href="#type-endpointtype">endpointtype()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-id_option">id_option()</a></h3>
+<p><tt>id_option() = {id, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-login_option">login_option()</a></h3>
+<p><tt>login_option() = {login, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-max_life">max_life()</a></h3>
+<p><tt>max_life() = {max_life, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-maxcalls">maxcalls()</a></h3>
+<p><tt>maxcalls() = {maxcalls, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-oncall">oncall()</a></h3>
+<p><tt>oncall() = {oncall, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-password_option">password_option()</a></h3>
+<p><tt>password_option() = {password, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-profile">profile()</a></h3>
+<p><tt>profile() = {profile, string()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-release_frequency">release_frequency()</a></h3>
+<p><tt>release_frequency() = {release_frequency, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-release_percent">release_percent()</a></h3>
+<p><tt>release_percent() = {release_percent, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-remote_node">remote_node()</a></h3>
+<p><tt>remote_node() = {remote_node, atom()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-ringing">ringing()</a></h3>
+<p><tt>ringing() = {ringing, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-scale">scale()</a></h3>
+<p><tt>scale() = {scale, pos_integer()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-skills_option">skills_option()</a></h3>
+<p><tt>skills_option() = {skills, <a href="#type-skill_list">skill_list()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_option">start_option()</a></h3>
+<p><tt>start_option() = <a href="#type-login_option">login_option()</a> | <a href="#type-password_option">password_option()</a> | <a href="#type-endpoint_type">endpoint_type()</a> | <a href="#type-endpoint_data">endpoint_data()</a> | <a href="#type-id_option">id_option()</a> | <a href="#type-profile">profile()</a> | <a href="#type-skills_option">skills_option()</a> | <a href="#type-max_life">max_life()</a> | <a href="#type-release_frequency">release_frequency()</a> | <a href="#type-release_percent">release_percent()</a> | <a href="#type-ringing">ringing()</a> | <a href="#type-oncall">oncall()</a> | <a href="#type-wrapup">wrapup()</a> | <a href="#type-maxcalls">maxcalls()</a> | <a href="#type-scale">scale()</a> | <a href="#type-remote_node">remote_node()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-start_options">start_options()</a></h3>
+<p><tt>start_options() = [<a href="#type-start_option">start_option()</a>]</tt></p>
+
+
+<h3 class="typedecl"><a name="type-wrapup">wrapup()</a></h3>
+<p><tt>wrapup() = {wrapup, pos_integer()}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#clear_bot-0">clear_bot/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-0">start/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_x-1">start_x/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_x-2">start_x/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="clear_bot-0">clear_bot/0</a></h3>
+<div class="spec">
+<p><tt>clear_bot() -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(Request, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start-0">start/0</a></h3>
+<div class="spec">
+<p><tt>start() -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Args::<a href="#type-start_options">start_options()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Args::<a href="#type-start_options">start_options()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_x-1">start_x/1</a></h3>
+<div class="spec">
+<p><tt>start_x(N::pos_integer()) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="start_x-2">start_x/2</a></h3>
+<div class="spec">
+<p><tt>start_x(N::pos_integer(), Args::[any()]) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, State) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Mar 19 2012, 12:52:45.</i></p>
+</body>
+</html>

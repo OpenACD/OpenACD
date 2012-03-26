@@ -1,1 +1,0 @@
-cat success_message

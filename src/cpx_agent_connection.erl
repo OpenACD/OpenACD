@@ -23,7 +23,9 @@
 %% ({@module}); ie: handled intenrally.  If args is not an array, it is
 %% wrapped in an array of length 1.  If args is omitted, it is assumed to
 %% be an array of length 0.  This way, requests match up to erlang
-%% Module:Function/Arity format.  Erlang functions in this module that have %% {@agent_api} at the beginning of thier documentation conform to the form %% above with one caveat:  The first argument is always the internal state
+%% Module:Function/Arity format.  Erlang functions in this module that have
+%% {@agent_api} at the beginning of thier documentation conform to the form
+%% above with one caveat:  The first argument is always the internal state
 %% of the connection, and is obviously not sent with the json requests.
 %% Thus, a properly documented project will be useful to agent connection
 %% and agent client developers.
@@ -265,8 +267,8 @@ encode_cast(State, Cast) ->
 	{'exit', json(), #state{}}).
 handle_json(State, {struct, Json}) ->
 	ThisModBin = list_to_binary(atom_to_list(?MODULE)),
-	ModBin = proplists:get_value(Json, <<"module">>, ThisModBin),
-	ReqId = proplists:get_value(Json, <<"request_id">>),
+	ModBin = proplists:get_value(<<"module">>, Json, ThisModBin),
+	ReqId = proplists:get_value(<<"request_id">>, Json),
 	ModRes = try binary_to_existing_atom(ModBin, utf8) of
 		ModAtom ->
 			{ok, ModAtom}
@@ -274,15 +276,16 @@ handle_json(State, {struct, Json}) ->
 		error:badarg ->
 			{error, bad_module}
 	end,
-	FuncBin = proplists:get_value(Json, <<"function">>, <<"undefined">>),
-	FuncRes = try binary_to_existing_atom(FuncBin, utf) of
+	FuncBin = proplists:get_value(<<"function">>, Json, <<"undefined">>),
+	FuncRes = try binary_to_existing_atom(FuncBin, utf8) of
 		FuncAtom ->
 			{ok, FuncAtom}
 	catch
 		error:badarg ->
+			?INFO("Binary does not exists as atom", []),
 			{error, bad_function}
 	end,
-	Args = case proplists:get_value(Json, <<"args">>, []) of
+	Args = case proplists:get_value(<<"args">>, Json, []) of
 		ArgsList when is_list(ArgsList) -> ArgsList;
 		Term -> [Term]
 	end,

@@ -412,6 +412,7 @@ handle_socket_msg(Bin, State) ->
 	#state{options = Options, netstring = NetCont} = State,
 	{Bins, NetCont0} = netstring:decode(Bin, NetCont),
 	{Replys, Events} = get_jsons(Bins, Options#options.compression),
+	?INFO("Replys:  ~p\nRequests:  ~p", [Replys, State#state.requests]),
 	NewRequests = consume_replys(Replys, State#state.requests),
 	fire_events(Events, State#state.subscribers),
 	State#state{requests = NewRequests, netstring = NetCont0}.
@@ -457,11 +458,14 @@ consume_replys([], Requests) ->
 	Requests;
 
 consume_replys([{struct, Props} | Tail], Requests) ->
+	?INFO("Consuming reply:  ~p", [Props]),
 	ReqId = proplists:get_value(<<"request_id">>, Props),
 	case dict:find(ReqId, Requests) of
 		error ->
+			?INFO("nope, didn't find ~p", [ReqId]),
 			consume_replys(Tail, Requests);
-		From ->
+		{ok, From} ->
+			?INFO("Sending reply to ~p", [From]),
 			case proplists:get_value(<<"success">>, Props) of
 				true ->
 					Result = proplists:get_value(<<"result">>, Props),

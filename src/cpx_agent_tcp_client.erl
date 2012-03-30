@@ -54,7 +54,8 @@
 	to_agent/3,
 	to_queue/3,
 	to_queue/4,
-	to_queue/5
+	to_queue/5,
+	set_endpoint/3
 ]).
 % support (not all are implemented, just the important ones)
 -export([
@@ -160,7 +161,7 @@ start_link(Options) ->
 
 %% @doc Do a version check.
 check_version(Pid) ->
-	do_request(Pid, {undefined, check_version, undefined}).
+	do_request(Pid, {undefined, check_version, [2,0]}).
 
 %% @doc Get a nonce.
 get_nonce(Pid) ->
@@ -253,6 +254,10 @@ ring_test(Pid) ->
 -spec(logout/1 :: (Pid :: pid()) -> 'ok').
 logout(Pid) ->
 	do_request(Pid, 'LOGOUT').
+
+%% @doc Add an endpoint to the agent.
+set_endpoint(Agent, Endpoint, EndArgs) ->
+	do_request(Agent, {undefined, set_endpoint, [Endpoint, EndArgs]}).
 
 do_request(Pid, {Module, Function, Args}) ->
 	Props = [{<<"function">>, Function}],

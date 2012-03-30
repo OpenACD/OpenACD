@@ -6,8 +6,8 @@
 -record(state, {
 	host = "localhost",
 	port = 7331,
-	username = "agent",
-	password = "Password123",
+	username = <<"agent">>,
+	password = <<"Password123">>,
 	connect_mod = tcp,
 	protocol = tcp,
 	tests = ["login"]
@@ -68,10 +68,10 @@ state_from_args([], State) ->
 	State#state{tests = Tests};
 
 state_from_args(["-username", Username | Tail], State) ->
-	state_from_args(Tail, State#state{username = Username});
+	state_from_args(Tail, State#state{username = list_to_binary(Username)});
 
 state_from_args(["-password", Password | Tail], State) ->
-	state_from_args(Tail, State#state{password = Password});
+	state_from_args(Tail, State#state{password = list_to_binary(Password)});
 
 state_from_args(["-host", Host | Tail], State) ->
 	state_from_args(Tail, State#state{host = Host});
@@ -99,6 +99,10 @@ run_tests([], State) ->
 
 run_tests(["login" | Tail], State) ->
 	ok = test_login(State),
+	run_tests(Tail, State);
+
+run_tests(["set_endpoint" | Tail], State) ->
+	ok = set_endpoint(State),
 	run_tests(Tail, State).
 
 test_login(State) ->
@@ -109,4 +113,24 @@ test_login(State) ->
 	{ok, Agent} = cpx_agent_tcp_client:start([{host, Host}, {port, Port},
 		{protocol, Proto}]),
 	{ok, _} = cpx_agent_tcp_client:check_version(Agent),
-	{ok, _} = cpx_agent_tcp_client:login(State#state.username, State#state.password).
+	{ok, _} = cpx_agent_tcp_client:login(Agent, State#state.username, State#state.password),
+	exit(Agent, kill),
+	ok.
+
+set_endpoint(State) ->
+	io:format(
+"******************************
+* Starting set_endpoint test *
+******************************\n"),
+	#state{host = Host, port = Port, protocol = Proto, username = Username,
+		password = Password} = State,
+	io:format("~s://~s:~s@~s:~p/\n", [Proto, Username, Password, Host, Port]),
+	{ok, Agent} = cpx_agent_tcp_client:start([{host, Host}, {port, Port},
+		{protocol, Proto}]),
+	{ok, _} = cpx_agent_tcp_client:check_version(Agent),
+	{ok, _} = cpx_agent_tcp_client:login(Agent, State#state.username, State#state.password),
+	{ok, _} = cpx_agent_tcp_client:set_endpoint(Agent, dummy_media, {struct, [
+		{<<"dummyMediaEndpoint">>, inband}
+	]}),
+	exit(Agent, kill),
+	ok.

@@ -184,7 +184,7 @@ init(Options) ->
 		_ -> none
 	end,
 	Poolsize = proplists:get_value(poolsize, Options, 5),
-	SimpleOpts = [binary, {packet, line}, {reuseaddr, true},
+	SimpleOpts = [binary, {packet, raw}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	{Mod, Opts} = case SocketType of
 		ssl ->
@@ -307,10 +307,10 @@ acceptor(#state{socket_type = ssl_upgrade} = State) ->
 	SSLOpts = [{certfile, CertFile}, {keyfile, Keyfile}],
 	case gen_tcp:accept(ListSocket) of
 		{ok, TcpSocket} ->
-			UpgradeCmd = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
-			UpgradeCmdBin = iolist_to_binary(UpgradeCmd),
-			Sendbin = netstring:encode(UpgradeCmdBin),
-			gen_tcp:send(TcpSocket, Sendbin),
+%			UpgradeCmd = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
+%			UpgradeCmdBin = iolist_to_binary(UpgradeCmd),
+%			Sendbin = netstring:encode(UpgradeCmdBin),
+%			gen_tcp:send(TcpSocket, Sendbin),
 			case ssl:ssl_accept(TcpSocket, SSLOpts) of
 				{ok, SslSocket} ->
 					{ok, Pid} = ?con_module:start(SslSocket, ssl, Rad, Zip),

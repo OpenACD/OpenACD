@@ -202,7 +202,12 @@ handle_call(Request, _From, State) ->
 
 %% @hidden
 handle_cast(negotiate, State) ->
-	ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]),
+	case State#state.socket_mod of
+		ssl ->
+			ok = ssl:setopts(State#state.socket, [{packet, raw}, binary, {active, once}]);
+		_ ->
+			ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}])
+	end,
 	{noreply, State};
 
 handle_cast(Msg, #state{agent_conn_state = undefined} = State) ->
@@ -230,6 +235,12 @@ handle_cast(Msg, State) ->
 
 %% @hidden
 handle_info({_Type, Socket, Packet}, #state{socket = Socket} = State) ->
+	case State#state.socket_mod of
+		ssl ->
+			ok = ssl:setopts(Socket, [{active, once}]);
+		_ ->
+			ok = inet:setopts(Socket, [{active, once}])
+	end,
 	#state{netstring = Nscont} = State,
 	{Bins, Nscont0} = netstring:decode(Packet, Nscont),
 	{Jsons, Errs} = decode_binaries(Bins, State#state.compression),
@@ -243,6 +254,17 @@ handle_info({_Type, Socket, Packet}, #state{socket = Socket} = State) ->
 				exit -> {stop, normal, State0};
 				_ -> {noreply, State0}
 			end
+	end;
+
+handle_info({Type, Socket}, #state{socket = Socket} = State) ->
+	case {Type, State#state.socket_mod} of
+		{ssl_closed, ssl} ->
+			{stop, socket_closed, State};
+		{tcp_closed, _} ->
+			{stop, socket_closed, State};
+		_ ->
+			?DEBUG("Unknown message:  ~p", [{Type, Socket}]),
+			{noreply, State}
 	end;
 
 handle_info(_, State) ->
@@ -319,6 +341,8 @@ service_jsons([Json | Tail], State) ->
 	end,
 	case Exit of
 		ok ->
+			service_jsons(Tail, State0);
+		error ->
 			service_jsons(Tail, State0);
 		exit ->
 			{exit, State0}

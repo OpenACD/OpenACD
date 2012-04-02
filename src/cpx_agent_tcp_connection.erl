@@ -290,9 +290,13 @@ code_change(_OldVsn, State, _Extra) ->
 % Internal functions
 % ================================================================
 
-send_json(Json, State) ->
+send_json({struct, _} = Json, State) ->
+	IoList = mochijson2:encode(Json),
+	send_json(IoList, State);
+
+send_json(IoList, State) ->
 	#state{socket_mod = Mod, socket = Sock, compression = Zip} = State,
-	BigBin = iolist_to_binary(mochijson2:encode(Json)),
+	BigBin = iolist_to_binary(IoList),
 	Bin = case Zip of
 		none -> BigBin;
 		zip -> zlib:zip(BigBin);

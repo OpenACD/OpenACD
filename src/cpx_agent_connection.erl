@@ -321,7 +321,7 @@ handle_json(State, {struct, Json}) ->
 							end
 					end;
 				true ->
-					try apply(Mod, Func, [State, Args]) of
+					try apply(Mod, Func, [State | Args]) of
 						'exit' ->
 							{exit, ?simple_success(ReqId), State};
 						{'exit', ResultJson} ->

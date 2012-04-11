@@ -177,9 +177,9 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{DNIS, Client, Priority, CidName, CidNum, SIPFrom} = get_info(Cnode, UUID),
+	{DNIS, Client, Priority, CidName, CidNum, SIPFrom, ExportVars} = get_info(Cnode, UUID),
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
-	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
+	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'" | ExportVars]}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
@@ -1304,6 +1304,12 @@ case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
 	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
+get_exported_variables(Proplist) ->
+	ExportVars = string:tokens(proplists:get_value("variable_export_vars", Proplist, ""), ","),
+	VarNames = ["variable_" ++ V || V <- ExportVars],
+	VarValues = [proplists:get_value(N, Proplist, "") || N <- VarNames],
+	lists:zipwith(fun (K,V) -> K ++ "=" ++ V end, ExportVars, VarValues).
+
 get_caller_id(Proplist) ->
  InitCallerIdName = proplists:get_value("Caller-Caller-ID-Name", Proplist),
  InitCallerIdNumber = proplists:get_value("Caller-Caller-ID-Number", Proplist),
@@ -1342,7 +1348,8 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 			{proplists:get_value("Caller-Destination-Number", Proplist, ""),
 				proplists:get_value("variable_brand", Proplist, ""), Priority,
 				CallerIdName, CallerIdNumber,
-				proplists:get_value("variable_sip_from_display", Proplist, "")
+				proplists:get_value("variable_sip_from_display", Proplist, ""),
+				get_exported_variables(Proplist)
 			};
 		timeout ->
 			?WARNING("uuid_dump for ~s timed out. Retrying", [UUID]),
@@ -1355,7 +1362,7 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 	end;
 get_info(_, UUID, _) ->
 	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
-	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", ""}.
+	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", "", []}.
 
 get_rawcall_int(Key, Rawcall, Default) ->
 	case proplists:get_value(Key, Rawcall) of

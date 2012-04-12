@@ -21,7 +21,7 @@ install: compile
 	mkdir -p ${PREFIX}/plugin.d/deps
 
 dist: deps
-	./pre_compile.sh
+	./hooks.sh pre_compile
 	git archive --format tar --prefix OpenACD/ HEAD > $(TARBALL:.gz=)
 	tar --exclude='*/.git*' -rf $(TARBALL:.gz=) \
 		OpenACD/deps/* \

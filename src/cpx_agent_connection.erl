@@ -23,7 +23,9 @@
 %% ({@module}); ie: handled intenrally.  If args is not an array, it is
 %% wrapped in an array of length 1.  If args is omitted, it is assumed to
 %% be an array of length 0.  This way, requests match up to erlang
-%% Module:Function/Arity format.  Erlang functions in this module that have %% {@agent_api} at the beginning of thier documentation conform to the form %% above with one caveat:  The first argument is always the internal state
+%% Module:Function/Arity format.  Erlang functions in this module that have
+%% {@agent_api} at the beginning of thier documentation conform to the form
+%% above with one caveat:  The first argument is always the internal state
 %% of the connection, and is obviously not sent with the json requests.
 %% Thus, a properly documented project will be useful to agent connection
 %% and agent client developers.
@@ -181,7 +183,8 @@
 -export([
 	init/1,
 	encode_cast/2,
-	handle_json/2
+	handle_json/2,
+	get_agent/1
 ]).
 -export([
 	%% requests, exported for documentation happy.
@@ -244,6 +247,11 @@ init(Agent) ->
 	% TODO used_channels likely lacks what we want
 	{ok, #state{agent = Agent, channels = Channels, connection = Conn}}.
 
+%% @doc Pull the agent record out of the state.
+-spec(get_agent/1 :: (State :: #state{}) -> 'undefined' | #agent{}).
+get_agent(State) ->
+	State#state.agent.
+
 %% @doc When the connection gets a cast it cannot handle, this should be
 %% called.  It will either return an error, or json to pump out to the
 %% client.
@@ -259,8 +267,8 @@ encode_cast(State, Cast) ->
 	{'exit', json(), #state{}}).
 handle_json(State, {struct, Json}) ->
 	ThisModBin = list_to_binary(atom_to_list(?MODULE)),
-	ModBin = proplists:get_value(Json, <<"module">>, ThisModBin),
-	ReqId = proplists:get_value(Json, <<"request_id">>),
+	ModBin = proplists:get_value(<<"module">>, Json, ThisModBin),
+	ReqId = proplists:get_value(<<"request_id">>, Json),
 	ModRes = try binary_to_existing_atom(ModBin, utf8) of
 		ModAtom ->
 			{ok, ModAtom}
@@ -268,15 +276,16 @@ handle_json(State, {struct, Json}) ->
 		error:badarg ->
 			{error, bad_module}
 	end,
-	FuncBin = proplists:get_value(Json, <<"function">>, <<"undefined">>),
-	FuncRes = try binary_to_existing_atom(FuncBin, utf) of
+	FuncBin = proplists:get_value(<<"function">>, Json, <<"undefined">>),
+	FuncRes = try binary_to_existing_atom(FuncBin, utf8) of
 		FuncAtom ->
 			{ok, FuncAtom}
 	catch
 		error:badarg ->
+			?INFO("Binary does not exists as atom", []),
 			{error, bad_function}
 	end,
-	Args = case proplists:get_value(Json, <<"args">>, []) of
+	Args = case proplists:get_value(<<"args">>, Json, []) of
 		ArgsList when is_list(ArgsList) -> ArgsList;
 		Term -> [Term]
 	end,
@@ -312,7 +321,7 @@ handle_json(State, {struct, Json}) ->
 							end
 					end;
 				true ->
-					try apply(Mod, Func, [State, Args]) of
+					try apply(Mod, Func, [State | Args]) of
 						'exit' ->
 							{exit, ?simple_success(ReqId), State};
 						{'exit', ResultJson} ->
@@ -863,7 +872,7 @@ handle_cast({mediapush, Chanpid, Call, Data}, State) ->
 		% freeswitch uses this
 		{mediaload, Call, _Data} ->
 			Props = [{<<"media">>, Call#call.source_module}],
-			handle_cast({arbitrary_commadn, Chanpid, <<"mediaload">>, Props}, State0);
+			handle_cast({arbitrary_command, Chanpid, <<"mediaload">>, Props}, State0);
 		% not sure what uses this.  It's still pretty messy.
 		{Command, Call, EventData} ->
 			Props = [{<<"event">>, EventData}, {<<"media">>, Call#call.type}],

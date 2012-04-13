@@ -178,7 +178,8 @@ init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum, SIPFrom, ExportVars} = get_info(Cnode, UUID),
-	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
+	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband, export_vars = ExportVars},
+	?DEBUG("init freeswitch_media Call:~p", [Call]),
 	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'" | ExportVars]}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
@@ -258,7 +259,7 @@ handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType
 		inqueue -> inqueue_ringing;
 		oncall -> oncall_ringing
 	end,
-	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{statename = NewStatename, ringchannel = EndpointPid, agent_pid = Apid}};
+	{ok, [{"itxt", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{statename = NewStatename, ringchannel = EndpointPid, agent_pid = Apid}};
 handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
 	% if we get to this point, the ring channel is already up.
 	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
@@ -1308,7 +1309,8 @@ get_exported_variables(Proplist) ->
 	ExportVars = string:tokens(proplists:get_value("variable_export_vars", Proplist, ""), ","),
 	VarNames = ["variable_" ++ V || V <- ExportVars],
 	VarValues = [proplists:get_value(N, Proplist, "") || N <- VarNames],
-	lists:zipwith(fun (K,V) -> K ++ "=" ++ V end, ExportVars, VarValues).
+	VarValuesDecoded = [uri:decode_uri_component(V) || V <- VarValues],
+	lists:zipwith(fun (K,V) -> K ++ "=" ++ V end, ExportVars, VarValuesDecoded).
 
 get_caller_id(Proplist) ->
  InitCallerIdName = proplists:get_value("Caller-Caller-ID-Name", Proplist),

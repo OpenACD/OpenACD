@@ -253,6 +253,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 %init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
 	case freeswitch:api(Fsnode, create_uuid) of
 		{ok, UUID} ->
+			?DEBUG("create_uuid Options: ~p", [Options]),
 			{CallerName, CallerNumber, Dnis} = case proplists:get_value(call, Options) of
 				#call{callerid = {Cname, Cnumber}, dnis = TheDnis} ->
 					{Cname, Cnumber, TheDnis};

@@ -40,6 +40,7 @@
 		timestamp = util:now() :: pos_integer()
 }).
 
+-type(export_vars_opt() :: [{string(), string()}]).
 -record(call, {
 		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: 'voice' | 'voicemail' | 'email' | 'chat',
@@ -56,6 +57,7 @@
 		% media_path really means if the agent fsm can send a hangup
 		media_path = outband :: 'inband' | 'outband',
 		direction = inbound :: 'inbound' | 'outbound',
+		export_vars = [] :: export_vars_opt,
 		priority = 40 :: non_neg_integer()
 }).
 

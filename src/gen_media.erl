@@ -702,6 +702,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 	case set_agent_state(Apid, [ringing, CachedCall#call{cook=QCall#queued_call.cook}]) of
 		ok ->
 			% TODO update callbacks to accept {string(), pid()} structure.
+			?INFO("gen_media calling Callback:handle_ring with State#state.substate: ~p", [State#state.substate]),
 			case Callback:handle_ring(Apid, State#state.callrec, State#state.substate) of
 				Success when element(1, Success) == ok ->
 					{Popopts, Call} = case Success of
@@ -1038,6 +1039,7 @@ handle_call('$gen_media_get_url_vars', _From, #state{url_pop_getvars = GenPopopt
 	Out = lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Cbopts)),
 	{reply, {ok, Out}, State};
 handle_call(Request, From, #state{callback = Callback} = State) ->
+	?DEBUG("gen_media:handle_call with State#state.substate: ~p~nState: ~p", [State#state.substate, State]),
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, reply).
 	

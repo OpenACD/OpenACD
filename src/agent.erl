@@ -453,6 +453,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 		undefined ->
 			{reply, invalid, idle, State};
 		{ok, RingMan} ->
+			?DEBUG("~s going from idle to ringing, calling media manager with Agent:~p~nInCall:~p~nState:~p", [Agent#agent.login, Agent, InCall, State]),
 			case gen_server:call(RingMan, {ring, Agent, InCall}) of
 				{ok, RingPid, Paths} ->
 					Call = case Paths of
@@ -530,7 +531,7 @@ idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) w
 	set_cpx_monitor(Newagent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 idle(Event, From, State) ->
-	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
+	?WARNING("Invalid event '~p' sent from ~p while in state 'idle': ~p", [Event, From, State]),
 	{reply, invalid, idle, State}.
 
 -spec(idle/2 :: (Msg :: any(), State :: #state{}) -> {'next_state', 'idle', #state{}}).

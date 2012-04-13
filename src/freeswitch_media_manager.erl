@@ -444,7 +444,8 @@ handle_call({ring, #agent{endpointtype = {undefined, transient, Type}, endpointd
 		undefined -> Agent#agent.login;
 		_ -> Data
 	end,
-	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}, {call, Callrec}],
+	NewOptions = [{dialstring, BaseDialString}, {destination, Destination}, {call, Callrec}, {dial_vars, Callrec#call.export_vars}],
+	?DEBUG("handle_call in media_manager State:  ~p~nAgent: ~p~nCallrec: ~p~n", [State, Agent, Callrec]),
 	case freeswitch_ring:start(State#state.nodename, freeswitch_ring_transient, NewOptions) of
 		{ok, Pid} ->
 			{reply, {ok, Pid, neither}, State};

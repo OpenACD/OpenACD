@@ -1,3 +1,5 @@
+#! /usr/bin/env bash
+
 function post_compile {
 	cat success_message
 }

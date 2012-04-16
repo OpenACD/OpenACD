@@ -2,11 +2,16 @@
 
 function do_included_apps {
 	initDir=`pwd`
-	for file in include_apps/*
+	cd include_apps
+	files=`ls`
+	cd $initDir
+	echo "Current dir:  $initDir"
+	for file in $files
+	#for file in include_apps/*
 	do
 		echo "das file:  $file"
-		cd $file
-		../../rebar $1
+		cd ../$file
+		../OpenACD/rebar $1
 		cd $initDir
 	done
 }

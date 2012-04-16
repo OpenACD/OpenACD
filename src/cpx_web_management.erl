@@ -1018,8 +1018,13 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	queue_manager:load_queue(Queue),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
-	call_queue_config:destroy_queue(Queue),
-	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	case call_queue_config:get_queue(Queue) of
+		noexists ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such queue">>}]})};
+		Queuerec ->
+			call_queue_config:destroy_queue(Queuerec),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
 api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 	Name = proplists:get_value("name", Post),
 	Qrec = #call_queue{

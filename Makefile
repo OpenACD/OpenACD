@@ -21,9 +21,9 @@ install: compile
 	mkdir -p ${PREFIX}/plugin.d/deps
 
 dist: deps
-	./pre_compile.sh
+	./hooks.sh pre_compile
 	git archive --format tar --prefix OpenACD/ HEAD > $(TARBALL:.gz=)
-	tar -rf $(TARBALL:.gz=) \
+	tar --exclude='*/.git*' -rf $(TARBALL:.gz=) \
 		OpenACD/deps/* \
 		OpenACD/priv/www/contrib/dojo \
 		OpenACD/priv/www/contrib/dojox \
@@ -34,4 +34,4 @@ dist: deps
 rpm: dist
 	QA_RPATHS=0x0003 rpmbuild -tb $(TARBALL)
 
-.PHONY: all deps compile clean run install
+.PHONY: all deps compile clean run install dist rpm

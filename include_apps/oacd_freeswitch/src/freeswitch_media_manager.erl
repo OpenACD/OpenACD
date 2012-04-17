@@ -27,13 +27,14 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The controlling module for connection CPX to a freeswitch 
+%% @doc The controlling module for connection OpenACD to a freeswitch 
 %% installation.  There are 2 primary requirements for this work:  
-%% the freeswitch installaction must have mod_erlang installed and active, and the freeswitch dialplan must add the following
-%% variables to the call data:
+%% the freeswitch installation must have mod_erlang installed and active,
+%% and the freeswitch dialplan must add the following variables added
+%% to the call data:
 %% <dl>
-%% <dt>queue</dt><dd>The name of the queue as entered into the queue_manager</dd>
-%% <dt>brand</dt><dd>As the combined brand id</dd>
+%% <dt>queue</dt><dd>The name of the queue as configured in OpenACD</dd>
+%% <dt>brand</dt><dd>The Id of the client to associate the call with</dd>
 %% </dl>
 %% Primary job of this module is to listen to freeswitch for events, and 
 %% shove those events to the appriate child process.

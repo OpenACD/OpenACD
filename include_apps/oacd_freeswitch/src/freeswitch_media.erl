@@ -146,24 +146,33 @@
 %%====================================================================
 %% API
 %%====================================================================
-%% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
+
+%% @doc starts the freeswitch media gen_media.  `Cnode' is the C node the
+%% communicates directly with freeswitch.  Dialstring is the data used to
+%% connect to an outside line.  UUID is the id of the channel on
+%% freeswith, and therefore the id of the call in OpenACD.
 -spec(start/3 :: (Cnode :: atom(), DialString :: string(), UUID :: string()) -> {'ok', pid()}).
 start(Cnode, DialString, UUID) ->
 	gen_media:start(?MODULE, [Cnode, DialString, UUID]).
 
+%% @doc Starts the freeswitch gen_media linked to the calling process.
+%% @see start/3
 -spec(start_link/3 :: (Cnode :: atom(), DialString :: string(), UUID :: string()) -> {'ok', pid()}).
 start_link(Cnode, DialString, UUID) ->
 	gen_media:start_link(?MODULE, [Cnode, DialString, UUID]).
 
-%% @doc returns the record of the call freeswitch media `MPid' is in charge of.
+%% @doc returns the record of the call freeswitch media `MPid' is in
+%% charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
 get_call(MPid) ->
 	gen_media:get_call(MPid).
 
+%% @doc A debugging function that returns the state record.
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
 	gen_media:call(Mpid, dump_state).
 
+%% @hidden
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),
 	gen_media:cast(Mpid, {'3rd_party_pickup', Self}).
@@ -171,6 +180,7 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %%====================================================================
 %% gen_media callbacks
 %%====================================================================
+
 %% @private
 init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
@@ -179,10 +189,12 @@ init([Cnode, DialString, UUID]) ->
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS, media_path = inband},
 	{ok, {#state{statename = inivr, cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"], uuid = UUID}, Call, {inivr, [DNIS]}}}.
 
+%% @private
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
 	[{"itxt", Ivropt}].
 
+%% @private
 -spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
@@ -195,6 +207,19 @@ handle_announce(Announcement, Callrec, State) ->
 %% perpare_endpoint
 %%--------------------------------------------------------------------
 
+-type(agent_registration_type() :: 'sip' | 'sip_registration' | 'h323' |
+	'iax2' | 'pstn').
+-type(agent_registration_data_opt() :: {'date', string()}).
+-type(agent_registration_type_opt() :: {'type', agent_registration_type()}).
+-type(persistant_ring_opt() :: 'persistant').
+-type(endpoint_opt() :: persistant_ring_opt() |
+	agent_registration_type_opt() | agent_registration_data_opt()).
+-type(endpoint_opts() :: [endpoint_opt()]).
+-type(freeswitch_ring_endpoint() :: pid() | {'freeswitch_ring','start',[_]}).
+%% @doc Handle an agent being setup with a freeswitch_media endpoint.
+%% Options uses defaults of [{type,sip_registration},{data,agent_login()}].
+-spec(prepare_endpoint/2 :: (Agent :: #agent{}, Options :: endpoint_opts())
+	-> {'ok', freeswitch_ring_endpoint()}).
 prepare_endpoint(Agent, Options) ->
 	{Node, Dialstring, Dest} = freeswitch_media_manager:get_ring_data(Agent, Options),
 	case proplists:get_value(persistant, Options) of
@@ -214,6 +239,7 @@ prepare_endpoint(Agent, Options) ->
 %% handle_answer
 %%--------------------------------------------------------------------
 
+%% @hidden
 handle_answer(Apid, StateName, Callrec, GenMediaState, State) when
 		StateName =:= inqueue_ringing; StateName =:= oncall_ringing ->
 	{RingUUID, RingPid} = case GenMediaState of
@@ -251,7 +277,9 @@ handle_answer(Apid, StateName, Callrec, GenMediaState, State) when
 			{error, Error, State}
 	end.
 
-%% TODO added for testing only (implemented with focus on real Calls - no other media)
+
+% TODO added for testing only (implemented with focus on real Calls - no other media)
+%% @hidden
 -spec(handle_end_call/4 :: (GMState :: atom(), Callrec :: #call{},
 GMStateData :: any(), State :: #state{}) -> {'ok', #state{}}).
 handle_end_call(_Gmstate, Callrec, _Gmstatedata, State) ->
@@ -260,6 +288,7 @@ handle_end_call(_Gmstate, Callrec, _Gmstatedata, State) ->
 			{"hangup-cause", "SUBSCRIBER_ABSENT"}]),
 	{deferred, State}.
 
+%% @hidden
 handle_ring(Apid, RingData, Callrec, State) when is_pid(Apid) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
 	% TODO - we could avoid this if we had the agent's login,
@@ -281,6 +310,7 @@ handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, _Rin
 	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NewStatename, agent_pid = Apid, ringchannel = RPid}}.
 
 % TODO This needs to be updated when conferencing is fixed.
+%% @hidden
 handle_ring_stop(_StateName, Callrec, _GenMedia, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
 	freeswitch_ring:hangup(RingChannel),
@@ -303,6 +333,7 @@ handle_ring_stop(_StateName, Callrec, _GenMedia, State) ->
 	end,
 	{ok, State#state{statename = NewStatename, ringchannel=undefined}}.
 
+%% @hidden
 -spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 	{ok, Midstate} = handle_ring_stop(undefined, Callrec, undefined, State),
@@ -312,6 +343,7 @@ handle_voicemail(undefined, Call, State) ->
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{statename = inivr, voicemail = "/tmp/"++UUID++".wav"}}.
 
+%% @hidden
 -spec(handle_spy/3 :: (Agent :: {pid(), #agent{}}, Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
 	agent:blab(Agent, "While spying, you have the following options:\n"++
@@ -325,6 +357,7 @@ handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = 
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
+%% @hidden
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	AgentRec = agent:dump_state(AgentPid), % TODO - avoid this
 	?INFO("transfer_agent to ~p for call ~p", [AgentRec#agent.login, Call#call.id]),
@@ -346,6 +379,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
+%% @hidden
 handle_wrapup(_From, _StateName, #call{media_path = inband} = Call, _GenMediaState, State) ->
 	?DEBUG("Handling wrapup request", []),
 	% TODO This could prolly stand to be a bit more elegant.
@@ -356,7 +390,8 @@ handle_wrapup(_From, _StateName, _Call, _GenMediaState, State) ->
 	% no direct hangup by the agent
 	?DEBUG("Not doing wrapup request", []),
 	{ok, State}.
-	
+
+%% @hidden
 handle_queue_transfer(_Queue, _StateName, Call, _GenMediaState, #state{cnode = Fnode} = State) ->
 	case State#state.record_path of
 		undefined ->

@@ -338,6 +338,9 @@ set_plugin_env(_PluginName, []) ->
 	ok;
 set_plugin_env(PluginName, [{Key,Val}|Tail]) ->
 	application:set_env(PluginName, Key, Val),
+	set_plugin_env(PluginName,Tail);
+set_plugin_env(PluginName, [Key | Tail]) when is_atom(Key) ->
+	application:set_env(PluginName, Key, true),
 	set_plugin_env(PluginName,Tail).
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').

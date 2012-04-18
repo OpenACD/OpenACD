@@ -2093,9 +2093,13 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			MidOptions = lists:foldl(Builder, [], PostToProp),
 			Options = [X || {_K, Val} = X <- MidOptions, Val =/= ""],
 			Args = [{freeswitch_node, list_to_atom(proplists:get_value("cnode", Post))} | Options],
+			Args0 = case proplists:get_value(sipauth,Args) of
+				"sipauth" -> [sipauth | proplists:delete(sipauth,Args)];
+				_ -> proplists:delete(sipauth,Args)
+			end,
 			%Conf = #cpx_conf{ id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, supervisor = mediamanager_sup, start_args = Args},
 			%rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
-			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args]),
+			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args0]),
 			rpc:call(Atomnode, cpx, reload_plugin, [oacd_freeswitch]),
 			rpc:call(Atomnode, application, start, [oacd_freeswitch]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}

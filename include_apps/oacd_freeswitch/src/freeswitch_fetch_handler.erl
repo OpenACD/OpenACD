@@ -144,7 +144,8 @@ handle_info({fetch, directory, "domain", "name", _Value, Id, [undefined | Data]}
 				_ ->
 					fetch_user_lookup(Id,Data,State)
 			end
-	end;
+	end,
+	{noreply, State};
 
 handle_info({fetch, _Section, _Something, _Key, _Value, ID, [undefined | _Data]},{Node,_,_}=State) ->
 	freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE),

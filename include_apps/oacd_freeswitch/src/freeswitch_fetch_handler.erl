@@ -66,18 +66,40 @@ end).
 -export([init/1,handle_call/3,handle_cast/2,handle_info/2,terminate/2,
 	code_change/3]).
 % public api
--export([start_link/3,start_link_int/3]).
+-export([start_link/3,hook_callback/3]).
 
 %% ======================================================================
 %% API
 %% ======================================================================
 
-start_link(Freeswitch,DialstringBases,SipAuth) when SipAuth =:= sip_auth; SipAuth =:= no_sip_auth ->
-	freeswitch:start_fetch_handler(Freeswitch,directory,?MODULE,
-		start_link_int, [DialstringBases,SipAuth]).
 
-start_link_int(Node,DS,SipAuth) ->
-	gen_server:start_link({local,?MODULE},?MODULE,{Node,DS,SipAuth},[]).
+start_link(Freeswitch,DialstringBases,SipAuth) when SipAuth =:= sip_auth; SipAuth =:= no_sip_auth ->
+	Pid = proc_lib:spawn_link(fun() ->
+		{foo, Freeswitch} ! {bind, directory},
+		receive
+			ok ->
+				erlang:register(?MODULE,self()),
+				{ok, State} = init({Freeswitch,DialstringBases,SipAuth}),
+				gen_server:enter_loop(?MODULE,[],State,{local, ?MODULE});
+			{error,Reason} ->
+				exit(Reason)
+		after 5000 ->
+			exit(timeout)
+		end
+	end),
+	{ok, Pid}.
+
+hook_callback(User, Pass, _Res) ->
+	?DEBUG("Hook triggered for user auth:  ~p", [User]),
+	{ok, Ifs} = inet:getif(),
+	IfsToIpStrings = fun({Ip,_,_},Acc) ->
+		{A,B,C,D} = Ip,
+		Ips = lists:flatten(io_lib:format("~p.~p.~p.~p",[A,B,C,D])),
+		[Ips | Acc]
+	end,
+	IpStrings = lists:foldl(IfsToIpStrings,[],Ifs),
+	Hashes = [util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass)) || IPString <- IpStrings],
+	ets:insert(oacd_freeswitch_a1, {User, Hashes}).
 
 %% ======================================================================
 %% gen_server
@@ -88,6 +110,9 @@ start_link_int(Node,DS,SipAuth) ->
 %% ----------------------------------------------------------------------
 
 init({Freeswitch,Dialstrings,SipAuth}) ->
+	ets:new(oacd_freewitch_a1, [named_table, public]),
+	cpx_hooks:set_hook(?MODULE, auth_agent_success, {?MODULE, hook_callback, []}),
+	?INFO("Started",[]),
 	{ok, {Freeswitch,Dialstrings,SipAuth}}.
 
 %% ----------------------------------------------------------------------

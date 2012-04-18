@@ -372,9 +372,9 @@ init([Nodename, Options]) ->
 			Lpid = start_listener(Nodename),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
-			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
-			link(Pid),
-			{Lpid, Pid, StrippedOpts};
+			%{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
+			%link(Pid),
+			{Lpid, undefined, StrippedOpts};
 		_ ->
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{undefined, undefined, StrippedOpts}
@@ -867,6 +867,7 @@ fetch_domain_user(Node, State) ->
 									Domain = proplists:get_value("domain", Data),
 									Realm = proplists:get_value("sip_auth_realm", Data),
 									% TODO Can this be done w/o dealing w/ a plain text pw?
+									?DEBUG("Sip auth\n\tUser:  ~p\n\tdomain:  ~p\n\tRelam:  ~p",[User,Domain,Realm]),
 									freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
 %									case agent_manager:query_agent(User) of
 %										{true, Pid} ->

@@ -11,8 +11,9 @@ init({FsNode, Args}) ->
 	MFA = {freeswitch_media_manager, start_link, [FsNode, Args]},
 	Kid = {freeswitch_media_manager, MFA, permanent, 1000, worker, [freeswitch_media_manager]},
 
-	SipAuth = case proplists:get_value(sipauth,Args) of
-		sipauth -> sipauth;
+	SipAuth = case proplists:get_bool(sipauth,Args) of
+		sipauth -> sip_auth;
+		true -> sip_auth;
 		_ -> no_sip_auth
 	end,
 	MFA2 = {freeswitch_fetch_handler, start_link, [FsNode,Args,SipAuth]},

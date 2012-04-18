@@ -2071,7 +2071,8 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		undefined ->
-			rpc:call(Atomnode, cpx_supervisor, destroy, [freeswitch_media_manager], 2000),
+			rpc:call(Atomnode, cpx, unload_plugin, [oacd_freeswitch]),
+			%rpc:call(Atomnode, cpx_supervisor, destroy, [freeswitch_media_manager], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			PostToProp = [
@@ -2091,14 +2092,12 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			end,
 			MidOptions = lists:foldl(Builder, [], PostToProp),
 			Options = [X || {_K, Val} = X <- MidOptions, Val =/= ""],
-			Args = [list_to_atom(proplists:get_value("cnode", Post)), Options],
-			Conf = #cpx_conf{
-				id = freeswitch_media_manager,
-				module_name = freeswitch_media_manager,
-				start_function = start_link,
-				supervisor = mediamanager_sup,
-				start_args = Args},
-			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
+			Args = [{freeswitch_node, list_to_atom(proplists:get_value("cnode", Post))} | Options],
+			%Conf = #cpx_conf{ id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, supervisor = mediamanager_sup, start_args = Args},
+			%rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
+			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args]),
+			rpc:call(Atomnode, cpx, reload_plugin, [oacd_freeswitch]),
+			rpc:call(Atomnode, application, start, [oacd_freeswitch]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->

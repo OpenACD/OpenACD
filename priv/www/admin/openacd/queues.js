@@ -271,11 +271,12 @@ queues.newQueue = function(form, reciper, node){
 			}
 		});
 	};
-	queues.store.fetchItemByIdentity({
-		identity:vals.group,
-		onItem:function(i){
-			vals.group = queues.store.getValue(i, 'name');
-			doxhr();
-		}
-	});
+	var group = queues.store.query({'name':vals.group});
+	if(group.length){
+		group = group[0];
+	} else {
+		group = 'Default';
+	}
+	vals.group = group;
+	doxhr();
 };

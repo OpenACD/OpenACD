@@ -97,7 +97,8 @@ hook_callback(User, Pass, _Res) ->
 		Ips = lists:flatten(io_lib:format("~p.~p.~p.~p",[A,B,C,D])),
 		[Ips | Acc]
 	end,
-	IpStrings = lists:foldl(IfsToIpStrings,[],Ifs),
+	Localhost = net_adm:localhost(),
+	IpStrings = lists:foldl(IfsToIpStrings,[Localhost],Ifs),
 	Hashes = [util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass)) || IPString <- IpStrings],
 	ets:insert(oacd_freeswitch_a1, {User, Hashes}).
 
@@ -175,6 +176,7 @@ code_change(_Old,State,_Extra) ->
 %% ======================================================================
 
 fetch_user_lookup(Id,_Data,{Node,_,no_sip_auth}) ->
+	?DEBUG("Lookup when not doing sip auth, empty response",[]),
 	% I guess we're just looking up a user?
 	% Looking up for first part of an auth most likely.
 	% only auth we support is sip (which is above) so we'll
@@ -186,6 +188,7 @@ fetch_user_lookup(ID,Data,{Node,_,_}) ->
 	Domain = proplists:get_value("domain", Data),
 	case agent_manager:query_agent(User) of
 		{true, _Pid} ->
+			?DEBUG("Lookup succeeded for user ~s@~s", [User,Domain]),
 			freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User])));
 		false ->
 			freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
@@ -201,7 +204,7 @@ fetch_sip_auth(ID,Data,{Node,_,sip_auth}) ->
 	Domain = proplists:get_value("domain", Data),
 	Realm = proplists:get_value("sip_auth_realm", Data),
 	% TODO Can this be done w/o dealing w/ a plain text pw?
-	?DEBUG("Sip auth\n\tUser:  ~p\n\tdomain:  ~p\n\tRelam:  ~p",[User,Domain,Realm]),
+	?DEBUG("Sip auth ~s@~s for relam ~s",[User,Domain,Realm]),
 	freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE).
 %									case agent_manager:query_agent(User) of
 %										{true, Pid} ->

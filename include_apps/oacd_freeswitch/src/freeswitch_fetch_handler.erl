@@ -62,11 +62,13 @@ end).
 	</section>
 </document>").
 
+-define(ets, oacd_freeswitch_a1).
+
 % gen_server
 -export([init/1,handle_call/3,handle_cast/2,handle_info/2,terminate/2,
 	code_change/3]).
 % public api
--export([start_link/3,hook_callback/3]).
+-export([start_link/3,hook_callback/3,set_hook/0]).
 
 %% ======================================================================
 %% API
@@ -100,7 +102,10 @@ hook_callback(User, Pass, _Res) ->
 	Localhost = net_adm:localhost(),
 	IpStrings = lists:foldl(IfsToIpStrings,[Localhost],Ifs),
 	Hashes = [util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass)) || IPString <- IpStrings],
-	ets:insert(oacd_freeswitch_a1, {User, Hashes}).
+	ets:insert(?ets, {User, Hashes}).
+
+set_hook() ->
+	cpx_hooks:set_hook(?MODULE, auth_agent_success, {?MODULE, hook_callback, []}).
 
 %% ======================================================================
 %% gen_server
@@ -111,8 +116,8 @@ hook_callback(User, Pass, _Res) ->
 %% ----------------------------------------------------------------------
 
 init({Freeswitch,Dialstrings,SipAuth}) ->
-	ets:new(oacd_freewitch_a1, [named_table, public]),
-	cpx_hooks:set_hook(?MODULE, auth_agent_success, {?MODULE, hook_callback, []}),
+	ets:new(?ets, [named_table, public]),
+	set_hook(),
 	?INFO("Started",[]),
 	{ok, {Freeswitch,Dialstrings,SipAuth}}.
 

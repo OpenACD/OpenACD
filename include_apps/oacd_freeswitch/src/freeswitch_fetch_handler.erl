@@ -101,7 +101,7 @@ hook_callback(User, Pass, _Res) ->
 	end,
 	Localhost = net_adm:localhost(),
 	IpStrings = lists:foldl(IfsToIpStrings,[Localhost],Ifs),
-	Hashes = [util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass)) || IPString <- IpStrings],
+	Hashes = [{IPString,util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass))} || IPString <- IpStrings],
 	ets:insert(?ets, {User, Hashes}).
 
 set_hook() ->
@@ -140,6 +140,7 @@ handle_cast(_Msg,State) ->
 %% ----------------------------------------------------------------------
 
 handle_info({fetch, directory, "domain", "name", _Value, Id, [undefined | Data]}, State) ->
+	%?DEBUG("The data:  ~p", [Data]),
 	case proplists:get_value("as_channel", Data) of
 		"true" ->
 			fetch_as_channel(Id,Data,State);
@@ -209,25 +210,20 @@ fetch_sip_auth(ID,Data,{Node,_,sip_auth}) ->
 	Domain = proplists:get_value("domain", Data),
 	Realm = proplists:get_value("sip_auth_realm", Data),
 	% TODO Can this be done w/o dealing w/ a plain text pw?
-	?DEBUG("Sip auth ~s@~s for relam ~s",[User,Domain,Realm]),
-	freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE).
-%									case agent_manager:query_agent(User) of
-%										{true, Pid} ->
-%											try agent:dump_state(Pid) of
-%												Agent when Agent#agent.password == 'undefined' ->
-%													return_a1_hash(Domain, User, Node, ID);
-%												Agent ->
-%													Password=Agent#agent.password,
-%													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-%													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
-%													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
-%												catch
-%													_:_ -> % agent pid is toast?
-%														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
-%												end;
-%											false ->
-%												return_a1_hash(Domain, User, Node, ID)
-%										end
+	case ets:lookup(?ets, User) of
+		[] -> 
+			?DEBUG("Sip auth ~s@~s for relam ~s is not found",[User,Domain,Realm]),
+			freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE);
+		[{User,Hashes}] ->
+			case proplists:get_value(Realm,Hashes) of
+				undefined ->
+					?DEBUG("Sip auth ~s@~s for relam ~s has no hash",[User,Domain,Realm]),
+					freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE);
+				Hash ->
+					?DEBUG("Sip auth ~s@~s for relam ~s found hash ~s",[User,Domain,Realm,Hash]),
+					freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE,[Domain,User,Hash])))
+			end
+	end.
 
 fetch_as_channel(ID,Data,{Node,State,_}) ->
 	User = proplists:get_value("user", Data),

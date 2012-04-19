@@ -169,7 +169,13 @@ handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type 
 			freeswitch:api(Fsnode, uuid_park, Call#call.id),
 			{stop, normal, State}
 	end;
-handle_event(_, _, _, State) ->
+
+handle_event("CHANNEL_HANGUP", _Data, _Fsref, State) ->
+	?WARNING("Hangup event, stopping", []),
+	{stop,agent_hangup,State};
+
+handle_event(Event, _, _, State) ->
+	?DEBUG("Ignoring event ~p", [Event]),
 	{noreply, State}.
 
 %% =====

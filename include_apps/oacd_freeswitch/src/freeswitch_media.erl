@@ -316,7 +316,7 @@ handle_ring_stop(_StateName, Callrec, _GenMedia, #state{xferchannel = RingChanne
 	freeswitch_ring:hangup(RingChannel),
 	{ok, State#state{xferchannel = undefined, xferuuid = undefined}};
 
-handle_ring_stop(_StateName, Callrec, _GenMedia, State) ->
+handle_ring_stop(StateName, Callrec, _GenMedia, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
 	case State#state.ringchannel of
 		undefined ->
@@ -327,7 +327,7 @@ handle_ring_stop(_StateName, Callrec, _GenMedia, State) ->
 			% in our mailbox
 			freeswitch_ring:hangup(RingChannel)
 	end,
-	NewStatename = case State#state.statename of
+	NewStatename = case StateName of
 		inqueue_ringing -> inqueue;
 		oncall_ringing -> oncall
 	end,

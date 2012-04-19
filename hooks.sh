@@ -1,13 +1,15 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
-function do_included_apps {
-	initDir=`pwd`
-	for file in include_apps/*
+BASEDIR="$( cd "$( dirname "$0" )" && pwd)"
+REBAR="$BASEDIR/rebar"
+
+function do_included_apps {	
+	for file in "$BASEDIR"/include_apps/*
 	do
 		echo "das file:  $file"
-		cd $file
-		../../rebar $1
-		cd $initDir
+		cd "$file"
+		$REBAR "$1"
+		cd "$BASEDIR"
 	done
 }
 
@@ -16,11 +18,13 @@ function post_compile {
 }
 
 function pre_compile {
-	if [ ! -d ebin ]; then
-		mkdir ebin
+	ebinDir="$BASEDIR/ebin"
+
+	if [ ! -d "$ebinDir" ]; then
+		mkdir "$ebinDir"
 	fi
 	
-	for file in proto_src/*.proto
+	for file in "$BASEDIR"/proto_src/*.proto
 	do
 		nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
 		nameBase="src/${nameBase}"
@@ -33,13 +37,14 @@ function pre_compile {
 	# hack for include_apps
 	
 	# hack for reltool
-	if [ ! -d OpenACD ]; then
-		mkdir OpenACD
-		ln -sf ../ebin OpenACD/ebin
-		ln -sf ../src OpenACD/src
-		ln -sf ../include OpenACD/include
-		ln -sf ../priv OpenACD/priv
-		ln -sf ../deps OpenACD/deps
+	oaDir="$BASEDIR/OpenACD"
+	if [ ! -d "$oaDir" ]; then
+		mkdir "$oaDir"
+		ln -sf ../ebin "$oaDir"/ebin
+		ln -sf ../src "$oaDir"/src
+		ln -sf ../include "$oaDir"/include
+		ln -sf ../priv "$oaDir"/priv
+		ln -sf ../deps "$oaDir"/deps
 	fi
 	
 	# record what commit/version openacd is at
@@ -68,7 +73,9 @@ function pre_compile {
 function pre_get-deps {
 	if [ "${GIT_UPDATE_DISABLED}" != "1" ]; then
 		echo "Updating submodules..."
+		cd "$BASEDIR"
 		git submodule init && git submodule update
+		cd -
 	fi
 }
 
@@ -77,14 +84,14 @@ function post_get-deps {
 }
 
 function pre_clean {
-	rm -rf "OpenACD"
+	rm -rf "$BASEDIR/OpenACD"
 }
 
 function post_clean {
 	do_included_apps clean
 }
 
-case $1 in
+case "$1" in
 	"pre_get-deps")
 		pre_get-deps;;
 	"post_get-deps")

@@ -145,6 +145,7 @@ init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 					do_recipe(OptRecipe, 0, Qpid, Call)
 			end,
 			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
+			gen_media:set_cook(Call,self()),
 			{ok, State}
 	catch
 		Why:Reason ->

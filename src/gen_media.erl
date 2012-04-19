@@ -875,7 +875,7 @@ inqueue({{'$gen_media', set_cook}, CookPid}, {BaseState, Internal}) ->
 	Newmon = erlang:monitor(process, CookPid),
 	NewCall = Call#call{cook = CookPid},
 	NewInternal = Internal#inqueue_state{cook_mon = Newmon, cook = CookPid},
-	NewBase = BaseState#base_state{callrec = Call},
+	NewBase = BaseState#base_state{callrec = NewCall},
 	{next_state, inqueue, {NewBase, NewInternal}};
 
 inqueue({{'$gen_media', Command}, _}, State) ->

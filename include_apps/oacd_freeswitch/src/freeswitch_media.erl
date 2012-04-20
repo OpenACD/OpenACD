@@ -301,7 +301,7 @@ handle_ring({Apid, #agent{ring_channel = {EndpointPid, persistant, _EndPointType
 	%% a persisitant ring does the hard work for us
 	%% go right to the okay.
 	?INFO("Ring channel made things happy, I assume", []),
-	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
+	{ok, [{"itxt", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{ringchannel = EndpointPid, agent_pid = Apid}};
 handle_ring({Apid, #agent{ring_channel = {RPid, transient, _}} = AgentRec}, _RingData, Callrec, State) ->
 	NewStatename = case State#state.statename of
 		inqueue -> inqueue_ringing;
@@ -1003,7 +1003,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		uuid = UUID, queued = false, statename = Statename} = State) when
 		Statename == inivr ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
-	Client = {proplists:get_value("variable_brand", Rawcall),get_client_options(Rawcall)},
+	Client = {proplists:get_value("variable_brand", Rawcall),[{"dial_vars", State#state.dial_vars} | get_client_options(Rawcall)]},
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
 	Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
 		"silence" ->

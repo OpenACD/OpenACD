@@ -270,17 +270,18 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 	case freeswitch:api(Fsnode, create_uuid) of
 		{ok, UUID} ->
 			Callrec = proplists:get_value(call, Options),
-			{CallerName, CallerNumber, Dnis, Ringout} = case Callrec of
+			{CallerName, CallerNumber, Dnis, Ringout, DefaultDailOpts} = case Callrec of
 				#call{callerid = {Cname, Cnumber}, dnis = TheDnis, client = Client} ->
-					RingoutTime = case Client of
-						undefined -> 60;
-						_ -> proplists:get_value("ringout",Client#client.options,60)
+					{RingoutTime, DOpts} = case Client of
+						undefined -> {60,[]};
+						_ -> {proplists:get_value("ringout",Client#client.options,60),
+							proplists:get_value("dial_vars", Client#client.options, [])}
 					end,
-					{Cname, Cnumber, TheDnis, RingoutTime};
+					{Cname, Cnumber, TheDnis, RingoutTime, DOpts};
 				undefined ->
 					TheDnis = proplists:get_value(dnis, Options, "0000000"),
 					{Cname, Cnumber} = proplists:get_value(caller_id, Options, {"noname", "nonumber"}),
-					{Cname, Cnumber, TheDnis, 60}
+					{Cname, Cnumber, TheDnis, 60, []}
 			end,
 			HangupAfterBridge = case proplists:get_value(persistent, Options) of
 				true -> "false";
@@ -298,7 +299,7 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					"origination_uuid="++UUID,
 					"originate_timeout="++integer_to_list(round(Ringout)),
 					"sip_h_X-DNIS='"++Dnis++"'"
-					| proplists:get_value(dial_vars, Options, [])],
+					| proplists:get_value(dial_vars, Options, DefaultDailOpts)],
 			case InitFun({Fsnode, UUID}, Options) of
 				{ok, NewDialStringOpts, CallbackState} ->
 					DialStringOpts = NewDialStringOpts ++ PreInitDialStringOpts,

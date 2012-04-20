@@ -80,6 +80,7 @@
 	unload_plugin/1,
 	load_plugin/1,
 	plugins_running/0,
+	plugin_status/1,
 	set_plugin_env/2,
 	call_state/1,	
 	get_queue/1,
@@ -279,6 +280,11 @@ plugins_running() ->
 		true -> {P, running};
 		false -> {P, stopped}
 	end || P <- ConfigedPlugins].
+
+%% @doc Get the running status of a specific plugin.
+plugin_status(Plugin) ->
+	Status = plugins_running(),
+	proplists:get_value(Plugin, Status).
 
 %% @doc Reload the code for all plugins using {@link util:reload/0}.
 reload_plugins() ->

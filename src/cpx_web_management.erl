@@ -2106,40 +2106,32 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	end;
 api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 	Anode = list_to_existing_atom(Node),
-	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch_media_manager]) of
-		undefined ->
-			Json = {struct, [
-				{success, true},
-				{<<"enabled">>, false}
-			]},
-			{200, [], mochijson2:encode(Json)};
-		Rec when is_record(Rec, cpx_conf) ->
-			[Cnode, Args] = Rec#cpx_conf.start_args,
-			%?DEBUG("Args: ~p", [Args]),
-			BaseStruct = [
-				{success, true},
-				{<<"enabled">>, true},
-				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))}
-			],
-			PropToPost = [
-				{dialstring, <<"dialstring">>},
-				{sip, <<"sipEndpoint">>},
-				{iax2, <<"iax2Endpoint">>},
-				{h323, <<"h323Endpoint">>},
-				{sipauth, <<"sipauth">>}
-			],
-			Builder = fun({Key, Newkey}, Acc) ->
-				case proplists:get_value(Key, Args) of
-					undefined ->
-						Acc;
-					Else ->
-						[{Newkey, list_to_binary(Else)} | Acc]
-				end
-			end,
-			Fullstruct = lists:foldl(Builder, BaseStruct, PropToPost),
-			Json = {struct, Fullstruct},
-			{200, [], mochijson2:encode(Json)}
-	end;
+	Settings = rpc:call(Anode, application, get_all_env, [oacd_freeswitch]),
+	Running = rpc:call(Anode, cpx, plugin_status, [oacd_freeswitch]),
+	PropToPost = [
+		{dialstring, <<"dialstring">>},
+		{sip, <<"sipEndpoint">>},
+		{iax2, <<"iax2Endpoint">>},
+		{h323, <<"h323Endpoint">>},
+		{sipauth, <<"sipauth">>},
+		{freeswitch_node, <<"cnode">>}
+	],
+	Builder = fun({Key,Newkey},Acc) ->
+		case proplists:get_value(Key,Settings) of
+			undefined -> Acc;
+			Else when is_list(Else) -> [{Newkey, list_to_binary(Else)} | Acc];
+			Else when Key =:= sipauth, Else =:= true -> [{sipauth,<<"sipauth">>}|Acc];
+			Else -> Acc
+		end
+	end,
+	Props0 = lists:foldl(Builder,[],PropToPost),
+	Enabled = case Running of
+		running -> true;
+		_ -> false
+	end,
+	Props1 = [{success,true},{enabled,Enabled}|Props0],
+	Json = {struct, Props1},
+	{200,[],mochijson2:encode(Json)};
 	
 api({modules, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),

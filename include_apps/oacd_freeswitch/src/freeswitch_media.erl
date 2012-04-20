@@ -1003,7 +1003,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 		uuid = UUID, queued = false, statename = Statename} = State) when
 		Statename == inivr ->
 	Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
-	Client = proplists:get_value("variable_brand", Rawcall),
+	Client = {proplists:get_value("variable_brand", Rawcall),get_client_options(Rawcall)},
 	AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
 	Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
 		"silence" ->
@@ -1160,6 +1160,24 @@ case_event_name({error, notfound}, UUID, Rawcall, Callrec, State) ->
 case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
 	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
+
+get_client_options(Proplist) ->
+	ExportVars = string:tokens(proplists:get_value("variable_export_vars", Proplist, ""), ","),
+	VarNames = ["variable_" ++ V || V <- ExportVars],
+	VarValues = [proplists:get_value(N, Proplist, "null") || N <- VarNames,
+		proplists:get_value(N, Proplist) =/= undefined],
+	VarValues1 = lists:map(fun(Elem) ->
+		try mochijson2:decode(Elem) of
+			null -> undefined;
+			Else when is_binary(Else) -> Else;
+			{struct, Else} -> Else;
+			Else -> Else
+		catch
+			error:{case_clause,_} -> Elem;
+			error:{badmatch,any} -> undefined
+		end
+	end, VarValues),
+	lists:zip(ExportVars,VarValues1).
 
 get_exported_variables(Proplist) ->
 	ExportVars = string:tokens(proplists:get_value("variable_export_vars", Proplist, ""), ","),

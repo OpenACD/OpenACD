@@ -2028,14 +2028,16 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 correct_client(#call{client = Client} = Callrec) ->
 	Newclient = case Client of
 		#client{id = Id} ->
-			correct_client_sub(Id);
+			correct_client_sub({Id,Client#client.options});
 		undefined ->
 			correct_client_sub(undefined);
+		{Id,Opts} ->
+			correct_client_sub({Id,Opts});
 		String ->
 			% if given the client id; so a media is not burndened with checking
 			% mnesia or the client itself.
 			% basically, see the next function call:
-			correct_client_sub(String)
+			correct_client_sub({String,[]})
 	end,
 	Callrec#call{client = Newclient}.
 	
@@ -2048,8 +2050,8 @@ correct_client_sub(undefined) ->
 			#client{}
 	end,
 	Client;
-correct_client_sub(Id) ->
-	Client = try call_queue_config:get_client(id, Id) of
+correct_client_sub({Id,Opts}) ->
+	#client{options = Defaults} = Client = try call_queue_config:get_client(id, Id) of
 		none ->
 			correct_client_sub(undefined);
 		Else ->
@@ -2058,7 +2060,24 @@ correct_client_sub(Id) ->
 		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
 			#client{}
 	end,
-	Client.
+	Opts0 = lists:sort(Opts),
+	Defs0 = lists:sort(Defaults),
+	Opts1 = merge_defaults(Opts0,Defs0),
+	Client#client{options = Opts1}.
+
+merge_defaults(Opts,Defaults) ->
+	merge_defaults(Opts,Defaults,[]).
+
+merge_defaults([],Rest,Acc) ->
+	lists:append(Rest,Acc);
+merge_defaults(Rest,[],Acc) ->
+	lists:append(Rest,Acc);
+merge_defaults([{Key,_Val} = H | OTail], [{Key,_Val1} | DTail], Acc) ->
+	merge_defaults(OTail,DTail,[H|Acc]);
+merge_defaults([{OKey,_} = H | OTail], [{DKey,_} | _] = Defs, Acc) when OKey > DKey ->
+	merge_defaults(OTail,Defs,[H | Acc]);
+merge_defaults(Opts, [H | Tail], Acc) ->
+	merge_defaults(Opts, Tail, [H | Acc]).
 
 -spec(set_cpx_mon/2 :: (State :: {#base_state{}, any()}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon({#base_state{callrec = Call}, _}, delete) ->

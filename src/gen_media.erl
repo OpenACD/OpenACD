@@ -490,7 +490,11 @@ behaviour_info(_Other) ->
     undefined.
 
 %% @doc Make the `pid() Genmedia' ring to `pid() Agent' based off of
-%% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
+%% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout'
+%% miliseconds.
+%% @deprecated Use ring/3 instead as timout is ignored.  The ringout is
+%% determined by the client option "ringout", the default value being
+%% 60000.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
 	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', ring}, {A, Qcall, Timeout}}, infinity);
@@ -509,6 +513,31 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 		false ->
 			invalid
 	end.
+
+%% @doc Have the given gen_media ring the given agent based on the given
+%% queued call.
+-spec ring(Genmedia :: pid(),
+	Agent :: pid() | string() | {string(), pid()},
+	Qcall :: #queued_call{}) -> 'ok' | 'invalid' | 'deferred'.
+ring(Genmedia, {_Agent, Apid}=A, Qcall) ->
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', ring}, {A, Qcall, undefined}}, infinity);
+
+ring(Genmedia, Apid, Qcall) when is_pid(Apid) ->
+	case agent_manager:find_by_pid(Apid) of
+		notfound ->
+			invalid;
+		Agent ->
+			ring(Genmedia, {Agent, Apid}, Qcall)
+	end;
+
+ring(Genmedia, Agent, Qcall) ->
+	case agent_manager:query_agent(Agent) of
+		{true, Apid} ->
+			ring(Genmedia, {Agent, Apid}, Qcall);
+		false ->
+			invalid
+	end.
+
 
 -spec(takeover_ring/2 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}) -> 'ok' | 'invalid').
 takeover_ring(Genmedia, {_, Apid} = Agent) when is_pid(Apid) ->
@@ -734,9 +763,13 @@ inivr(Msg, {#base_state{ callback = Callback, callrec = Call} = BaseState,
 %% inqueue -> inqueue_ringing
 %%--------------------------------------------------------------------
 
-inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{cook = Requester} =
-		QCall, Timeout}}, {Requester, _Tag}, {#base_state{callrec = Call,
-		callback = Callback} = BaseState, Internal}) ->
+inqueue({{'$gen_media', ring}, {{Agent, Apid}, #queued_call{
+		cook = Requester} = QCall, _Timeout}}, {Requester, _Tag}, {
+		#base_state{callrec = Call, callback = Callback} = BaseState,
+		Internal}) ->
+	ClientOpts = Call#call.client#client.options,
+	TimeoutSec = proplists:get_value("ringout", ClientOpts, 60),
+	Timeout = TimeoutSec * 1000,
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
 	try agent:prering(Apid, Call) of
 		{ok, RPid} ->

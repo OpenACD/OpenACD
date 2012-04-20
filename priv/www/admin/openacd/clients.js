@@ -45,7 +45,8 @@ clients.gridHackFilter = function(){
 clients.setDefault = function(inconf){
 	var defaultConf = {
 		url_pop: "http://www.google.com/#q=#{label}",
-		autowrapup: 0
+		autowrapup: 0,
+		ringout: 60
 	};
 	
 	var conf = dojo.mixin(defaultConf, inconf);

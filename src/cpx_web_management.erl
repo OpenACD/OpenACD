@@ -2121,6 +2121,7 @@ api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			undefined -> Acc;
 			Else when is_list(Else) -> [{Newkey, list_to_binary(Else)} | Acc];
 			Else when Key =:= sipauth, Else =:= true -> [{sipauth,<<"sipauth">>}|Acc];
+			Else when is_atom(Else) -> [{Newkey, Else} | Acc];
 			Else -> Acc
 		end
 	end,

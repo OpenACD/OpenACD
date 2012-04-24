@@ -2100,9 +2100,21 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			%Conf = #cpx_conf{ id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, supervisor = mediamanager_sup, start_args = Args},
 			%rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args0]),
-			rpc:call(Atomnode, cpx, reload_plugin, [oacd_freeswitch]),
-			rpc:call(Atomnode, application, start, [oacd_freeswitch]),
-			{200, [], mochijson2:encode({struct, [{success, true}]})}
+			Json = case cpx:load_plugin(oacd_freeswitch) of
+				{error, badarg} ->
+					{ok, PluginDir} = cpx:get_env(plugin_dir, "plugins.d"),
+					{struct, [{success,false},{<<"errcode">>,<<"MISSING_PLUGIN_DIR">>},{<<"message">>,list_to_binary(io_lib:format("Could not load plugin.  Most likely the plugin directory ~p is missing", [PluginDir]))}]};
+				{error,{error,eexist}} ->
+					rpc:call(Atomnode, cpx, reload_plugin, [oacd_freeswitch]),
+					rpc:call(Atomnode, application, stop, [oacd_freeswitch]),
+					case rpc:call(Atomnode, application, start, [oacd_freeswitch]) of
+						ok ->
+							{struct, [{success, true}]};
+						{error, Err} ->
+							{struct, [{success, false},{<<"errcode">>,<<"UNKNOWN_ERROR">>},{<<"message">>, list_to_binary(io_lib:format("Unexpected error occured:  ~p", [Err]))}]}
+					end
+			end,
+			{200, [], mochijson2:encode(Json)}
 	end;
 api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 	Anode = list_to_existing_atom(Node),

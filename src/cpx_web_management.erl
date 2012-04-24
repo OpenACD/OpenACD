@@ -1086,7 +1086,8 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 			Else ->
 				Else
 		end,
-		{Node, Uptime, Confs}
+		Plugins = rpc:call(Node, cpx, plugins_running, []),
+		{Node, Uptime, Confs, Plugins}
 	end || Node <- AppNodes],
 	Jsonable = [begin
 		IsUp = case Uptime of
@@ -1096,8 +1097,8 @@ api({modules, "status"}, ?COOKIE, _Post) ->
 				[{<<"isUp">>, false}]
 		end,
 		UpConfs = [element(2, Conf) || Conf <- Confs],
-		{Node, {struct, [{modules, UpConfs} | IsUp]}}
-	end || {Node, Uptime, Confs} <- DataRaw],
+		{Node, {struct, [{modules, UpConfs}, {plugins, Plugs} | IsUp]}}
+	end || {Node, Uptime, Confs, Plugs} <- DataRaw],
 	Json = {struct, [
 		{success, true},
 		{nodes, {struct, Jsonable}} | Error

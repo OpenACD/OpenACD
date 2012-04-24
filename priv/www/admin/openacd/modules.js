@@ -66,7 +66,7 @@ modules.getNodeStatus = function(domNode){
 				} else {
 					dojo.byId("nodesErrors").innerHTML = "";
 				}
-				var table = dojo.place("<table> <tr> <th>Node</th> <th>Up Since</th> <th>Modules</th> </tr> </table>", domNode, "last");
+				var table = dojo.place("<table> <tr> <th>Node</th> <th>Up Since</th> <th>Modules</th> <th>Plugins</th> </tr> </table>", domNode, "last");
 				for(var i in res.nodes){
 					var tr = "<tr><td>" + i + "</td>";
 					if(res.nodes[i].isUp){
@@ -81,6 +81,17 @@ modules.getNodeStatus = function(domNode){
 					}
 					list += "</ul>";
 					tr += "<td>" + list + "</td>";
+					var plugList = "<ul>";
+					for(var k in res.nodes[i].plugins){
+						plugList += "<li>" + k + ": ";
+						if(res.nodes[i].plugins[k] == "stopped"){
+							plugList += "<span class=\"downNode\">stopped</span>";
+						} else {
+							plugList += "running";
+						}
+						plugList += "</li>";
+					}
+					tr += "<td>" + plugList + "</td>";
 					tr += "</tr>";
 					dojo.place(tr, table, "last");
 				}

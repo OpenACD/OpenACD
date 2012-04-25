@@ -68,20 +68,20 @@ end).
 -export([init/1,handle_call/3,handle_cast/2,handle_info/2,terminate/2,
 	code_change/3]).
 % public api
--export([start_link/3,hook_callback/4,set_hook/1]).
+-export([start_link/4,hook_callback/4,set_hook/1]).
 
 %% ======================================================================
 %% API
 %% ======================================================================
 
 
-start_link(Freeswitch,DialstringBases,SipAuth) when SipAuth =:= sip_auth; SipAuth =:= no_sip_auth ->
+start_link(Freeswitch,DialstringBases,SipAuth,Realms) when SipAuth =:= sip_auth; SipAuth =:= no_sip_auth ->
 	Pid = proc_lib:spawn_link(fun() ->
 		{foo, Freeswitch} ! {bind, directory},
 		receive
 			ok ->
 				erlang:register(?MODULE,self()),
-				{ok, State} = init({Freeswitch,DialstringBases,SipAuth}),
+				{ok, State} = init({Freeswitch,DialstringBases,SipAuth,Realms}),
 				gen_server:enter_loop(?MODULE,[],State,{local, ?MODULE});
 			{error,Reason} ->
 				exit(Reason)
@@ -106,7 +106,7 @@ set_hook(IpStrings) ->
 %% init
 %% ----------------------------------------------------------------------
 
-init({Freeswitch,Dialstrings,SipAuth}) ->
+init({Freeswitch,Dialstrings,SipAuth,Realms}) ->
 	ets:new(?ets, [named_table, public]),
 	StringFs = atom_to_list(Freeswitch),
 	[_Node, FsHost | _] = string:tokens(StringFs, "@"),
@@ -117,9 +117,10 @@ init({Freeswitch,Dialstrings,SipAuth}) ->
 		[Ips | Acc]
 	end,
 	Localhost = net_adm:localhost(),
-	IpStrings = lists:foldl(IfsToIpStrings,[FsHost, Localhost],Ifs),
+	Seed = [Localhost, FsHost | Realms],
+	IpStrings = lists:foldl(IfsToIpStrings,Seed,Ifs),
 	set_hook(IpStrings),
-	?INFO("Started",[]),
+	?INFO("Started; relams:  ~p",[IpStrings]),
 	{ok, {Freeswitch,Dialstrings,SipAuth}}.
 
 %% ----------------------------------------------------------------------

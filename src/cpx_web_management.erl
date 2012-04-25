@@ -2081,7 +2081,8 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 				{"sipEndpoint", sip},
 				{"iax2Endpoint", iax2},
 				{"h323Endpoint", h323},
-				{"sipauth", sipauth}
+				{"sipauth", sipauth},
+				{"realms", realms}
 			],
 			Builder = fun({PostKey, RealKey}, Acc) ->
 				case proplists:get_value(PostKey, Post) of
@@ -2098,9 +2099,12 @@ api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 				"sipauth" -> [sipauth | proplists:delete(sipauth,Args)];
 				_ -> proplists:delete(sipauth,Args)
 			end,
+			Realms1 = proplists:get_value(realms, Args0, []),
+			Realms2 = lists:map(fun string:strip/1, string:tokens(Realms1, ",")),
+			Args1 = [{realms, Realms2} | proplists:delete(realms, Args0)],
 			%Conf = #cpx_conf{ id = freeswitch_media_manager, module_name = freeswitch_media_manager, start_function = start_link, supervisor = mediamanager_sup, start_args = Args},
 			%rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
-			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args0]),
+			rpc:call(Atomnode, cpx, set_plugin_env, [oacd_freeswitch, Args1]),
 			Json = case cpx:load_plugin(oacd_freeswitch) of
 				{error, badarg} ->
 					{ok, PluginDir} = cpx:get_env(plugin_dir, "plugins.d"),
@@ -2127,11 +2131,14 @@ api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 		{iax2, <<"iax2Endpoint">>},
 		{h323, <<"h323Endpoint">>},
 		{sipauth, <<"sipauth">>},
-		{freeswitch_node, <<"cnode">>}
+		{freeswitch_node, <<"cnode">>},
+		{realms, <<"realms">>}
 	],
 	Builder = fun({Key,Newkey},Acc) ->
 		case proplists:get_value(Key,Settings) of
 			undefined -> Acc;
+			Else when is_list(Else), Key =:= relams ->
+				[{Newkey, list_to_binary(string:join(Else, ", "))} | Acc];
 			Else when is_list(Else) -> [{Newkey, list_to_binary(Else)} | Acc];
 			Else when Key =:= sipauth, Else =:= true -> [{sipauth,<<"sipauth">>}|Acc];
 			Else when is_atom(Else) -> [{Newkey, Else} | Acc];

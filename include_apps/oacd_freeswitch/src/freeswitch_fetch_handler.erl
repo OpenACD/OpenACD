@@ -68,7 +68,7 @@ end).
 -export([init/1,handle_call/3,handle_cast/2,handle_info/2,terminate/2,
 	code_change/3]).
 % public api
--export([start_link/3,hook_callback/3,set_hook/0]).
+-export([start_link/3,hook_callback/4,set_hook/1]).
 
 %% ======================================================================
 %% API
@@ -91,21 +91,12 @@ start_link(Freeswitch,DialstringBases,SipAuth) when SipAuth =:= sip_auth; SipAut
 	end),
 	{ok, Pid}.
 
-hook_callback(User, Pass, _Res) ->
-	?DEBUG("Hook triggered for user auth:  ~p", [User]),
-	{ok, Ifs} = inet:getif(),
-	IfsToIpStrings = fun({Ip,_,_},Acc) ->
-		{A,B,C,D} = Ip,
-		Ips = lists:flatten(io_lib:format("~p.~p.~p.~p",[A,B,C,D])),
-		[Ips | Acc]
-	end,
-	Localhost = net_adm:localhost(),
-	IpStrings = lists:foldl(IfsToIpStrings,[Localhost],Ifs),
+hook_callback(User, Pass, _Res, IpStrings) ->
 	Hashes = [{IPString,util:bin_to_hexstr(erlang:md5(User++":"++IPString++":"++Pass))} || IPString <- IpStrings],
 	ets:insert(?ets, {User, Hashes}).
 
-set_hook() ->
-	cpx_hooks:set_hook(?MODULE, auth_agent_success, {?MODULE, hook_callback, []}).
+set_hook(IpStrings) ->
+	cpx_hooks:set_hook(?MODULE, auth_agent_success, {?MODULE, hook_callback, [IpStrings]}).
 
 %% ======================================================================
 %% gen_server
@@ -117,7 +108,17 @@ set_hook() ->
 
 init({Freeswitch,Dialstrings,SipAuth}) ->
 	ets:new(?ets, [named_table, public]),
-	set_hook(),
+	StringFs = atom_to_list(Freeswitch),
+	[_Node, FsHost | _] = string:tokens(StringFs, "@"),
+	{ok, Ifs} = inet:getif(),
+	IfsToIpStrings = fun({Ip,_,_},Acc) ->
+		{A,B,C,D} = Ip,
+		Ips = lists:flatten(io_lib:format("~p.~p.~p.~p",[A,B,C,D])),
+		[Ips | Acc]
+	end,
+	Localhost = net_adm:localhost(),
+	IpStrings = lists:foldl(IfsToIpStrings,[FsHost, Localhost],Ifs),
+	set_hook(IpStrings),
 	?INFO("Started",[]),
 	{ok, {Freeswitch,Dialstrings,SipAuth}}.
 

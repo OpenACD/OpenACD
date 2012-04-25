@@ -98,7 +98,8 @@ if [ ! -f $CONFIG ] && [ ! -f "${CONFIG}.config" ]; then
 [{'OpenACD', [
 	{nodes, ['$CONFIGNODENAME']},
 	{console_loglevel, info},
-	{logfiles, [{"full.log", debug}, {"console.log", info}]}
+	{logfiles, [{"full.log", debug}, {"console.log", info}]},
+	{plugin_dir, "plugins.d"}
 ]},
 {sasl, [
 	{errlog_type, error} % disable SASL progress reports

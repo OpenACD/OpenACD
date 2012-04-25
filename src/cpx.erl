@@ -148,7 +148,12 @@ start(_Type, StartArgs) ->
 					undefined ->
 						?INFO("No plugins to load, no plugin dir", []);
 					{ok, PluginDir} ->
-						start_plugins(PluginDir)
+						case filelib:ensure_dir(filename:join(PluginDir, "touch")) of
+							ok ->
+								start_plugins(PluginDir);
+							{error, Error} ->
+								?ERROR("Could not ensure plugin directory ~s exists:  ~p", [PluginDir, Error])
+						end
 				end
 			end),
 			{ok, Pid}

@@ -82,6 +82,9 @@
 	plugins_running/0,
 	plugin_status/1,
 	set_plugin_env/2,
+	load_plugin_env/1,
+	load_plugin_envs/1,
+	save_plugin_env/2,
 	call_state/1,	
 	get_queue/1,
 	get_agent/1,
@@ -1042,9 +1045,50 @@ start_plugins(Dir) ->
 		ok ->
 			Appfiles = filelib:wildcard("*.app", Dir),
 			Plugins = verify_apps(Appfiles, Dir),
+			load_plugin_envs(Plugins),
 			application:set_env('OpenACD', plugins, Plugins),
 			start_plugin_apps(Plugins)
 	end.
+
+load_plugin_envs(Plugins) ->
+	Transfun = fun() ->
+		Qh = qlc:q([{Appname, Env} ||
+			#cpx_conf{id = Appname, start_args = Env, supervisor = plugin} <- mnesia:table(cpx_conf),
+			lists:member(Appname, Plugins)
+		]),
+		qlc:e(Qh)
+	end,
+	case mnesia:transaction(Transfun) of
+		{aborted, Err} ->
+			?WARNING("Could not load stored plugin envs:  ~p", [Err]);
+		{atomic, Res} ->
+			[set_plugin_env(Appname0,Envs0) || {Appname0, Envs0} <- Res]
+	end.
+
+load_plugin_env(Plugin) ->
+	Transfun = fun() ->
+		Qh = qlc:q([Env || #cpx_conf{id = P, start_args = Env, supervisor = plugin} <- mensia:table(cpx_conf),
+			P =:= Plugin
+		]),
+		qlc:e(Qh)
+	end,
+	case mnesia:transaction(Transfun) of
+		{atomic, []} ->
+			ok;
+		{atomic, [Env]} ->
+			set_plugin_env(Plugin, Env);
+		Else ->
+			?WARNING("Could not load plugin ~p env:  ~p", [Plugin, Else])
+	end.
+
+save_plugin_env(Plugin, Envs) ->
+	Rec = #cpx_conf{id = Plugin, module_name = application,
+		start_function = start, start_args = Envs, supervisor = plugin},
+	Transfun = fun() ->
+		mnesia:write(Rec)
+	end,
+	Res = mnesia:transaction(Transfun),
+	?INFO("Result of saving plugin ~p env:  ~p", [Plugin, Res]).
 
 start_plugin_apps(undefined) ->
 	?INFO("No plugins to start", []),

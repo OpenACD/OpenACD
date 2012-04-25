@@ -394,7 +394,10 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 %% Returns the `atom()' of `Skillname' or `undefined'
 -spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
 skill_exists(Skillname) when is_list(Skillname) ->
-	get_skill(Skillname) =/= undefined. %% TODO find something more efficient
+	case get_skill(Skillname) of
+		undefined -> undefined;
+		Skillrec -> Skillrec#skill_rec.atom
+	end.
 
 %% @doc get a single `#skill_rec{}'
 

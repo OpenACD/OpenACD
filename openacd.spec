@@ -10,11 +10,6 @@ AutoReqProv: no
 URL: http://github.com/OpenACD/OpenACD/wiki
 Source: OpenACD.tar.gz
 
-# openssh for ssh-keygen command
-BuildRequires: openssh
-
-BuildRequires: automake
-BuildRequires: gcc-c++
 BuildRequires: erlang
 
 # unclear how to express >= R13B04 or >= R13B-04 ?

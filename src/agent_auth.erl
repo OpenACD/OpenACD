@@ -87,6 +87,23 @@
 %%
 %% Aysnchronously triggers all hooks when an agent is created.
 %% Args :: [Record :: #agent_auth{}]
+%%
+%% === auth_agent ===
+%%
+%% Synchronously triggers hooks until one returns a response.  If no hooks
+%% return a response, a denial is returned.
+%%
+%% Args :: [Username :: string(), Password :: string()]
+%% Returns :: 'deny' | {'allow', string(), skill_list(), security_level(),
+%% profile_name()}).
+%%
+%% === auth_agent_success ===
+%%
+%% Asynchronously triggers all hooks when an agent is successfully 
+%% authenticated.
+%%
+%% Args :: [Username :: string(), Password :: string(),
+%% Return :: auth_agent_return()]
 
 -module(agent_auth).
 
@@ -428,7 +445,10 @@ get_extended_prop({_, _} = U, Prop) ->
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
 	case cpx_hooks:trigger_hooks(auth_agent, [Username, Password], first) of
-		{ok, Res} -> Res;
+		{ok, deny} -> deny;
+		{ok, Res} ->
+			cpx_hooks:async_trigger_hooks(auth_agent_success, [Username, Password, Res]),
+			Res;
 		_ -> deny
 	end.
 

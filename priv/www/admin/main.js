@@ -329,6 +329,9 @@ dojo.addOnLoad(function(){
 						var expandSkills = ['_queue', '_brand'];
 						
 						skills.createSelect(skillCallback, selectedSkills, ['_queue', '_brand'], expandSkills);
+						dijit.byId('agentSubmit').onClick = function(){
+							agents.updateAgent('editAgent', 'agentsList');
+						};
 					},
 					error:function(res){
 						console.warn("getting agent errored", res);

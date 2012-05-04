@@ -118,6 +118,7 @@ dojo.require("dojox.encoding.digests.MD5");
 dojo.require("dijit.layout.BorderContainer");
 dojo.require("dijit.layout.StackContainer");
 dojo.require("dijit.form.NumberTextBox");
+dojo.require("dijit.form.NumberSpinner");
 dojo.require("dijit.form.CheckBox");
 dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.form.MultiSelect");
@@ -814,6 +815,16 @@ dojo.addOnLoad(init);
 						<label for="clientDefaultAutowrapup" class="translatecol">AUTOWRAPUP</label>
 						<input name="clientDefaultAutowrapup" dojoType="dijit.form.TextBox" id="clientDefaultAutowrapup" type="text" style="width:5em" />
 					</p>
+
+					<p class="translate">How long a media for this client should ring before ringout in seconds.</p>
+
+					<p>
+						<label for="clientDefaultRingout" class="translatecol">Ringout</label>
+					</p>
+
+					<p>
+						<input dojoType="dijit.form.NumberSpinner" placeHolder="60", constraints="{min:1, max:120}" id="clientDefaultRingout" name="clientDefaultRingout" />
+					</p>
 					
 					<p>
 						<label>&nbsp;</label>
@@ -824,7 +835,8 @@ dojo.addOnLoad(init);
 							<script type="dojo/connect" event="onClick">
 								clients.setDefault({
 									url_pop: dijit.byId("clientDefaultUrl").value,
-									autowrapup: parseInt(dijit.byId("clientDefaultAutowrapup").value)
+									autowrapup: parseInt(dijit.byId("clientDefaultAutowrapup").value),
+									ringout: parseInt(dijit.byId("clientDefaultRingout").value)
 								});
 							</script>
 						</button>

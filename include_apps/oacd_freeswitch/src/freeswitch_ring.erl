@@ -269,19 +269,19 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 %init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
 	case freeswitch:api(Fsnode, create_uuid) of
 		{ok, UUID} ->
-			{CallerName, CallerNumber, Dnis} = case proplists:get_value(call, Options) of
-				#call{callerid = {Cname, Cnumber}, dnis = TheDnis} ->
-					{Cname, Cnumber, TheDnis};
+			Callrec = proplists:get_value(call, Options),
+			{CallerName, CallerNumber, Dnis, Ringout, DefaultDailOpts} = case Callrec of
+				#call{callerid = {Cname, Cnumber}, dnis = TheDnis, client = Client} ->
+					{RingoutTime, DOpts} = case Client of
+						undefined -> {60,[]};
+						_ -> {proplists:get_value("ringout",Client#client.options,60),
+							proplists:get_value("dial_vars", Client#client.options, [])}
+					end,
+					{Cname, Cnumber, TheDnis, RingoutTime, DOpts};
 				undefined ->
 					TheDnis = proplists:get_value(dnis, Options, "0000000"),
 					{Cname, Cnumber} = proplists:get_value(caller_id, Options, {"noname", "nonumber"}),
-					{Cname, Cnumber, TheDnis}
-			end,
-			{ok, Ringout} = case proplists:get_value(ringout, Options) of
-				undefined ->
-					cpx:get_env(default_ringout, 60);
-				RingoutElse ->
-					{ok, RingoutElse}
+					{Cname, Cnumber, TheDnis, 60, []}
 			end,
 			HangupAfterBridge = case proplists:get_value(persistent, Options) of
 				true -> "false";
@@ -297,9 +297,9 @@ init([Fsnode, #callbacks{init = InitFun} = Callbacks, Options]) ->
 					"hangup_after_bridge="++HangupAfterBridge,
 					ParkAfterBridge,
 					"origination_uuid="++UUID,
-					"originate_timeout="++integer_to_list(round(Ringout / 1000)),
+					"originate_timeout="++integer_to_list(round(Ringout)),
 					"sip_h_X-DNIS='"++Dnis++"'"
-					| proplists:get_value(dial_vars, Options, [])],
+					| proplists:get_value(dial_vars, Options, DefaultDailOpts)],
 			case InitFun({Fsnode, UUID}, Options) of
 				{ok, NewDialStringOpts, CallbackState} ->
 					DialStringOpts = NewDialStringOpts ++ PreInitDialStringOpts,

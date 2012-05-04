@@ -80,6 +80,11 @@
 	unload_plugin/1,
 	load_plugin/1,
 	plugins_running/0,
+	plugin_status/1,
+	set_plugin_env/2,
+	load_plugin_env/1,
+	load_plugin_envs/1,
+	save_plugin_env/2,
 	call_state/1,	
 	get_queue/1,
 	get_agent/1,
@@ -146,7 +151,12 @@ start(_Type, StartArgs) ->
 					undefined ->
 						?INFO("No plugins to load, no plugin dir", []);
 					{ok, PluginDir} ->
-						start_plugins(PluginDir)
+						case filelib:ensure_dir(filename:join(PluginDir, "touch")) of
+							ok ->
+								start_plugins(PluginDir);
+							{error, Error} ->
+								?ERROR("Could not ensure plugin directory ~s exists:  ~p", [PluginDir, Error])
+						end
 				end
 			end),
 			{ok, Pid}
@@ -279,6 +289,11 @@ plugins_running() ->
 		false -> {P, stopped}
 	end || P <- ConfigedPlugins].
 
+%% @doc Get the running status of a specific plugin.
+plugin_status(Plugin) ->
+	Status = plugins_running(),
+	proplists:get_value(Plugin, Status).
+
 %% @doc Reload the code for all plugins using {@link util:reload/0}.
 reload_plugins() ->
 	{ok, Plugins} = cpx:get_env(plugins, []),
@@ -330,6 +345,17 @@ load_plugin(Plugin) ->
 					end
 			end
 	end.
+
+%% @doc Sets the application variables for a plugin.
+-spec set_plugin_env(PluginName :: atom(), Env :: [{atom(),any()}]) -> 'ok'.
+set_plugin_env(_PluginName, []) ->
+	ok;
+set_plugin_env(PluginName, [{Key,Val}|Tail]) ->
+	application:set_env(PluginName, Key, Val),
+	set_plugin_env(PluginName,Tail);
+set_plugin_env(PluginName, [Key | Tail]) when is_atom(Key) ->
+	application:set_env(PluginName, Key, true),
+	set_plugin_env(PluginName,Tail).
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').
 get_queue(Queue) ->
@@ -1019,9 +1045,50 @@ start_plugins(Dir) ->
 		ok ->
 			Appfiles = filelib:wildcard("*.app", Dir),
 			Plugins = verify_apps(Appfiles, Dir),
+			load_plugin_envs(Plugins),
 			application:set_env('OpenACD', plugins, Plugins),
 			start_plugin_apps(Plugins)
 	end.
+
+load_plugin_envs(Plugins) ->
+	Transfun = fun() ->
+		Qh = qlc:q([{Appname, Env} ||
+			#cpx_conf{id = Appname, start_args = Env, supervisor = plugin} <- mnesia:table(cpx_conf),
+			lists:member(Appname, Plugins)
+		]),
+		qlc:e(Qh)
+	end,
+	case mnesia:transaction(Transfun) of
+		{aborted, Err} ->
+			?WARNING("Could not load stored plugin envs:  ~p", [Err]);
+		{atomic, Res} ->
+			[set_plugin_env(Appname0,Envs0) || {Appname0, Envs0} <- Res]
+	end.
+
+load_plugin_env(Plugin) ->
+	Transfun = fun() ->
+		Qh = qlc:q([Env || #cpx_conf{id = P, start_args = Env, supervisor = plugin} <- mensia:table(cpx_conf),
+			P =:= Plugin
+		]),
+		qlc:e(Qh)
+	end,
+	case mnesia:transaction(Transfun) of
+		{atomic, []} ->
+			ok;
+		{atomic, [Env]} ->
+			set_plugin_env(Plugin, Env);
+		Else ->
+			?WARNING("Could not load plugin ~p env:  ~p", [Plugin, Else])
+	end.
+
+save_plugin_env(Plugin, Envs) ->
+	Rec = #cpx_conf{id = Plugin, module_name = application,
+		start_function = start, start_args = Envs, supervisor = plugin},
+	Transfun = fun() ->
+		mnesia:write(Rec)
+	end,
+	Res = mnesia:transaction(Transfun),
+	?INFO("Result of saving plugin ~p env:  ~p", [Plugin, Res]).
 
 start_plugin_apps(undefined) ->
 	?INFO("No plugins to start", []),

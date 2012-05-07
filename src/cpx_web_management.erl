@@ -2193,9 +2193,9 @@ api({modules, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				({outport, Val}, Acc) ->
 					[{outport, list_to_integer(Val)} | Acc];
 				({address, Val}, Acc) ->
-					Newval = case util:string_split(Val, ".") of
-						Val ->
-							list_to_tuple(util:string_split(Val, ":"));
+					Newval = case io_lib:fread("~d.~d.~d.~d", Val) of
+						{ok, L, []} ->
+							list_to_tuple(L);
 						Else ->
 							list_to_tuple(Else)
 					end,
@@ -2255,8 +2255,8 @@ api({modules, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 				{<<"bindip">>, case proplists:get_value(address, Args) of
 					undefined ->
 						<<"0.0.0.0">>;
-					{_, _, _, _} = Iptuple ->
-						list_to_binary(string:join(tuple_to_list(Iptuple), "."))
+					{A, B, C, D} ->
+						iolist_to_binary(io_lib:format("~b.~b.~b.~b", [A, B, C, D]))
 				end},
 				{<<"inrelays">>, lists:map(fun(I) -> list_to_binary(I) end, proplists:get_value(relays, Args, []))},
 				{<<"outrelay">>, list_to_binary(proplists:get_value(outbound, Args, ""))},

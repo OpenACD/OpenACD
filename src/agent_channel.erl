@@ -565,7 +565,17 @@ handle_info({'EXIT', Pid, Why}, wrapup, #state{endpoint = Pid} = State) ->
 
 handle_info({'EXIT', Pid, Why}, oncall, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint ~p due to ~p while oncall; moving to wrapup.", [Pid, Why]),
-	{next_state, wrapup, State};
+	Callrec = State#state.state_data,
+	conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Callrec}),
+	cpx_agent_event:change_agent_channel(self(), wrapup, Callrec),
+	CallPid = Callrec#call.source,
+	case gen_media:wrapup(CallPid) of
+		ok ->
+			{next_state, wrapup, State};
+		Else ->
+			?WARNING("could not set gen_media to wrapup:  ~p", [Else]),
+			{next_state, oncall, State}
+	end;
 	
 handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint ~p due to ~p in state ~s", [Pid, Why, StateName]),

@@ -1649,15 +1649,19 @@ handle_info({'DOWN', Ref, process, Pid, Info}, oncall, {BaseState,
 		Internal}) ->
 	?WARNING("Oncall agent ~p died due to ~p", [Pid, Info]),
 	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
-	{default, Qpid} = priv_queue("default_queue", reprioritize_for_requeue(Call), false),
-	{ok, NewState} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, Call, Internal, Sub),
-	NewBase = BaseState#base_state{substate = Sub},
-	Qmon = erlang:monitor(process, Qpid),
-	NewInternal = #inqueue_state{
-		queue_pid = {"default_queue", Qpid},
-		queue_mon = Qmon
-	},
-	{next_state, inqueue, {NewBase, NewInternal}};
+	 case priv_queue("default_queue", reprioritize_for_requeue(Call), false) of
+		invalid ->
+			{stop, {agent_died, Info}, {BaseState, Internal}};
+		Qpid ->
+			{ok, NewState} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, Call, Internal, Sub),
+			NewBase = BaseState#base_state{substate = Sub},
+			Qmon = erlang:monitor(process, Qpid),
+			NewInternal = #inqueue_state{
+				queue_pid = {"default_queue", Qpid},
+				queue_mon = Qmon
+			},
+			{next_state, inqueue, {NewBase, NewInternal}}
+	end;
 
 handle_info(Msg, StateName, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->

@@ -559,6 +559,14 @@ handle_sync_event(_Event, _From, StateName, State) ->
 % HANDLE_INFO
 % ======================================================================
 
+handle_info({'EXIT', Pid, Why}, wrapup, #state{endpoint = Pid} = State) ->
+	?INFO("Exit of endpoint ~p due to ~p while in wrapup; ignorable", [Pid, Why]),
+	{next_state, wrapup, State};
+
+handle_info({'EXIT', Pid, Why}, oncall, #state{endpoint = Pid} = State) ->
+	?INFO("Exit of endpoint ~p due to ~p while oncall; moving to wrapup.", [Pid, Why]),
+	{next_state, wrapup, State};
+	
 handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint ~p due to ~p in state ~s", [Pid, Why, StateName]),
 	{stop, Why, State};

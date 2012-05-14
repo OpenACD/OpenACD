@@ -147,7 +147,11 @@ init([Args]) ->
 			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
-			endpointtype = {self(), persistent, proplists:get_value(endpoint_type, Args, sip_registration)},
+			endpointtype = case proplists:get_value(transient, Args) of
+				true ->
+					{undefined, transient, proplists:get_value(endpoint_type, Args, sip_registration)};
+				_ -> {self(), persistent, proplists:get_value(endpoint_type, Args, sip_registration)}
+			end,
 			endpointdata = proplists:get_value(endpoint_data, Args, Login)
 	},
 	{ok, Pid} = case proplists:get_value(remote_node, Args) of

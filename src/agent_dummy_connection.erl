@@ -147,7 +147,7 @@ init([Args]) ->
 			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node']),
-			endpointtype = proplists:get_value(endpoint_type, Args, sip_registration),
+			endpointtype = {self(), persistent, proplists:get_value(endpoint_type, Args, sip_registration)},
 			endpointdata = proplists:get_value(endpoint_data, Args, Login)
 	},
 	{ok, Pid} = case proplists:get_value(remote_node, Args) of
@@ -184,6 +184,8 @@ init([Args]) ->
 		life_watch = Lifewatch,
 		release_data = Release_data}}.
 
+handle_call({agent_state, ringing, InCall}, {Apid, _Ref}, #state{agent_fsm = Apid} = State) ->
+	{reply, ok, State};
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 

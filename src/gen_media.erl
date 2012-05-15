@@ -783,6 +783,7 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_p
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = {OcAgent, Ocpid}, monitors = Mons, url_pop_getvars = GenPopopts} = State) when is_pid(Ocpid) ->
+	?INFO("Agent transfer (outofband) to ~p for ~p", [Agent, Call#call.id]),
 	case set_agent_state(Apid, [ringing, State#state.callrec]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
@@ -949,9 +950,10 @@ handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = {Ragent, Rpid}, 
 					kill_outband_ring(State),
 					cdr:oncall(State#state.callrec, Ragent),
 					timer:cancel(State#state.ringout),
+                    ?INFO("Wrapup agent ~p[~p]", [OcAgent, Ocpid]),
 					set_agent_state(Ocpid, [wrapup, State#state.callrec]),
 					cdr:wrapup(State#state.callrec, OcAgent),
-					%Agent = agent_manager:find_by_pid(Rpid),
+					Agent = agent_manager:find_by_pid(Rpid),
 					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Ragent}]),
 					erlang:demonitor(Mons#monitors.oncall_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},

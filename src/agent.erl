@@ -561,18 +561,13 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			%cdr:oncall(Statecall, State#agent.login),
 			set_cpx_monitor(Newagent, []),
 			% ring pid just needs to shutup and take it like a man.
-			case Agent#agent.endpointtype of
-				{undefined, _, _} ->
-					ok;
-				{Pid, _Persistance, _} ->
-					gen_server:cast(Pid, {agent_state, oncall, Statecall})
-			end,
+			update_endpoint_state(Agent, {agent_state, oncall, Statecall}),
 			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		invalid ->
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
 	end;
-ringing({oncall, Call}, {CallPid, _Tag} = From, #state{ring_locked = wait, agent_rec = #agent{statedata = #call{source = CallPid}}= Agent} = State) ->
+ringing({oncall, Call}, {CallPid, _Tag} = From, #state{ring_locked = wait, agent_rec = #agent{statedata = #call{source = CallPid}}=_Agent} = State) ->
 	ringing({oncall, Call}, From, State#state{ring_locked = unlocked});
 ringing({oncall, _Call}, _From, #state{ring_locked = wait} = State) ->
 	{reply, invalid, ringing, State};
@@ -586,12 +581,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{stat
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newagent, []),
 			% again, ring channel nees to shut up and take it like a man.
-			case Agent#agent.endpointtype of
-				{undefined, _, _} ->
-					ok;
-				{Pid, _Persistance, _} ->
-					gen_server:cast(Pid, {agent_state, oncall, Call})
-			end,
+			update_endpoint_state(Agent, {agent_state, oncall, Call}),
 			{reply, ok, oncall, State#state{agent_rec = Newagent, ringouts = 0}};
 		_Other -> 
 			{reply, invalid, ringing, State}
@@ -602,13 +592,7 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	?DEBUG("going released from ringing", []),
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	% ring chan needs to just take it.
-	NewEndPointType = case Agent#agent.endpointtype of
-		{undefined, _, _} = EpType->
-			EpType;
-		{Pid, _Persistnace, _} = EpType ->
-			gen_server:cast(Pid, {agent_state, released}),
-			EpType
-	end,
+	NewEndPointType = update_endpoint_state(Agent, {agent_state, released}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
@@ -627,13 +611,7 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			erlang:send_after(Lock, Self, ring_unlock),
 			locked
 	end,
-	NewEndpointType = case Agent#agent.endpointtype of
-		{undefined, _, _} = EpType ->
-			EpType;
-		{Pid, _Persistance, _}  = EpType ->
-			gen_server:cast(Pid, {agent_state, idle}),
-			EpType
-	end,
+	NewEndpointType = update_endpoint_state(Agent, {agent_state, idle}),
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now(), endpointtype = NewEndpointType},
@@ -730,14 +708,9 @@ oncall({released, default}, From, State) ->
 oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent} = State) when is_integer(Bias), -1 =< Bias, Bias =< 1 -> 
 	Newagent = Agent#agent{queuedrelease=Reason},
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
+
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Call#call.source ->
-	NewEndpoint = case Agent#agent.endpointtype of
-		{undefined, _, _} = EpElse ->
-			EpElse;
-		{EpPid, _, _} = EpElse ->
-			gen_server:cast(EpPid, {agent_state, wrapup}),
-			EpElse
-	end,
+	NewEndpoint = update_endpoint_state(Agent, {agent_state, wrapup}),
 	Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
 	set_cpx_monitor(Newagent, []),
 	Client = Call#call.client,
@@ -753,15 +726,9 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Agent#agent.connection ->
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
-	try gen_media:wrapup(Call#call.source) of
+    try gen_media:wrapup(Call#call.source) of
 		ok ->
-			NewEndpoint = Agent#agent.endpointtype,
-			case NewEndpoint of
-				{undefined, _, _} ->
-					ok;
-				{EpPid, _, _} ->
-					gen_server:cast(EpPid, {agent_state, wrapup, Call})
-			end,
+			NewEndpoint = update_endpoint_state(Agent, {agent_state, wrapup, Call}),
 			Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
@@ -792,16 +759,7 @@ oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #
 		Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
-			NewEndpoint = case Agent#agent.endpointtype of
-				{undefined, _, _} = ElseEp ->
-					ElseEp;
-				{EpPid, transient, Type} ->
-					exit(EpPid, normal),
-					{undefined, transient, Type};
-				{EpPid, _, _} = ElseEp ->
-					gen_server:cast(EpPid, {agent_state, wrapup}),
-					ElseEp
-			end,
+			NewEndpoint = update_endpoint_state(Agent, {agent_state, wrapup}),
 			Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
@@ -828,8 +786,10 @@ oncall({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Cal
 	{reply, Reply, oncall, State};
 oncall({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) ->
 	Reply = gen_media:queue(Call#call.source, Queue),
+	NewEndpoint = update_endpoint_state(Agent, {agent_state, wrapup}),
 	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
-	Newagent = Agent#agent{state=wrapup, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
+	Newagent = Agent#agent{state=wrapup, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now(), 
+                          endpointtype=NewEndpoint},
 	set_cpx_monitor(Newagent, []),
 	{reply, Reply, wrapup, State#state{agent_rec = Newagent}};
 %oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
@@ -1299,7 +1259,7 @@ handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpoin
 			?ERROR("Cound not recreate persistent ring channel:  ~p", [Error]),
 			{next_state, Statename, State#state{agent_rec = Agent#agent{endpointtype = {undefined, persistent, Endpointtype}}}}
 	end;
-handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, transient, EpType}} = Agent} = State) ->
+handle_info({'EXIT', From, _Reason}, Statename, #state{agent_rec = #agent{endpointtype = {From, transient, EpType}} = Agent} = State) ->
 	?INFO("Transient ring pid ~p died; maybe it was supposed to?", [From]),
 	NewAgent = Agent#agent{endpointtype = {undefined, transient, EpType}},
 	{next_state, Statename, State#state{agent_rec = NewAgent}};
@@ -1396,7 +1356,8 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 handle_info(end_wrapup, wrapup, State) ->
 	{reply, ok, Nextstate, Newstate} = wrapup(idle, self(), State),
 	{next_state, Nextstate, Newstate};
-handle_info(_Info, StateName, State) ->
+handle_info(Info, StateName, State) ->
+    ?INFO("Got INFO message ~p; StateName=~p; State=~p", [Info, StateName, State]),
 	{next_state, StateName, State}.
 
 %% @private
@@ -1477,6 +1438,12 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = _State]) ->
 %% =====
 %% Internal functions
 %% =====
+
+update_endpoint_state(#agent{endpointtype={undefined, _, _}}=Agent, _State) ->
+    Agent#agent.endpointtype;
+update_endpoint_state(#agent{endpointtype={EpPid, _, _}}=Agent, State) ->
+    gen_server:cast(EpPid, State),
+    Agent#agent.endpointtype.
 
 create_persistent_endpoint(Agent) ->
 	case cpx:get_env(ring_manager) of

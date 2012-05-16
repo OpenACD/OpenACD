@@ -79,7 +79,7 @@ install: compile
 	for dep in deps/*; do \
 	  ./install.sh $$dep $(DESTDIR)$(PREFIX)$(OALIBDIR) ; \
 	done
-	./install.sh ../OpenACD $(DESTDIR)$(PREFIX)$(OALIBDIR)
+	./install.sh . $(DESTDIR)$(PREFIX)$(OALIBDIR)
 	for app in ./include_apps/*; do \
 	  ./install.sh $$app $(DESTDIR)$(PREFIX)$(OALIBDIR) ; \
 	done

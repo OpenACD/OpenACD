@@ -2,7 +2,7 @@
 
 dep="$1"
 OALIBDIR="$2"
-depname=$( basename $dep )
+depname=$( basename $( cd "$dep"; pwd ) )
 
 outdepdir=$2/"$depname"
 

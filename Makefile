@@ -91,7 +91,7 @@ install: compile
 	-e 's|%PLUGIN_DIR%|$(PREFIX)$(OAPLUGINDIR)|g' \
 	./config/app.config > $(DESTDIR)$(PREFIX)$(OACONFIGDIR)/app.config
 	sed \
-	-e 's|%DB_DIR%|$(OADBDIR)|g' \
+	-e 's|%DB_DIR%|$(PREFIX)$(OADBDIR)|g' \
 	./config/vm.args > $(DESTDIR)$(PREFIX)$(OACONFIGDIR)/vm.args
 ## Var dirs
 	mkdir -p $(DESTDIR)$(PREFIX)$(OADBDIR)

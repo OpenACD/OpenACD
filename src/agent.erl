@@ -613,6 +613,7 @@ ringing(idle, _From, #state{ringouts = X, max_ringouts = Max} = State) when not 
 ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 	Locked = case cpx:get_env(agent_ringout_lock, 0) of
 		{ok, 0} ->
+			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			unlocked;
 		{ok, Lock} ->
 			Self = self(),
@@ -620,7 +621,6 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			locked
 	end,
 	NewEndpointType = update_endpoint_state(Agent, {agent_state, idle}),
-	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now(), endpointtype = NewEndpointType},
 	set_cpx_monitor(Newagent, []),
@@ -1138,6 +1138,9 @@ wrapup(_Msg, State) ->
 %-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #state{}) -> {'stop','normal', #state{}}).
 	%(Event :: any(), StateName :: atom(), State :: #state{}) -> {'next_state', atom(), #state{}}).
 handle_event(ring_unlock, idle, State) ->
+	#state{agent_rec = Agent} = State,
+	?DEBUG("Unlocking ring state for ~p", [Agent#agent.login]),
+	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	{next_state, idle, State#state{ring_locked = unlocked}};
 handle_event({blab, Text}, Statename, #state{agent_rec = #agent{connection = Conpid} = _Agent} = State) when is_pid(Conpid) ->
 	?DEBUG("sending blab ~p", [Text]),
@@ -1246,6 +1249,14 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 handle_info(ring_unlock, Statename, State) ->
+	case Statename of
+		idle ->
+			#state{agent_rec = Agent} = State,
+			?DEBUG("Unlocking ring state for ~p", [Agent#agent.login]),
+			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login});
+		_ ->
+			ok
+	end,
 	{next_state, Statename, State#state{ring_locked = unlocked}};
 handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
 	?INFO("Log pid ~w died due to ~p", [From, Reason]),

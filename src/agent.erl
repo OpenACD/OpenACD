@@ -449,7 +449,15 @@ idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefine
 	?INFO("~s rejected a ring request since persistent ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
 idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
-	case cpx:get_env(ring_manager) of
+	MyNode = node(),
+	Callnode = node(InCall#call.source),
+	RingManPid = case Callnode of
+		MyNode ->
+			cpx:get_env(ring_manager);
+		_OtherNode ->
+			rpc:call(Callnode, cpx, get_env, ring_manager)
+	end,
+	case RingManPid of
 		undefined ->
 			{reply, invalid, idle, State};
 		{ok, RingMan} ->

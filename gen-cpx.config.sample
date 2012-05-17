@@ -67,6 +67,12 @@
 	% logout.
 	{max_ringouts, 3},
 
+	% If an agent goes from ringing to idle, this setting will cause the
+	% agent to reject ring requests for the given number of milliseconds.
+	% It doesn't matter if the transition was caused by the media failing or
+	% the agent simply waiting for the media to ring out.
+	{agent_ringout_lock, 5000},
+
 	% Tells OpenACD to start "plugin applications".  A plugin application
 	% is an erlang app that runs on the same node asn OpenACD.  They are
 	% responsible for supervising themselves, and should expect no help

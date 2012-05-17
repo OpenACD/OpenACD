@@ -2555,14 +2555,20 @@ from_oncall_tests() ->
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup request from media with outband media",
 		fun() ->
-			Call = Agent#agent.statedata,
+			#agent{endpointtype = {Rchan, _, _}, statedata = Call} = Agent,
+			?DEBUG("Monmock:  ~p; Conmock:  ~p; Call: ~p; logpid: ~p; rchan:  ~p", [Monmock, Connmock, Call#call.source, Agent#agent.log_pid, Rchan]),
+			gen_server_mock:expect_cast(Rchan, fun({agent_state, wrapup}, _State) ->
+				ok
+			end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
-			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {undefined, transient, _}}} = _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
+			Got = oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State),
+			?DEBUG("Got:  ~p", [Got]),
+			?assertMatch({reply, ok, wrapup, #state{agent_rec = #agent{endpointtype = {Rchan, transient, _}}} = _State}, Got),
 			Assertmocks()
 		end}
 	end,

@@ -1,0 +1,152 @@
+#!/bin/bash
+
+ERL="erl"
+RUN_ERL="run_erl"
+
+ROOTDIR=%OPENACD_PREFIX%
+
+BINDIR="$ROOTDIR"/bin
+ETCDIR="$ROOTDIR"/etc
+LIBDIR="$ROOTDIR"/%LIB_DIR%
+VARDIR="$ROOTDIR"/var
+
+OADIR="$LIBDIR"/openacd
+
+OALIBDIR="$OADIR"/lib
+OABINDIR="$OADIR"/bin
+OAETCDIR="$ETCDIR"/openacd
+OAVARDIR="$VARDIR"/lib/openacd
+OAPLUGINDIR="$OADIR"/plugin.d
+OALOGDIR="$VARDIR"/log/openacd
+OADBDIR="$OAVARDIR"/db
+
+PIPE_DIR=/tmp/openacd
+
+export OPENACD_LOG_DIR="$OALOGDIR"
+export OPENACD_ETC_DIR="$OAETCDIR"
+
+# Erlang crash dump
+export ERL_CRASH_DUMP="$OALOGDIR/log/erlang_crash.dump"
+
+# Make sure this script is running as the appropriate user
+if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
+    exec sudo -u $RUNNER_USER -i $0 $@
+fi
+
+# allow overriding vars from above
+[ -e "${OAETCDIR}/sysopenacd" ] && . "${OAETCDIR}/sysopenacd"
+
+# Add plug-in dir to path
+export ERL_LIBS=$ERL_LIBS:"$OALIBDIR":"$OAPLUGINDIR"
+
+# Extract the target node name from node.args
+NAME_ARG=`grep -e '-[s]*name' $OAETCDIR/vm.args`
+if [ -z "$NAME_ARG" ]; then
+    echo "vm.args needs to have either -name or -sname parameter."
+    exit 1
+fi
+
+# Extract the target cookie
+COOKIE_ARG=`grep -e '-setcookie' $OAETCDIR/vm.args`
+if [ -z "$COOKIE_ARG" ]; then
+    echo "vm.args needs to have a -setcookie parameter."
+    exit 1
+fi
+
+if [ ! -f "$OAETCDIR/key" ]; then
+	echo "RSA key does not exist, generating..."
+	ssh-keygen -t rsa -f "$OAETCDIR"/key -N ""
+	RES=$?
+	if [ $RES != 0 ]; then
+		echo "Key generation failed with error $RES!"
+		exit $RES
+	fi
+fi
+
+# Setup command to control the node
+NODETOOL="$BINDIR/nodetool $NAME_ARG $COOKIE_ARG"
+
+# Check the first argument for instructions
+case "$1" in
+    start)
+        # Make sure there is not already a node running
+        RES=`$NODETOOL ping`
+        if [ "$RES" == "pong" ]; then
+            echo "Node is already running!"
+            exit 1
+        fi
+        export HEART_COMMAND="$BINDIR/openacd start"
+        mkdir -p $PIPE_DIR
+        # Note the trailing slash on $PIPE_DIR/
+        $RUN_ERL -daemon $PIPE_DIR/ $OALOGDIR "exec $BINDIR/openacd console" 2>&1
+        ;;
+
+    stop)
+        # Wait for the node to completely stop...
+        PID=`$NODETOOL pid`
+        $NODETOOL stop
+        while `kill 0 $PID 2>/dev/null`;
+        do
+             sleep 1
+        done
+        ;;
+
+    restart)
+        ## Restart the VM without exiting the process
+        $NODETOOL restart
+        ;;
+
+    reboot)
+        ## Restart the VM completely (uses heart to restart it)
+        $NODETOOL reboot
+        ;;
+
+    ping)
+        ## See if the VM is alive
+        $NODETOOL ping
+        ;;
+
+    remsh)
+        # Make sure a node IS running
+        RES=`$NODETOOL ping`
+        if [ "$RES" != "pong" ]; then
+            echo "Node is not running!"
+            exit 1
+        fi
+
+        $ERL -name remsh@127.0.0.1 -setcookie openacd -remsh openacd@127.0.0.1
+        ;;
+
+    attach)
+        # Make sure a node IS running
+        RES=`$NODETOOL ping`
+        if [ "$RES" != "pong" ]; then
+            echo "Node is not running!"
+            exit 1
+        fi
+
+        shift
+        $TO_ERL $PIPE_DIR
+        ;;
+
+    console)
+        # Setup beam-required vars
+       	CMD="$ERL -s openacd -config $OAETCDIR/app.config -args_file $OAETCDIR/vm.args ${1+"$@"}"
+        # Dump environment info for logging purposes
+        echo "Exec: $CMD"
+        echo "Root: $ROOTDIR"
+
+        # Log the startup
+        logger -t "$SCRIPT[$$]" "Starting up"
+
+        # Start the VM
+        exec $CMD
+        ;;
+
+    *)
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|console|attach}"
+        exit 1
+        ;;
+esac
+
+exit 0

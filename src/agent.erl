@@ -2607,12 +2607,16 @@ from_oncall_tests() ->
 			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
 			Callrec = Basecall#call{client = Client},
 			Agent = BaseAgent#agent{statedata = Callrec},
+			#agent{endpointtype = {Rchan, _, _}} = Agent,
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			gen_server_mock:expect_cast(Rchan, fun({agent_state, wrapup}, RState) ->
+				ok
+			end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
 				end_wrapup ->

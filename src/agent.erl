@@ -461,7 +461,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 		undefined ->
 			{reply, invalid, idle, State};
 		{ok, RingMan} ->
-			case gen_server:call({Callnode, RingMan}, {ring, Agent, InCall}) of
+			case gen_server:call({RingMan, Callnode}, {ring, Agent, InCall}) of
 				{ok, RingPid, Paths} ->
 					Call = case Paths of
 						both ->

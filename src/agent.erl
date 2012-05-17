@@ -455,7 +455,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 		MyNode ->
 			cpx:get_env(ring_manager);
 		_OtherNode ->
-			rpc:call(Callnode, cpx, get_env, ring_manager)
+			rpc:call(Callnode, cpx, get_env, [ring_manager])
 	end,
 	case RingManPid of
 		undefined ->

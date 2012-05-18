@@ -2026,9 +2026,7 @@ api({modules, Node, "cpx_supervisor", "update", "agent_ringout_lock"}, ?COOKIE, 
 			rpc:call(Atomnode, cpx_supervisor, drop_value, [agent_ringout_lock]);
 		MS ->
 			MS0 = list_to_integer(MS),
-			rpc:call(Atomnode, cpx_supervisor, set_value, [agent_ringout_lock, MS0]);
-		_ ->
-			{error, badarg}
+			rpc:call(Atomnode, cpx_supervisor, set_value, [agent_ringout_lock, MS0])
 	end,
 	case Res of
 		{atomic, ok} ->
@@ -2488,7 +2486,7 @@ api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 			"autoend_wrapup" ->
 				try list_to_integer(Value) of
 					0 -> Acc;
-					N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
+					N -> [{autoend_wrapup, N} | Acc]
 				catch
 					error:badarg -> Acc
 				end;

@@ -60,7 +60,12 @@
 	%unqueue/1,
 	%set_agent/3,
 	dump_state/1,
-	'3rd_party_pickup'/1
+	'3rd_party_pickup'/1,
+	spy_observe_only/1,
+	spy_whisper/2,
+	spy_whisper_caller/1,
+	spy_whisper_agent/1,
+	spy_barge/1
 	]).
 
 %% gen_media callbacks
@@ -138,7 +143,9 @@
 	spawn_oncall_mon :: 'undefined' | {pid(), reference()},
 	conference_id :: 'undefined' | string(),
 	'3rd_party_id' :: 'undefined' | string(),
-	'3rd_party_mon' :: 'undefined' | {pid(), reference()}
+	'3rd_party_mon' :: 'undefined' | {pid(), reference()},
+	spy_channel :: 'undefined' | {pid(), pid(), string()}
+		% {agent_pid(), agent_connection_pid(), channel_uuid()}
 }).
 
 -type(state() :: #state{}).
@@ -169,6 +176,26 @@ dump_state(Mpid) when is_pid(Mpid) ->
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),
 	gen_media:cast(Mpid, {'3rd_party_pickup', Self}).
+
+-spec(spy_whisper/2 :: (MPid :: pid(), Who :: 'agent' | 'caller' | 'both' | 'none') -> 'ok' | {'error', 'not_spy'}).
+spy_whisper(MPid, Who) ->
+	gen_media:call(MPid, {modify_spy, Who}).
+
+-spec(spy_observe_only/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_observe_only(MPid) ->
+	spy_whisper(MPid, none).
+
+-spec(spy_whisper_caller/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_whisper_caller(MPid) ->
+	spy_whisper(MPid, caller).
+
+-spec(spy_whisper_agent/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_whisper_agent(MPid) ->
+	spy_whisper(MPid, agent).
+
+-spec(spy_barge/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_barge(MPid) ->
+	spy_whisper(MPid, both).
 	
 %%====================================================================
 %% gen_media callbacks

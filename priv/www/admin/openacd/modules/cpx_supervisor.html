@@ -148,6 +148,31 @@
 	</button>
 </p>
 <hr />
+
+<p>If an agent has a ring fail after they have been set ringing, or the
+agent ringsout, some devices may need a delay before being able to ring
+agent.  This sets a "cooldown" before they can go ringing again.  This is
+not a new state.</p>
+<p>This is in milliseconds.</p>
+<p>
+	<label for="agentRingoutLock">Ringout Lock:</label>
+	<input dojoType="dijit.form.ValidationTextBox" regExp="^none$|^\d+$" name="value" placeHolder="none" id="agentRingoutLock" />
+	<button dojotype="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId("agentRingoutLock").get('value');
+			if(newVal  && newVal != ''){
+				CPXSupervisor.setAgentRingoutLock(newVal);
+			} else {
+				CPXSupervisor.setAgentRingoutLock('');
+			}
+		</script>
+	</button>
+
+<hr />
+
 <form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setPluginDirForm">
 <p>Tells OpenACD to look for "plugin applications".  A plugin application 
 is a set of erlang apps to run on the same node as OpenACD.  They are 

@@ -4,6 +4,25 @@ if(! window.CPXSupervisor){
 	}
 }
 
+CPXSupervisor.setAgentRingoutLock = function(ringlock){
+	dojo.xhrPost({
+		url:"modules/" + modules.activeNode + "/cpx_supervisor/update/agent_ringout_lock",
+		content:{
+			'value':ringlock
+		},
+		handleAs:'json',
+		load:function(res){
+			if(res.success){
+				return;
+			}
+			errMessage(res.message);
+		},
+		error:function(err){
+			errMessage(err);
+		}
+	});
+}
+
 CPXSupervisor.setArchivePath = function(newPath, cb){
 	if(! cb){
 		cb = function(){ };
@@ -396,6 +415,27 @@ dojo.xhrGet({
 	},
 	error:function(err){
 		console.warn(['getting exit_on_max_ring_fails errored', res]);
+	}
+});
+
+dojo.xhrGet({
+	url:"/modules/" + modules.activeNode + "/cpx_supervisor/get/agent_ringout_lock",
+	handleAs:'json',
+	load:function(res){
+		if(res.success){
+			var targetDij = dijit.byId('agentRingoutLock');
+			targetDij.set('value', res['default']);
+			if(res.isDefault){
+				targetDij.set('value', '');
+			} else {
+				targetDij.set('value', res.value);
+			}
+			return;
+		}
+		errMessage(['getting agent_ringout_lock failed', res.message]);
+	},
+	error:function(err){
+		console.warn(['getting agent_ringout_lock errored', res]);
 	}
 });
 

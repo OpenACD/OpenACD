@@ -1957,6 +1957,18 @@ api({modules, Node, "cpx_supervisor", "get", "max_ringouts"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+
+api({modules, Node, "cpx_supervisor", "get", "agent_ringout_lock"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx, get_env, [agent_ringout_lock]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, <<"none">>}]})};
+		{ok, MS} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"default">>, <<"none">>}, {<<"value">>, MS}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+
 api({modules, Node, "cpx_supervisor", "get", "plugin_dir"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx, get_env, [plugin_dir]) of
@@ -2004,6 +2016,25 @@ api({modules, Node, "cpx_supervisor", "update", "plugins"}, ?COOKIE, Post) ->
 					end
 			end
 	end;
+
+api({modules, Node, "cpx_supervisor", "update", "agent_ringout_lock"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Res = case proplists:get_value("value", Post) of
+		undefined ->
+			rpc:call(Atomnode, cpx_supervisor, drop_value, [agent_ringout_lock]);
+		"" ->
+			rpc:call(Atomnode, cpx_supervisor, drop_value, [agent_ringout_lock]);
+		MS ->
+			MS0 = list_to_integer(MS),
+			rpc:call(Atomnode, cpx_supervisor, set_value, [agent_ringout_lock, MS0])
+	end,
+	case Res of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+
 api({modules, Node, "cpx_supervisor", "update", "plugin_dir"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Res = case proplists:get_value("value", Post) of
@@ -2455,7 +2486,7 @@ api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 			"autoend_wrapup" ->
 				try list_to_integer(Value) of
 					0 -> Acc;
-					N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
+					N -> [{autoend_wrapup, N} | Acc]
 				catch
 					error:badarg -> Acc
 				end;

@@ -60,7 +60,12 @@
 	%unqueue/1,
 	%set_agent/3,
 	dump_state/1,
-	'3rd_party_pickup'/1
+	'3rd_party_pickup'/1,
+	spy_observe_only/1,
+	spy_whisper/2,
+	spy_whisper_caller/1,
+	spy_whisper_agent/1,
+	spy_barge/1
 	]).
 
 %% gen_media callbacks
@@ -138,7 +143,9 @@
 	spawn_oncall_mon :: 'undefined' | {pid(), reference()},
 	conference_id :: 'undefined' | string(),
 	'3rd_party_id' :: 'undefined' | string(),
-	'3rd_party_mon' :: 'undefined' | {pid(), reference()}
+	'3rd_party_mon' :: 'undefined' | {pid(), reference()},
+	spy_channel :: 'undefined' | {pid(), pid(), string()}
+		% {agent_pid(), agent_connection_pid(), channel_uuid()}
 }).
 
 -type(state() :: #state{}).
@@ -169,6 +176,26 @@ dump_state(Mpid) when is_pid(Mpid) ->
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),
 	gen_media:cast(Mpid, {'3rd_party_pickup', Self}).
+
+-spec(spy_whisper/2 :: (MPid :: pid(), Who :: 'agent' | 'caller' | 'both' | 'none') -> 'ok' | {'error', 'not_spy'}).
+spy_whisper(MPid, Who) ->
+	gen_media:call(MPid, {modify_spy, Who}).
+
+-spec(spy_observe_only/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_observe_only(MPid) ->
+	spy_whisper(MPid, none).
+
+-spec(spy_whisper_caller/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_whisper_caller(MPid) ->
+	spy_whisper(MPid, caller).
+
+-spec(spy_whisper_agent/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_whisper_agent(MPid) ->
+	spy_whisper(MPid, agent).
+
+-spec(spy_barge/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
+spy_barge(MPid) ->
+	spy_whisper(MPid, both).
 	
 %%====================================================================
 %% gen_media callbacks
@@ -323,14 +350,10 @@ handle_voicemail(undefined, Call, State) ->
 
 -spec(handle_spy/3 :: (Agent :: {pid(), #agent{}}, Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
-	agent:blab(Agent, "While spying, you have the following options:\n"++
-		"* To whisper to the agent; press 1\n"++
-		"* To whisper to the caller; press 2\n"++
-		"* To talk to both parties; press 3\n"++
-		"* To resume spying; press 0"),
 	Dialstring = freeswitch_media_manager:get_agent_dial_string(AgentRec, []),
-	freeswitch:bgapi(Fnode, originate, Dialstring ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-	{ok, State};
+	{ok, JobId} = freeswitch:bgapi(Fnode, originate, Dialstring ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
+	#agent{connection = ConnPid} = AgentRec,
+	{ok, State#state{spy_channel = {Agent, ConnPid, JobId}}};
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
@@ -590,6 +613,25 @@ handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
+
+handle_call({modify_spy, _Who}, _From, _Call, #state{spy_channel = undefined} = State) ->
+	{reply, {error, not_spy}, State};
+
+handle_call({modify_spy, Who}, {From, Tag}, Call, #state{spy_channel = {Agent, From, _Channel}} = State) ->
+	handle_call({modify_spy, Who}, {Agent, Tag}, Call, State);
+
+handle_call({modify_spy, Who}, {From, _Tag}, _Call, #state{spy_channel = {From, _AgentConnPid, SpyChannel}} = State) ->
+	Key = case Who of
+		agent -> "1";
+		caller -> "2";
+		both -> "3";
+		none -> "4"
+	end,
+	freeswitch:bgapi(State#state.cnode, uuid_recv_dtmf, SpyChannel ++ " " ++ Key ++ "@960"),
+	{reply, ok, State};
+
+handle_call({modify_spy, _Who}, _From, _Call, State) ->
+	{reply, {error, not_spy}, State};
 
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
@@ -972,7 +1014,25 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
-handle_info({bgok, Reply}, Call, State) ->
+
+handle_info({bgok, JobId, Data}, _Call, #state{spy_channel = {Apid, ConnPid, JobId}} = State) ->
+	case Data of
+		"+OK " ++ UUIDandNL ->
+			agent:blab(Apid, "While spying, you have the following options:\n"++
+				"* To whisper to the agent; press 1\n"++
+				"* To whisper to the caller; press 2\n"++
+				"* To talk to both parties; press 3\n"++
+				"* To resume spying; press 0"),
+			Length = length(UUIDandNL) - 2,
+			UUID = lists:sublist(UUIDandNL, Length),
+			SpyChannel = {Apid, ConnPid, UUID},
+			{noreply, State#state{spy_channel = SpyChannel}};
+		_What ->
+			?NOTICE("Spy didn't seem to go so well:  ~p", [Data]),
+			{noreply, State#state{spy_channel = undefined}}
+	end;
+
+handle_info({bgok, _JobId, Reply}, Call, State) ->
 	?DEBUG("bgok:  ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
 handle_info({bgerror, "-ERR NO_ANSWER\n"}, Call, State) ->

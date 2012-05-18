@@ -348,14 +348,10 @@ handle_voicemail(undefined, Call, State) ->
 
 -spec(handle_spy/3 :: (Agent :: {pid(), #agent{}}, Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
-	agent:blab(Agent, "While spying, you have the following options:\n"++
-		"* To whisper to the agent; press 1\n"++
-		"* To whisper to the caller; press 2\n"++
-		"* To talk to both parties; press 3\n"++
-		"* To resume spying; press 0"),
 	Dialstring = freeswitch_media_manager:get_agent_dial_string(AgentRec, []),
-	freeswitch:bgapi(Fnode, originate, Dialstring ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-	{ok, State};
+	{ok, JobId} = freeswitch:bgapi(Fnode, originate, Dialstring ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
+	#agent{connection = ConnPid} = AgentRec,
+	{ok, State#state{spy_channel = {Agent, ConnPid, JobId}}};
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
@@ -610,6 +606,25 @@ handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
+
+handle_call({modify_spy, _Who}, _From, _Call, #state{spy_channel = undefined} = State) ->
+	{reply, {error, not_spy}, State};
+
+handle_call({modify_spy, Who}, {From, Tag}, Call, #state{spy_channel = {Agent, From, _Channel}} = State) ->
+	handle_call({modify_spy, Who}, {Agent, Tag}, Call, State);
+
+handle_call({modify_spy, Who}, {From, _Tag}, _Call, #state{spy_channel = {From, _AgentConnPid, SpyChannel}} = State) ->
+	Key = case Who of
+		agent -> "1";
+		caller -> "2";
+		both -> "3";
+		none -> "4"
+	end,
+	freeswitch:bgapi(State#state.cnode, uuid_recv_dtmf, SpyChannel ++ " " ++ Key ++ "@960"),
+	{reply, ok, State};
+
+handle_call({modify_spy, _Who}, _From, _Call, State) ->
+	{reply, {error, not_spy}, State};
 
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
@@ -992,7 +1007,25 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
-handle_info({bgok, Reply}, Call, State) ->
+
+handle_info({bgok, JobId, Data}, _Call, #state{spy_channel = {Apid, ConnPid, JobId}} = State) ->
+	case Data of
+		"+OK " ++ UUIDandNL ->
+			agent:blab(Apid, "While spying, you have the following options:\n"++
+				"* To whisper to the agent; press 1\n"++
+				"* To whisper to the caller; press 2\n"++
+				"* To talk to both parties; press 3\n"++
+				"* To resume spying; press 0"),
+			Length = length(UUIDandNL) - 2,
+			UUID = lists:sublist(UUIDandNL, Length),
+			SpyChannel = {Apid, ConnPid, UUID},
+			{noreply, State#state{spy_channel = SpyChannel}};
+		_What ->
+			?NOTICE("Spy didn't seem to go so well:  ~p", [Data]),
+			{noreply, State#state{spy_channel = undefined}}
+	end;
+
+handle_info({bgok, _JobId, Reply}, Call, State) ->
 	?DEBUG("bgok:  ~p for ~p", [Reply, Call#call.id]),
 	{noreply, State};
 handle_info({bgerror, "-ERR NO_ANSWER\n"}, Call, State) ->

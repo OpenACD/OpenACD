@@ -968,7 +968,7 @@ released({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = Agent} = State) ->
+released({spy, Target}, _From, #state{agent_rec = Agent} = State) ->
 	case self() of
 		Target ->
 			?INFO("Cannot spy on yourself", []),

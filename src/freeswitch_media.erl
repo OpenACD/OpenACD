@@ -353,14 +353,13 @@ handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = 
 	{ok, State#state{spy_channel = {Agent, ConnPid, JobId}}};
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
-
+ 
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
     #agent{endpointtype={RingPid, _, _}} = agent:dump_state(AgentPid),
     case RingPid of 
         undefined ->
-            %%% Transferee agent's ring leg is not created yet. Looping...
-            handle_agent_transfer(AgentPid, Timeout, Call, State);
-        _Else ->
+            {error, "Cannot get agent's ringleg pid", State};
+        _Else -> 
             {ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], 
              State#state{statename = oncall_ringing, xferchannel = RingPid, 
                          xferuuid = freeswitch_ring:get_uuid(RingPid)}}

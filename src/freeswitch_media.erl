@@ -223,10 +223,7 @@ handle_announce(Announcement, Callrec, State) ->
 handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
-    %ok = fs_send_execute(State#state.cnode, Callrec#call.id, "set", "hangup_after_bridge=false"), 
     freeswitch:api(State#state.cnode, uuid_bridge, XferUUID ++ " " ++ Callrec#call.id),
-%	freeswitch:sendmsg(State#state.cnode, XferUUID,
-%		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
 	case State#state.record_path of
 		undefined ->
 			ok;

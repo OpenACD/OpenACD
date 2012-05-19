@@ -223,8 +223,7 @@ handle_announce(Announcement, Callrec, State) ->
 handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
-	freeswitch:sendmsg(State#state.cnode, XferUUID,
-		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
+    freeswitch:api(State#state.cnode, uuid_bridge, XferUUID ++ " " ++ Callrec#call.id),
 	case State#state.record_path of
 		undefined ->
 			ok;
@@ -356,25 +355,16 @@ handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
-	AgentRec = agent:dump_state(AgentPid), % TODO - avoid this
-	?INFO("transfer_agent to ~p for call ~p", [AgentRec#agent.login, Call#call.id]),
-	% fun that returns another fun when passed the UUID of the new channel
-	% (what fun!)
-	F = fun(_UUID) ->
-		fun(ok, _Reply) ->
-			% agent picked up?
-				?INFO("Agent transfer picked up? ~p", [Call#call.id]);
-		(error, Reply) ->
-			?WARNING("originate failed for ~p with  ~p", [Call#call.id, Reply])
-		end
-	end,
-	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge, {dial_vars, State#state.dial_vars}]) of
-		{ok, Pid} ->
-			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{statename = oncall_ringing, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
-		{error, Error} ->
-			?ERROR("error:  ~p", [Error]),
-			{error, Error, State}
-	end.
+    #agent{endpointtype={RingPid, _, _}} = agent:dump_state(AgentPid),
+    case RingPid of 
+        undefined ->
+            %%% Transferee agent's ring leg is not created yet. Looping...
+            handle_agent_transfer(AgentPid, Timeout, Call, State);
+        _Else ->
+            {ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], 
+             State#state{statename = oncall_ringing, xferchannel = RingPid, 
+                         xferuuid = freeswitch_ring:get_uuid(RingPid)}}
+    end.
 
 -spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
 handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->

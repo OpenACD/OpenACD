@@ -783,6 +783,7 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_p
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = {OcAgent, Ocpid}, monitors = Mons, url_pop_getvars = GenPopopts} = State) when is_pid(Ocpid) ->
+	?INFO("Agent transfer to Agent ~p for Call ~p", [Agent, Call#call.id]),
 	case set_agent_state(Apid, [ringing, State#state.callrec]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of

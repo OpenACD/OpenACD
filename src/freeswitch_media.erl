@@ -359,7 +359,6 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
     case RingPid of 
         undefined ->
             %%% Transferee agent's ring leg is not created yet. Looping...
-            erlang:yield(),
             handle_agent_transfer(AgentPid, Timeout, Call, State);
         _Else ->
             {ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], 

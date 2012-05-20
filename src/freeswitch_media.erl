@@ -65,7 +65,15 @@
 	spy_whisper/2,
 	spy_whisper_caller/1,
 	spy_whisper_agent/1,
-	spy_barge/1
+	spy_barge/1,
+	toggle_hold/1,
+	contact_3rd_party/2,
+	retrieve_conference/1,
+	retrieve_3rd_party/1,
+	hangup_3rd_party/1,
+	merge_3rd_party/2,
+	merge_all/1,
+	merge_only_3rd_party/1
 	]).
 
 %% gen_media callbacks
@@ -196,7 +204,39 @@ spy_whisper_agent(MPid) ->
 -spec(spy_barge/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_barge(MPid) ->
 	spy_whisper(MPid, both).
-	
+
+-spec(toggle_hold/1 :: (MPid :: pid()) -> 'ok').
+toggle_hold(MPid) ->
+	gen_media:cast(MPid, toggle_hold).
+
+-spec(contact_3rd_party/2 :: (MPid :: pid(), Destination :: string()) -> 'ok').
+contact_3rd_party(MPid, Destination) ->
+	gen_media:cast(MPid, {contact_3rd_party, Destination}).
+
+-spec(retrieve_conference/1 :: (MPid :: pid()) -> 'ok').
+retrieve_conference(MPid) ->
+	gen_media:cast(MPid, retrieve_conference).
+
+-spec(retrieve_3rd_party/1 :: (MPid :: pid()) -> 'ok').
+retrieve_3rd_party(MPid) ->
+	gen_media:cast(MPid, retrieve_3rd_party).
+
+-spec(hangup_3rd_party/1 :: (MPid :: pid()) -> 'ok').
+hangup_3rd_party(MPid) ->
+	gen_media:cast(MPid, hangup_3rd_party).
+
+-spec(merge_3rd_party/2 :: (MPid :: pid(), IncludeSelf :: boolean()) -> 'ok').
+merge_3rd_party(MPid, IncludeSelf) ->
+	gen_media:cast(MPid, {merge_3rd_party, IncludeSelf}).
+
+-spec(merge_all/1 :: (MPid :: pid()) -> 'ok').
+merge_all(MPid) ->
+	merge_3rd_party(MPid, true).
+
+-spec(merge_only_3rd_party/1 :: (MPid :: pid()) -> 'ok').
+merge_only_3rd_party(MPid) ->
+	merge_3rd_party(MPid, false).
+
 %%====================================================================
 %% gen_media callbacks
 %%====================================================================
@@ -786,6 +826,17 @@ handle_cast({contact_3rd_party, _Targ} = Cast, Call, #state{statename = 'in_conf
 	?INFO("contact 3rd party, means place conference on hold first", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(Cast, Call, MidState);
+
+handle_cast(retrieve_3rd_party, Call, #state{statename = 'in_conference_3rdparty'} = State) ->
+	% put conference on hold and swap to 3rd party.
+	{noreply, State0} = handle_cast(toggle_hold, Call, State),
+	{noreply, State1} = handle_cast(toggle_hold, Call, State0),
+	handle_cast(retrieve_3rd_party, Call, State1);
+
+handle_cast(toggle_hold, Call, #state{statename = 'in_conference_3rdparty'} = State) ->
+	FakeState = State#state{statename = 'in_conference'},
+	{noreply, State0} = handle_cast(toggle_hold, Call, FakeState),
+	{noreply, State0#state{statename = 'hold_conference_3rdparty'}};
 
 % any state.
 handle_cast({audio_level, Target, Level}, Call, #state{statename = Statename} =

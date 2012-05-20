@@ -185,54 +185,85 @@ dump_state(Mpid) when is_pid(Mpid) ->
 	Self = self(),
 	gen_media:cast(Mpid, {'3rd_party_pickup', Self}).
 
+%% @doc When a supervisor has started a spy, this can be used instead of
+%% the dtmf on the softphone to whisper.  `agent' means only the agent
+%% will hear the supervisor.  `caller' does only the caller.  `both' and
+%% `none' do what is said on the tin.
 -spec(spy_whisper/2 :: (MPid :: pid(), Who :: 'agent' | 'caller' | 'both' | 'none') -> 'ok' | {'error', 'not_spy'}).
 spy_whisper(MPid, Who) ->
 	gen_media:call(MPid, {modify_spy, Who}).
 
+%% @doc same as spy_whisper(MPid, none).
 -spec(spy_observe_only/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_observe_only(MPid) ->
 	spy_whisper(MPid, none).
 
+%% @doc same as spy_whisper(MPid, caller).
 -spec(spy_whisper_caller/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_whisper_caller(MPid) ->
 	spy_whisper(MPid, caller).
 
+%% @doc same as spy_whisper(MPid, agent).
 -spec(spy_whisper_agent/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_whisper_agent(MPid) ->
 	spy_whisper(MPid, agent).
 
+%% @doc same as spy_whisper(MPid, both).
 -spec(spy_barge/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_barge(MPid) ->
 	spy_whisper(MPid, both).
 
+%% @doc Puts the current channel on hold.  The exact nature depends on the
+%% state the call was in.  If it's simply just the agent and caller, can
+%% be used to hold and retrieve the caller.  If a conference is in
+%% progress, can only be used to take the agent out of the conference
+%% temporarily, or put the 3rd party on hold.
+%%
+%% Conferencing can be used as an alternative to a warm transfer.  When
+%% the conference is started, the agent can hangup without completely
+%% killing the call.
 -spec(toggle_hold/1 :: (MPid :: pid()) -> 'ok').
 toggle_hold(MPid) ->
 	gen_media:cast(MPid, toggle_hold).
 
+%% @doc If the caller has been put on hold, this implicitly starts a
+%% conference.  Calls out to the 3rd party and switches the agent to that
+%% call.
 -spec(contact_3rd_party/2 :: (MPid :: pid(), Destination :: string()) -> 'ok').
 contact_3rd_party(MPid, Destination) ->
 	gen_media:cast(MPid, {contact_3rd_party, Destination}).
 
+%% @doc While a conference is active, if the agent is talking to a 3rd
+%% party or just sitting in limbo, this puts the agent in the conference.
 -spec(retrieve_conference/1 :: (MPid :: pid()) -> 'ok').
 retrieve_conference(MPid) ->
 	gen_media:cast(MPid, retrieve_conference).
 
+%% @doc While a conference is active, and a 3rd party is on hold, this
+%% bridges the 3rd party and agent together.  Agent can be in the
+%% conference or in limbo.
 -spec(retrieve_3rd_party/1 :: (MPid :: pid()) -> 'ok').
 retrieve_3rd_party(MPid) ->
 	gen_media:cast(MPid, retrieve_3rd_party).
 
+%% @doc Drops the 3rd party.  If the agent was talking to them, the agent
+%% is put in limbo.
 -spec(hangup_3rd_party/1 :: (MPid :: pid()) -> 'ok').
 hangup_3rd_party(MPid) ->
 	gen_media:cast(MPid, hangup_3rd_party).
 
+%% @doc Merges the 3rd party into an existing confernce.  The agent has
+%% the option not to join them.
 -spec(merge_3rd_party/2 :: (MPid :: pid(), IncludeSelf :: boolean()) -> 'ok').
 merge_3rd_party(MPid, IncludeSelf) ->
 	gen_media:cast(MPid, {merge_3rd_party, IncludeSelf}).
 
+%% @doc Same as merge_3rd_party(MPid, true).
 -spec(merge_all/1 :: (MPid :: pid()) -> 'ok').
 merge_all(MPid) ->
 	merge_3rd_party(MPid, true).
 
+%% @doc Same as merge_3rd_party(MPid, false).
 -spec(merge_only_3rd_party/1 :: (MPid :: pid()) -> 'ok').
 merge_only_3rd_party(MPid) ->
 	merge_3rd_party(MPid, false).

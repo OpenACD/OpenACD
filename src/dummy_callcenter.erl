@@ -369,7 +369,19 @@ handle_info(spawn_agent, #state{conf = Conf} = State) ->
 					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}};
 				OrElse ->
 					?NOTICE("Retrying a failed agent start ~p due to ~p", [Headname, OrElse]),
-					callcenter ! spawn_agent,
+					PollFun = fun(Looper) ->
+						case agent_manager:query_agent(Headname) of
+							false ->
+								callcenter ! spawn_agent;
+							{ok, _} ->
+								receive
+								after 500 ->
+									Looper()
+								end
+						end
+					end,
+					DoPoll = fun() -> PollFun(PollFun) end,
+					proc_lib:spawn(DoPoll),
 					{noreply, State}
 			end;
 		{_X, _Y} ->

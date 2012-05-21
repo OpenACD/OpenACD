@@ -296,7 +296,10 @@ get_time({Min, Max}) ->
 get_time(T) ->
 	T.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+	% murder out agent.
+	#state{agent_fsm = Apid} = State,
+	exit(Apid, kill),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

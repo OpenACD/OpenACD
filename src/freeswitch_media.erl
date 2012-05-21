@@ -366,6 +366,7 @@ handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Call
 		inqueue -> inqueue_ringing;
 		oncall -> oncall_ringing
 	end,
+	link(RPid),
 	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NewStatename, agent_pid = Apid, ringchannel = RPid}}.
 	%	{error, Error} ->
 	%		?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
@@ -1058,7 +1059,11 @@ handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = Stat
 	{noreply, State};
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
-	{stop_ring, State#state{ringchannel = undefined}};
+	NextState = case State#state.statename of
+		inqueue_ringing -> inqueue;
+		oncall_ringing -> oncall
+	end,
+	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),

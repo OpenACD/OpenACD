@@ -169,7 +169,7 @@ init([Args]) ->
 		undefined ->
 			undefined;
 		Number ->
-			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
+			{ok, Timer} = timer:send_after(get_time(Number) * 1000, <<"hagurk">>),
 			Timer
 	end,
 	Release_data = case proplists:get_value(release_frequency, Args) of

@@ -1057,7 +1057,7 @@ handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = Stat
 	?DEBUG("Got warm transfer success notification from ring channel for ~p", [Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchannel = Pid} = State) when Statename =:= inqueue_ringing; Statename =:= oncall_ringing ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	NextState = case State#state.statename of
 		inqueue_ringing -> inqueue;

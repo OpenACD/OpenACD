@@ -221,6 +221,7 @@ set_option(Option, Value) ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
+	?INFO("Starting with options:  ~p", [Options]),
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Protoconf = #conf{
@@ -369,7 +370,7 @@ handle_info(spawn_agent, #state{conf = Conf} = State) ->
 					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}};
 				OrElse ->
 					?NOTICE("Retrying a failed agent start ~p due to ~p", [Headname, OrElse]),
-					callcenter ! spawn_agent,
+					erlang:send_after(500, callcenter, spawn_agent),
 					{noreply, State}
 			end;
 		{_X, _Y} ->

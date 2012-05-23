@@ -962,13 +962,15 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agen
 	Newagent = Agent#agent{statedata=Reason, oldstate=released, lastchange = util:now()},
 	log_change(Newagent),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
-released({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
-	% TODO Wow is this ever enemic.
-	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
-	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
-	set_cpx_monitor(Newagent, []),
-	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-released({spy, Target}, _From, #state{agent_rec = Agent} = State) ->
+
+released({ringing, Call}, From, #state{agent_rec = Agent} = State) ->
+	idle({ringing, Call}, From, State);
+%	% TODO Wow is this ever enemic.
+%	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+%	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
+%	set_cpx_monitor(Newagent, []),
+%	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = Agent} = State) ->
 	case self() of
 		Target ->
 			?INFO("Cannot spy on yourself", []),

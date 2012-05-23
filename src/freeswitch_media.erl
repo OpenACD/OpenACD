@@ -294,7 +294,8 @@ handle_announce(Announcement, Callrec, State) ->
 handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
-    freeswitch:api(State#state.cnode, uuid_bridge, XferUUID ++ " " ++ Callrec#call.id),
+	Result = freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ XferUUID),
+	?DEBUG("result of bridge:  ~p", [Result]),
 	case State#state.record_path of
 		undefined ->
 			ok;
@@ -303,7 +304,8 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
-	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
+	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel, statename = oncall,
+		ringuuid = XferUUID,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
 
 handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
@@ -329,7 +331,7 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 			{ok, State#state{statename = oncall, agent_pid = Apid, ringuuid = UUID, record_path = RecPath, queued = false}};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
-			{invalid, State}
+			{error, Error, State}
 	end.
 
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
@@ -365,6 +367,7 @@ handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Call
 		inqueue -> inqueue_ringing;
 		oncall -> oncall_ringing
 	end,
+	link(RPid),
 	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NewStatename, agent_pid = Apid, ringchannel = RPid}}.
 	%	{error, Error} ->
 	%		?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
@@ -424,17 +427,29 @@ handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = 
 	{ok, State#state{spy_channel = {Agent, ConnPid, JobId}}};
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
- 
-handle_agent_transfer(AgentPid, Timeout, Call, State) ->
-    #agent{endpointtype={RingPid, _, _}} = agent:dump_state(AgentPid),
-    case RingPid of 
-        undefined ->
-            {error, "Cannot get agent's ringleg pid", State};
-        _Else -> 
-            {ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], 
-             State#state{statename = oncall_ringing, xferchannel = RingPid, 
-                         xferuuid = freeswitch_ring:get_uuid(RingPid)}}
-    end.
+
+
+handle_agent_transfer(AgentPid, Timeout, Call, State) when is_pid(AgentPid) ->
+	AgentRec = agent:dump_state(AgentPid), % TODO - avoid this
+	handle_agent_transfer({AgentPid, AgentRec}, Timeout, Call, State);
+
+handle_agent_transfer({AgentPid, #agent{endpointtype = {undefined, persistent, _}} = AgentRec}, Timeout, Call, State) ->
+	?WARNING("Agent ~p does not have it's persistent channel up yet", [AgentRec#agent.login]),
+	{error, {bad_endpoint, AgentRec}, State};
+
+handle_agent_transfer({AgentPid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType}} = Agent}, Timeout, Call, State) ->
+	?INFO("Persistent ring channel, assuming success", []),
+	{ok, [{"ivropts", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{statename = oncall_ringing, xferchannel = EndpointPid, xferuuid = freeswitch_ring:get_uuid(EndpointPid)}};
+
+handle_agent_transfer({AgentPid, #agent{endpointtype = {undefined, transient, _}} = AgentRec}, Timeout, Call, State) ->
+	?WARNING("Couldn't do agent transfer as the agent doesn't seem ready to ring", []),
+	{error, {bad_endpoint, AgentRec}, State};
+
+handle_agent_transfer({AgentPid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Timeout, Call, State) ->
+	?INFO("using exising transient ring channel", []),
+	link(RPid),
+	XferUUID = freeswitch_ring:get_uuid(RPid),
+	{ok, [{"itxt", State#state.ivroption}], State#state{statename = oncall_ringing, xferchannel = RPid, xferuuid = XferUUID}}.
 
 -spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
 handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
@@ -1045,9 +1060,13 @@ handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = Stat
 	?DEBUG("Got warm transfer success notification from ring channel for ~p", [Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchannel = Pid} = State) when Statename =:= inqueue_ringing; Statename =:= oncall_ringing ->
 	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
-	{stop_ring, State#state{ringchannel = undefined}};
+	NextState = case State#state.statename of
+		inqueue_ringing -> inqueue;
+		oncall_ringing -> oncall
+	end,
+	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),

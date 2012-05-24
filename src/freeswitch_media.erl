@@ -66,6 +66,7 @@
 	spy_whisper_caller/1,
 	spy_whisper_agent/1,
 	spy_barge/1,
+	spy_single_step/3,
 	toggle_hold/1,
 	contact_3rd_party/2,
 	retrieve_conference/1,
@@ -212,6 +213,15 @@ spy_whisper_agent(MPid) ->
 -spec(spy_barge/1 :: (MPid :: pid()) -> 'ok' | {'error', 'not_spy'}).
 spy_barge(MPid) ->
 	spy_whisper(MPid, both).
+
+%% @doc Skips past gen_media:spy/3 to do an eavesdrop on it's own.  The
+%% other spy functions will still work to modify the spy.  This allows the
+%% spy to start in whisper_caller, whisper_agent, observe_only, or
+%% barge rather then the default observe_only.  This is set by the `Who'
+%% option
+-spec(spy_single_step/3 :: (MPid :: pid(), SpyerInfo :: #agent{}, Who :: 'both' | 'none' | 'caller' | 'agent') -> 'ok').
+spy_single_step(MPid, SpyerInfo, Who) ->
+	gen_media:call(MPid, {spy, SpyerInfo, Who}, 10000).
 
 %% @doc Puts the current channel on hold.  The exact nature depends on the
 %% state the call was in.  If it's simply just the agent and caller, can
@@ -702,6 +712,18 @@ handle_call({modify_spy, Who}, {From, _Tag}, _Call, #state{spy_channel = {From, 
 handle_call({modify_spy, _Who}, _From, _Call, State) ->
 	{reply, {error, not_spy}, State};
 
+handle_call({spy, SpyerInfo, Who}, From, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
+	Dialstring = freeswitch_media_manager:get_agent_dial_string(SpyerInfo, []),
+	DTMF = case Who of
+		agent -> "1";
+		caller -> "2";
+		both -> "3";
+		none -> "4"
+	end,
+	{ok, JobId} = freeswitch:bgapi(Fnode, originate, Dialstring ++ " 'queue_dtmf:w" ++ DTMF ++ "@500,eavesdrop:" ++ Call#call.id ++ "' inline"),
+	#agent{connection = ConnPid} = SpyerInfo,
+	{noreply, State#state{spy_channel = {ConnPid, SpyerInfo, {From, JobId}}}};
+
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.
@@ -1099,6 +1121,19 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
 
+handle_info({bgok, JobId, Data} = Msg, Call, #state{spy_channel = {Apid, Spyerinfo, {From, JobId}}} = State) ->
+	State0 = State#state{spy_channel = {Apid, Spyerinfo, JobId}},
+	case Data of
+		"+OK " ++ UUIDandNL ->
+			{_, State1} = handle_info(Msg, Call, State0),
+			gen_server:reply(From, ok),
+			{noreply, State1};
+		Error ->
+			{_, State1} = handle_info(Msg, Call, State0),
+			gen_server:reply(From, {error, Error}),
+			{noreply, State1}
+	end;
+	
 handle_info({bgok, JobId, Data}, _Call, #state{spy_channel = {Apid, ConnPid, JobId}} = State) ->
 	case Data of
 		"+OK " ++ UUIDandNL ->

@@ -221,7 +221,7 @@ spy_barge(MPid) ->
 %% option
 -spec(spy_single_step/3 :: (MPid :: pid(), SpyerInfo :: #agent{}, Who :: 'both' | 'none' | 'caller' | 'agent') -> 'ok').
 spy_single_step(MPid, SpyerInfo, Who) ->
-	gen_media:call(MPid, {spy, SpyerInfo, Who}, 10000).
+	gen_media:call(MPid, {spy, SpyerInfo, Who}, infinity).
 
 %% @doc Puts the current channel on hold.  The exact nature depends on the
 %% state the call was in.  If it's simply just the agent and caller, can

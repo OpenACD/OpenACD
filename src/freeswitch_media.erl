@@ -74,7 +74,8 @@
 	hangup_3rd_party/1,
 	merge_3rd_party/2,
 	merge_all/1,
-	merge_only_3rd_party/1
+	merge_only_3rd_party/1,
+	end_conference/1
 	]).
 
 %% gen_media callbacks
@@ -277,6 +278,13 @@ merge_all(MPid) ->
 -spec(merge_only_3rd_party/1 :: (MPid :: pid()) -> 'ok').
 merge_only_3rd_party(MPid) ->
 	merge_3rd_party(MPid, false).
+
+%% @doc Removes all members from a conference (if they are in one), 
+%% hanging up the channels.  This is uncerimonious and a bit brutal, but
+%% sometimes needed.
+-spec(end_conference/1 :: (MPid :: pid()) -> 'ok' | {'error', any()}).
+end_conference(MPid) ->
+	gen_media:call(MPid, end_conference).
 
 %%====================================================================
 %% gen_media callbacks
@@ -724,6 +732,19 @@ handle_call({spy, SpyerInfo, Who}, From, Call, #state{cnode = Fnode, ringchannel
 	#agent{connection = ConnPid} = SpyerInfo,
 	{noreply, State#state{spy_channel = {ConnPid, SpyerInfo, {From, JobId}}}};
 
+handle_call(end_conference, _From, _Call, #state{conference_id = undefined} = State) ->
+	{reply, {error, no_conference}, State};
+
+handle_call(end_conference, _From, _Call, #state{conference_id = {ending, _JobId, _From, _ConfId}} = State) ->
+	{reply, {error, ending}, State};
+
+handle_call(end_conference, From, _Call, State) ->
+	#state{conference_id = ConfId, cnode = Fnode} = State,
+	{ok, JobId} = freeswitch:bgapi(Fnode, conference, ConfId ++ " hup all"),
+	NewConf = {ending, JobId, From, ConfId},
+	State0 = State#state{conference_id = NewConf},
+	{noreply, State0};
+
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.
@@ -1091,9 +1112,9 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 	end,
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
-handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, State) ->
+handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, #state{ringchannel = Pid} = State) ->
 	?INFO("ring channel exit while in ~p state", [State#state.statename]),
-	{wrapup, State};
+	{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}};
 
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
@@ -1124,6 +1145,11 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
+
+handle_info({bgok, JobId, Data} = Msg, _Call, #state{conference_id = {ending, JobId, From, ConfId}} = State) ->
+	?INFO("Confirmation ~p of killing conference ~p", [Data, ConfId]),
+	gen_server:reply(From, ok),
+	{noreply, State#state{conference_id = undefined}};
 
 handle_info({bgok, JobId, Data} = Msg, Call, #state{spy_channel = {Apid, Spyerinfo, {From, JobId}}} = State) ->
 	State0 = State#state{spy_channel = {Apid, Spyerinfo, JobId}},

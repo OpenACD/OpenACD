@@ -1091,6 +1091,10 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 	end,
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
+handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, State) ->
+	?INFO("ring channel exit while in ~p state", [State#state.statename]),
+	{wrapup, State};
+
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
 	{stop, noconnection, State};

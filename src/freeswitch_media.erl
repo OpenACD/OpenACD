@@ -66,6 +66,7 @@
 	spy_whisper_caller/1,
 	spy_whisper_agent/1,
 	spy_barge/1,
+	spy_single_step/3,
 	toggle_hold/1,
 	contact_3rd_party/2,
 	retrieve_conference/1,
@@ -73,7 +74,8 @@
 	hangup_3rd_party/1,
 	merge_3rd_party/2,
 	merge_all/1,
-	merge_only_3rd_party/1
+	merge_only_3rd_party/1,
+	end_conference/1
 	]).
 
 %% gen_media callbacks
@@ -213,6 +215,15 @@ spy_whisper_agent(MPid) ->
 spy_barge(MPid) ->
 	spy_whisper(MPid, both).
 
+%% @doc Skips past gen_media:spy/3 to do an eavesdrop on it's own.  The
+%% other spy functions will still work to modify the spy.  This allows the
+%% spy to start in whisper_caller, whisper_agent, observe_only, or
+%% barge rather then the default observe_only.  This is set by the `Who'
+%% option
+-spec(spy_single_step/3 :: (MPid :: pid(), SpyerInfo :: #agent{}, Who :: 'both' | 'none' | 'caller' | 'agent') -> 'ok').
+spy_single_step(MPid, SpyerInfo, Who) ->
+	gen_media:call(MPid, {spy, SpyerInfo, Who}, infinity).
+
 %% @doc Puts the current channel on hold.  The exact nature depends on the
 %% state the call was in.  If it's simply just the agent and caller, can
 %% be used to hold and retrieve the caller.  If a conference is in
@@ -267,6 +278,13 @@ merge_all(MPid) ->
 -spec(merge_only_3rd_party/1 :: (MPid :: pid()) -> 'ok').
 merge_only_3rd_party(MPid) ->
 	merge_3rd_party(MPid, false).
+
+%% @doc Removes all members from a conference (if they are in one), 
+%% hanging up the channels.  This is uncerimonious and a bit brutal, but
+%% sometimes needed.
+-spec(end_conference/1 :: (MPid :: pid()) -> 'ok' | {'error', any()}).
+end_conference(MPid) ->
+	gen_media:call(MPid, end_conference).
 
 %%====================================================================
 %% gen_media callbacks
@@ -701,6 +719,31 @@ handle_call({modify_spy, Who}, {From, _Tag}, _Call, #state{spy_channel = {From, 
 handle_call({modify_spy, _Who}, _From, _Call, State) ->
 	{reply, {error, not_spy}, State};
 
+handle_call({spy, SpyerInfo, Who}, From, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
+	Dialstring = freeswitch_media_manager:get_agent_dial_string(SpyerInfo, []),
+	DTMF = case Who of
+		agent -> "1";
+		caller -> "2";
+		both -> "3";
+		none -> "4"
+	end,
+	{ok, JobId} = freeswitch:bgapi(Fnode, originate, Dialstring ++ " 'queue_dtmf:w" ++ DTMF ++ "@500,eavesdrop:" ++ Call#call.id ++ "' inline"),
+	#agent{connection = ConnPid} = SpyerInfo,
+	{noreply, State#state{spy_channel = {ConnPid, SpyerInfo, {From, JobId}}}};
+
+handle_call(end_conference, _From, _Call, #state{conference_id = undefined} = State) ->
+	{reply, {error, no_conference}, State};
+
+handle_call(end_conference, _From, _Call, #state{conference_id = {ending, _JobId, _From, _ConfId}} = State) ->
+	{reply, {error, ending}, State};
+
+handle_call(end_conference, From, _Call, State) ->
+	#state{conference_id = ConfId, cnode = Fnode} = State,
+	{ok, JobId} = freeswitch:bgapi(Fnode, conference, ConfId ++ " hup all"),
+	NewConf = {ending, JobId, From, ConfId},
+	State0 = State#state{conference_id = NewConf},
+	{noreply, State0};
+
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.
@@ -1068,6 +1111,10 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 	end,
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
+handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, #state{ringchannel = Pid} = State) ->
+	?INFO("ring channel exit while in ~p state", [State#state.statename]),
+	{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}};
+
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
 	{stop, noconnection, State};
@@ -1098,6 +1145,24 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
 
+handle_info({bgok, JobId, Data} = Msg, _Call, #state{conference_id = {ending, JobId, From, ConfId}} = State) ->
+	?INFO("Confirmation ~p of killing conference ~p", [Data, ConfId]),
+	gen_server:reply(From, ok),
+	{noreply, State#state{conference_id = undefined}};
+
+handle_info({bgok, JobId, Data} = Msg, Call, #state{spy_channel = {Apid, Spyerinfo, {From, JobId}}} = State) ->
+	State0 = State#state{spy_channel = {Apid, Spyerinfo, JobId}},
+	case Data of
+		"+OK " ++ UUIDandNL ->
+			{_, State1} = handle_info(Msg, Call, State0),
+			gen_server:reply(From, ok),
+			{noreply, State1};
+		Error ->
+			{_, State1} = handle_info(Msg, Call, State0),
+			gen_server:reply(From, {error, Error}),
+			{noreply, State1}
+	end;
+	
 handle_info({bgok, JobId, Data}, _Call, #state{spy_channel = {Apid, ConnPid, JobId}} = State) ->
 	case Data of
 		"+OK " ++ UUIDandNL ->

@@ -446,7 +446,6 @@ handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = 
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
-	
 
 handle_agent_transfer(AgentPid, Timeout, Call, State) when is_pid(AgentPid) ->
 	AgentRec = agent:dump_state(AgentPid), % TODO - avoid this

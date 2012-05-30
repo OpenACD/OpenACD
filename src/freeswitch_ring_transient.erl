@@ -112,6 +112,11 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 	%% so the needs to be spawned out.
 	Self = self(),
 	Fun = fun() ->
+		% there was an issue where going oncall (bridging) too quickly after
+		% the answer during an agent transfer would cause sofia (freeswitch) to
+		% error (RTP reinvite error).  Various solutions were tried, including
+		% triggering this after park.  However, this was the most consistent
+		% in resolving the issue.
 		case freeswitch_media:statename(Call#call.source) of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;

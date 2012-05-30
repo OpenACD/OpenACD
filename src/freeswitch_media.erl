@@ -60,6 +60,7 @@
 	%unqueue/1,
 	%set_agent/3,
 	dump_state/1,
+	statename/1,
 	'3rd_party_pickup'/1,
 	spy_observe_only/1,
 	spy_whisper/2,
@@ -182,6 +183,11 @@ get_call(MPid) ->
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
 	gen_media:call(Mpid, dump_state).
+
+-spec(statename/1 :: (Mpid :: pid()) -> atom()).
+statename(Mpid) when is_pid(Mpid) ->
+	State = dump_state(Mpid),
+	State#state.statename.
 
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),

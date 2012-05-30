@@ -112,6 +112,12 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 	%% so the needs to be spawned out.
 	Self = self(),
 	Fun = fun() ->
+		case freeswitch_media:statename(Call#call.source) of
+			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
+				ok;
+			_ ->
+				timer:sleep(2000)
+		end,
 		try gen_media:oncall(Call#call.source) of
 			invalid ->
 				freeswitch:api(FSNode, uuid_park, Call#call.id),

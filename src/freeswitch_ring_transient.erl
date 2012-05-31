@@ -38,6 +38,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+% freeswitch_ring callbacks
 -export([
 	init/2,
 	handle_event/4,
@@ -48,17 +49,24 @@
 	code_change/3
 ]).
 
+% "public" api.
+-export([
+	complete_agent_transfer/1
+]).
+
 -record(state, {
 	call :: 'undefined' | #call{},
 	no_oncall_on_bridge :: 'undefined' | 'true',
-	hold :: 'hold' | 'undefined'
+	hold :: 'hold' | 'undefined',
+	oncaller :: 'undefined' | pid()
 }).
 
 %% ======
 %% API
 %% ======
 
-%  Yes it's blank for now.
+complete_agent_transfer(Pid) ->
+	gen_server:cast(Pid, complete_agent_transfer).
 
 %% =====
 %% freeswitch_ring callbacks
@@ -82,6 +90,10 @@ handle_call(_Msg, _From, _FsRef, State) ->
 %% =====
 %% handle_cast
 %% =====
+handle_cast(complete_agent_transfer, _FsRef, #state{oncaller = Pid} = State) when is_pid(Pid) ->
+	Pid ! continue,
+	{noreply, State};
+
 handle_cast({agent_state, oncall, #call{type = IsVoice}}, _FsRef, State) when IsVoice =:= voice; IsVoice =:= voicemail ->
 	% bridging will happen, and all will be happy.
 	{noreply, State};
@@ -117,11 +129,21 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 		% error (RTP reinvite error).  Various solutions were tried, including
 		% triggering this after park.  However, this was the most consistent
 		% in resolving the issue.
-		case freeswitch_media:statename(Call#call.source) of
+		Statename = freeswitch_media:statename(Call#call.source),
+		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;
+			NotHold when NotHold =:= oncall; NotHold =:= oncall_ringing ->
+				timer:sleep(2000);
 			_ ->
-				timer:sleep(2000)
+				SelfMon = erlang:monitor(process, Self),
+				receive
+					continue -> ok;
+					{'DOWN', SelfMon, process, Self, Down} ->
+						?DEBUG("Exiting with my parent", []),
+						exit(Down);
+					cancel -> exit(normal)
+				end
 		end,
 		try gen_media:oncall(Call#call.source) of
 			invalid ->
@@ -138,8 +160,8 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 				Self ! {stop, normal}
 		end
 	end,
-	spawn(Fun),
-	{noreply, State};
+	Pid = proc_lib:spawn(Fun),
+	{noreply, State#state{oncaller = Pid}};
 handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = State) ->
 	% Ah, this is not a freeswitch call.  If the oncall works, I can die.
 	try gen_media:oncall(Call#call.source) of

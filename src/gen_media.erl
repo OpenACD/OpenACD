@@ -795,7 +795,12 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state
 							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
 					end,
 					% TODO - this is a little ambigious - the pattern match for stop_ring doesn't check for dummy or anything
-					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
+					{ok, Tref} = case Call#call.ring_path of
+						inband ->
+							timer:send_after(Timeout, {'$gen_media_stop_ring', dummy});
+						outband ->
+							{ok, undefined}
+					end,
 					cdr:agent_transfer(State#state.callrec, {OcAgent, Agent}),
 					cdr:ringing(State#state.callrec, Agent),
 					url_pop(Call, Apid, Popopts),

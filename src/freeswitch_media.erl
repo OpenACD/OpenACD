@@ -76,7 +76,8 @@
 	merge_3rd_party/2,
 	merge_all/1,
 	merge_only_3rd_party/1,
-	end_conference/1
+	end_conference/1,
+	complete_agent_transfer/1
 	]).
 
 %% gen_media callbacks
@@ -110,6 +111,7 @@
 	'oncall' | % oncall with an agent.
 	'oncall_ringing' | % starting an agent transfer
 	'oncall_hold' | % simple hold
+	'oncall_hold_ringing' | % doing an agent transfer while caller on hold
 	'hold_conference' | % has a conference, but agent (self) not a member
 	'hold_conference_3rdparty' | % a conference is up, as is a call to a
 		% 3rd party, but agent is member of neither
@@ -121,9 +123,9 @@
 	'blind_transfered'
 ).
 
--define(cdr_states, ['oncall', 'oncall_hold', 'hold_conference',
-	'hold_conference_3rdparty', 'in_conference_3rdparty', '3rd_party',
-	'in_conference', 'wrapup_conference', 'blind_transfered']).
+-define(cdr_states, ['oncall', 'oncall_hold', 'oncall_hold_ringing',
+	'hold_conference', 'hold_conference_3rdparty', 'in_conference_3rdparty', 
+	'3rd_party', 'in_conference', 'wrapup_conference', 'blind_transfered']).
 
 -record(state, {
 	statename :: internal_statename(),
@@ -291,6 +293,12 @@ merge_only_3rd_party(MPid) ->
 -spec(end_conference/1 :: (MPid :: pid()) -> 'ok' | {'error', any()}).
 end_conference(MPid) ->
 	gen_media:call(MPid, end_conference).
+
+%% @doc If an agent_transfer occurs while the caller is on hold, this
+%% needs to be used to complete it.
+-spec(complete_agent_transfer/1 :: (Mpid :: pid()) -> 'ok').
+complete_agent_transfer(Mpid) ->
+	gen_media:cast(Mpid, complete_agent_transfer).
 
 %%====================================================================
 %% gen_media callbacks
@@ -473,7 +481,12 @@ handle_agent_transfer({AgentPid, #agent{endpointtype = {RPid, transient, _}} = A
 	?INFO("using exising transient ring channel", []),
 	link(RPid),
 	XferUUID = freeswitch_ring:get_uuid(RPid),
-	{ok, [{"itxt", State#state.ivroption}], State#state{statename = oncall_ringing, xferchannel = RPid, xferuuid = XferUUID}}.
+	NextStatename = case State#state.statename of
+		oncall -> oncall_ringing;
+		oncall_hold -> oncall_hold_ringing;
+		oncall_hold_ringing -> oncall_hold_ringing
+	end,
+	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NextStatename, xferchannel = RPid, xferuuid = XferUUID}}.
 
 -spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
 handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
@@ -662,7 +675,7 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 
-handle_wrapup(#call{ring_path = inband, media_path = inband} = Call, State) ->
+handle_wrapup(#call{media_path = inband} = Call, State) ->
 	% TODO This could prolly stand to be a bit more elegant.
 	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
 	{hangup, State};
@@ -777,7 +790,11 @@ handle_cast(toggle_hold, Call, #state{statename = Statename} = State)
 		_ ->
 			?ERROR("5 ~p", [fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)])
 	end,
-	{noreply, State#state{statename = oncall_hold}};
+	Statename0 = case Statename of
+		oncall -> oncall_hold;
+		oncall_ringing -> oncall_hold_ringing
+	end,
+	{noreply, State#state{statename = Statename0}};
 
 %% oncall hold -> next_state
 handle_cast(toggle_hold, Call, #state{statename = oncall_hold} = State) ->
@@ -787,6 +804,10 @@ handle_cast(toggle_hold, Call, #state{statename = oncall_hold} = State) ->
 	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	{noreply, State#state{statename = oncall}};
+
+handle_cast(toggle_hold, _Call, #state{statename = oncall_hold_ringing} = State) ->
+	?DEBUG("Cannot back out of oncall_hold_ringing until ringing ends", []),
+	{noreply, State};
 
 handle_cast({contact_3rd_party, _Args} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
@@ -803,6 +824,12 @@ handle_cast({contact_3rd_party, _Args} = Cast, Call, #state{statename = oncall_h
 			?ERROR("Could not create conference:  ~p", [Else]),
 			{noreply, State}
 	end;
+
+handle_cast(complete_agent_transfer, Call, #state{statename = oncall_hold_ringing} = State) ->
+	#state{xferchannel = Rpid} = State,
+	% TODO This will fail hilariously horribly for non-transient pids.
+	gen_server:cast(Rpid, complete_agent_transfer),
+	{noreply, State};
 
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
@@ -966,6 +993,9 @@ handle_cast({play_dtmf, Digits}, Call, #state{statename = oncall} = State) ->
 %% web api's
 handle_cast({<<"toggle_hold">>, _}, Call, State) ->
 	handle_cast(toggle_hold, Call, State);
+
+handle_cast({<<"complete_agent_transfer">>, _}, Call, State) ->
+	handle_cast(complete_agent_transfer, Call, State);
 
 handle_cast({<<"retrieve_3rd_party">>, _}, Call, State) ->
 	handle_cast(retrieve_3rd_party, Call, State);
@@ -1328,7 +1358,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{statename = hold_
 	{{mediapush, State#state.statename}, State};
 
 case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
-		statename = oncall_hold, uuid = UUID} = State) ->
+		statename = HoldState, uuid = UUID} = State) when HoldState =:= oncall_hold; HoldState =:= oncall_hold_ringing ->
 	Moh = case proplists:get_value("variable_queue_moh", Rawcall, "moh") of
 		"silence" ->
 			none;
@@ -1347,7 +1377,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-name", "playback"},
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
-	cdr:media_custom(Callrec, 'oncall_hold', ?cdr_states, []),
+	cdr:media_custom(Callrec, HoldState, ?cdr_states, []),
 	{{mediapush, caller_hold}, State};
 
 case_event_name("CHANNEL_DESTROY", UUID, Rawcall, Callrec, #state{

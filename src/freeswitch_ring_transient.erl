@@ -132,7 +132,14 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 		Statedata = freeswitch_media:statedata(Call#call.source),
 		Statename = proplists:get_value(statename, Statedata),
 		%Statename = freeswitch_media:statename(Call#call.source),
-		OncallUUID = proplists:get_value(ringuuid, Statedata),
+		OncallUUID = case proplists:get_value(ringuuid, Statedata) of
+			undefined ->
+				OcRingPid = proplists:get_value(ringchannel, Statedata),
+				freeswitch_ring:get_uuid(OcRingPid);
+			OncallUUIDElse ->
+				OncallUUIDElse
+		end,
+		?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;

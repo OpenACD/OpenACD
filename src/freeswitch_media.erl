@@ -196,7 +196,7 @@ statename(Mpid) when is_pid(Mpid) ->
 statedata(Mpid) when is_pid(Mpid) ->
 	State = dump_state(Mpid),
 	Fields = record_info(fields, state),
-	[{lists:nth(N, Fields), element(N + 1, State)} || N <- lists:seq(2, length(Fields))].
+	[{lists:nth(N, Fields), element(N + 1, State)} || N <- lists:seq(1, length(Fields))].
 
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),

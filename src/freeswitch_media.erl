@@ -61,6 +61,7 @@
 	%set_agent/3,
 	dump_state/1,
 	statename/1,
+	statedata/1,
 	'3rd_party_pickup'/1,
 	spy_observe_only/1,
 	spy_whisper/2,
@@ -190,6 +191,12 @@ dump_state(Mpid) when is_pid(Mpid) ->
 statename(Mpid) when is_pid(Mpid) ->
 	State = dump_state(Mpid),
 	State#state.statename.
+
+-spec(statedata/1 :: (Mpid :: pid()) -> #state{}).
+statedata(Mpid) when is_pid(Mpid) ->
+	State = dump_state(Mpid),
+	Fields = record_info(fields, state),
+	[{lists:nth(N, Fields), element(N + 1, State)} || N <- lists:seq(2, length(Fields))].
 
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),

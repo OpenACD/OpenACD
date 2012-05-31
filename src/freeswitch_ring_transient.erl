@@ -119,7 +119,7 @@ handle_info(_Msg, _FsRef, State) ->
 %% =====
 handle_event("CHANNEL_ANSWER", _Data, _FsRef, #state{call = undefined} = State) ->
 	{noreply, State};
-handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type = IsVoice} = Call} = State) when IsVoice =:= voice; IsVoice =:= voicemail ->
+handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type = IsVoice} = Call} = State) when IsVoice =:= voice; IsVoice =:= voicemail ->
 	%% the freeswitch media will ask self() for some info,
 	%% so the needs to be spawned out.
 	Self = self(),
@@ -129,13 +129,18 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, _UUID}, #state{call = #call{type 
 		% error (RTP reinvite error).  Various solutions were tried, including
 		% triggering this after park.  However, this was the most consistent
 		% in resolving the issue.
-		Statename = freeswitch_media:statename(Call#call.source),
+		Statedata = freeswitch_media:statedata(Call#call.source),
+		Statename = proplists:get_value(statename, Statedata),
+		%Statename = freeswitch_media:statename(Call#call.source),
+		OncallUUID = proplists:get_value(ringuuid, Statedata),
 		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;
 			NotHold when NotHold =:= oncall; NotHold =:= oncall_ringing ->
 				timer:sleep(2000);
 			_ ->
+				BridgeRes = freeswitch:api(FSNode, uuid_bridge, OncallUUID ++ " " ++ UUID),
+				?INFO("agent warm transfer bridge res:  ~p", [BridgeRes]),
 				SelfMon = erlang:monitor(process, Self),
 				receive
 					continue -> ok;

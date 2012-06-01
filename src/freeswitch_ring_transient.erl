@@ -91,7 +91,19 @@ handle_call(_Msg, _From, _FsRef, State) ->
 %% handle_cast
 %% =====
 handle_cast(complete_agent_transfer, _FsRef, #state{oncaller = Pid} = State) when is_pid(Pid) ->
+	?DEBUG("Agent transfer complete signal.  I obey", []),
 	Pid ! continue,
+	{noreply, State#state{oncaller = undefined}};
+
+handle_cast(cancel_agent_trasnfer, _FsRef, #state{oncaller = Pid} = State) when is_pid(Pid) ->
+	{stop, normal, State};
+
+handle_cast(no_oncall_once, _FsRef, #state{no_oncall_on_bridge = undefined} = State) ->
+	?INFO("temporarily skipping oncall on next bridge", []),
+	{noreply, State#state{no_oncall_on_bridge = once}};
+
+handle_cast(no_oncall_once, _FsRef, State) ->
+	?INFO("nope, don't want to.  ~p", [State#state.no_oncall_on_bridge]),
 	{noreply, State};
 
 handle_cast({agent_state, oncall, #call{type = IsVoice}}, _FsRef, State) when IsVoice =:= voice; IsVoice =:= voicemail ->
@@ -123,37 +135,40 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 	%% the freeswitch media will ask self() for some info,
 	%% so the needs to be spawned out.
 	Self = self(),
-	Statedata = freeswitch_media:statedata(Call#call.source),
-	Statename = proplists:get_value(statename, Statedata),
-	OncallUUID = case proplists:get_value(ringuuid, Statedata) of
-		undefined ->
-			OcRingPid = proplists:get_value(ringchannel, Statedata),
-			freeswitch_ring:get_uuid(OcRingPid);
-		OncallUUIDElse ->
-			OncallUUIDElse
-	end,
-	?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 	Fun = fun() ->
 		% there was an issue where going oncall (bridging) too quickly after
 		% the answer during an agent transfer would cause sofia (freeswitch) to
 		% error (RTP reinvite error).  Various solutions were tried, including
 		% triggering this after park.  However, this was the most consistent
 		% in resolving the issue.
+		Statedata = freeswitch_media:statedata(Call#call.source),
+		Statename = proplists:get_value(statename, Statedata),
+		OtherRingPid = proplists:get_value(ringchannel, Statedata),
+		OncallUUID = freeswitch_ring:get_uuid(OtherRingPid),
+		?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;
 			NotHold when NotHold =:= oncall; NotHold =:= oncall_ringing ->
 				timer:sleep(2000);
 			_ ->
+				gen_server:cast(OtherRingPid, no_oncall_once),
+				gen_server:cast(Self, no_oncall_once),
 				BridgeRes = freeswitch:api(FSNode, uuid_bridge, OncallUUID ++ " " ++ UUID),
 				?INFO("agent warm transfer bridge res:  ~p", [BridgeRes]),
 				SelfMon = erlang:monitor(process, Self),
+				OtherRingMon = erlang:monitor(process, OtherRingPid),
 				receive
-					continue -> ok;
+					continue -> ?DEBUG("awt continue", []), ok;
 					{'DOWN', SelfMon, process, Self, Down} ->
 						?DEBUG("Exiting with my parent", []),
 						exit(Down);
-					cancel -> exit(normal)
+					{'DOWN', OtherRingMon, process, OtherRingPid, Down} ->
+						?DEBUG("Other pid exitied, so rebridge", []),
+						BridgeRes0 = freeswitch:api(FSNode, uuid_bridge, Call#call.id ++ " " ++ UUID),
+						?DEBUG("reverting bridge res:  ~p", [BridgeRes0]),
+						exit(Down);
+					cancel -> ?DEBUG("awt cancel", []), exit(normal)
 				end
 		end,
 		try gen_media:oncall(Call#call.source) of
@@ -171,14 +186,8 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 				Self ! {stop, normal}
 		end
 	end,
-	NoHoldList = [inqueue, inqueue_ringing, oncall, oncall_ringing],
-	QOrNotHold = lists:member(Statename, NoHoldList),
-	IfBridge = case {QOrNotHold, State#state.no_oncall_on_bridge} of
-		{false, undefined} -> once;
-		_ -> State#state.no_oncall_on_bridge
-	end,
 	Pid = proc_lib:spawn(Fun),
-	{noreply, State#state{oncaller = Pid, no_oncall_on_bridge = IfBridge}};
+	{noreply, State#state{oncaller = Pid}};
 handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = State) ->
 	% Ah, this is not a freeswitch call.  If the oncall works, I can die.
 	try gen_media:oncall(Call#call.source) of
@@ -197,8 +206,10 @@ handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = Stat
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
 	{noreply, State};
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = once} = State) ->
+	?DEBUG("next bridge event I go oncall", []),
 	{noreply, State#state{no_oncall_on_bridge = undefined}};
 handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
+	?DEBUG("going on call",[]),
 	try gen_media:oncall(Call#call.source) of
 		invalid ->
 			freeswitch:api(Fsnode, uuid_park, Call#call.id),

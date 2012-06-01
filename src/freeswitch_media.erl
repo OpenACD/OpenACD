@@ -78,7 +78,8 @@
 	merge_all/1,
 	merge_only_3rd_party/1,
 	end_conference/1,
-	complete_agent_transfer/1
+	complete_agent_transfer/1,
+	cancel_agent_transfer/1
 	]).
 
 %% gen_media callbacks
@@ -306,6 +307,11 @@ end_conference(MPid) ->
 -spec(complete_agent_transfer/1 :: (Mpid :: pid()) -> 'ok').
 complete_agent_transfer(Mpid) ->
 	gen_media:cast(Mpid, complete_agent_transfer).
+
+%% @doc Cancels an inprogress agent warm transfer.
+-spec(cancel_agent_transfer/1 :: (Mpid :: pid()) -> 'ok').
+cancel_agent_transfer(Mpid) ->
+	gen_media:cast(Mpid, cancel_agent_transfer).
 
 %%====================================================================
 %% gen_media callbacks
@@ -838,6 +844,11 @@ handle_cast(complete_agent_transfer, Call, #state{statename = oncall_hold_ringin
 	gen_server:cast(Rpid, complete_agent_transfer),
 	{noreply, State};
 
+handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing} = State) ->
+	#state{xferchannel = Rpid} = State,
+	gen_server:cast(Rpid, cancel_agent_transfer),
+	{noreply, State};
+
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
 	% start a ring chan to 3rd party
@@ -1136,7 +1147,11 @@ handle_info(check_recovery, Call, State) ->
 	end;
 handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
-	{stop_ring, State#state{xferchannel = undefined}};
+	NextState = case State#state.statename of
+		oncall_ringing -> oncall;
+		oncall_hold_ringing -> oncall_hold
+	end,
+	{stop_ring, State#state{xferchannel = undefined, statename = NextState}};
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),

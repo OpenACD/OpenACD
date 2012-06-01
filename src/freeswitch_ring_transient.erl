@@ -56,7 +56,7 @@
 
 -record(state, {
 	call :: 'undefined' | #call{},
-	no_oncall_on_bridge :: 'undefined' | 'true',
+	no_oncall_on_bridge :: 'undefined' | 'true' | 'once',
 	hold :: 'hold' | 'undefined',
 	oncaller :: 'undefined' | pid()
 }).
@@ -123,23 +123,22 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 	%% the freeswitch media will ask self() for some info,
 	%% so the needs to be spawned out.
 	Self = self(),
+	Statedata = freeswitch_media:statedata(Call#call.source),
+	Statename = proplists:get_value(statename, Statedata),
+	OncallUUID = case proplists:get_value(ringuuid, Statedata) of
+		undefined ->
+			OcRingPid = proplists:get_value(ringchannel, Statedata),
+			freeswitch_ring:get_uuid(OcRingPid);
+		OncallUUIDElse ->
+			OncallUUIDElse
+	end,
+	?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 	Fun = fun() ->
 		% there was an issue where going oncall (bridging) too quickly after
 		% the answer during an agent transfer would cause sofia (freeswitch) to
 		% error (RTP reinvite error).  Various solutions were tried, including
 		% triggering this after park.  However, this was the most consistent
 		% in resolving the issue.
-		Statedata = freeswitch_media:statedata(Call#call.source),
-		Statename = proplists:get_value(statename, Statedata),
-		%Statename = freeswitch_media:statename(Call#call.source),
-		OncallUUID = case proplists:get_value(ringuuid, Statedata) of
-			undefined ->
-				OcRingPid = proplists:get_value(ringchannel, Statedata),
-				freeswitch_ring:get_uuid(OcRingPid);
-			OncallUUIDElse ->
-				OncallUUIDElse
-		end,
-		?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;
@@ -172,8 +171,14 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 				Self ! {stop, normal}
 		end
 	end,
+	NoHoldList = [inqueue, inqueue_ringing, oncall, oncall_ringing],
+	QOrNotHold = lists:member(Statename, NoHoldList),
+	IfBridge = case {QOrNotHold, State#state.no_oncall_on_bridge} of
+		{false, undefined} -> once;
+		_ -> State#state.no_oncall_on_bridge
+	end,
 	Pid = proc_lib:spawn(Fun),
-	{noreply, State#state{oncaller = Pid}};
+	{noreply, State#state{oncaller = Pid, no_oncall_on_bridge = IfBridge}};
 handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = State) ->
 	% Ah, this is not a freeswitch call.  If the oncall works, I can die.
 	try gen_media:oncall(Call#call.source) of
@@ -191,6 +196,8 @@ handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = Stat
 	end;
 handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
 	{noreply, State};
+handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = once} = State) ->
+	{noreply, State#state{no_oncall_on_bridge = undefined}};
 handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
 	try gen_media:oncall(Call#call.source) of
 		invalid ->

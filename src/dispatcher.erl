@@ -84,6 +84,12 @@ start() ->
 init([]) ->
 	%?DEBUG("Dispatcher starting", []),
 	State = #state{},
+	case cpx:get_env(dispatch_max_life) of
+		undefined -> ok;
+		{ok, Seconds} ->
+			Self = self(),
+			erlang:send_after(Seconds * 1000, Self, max_life_reached)
+	end,
 	case grab_best() of
 		none ->
 			?DEBUG("no call to grab, lets start a timer", []),
@@ -177,6 +183,9 @@ handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State)
 handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) ->
 	?DEBUG("Monitored cook (~p) died messily (~p), moving onto another call.", [Pid, Reason]),
 	handle_cast(regrab, State);
+handle_info(max_life_reached, State) ->
+	?DEBUG("Exiting as my max life has been reached", []),
+	{stop, normal, State};
 handle_info(Info, State) ->
 	?DEBUG("unexpected info ~p", [Info]),
 	{noreply, State}.

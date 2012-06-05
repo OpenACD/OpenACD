@@ -95,7 +95,7 @@ handle_cast(complete_agent_transfer, _FsRef, #state{oncaller = Pid} = State) whe
 	Pid ! continue,
 	{noreply, State#state{oncaller = undefined}};
 
-handle_cast(cancel_agent_trasnfer, _FsRef, #state{oncaller = Pid} = State) when is_pid(Pid) ->
+handle_cast(cancel_agent_transfer, _FsRef, #state{oncaller = Pid} = State) when is_pid(Pid) ->
 	{stop, normal, State};
 
 handle_cast(no_oncall_once, _FsRef, #state{no_oncall_on_bridge = undefined} = State) ->

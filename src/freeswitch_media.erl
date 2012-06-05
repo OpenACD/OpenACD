@@ -1015,6 +1015,9 @@ handle_cast({<<"toggle_hold">>, _}, Call, State) ->
 handle_cast({<<"complete_agent_transfer">>, _}, Call, State) ->
 	handle_cast(complete_agent_transfer, Call, State);
 
+handle_cast({<<"cancel_agent_transfer">>, _}, Call, State) ->
+	handle_cast(cancel_agent_transfer, Call, State);
+
 handle_cast({<<"retrieve_3rd_party">>, _}, Call, State) ->
 	handle_cast(retrieve_3rd_party, Call, State);
 

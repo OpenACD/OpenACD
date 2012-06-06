@@ -81,6 +81,14 @@
 	merge_only_3rd_party/1,
 	end_conference/1,
 
+	conference_status/1,
+	conference_mute/2,
+	conference_deaf/2,
+	conference_unmute/2,
+	conference_undeaf/2,
+	conference_kick/2,
+	conference_command/2,
+
 	complete_agent_transfer/1,
 	cancel_agent_transfer/1
 	]).
@@ -312,6 +320,64 @@ merge_only_3rd_party(MPid) ->
 -spec(end_conference/1 :: (MPid :: pid()) -> 'ok' | {'error', any()}).
 end_conference(MPid) ->
 	gen_media:call(MPid, end_conference).
+
+%% @doc List the information available for the media's conference, if
+%% there is one.
+conference_status(Mpid) ->
+	State = dump_state(Mpid),
+	case State#state.conference_id of
+		undefined ->
+			{error, no_conference};
+		ConfId ->
+			#state{cnode = Fsnode} = State,
+			{ok, ConfData} = freeswitch:api(Fsnode, conference, ConfId ++ " list"),
+			InfoLines = string:tokens(ConfData, "\n"),
+			ConfData0 = parse_conference_info(InfoLines),
+			{ok, {ConfId, ConfData0}}
+	end.
+
+parse_conference_info(InfoLines) ->
+	parse_conference_info(InfoLines, []).
+
+parse_conference_info([], Acc) ->
+	Acc;
+parse_conference_info([Line | Tail], Acc) ->
+	Tokens = util:string_split(Line, ";"),
+	Keys = ["id","dialstring","uuid","cid_number", "cid_name", "statuses", "volume_in", "volume_out","energy","unknown"],
+	Props = lists:zip(Keys, Tokens),
+	parse_conference_info(Tail, [Props | Acc]).
+	
+%% @doc Mute a conference member
+conference_mute(Mpid, MemberId) ->
+	conference_command(Mpid, "mute " ++ MemberId).
+
+%% @doc Deafen a conference member
+conference_deaf(Mpid, MemberId) ->
+	conference_command(Mpid, "deaf " ++ MemberId).
+
+%% @doc Unmute a conference member
+conference_unmute(Mpid, MemberId) ->
+	conference_command(Mpid, "unmute " ++ MemberId).
+
+%% @doc Undeaf a conference member
+conference_undeaf(Mpid, MemberId) ->
+	conference_command(Mpid, "undeaf " ++ MemberId).
+
+%% @doc Kick a conference member
+conference_kick(Mpid, MemberId) ->
+	conference_command(Mpid, "kick " ++ MemberId).
+
+%% @doc Run an arbitrary conference command (if the media is in a
+%% conference).
+conference_command(Mpid, Command) ->
+	State = dump_state(Mpid),
+	case State#state.conference_id of
+		undefined ->
+			{error, no_conference};
+		ConfId ->
+			#state{cnode = Fsnode} = State,
+			freeswitch:api(Fsnode, conference, ConfId ++ " " ++ Command)
+	end.
 
 %% @doc If an agent_transfer occurs while the caller is on hold, this
 %% needs to be used to complete it.

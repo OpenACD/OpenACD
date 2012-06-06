@@ -324,16 +324,13 @@ end_conference(MPid) ->
 %% @doc List the information available for the media's conference, if
 %% there is one.
 conference_status(Mpid) ->
-	State = dump_state(Mpid),
-	case State#state.conference_id of
-		undefined ->
-			{error, no_conference};
-		ConfId ->
-			#state{cnode = Fsnode} = State,
-			{ok, ConfData} = freeswitch:api(Fsnode, conference, ConfId ++ " list"),
+	case conference_command(Mpid, "list") of
+		{ok, {ConfId, ConfData}} ->
 			InfoLines = string:tokens(ConfData, "\n"),
 			ConfData0 = parse_conference_info(InfoLines),
-			{ok, {ConfId, ConfData0}}
+			{ok, {ConfId, ConfData0}};
+		Else ->
+			Else
 	end.
 
 parse_conference_info(InfoLines) ->
@@ -370,14 +367,7 @@ conference_kick(Mpid, MemberId) ->
 %% @doc Run an arbitrary conference command (if the media is in a
 %% conference).
 conference_command(Mpid, Command) ->
-	State = dump_state(Mpid),
-	case State#state.conference_id of
-		undefined ->
-			{error, no_conference};
-		ConfId ->
-			#state{cnode = Fsnode} = State,
-			freeswitch:api(Fsnode, conference, ConfId ++ " " ++ Command)
-	end.
+	gen_media:call(Mpid, {conference_command, Command}).
 
 %% @doc If an agent_transfer occurs while the caller is on hold, this
 %% needs to be used to complete it.
@@ -852,6 +842,18 @@ handle_call(end_conference, From, _Call, State) ->
 	NewConf = {ending, JobId, From, ConfId},
 	State0 = State#state{conference_id = NewConf},
 	{noreply, State0};
+
+handle_call({conference_command, _}, _From, _Call, #state{conference_id = undefined} = State) ->
+	{reply, {error, no_conference}, State};
+
+handle_call({conference_command, Command}, _From, _Call, #state{conference_id = ConfId} = State) ->
+	#state{cnode = Fsnode} = State,
+	case freeswitch:api(Fsnode, conference, ConfId ++ " " ++ Command) of
+		{ok, Data} ->
+			{reply, {ok, {ConfId, Data}}, State};
+		Else ->
+			{reply, Else, State}
+	end;
 
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),

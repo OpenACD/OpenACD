@@ -69,8 +69,10 @@
 	spy_whisper_agent/1,
 	spy_barge/1,
 	spy_single_step/3,
+
 	toggle_hold/1,
 	contact_3rd_party/2,
+	contact_3rd_party/3,
 	retrieve_conference/1,
 	retrieve_3rd_party/1,
 	hangup_3rd_party/1,
@@ -78,6 +80,7 @@
 	merge_all/1,
 	merge_only_3rd_party/1,
 	end_conference/1,
+
 	complete_agent_transfer/1,
 	cancel_agent_transfer/1
 	]).
@@ -159,8 +162,9 @@
 	conference_id :: 'undefined' | string(),
 	'3rd_party_id' :: 'undefined' | string(),
 	'3rd_party_mon' :: 'undefined' | {pid(), reference()},
-	spy_channel :: 'undefined' | {pid(), pid(), string()}
+	spy_channel :: 'undefined' | {pid(), pid(), string()},
 		% {agent_pid(), agent_connection_pid(), channel_uuid()}
+	next_state :: 'undefined' | internal_statename()
 }).
 
 -type(state() :: #state{}).
@@ -258,7 +262,14 @@ toggle_hold(MPid) ->
 %% call.
 -spec(contact_3rd_party/2 :: (MPid :: pid(), Destination :: string()) -> 'ok').
 contact_3rd_party(MPid, Destination) ->
-	gen_media:cast(MPid, {contact_3rd_party, Destination}).
+	contact_3rd_party(MPid, Destination, '3rd_party').
+
+%% @doc From the states oncall_hold, in_conference, and hold_conference, 
+%% contact the 3rd party.  Afterwards, either go in_conference, 
+%% 3rd_party, hold_conference-3rdparty, or hold_conference.
+-spec(contact_3rd_party/3 :: (MPid :: pid(), Destination :: string(), NextState :: 'in_conference' | '3rd_party' | 'hold_conference_3rdparty' | 'hold_conference') -> 'ok').
+contact_3rd_party(MPid, Destination, NextState) when NextState =:= 'in_conference'; NextState =:= '3rd_party'; NextState =:= 'hold_conference_3rdparty'; NextState =:= 'hold_conference' ->
+	gen_media:cast(MPid, {contact_3rd_party, Destination, NextState}).
 
 %% @doc While a conference is active, if the agent is talking to a 3rd
 %% party or just sitting in limbo, this puts the agent in the conference.
@@ -822,7 +833,7 @@ handle_cast(toggle_hold, _Call, #state{statename = oncall_hold_ringing} = State)
 	?DEBUG("Cannot back out of oncall_hold_ringing until ringing ends", []),
 	{noreply, State};
 
-handle_cast({contact_3rd_party, _Args} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
+handle_cast({contact_3rd_party, _Args, _NextState} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
 	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
@@ -850,7 +861,7 @@ handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing}
 	{noreply, State};
 
 %% hold_conference -> 3rd_party | in_conference
-handle_cast({contact_3rd_party, Destination}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
+handle_cast({contact_3rd_party, Destination, NextState}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
 	% start a ring chan to 3rd party
 	% play a ringing sound to agent to be nice
 	% on any error, we just kill the playback
@@ -869,7 +880,7 @@ handle_cast({contact_3rd_party, Destination}, Call, #state{statename = hold_conf
 	RingOps = [CallerNameOpt, CallerNumberOpt, "park_after_bridge=true"],
 	case originate(Fnode, BaseDs, Destination, RingOps) of
 		{ok, UUID} ->
-			{noreply, State#state{'3rd_party_id' = UUID, statename = hold_conference_3rdparty}};
+			{noreply, State#state{'3rd_party_id' = UUID, statename = hold_conference_3rdparty, next_state = NextState}};
 		Else ->
 			?WARNING("Failed to contact 3rd party ~s due to:  ~p", [Destination, Else]),
 			{noreply, State}
@@ -951,7 +962,7 @@ handle_cast(toggle_hold, Call, #state{statename = 'in_conference'} = State) ->
 	freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
 	{noreply, State#state{statename = hold_conference}};
 
-handle_cast({contact_3rd_party, _Targ} = Cast, Call, #state{statename = 'in_conference'} = State) ->
+handle_cast({contact_3rd_party, _Targ, _NextState} = Cast, Call, #state{statename = 'in_conference'} = State) ->
 	?INFO("contact 3rd party, means place conference on hold first", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(Cast, Call, MidState);
@@ -1020,7 +1031,7 @@ handle_cast({<<"retrieve_3rd_party">>, _}, Call, State) ->
 
 handle_cast({<<"contact_3rd_party">>, Args}, Call, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),
-	handle_cast({contact_3rd_party, Destination}, Call, State);
+	handle_cast({contact_3rd_party, Destination, '3rd_party'}, Call, State);
 
 handle_cast({<<"retrieve_conference">>, _Args}, Call, State) ->
 	handle_cast(retrieve_conference, Call, State);
@@ -1083,7 +1094,7 @@ handle_cast(Request, Call, State) when is_record(Request, mediacommandrequest) -
 			case cpx_freeswitch_pb:get_extension(FixedRequest, contact_3rd_party) of
 				undefined -> handle_cast(contact_3rd_party, Call, State);
 				{ok, #contact3rdpartyrequest{target = Target}} ->
-					handle_cast({contact_3rd_party, Target}, Call, State)
+					handle_cast({contact_3rd_party, Target, '3rd_party'}, Call, State)
 			end;
 		'RETRIEVE_CONFERENCE' -> handle_cast(retrieve_conference, Call, State);
 		'MERGE_3RD_PARTY' ->
@@ -1350,11 +1361,26 @@ case_event_name({"CUSTOM", "conference::maintenance"}, UUID, _Rawcall, Callrec, 
 
 case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 		statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
-	#state{cnode = Fnode, ringuuid = Ruuid} = State,
+	#state{cnode = Fnode, ringuuid = Ruuid, next_state = NextState} = State,
 	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
-	freeswitch:bgapi(Fnode, uuid_bridge, UUID ++ " " ++ Ruuid),
-	cdr:media_custom(Callrec, '3rd_party', ?cdr_states, []),
-	{{mediapush, '3rd_party'}, State#state{statename = '3rd_party'}};
+	case NextState of
+		in_conference ->
+			?MODULE:merge_all(self()),
+			?DEBUG("Time to merge all together", []),
+			{noreply, State#state{next_state = undefined}};
+		hold_conference ->
+			?DEBUG("Only merging the 3rd party now", []),
+			?MODULE:merge_only_3rd_party(self()),
+			{noreply, State#state{next_state = undefined}};
+		hold_conference_3rdparty ->
+			?DEBUG("Doing nothing", []),
+			{noreply, State#state{next_state = undefined}};
+		_Whatever ->
+			?DEBUG("Connecting to 3rd party", []),
+			freeswitch:bgapi(Fnode, uuid_bridge, UUID ++ " " ++ Ruuid),
+			cdr:media_custom(Callrec, '3rd_party', ?cdr_states, []),
+			{{mediapush, '3rd_party'}, State#state{statename = '3rd_party'}}
+	end;
 
 case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id' = UUID, statename = '3rd_party'} = State) ->
 	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),

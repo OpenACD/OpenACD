@@ -621,10 +621,21 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			locked
 	end,
 	NewEndpointType = update_endpoint_state(Agent, {agent_state, idle}),
-	gen_server:cast(Agent#agent.connection, {change_state, idle}),
-	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now(), endpointtype = NewEndpointType},
-	set_cpx_monitor(Newagent, []),
-	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked, ringouts = State#state.ringouts + 1}};
+	case Agent#agent.queuedrelease of
+		undefined ->
+			gen_server:cast(Agent#agent.connection, {change_state, idle}),
+			Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now(), endpointtype = NewEndpointType},
+			set_cpx_monitor(Newagent, []),
+			{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked, ringouts = State#state.ringouts + 1}};
+		Release ->
+			gen_server:cast(Agent#agent.connection, {change_state, released, Release}),
+			Newagent = Agent#agent{state=released, oldstate=ringing,
+				statedata=Release, lastchange=util:now(),
+				endpointtype=NewEndpointType, queuedrelease=undefined},
+			set_cpx_monitor(Newagent, []),
+			{reply, ok, released, State#state{agent_rec = Newagent}}
+	end;
+
 ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
@@ -964,7 +975,10 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agen
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 
 released({ringing, Call}, From, #state{agent_rec = Agent} = State) ->
-	idle({ringing, Call}, From, State);
+	#state{agent_rec = Agent} = State,
+	Agent0 = Agent#agent{queuedrelease = Agent#agent.statedata},
+	State0 = State#state{agent_rec = Agent0},
+	idle({ringing, Call}, From, State0);
 %	% TODO Wow is this ever enemic.
 %	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 %	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},

@@ -408,6 +408,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
 	Result = freeswitch:api(State#state.cnode, uuid_bridge, Callrec#call.id ++ " " ++ XferUUID),
 	?DEBUG("result of bridge:  ~p", [Result]),
+	freeswitch:api(State#state.cnode, uuid_setvar_multi, Callrec#call.id ++ " hangup_after_bridge=true;park_after_bridge=false"),
 	case State#state.record_path of
 		undefined ->
 			ok;

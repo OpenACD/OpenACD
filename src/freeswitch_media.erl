@@ -927,7 +927,7 @@ handle_cast(complete_agent_transfer, Call, #state{statename = oncall_hold_ringin
 handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing} = State) ->
 	#state{xferchannel = Rpid} = State,
 	gen_server:cast(Rpid, cancel_agent_transfer),
-	{noreply, State};
+	{{stop_ring, agent_transfer_cancel}, State};
 
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination, NextState}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->

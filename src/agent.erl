@@ -632,6 +632,8 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 			Newagent = Agent#agent{state=released, oldstate=ringing,
 				statedata=Release, lastchange=util:now(),
 				endpointtype=NewEndpointType, queuedrelease=undefined},
+			gen_server:cast(dispatch_manager, {end_avail, self()}),
+			gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 			set_cpx_monitor(Newagent, []),
 			{reply, ok, released, State#state{agent_rec = Newagent}}
 	end;

@@ -510,7 +510,10 @@ handle_info(Info, #state{callbacks = #callbacks{handle_info = CbInfoFun} = Callb
 %%--------------------------------------------------------------------
 terminate(Reason, #state{callbacks = #callbacks{terminate = Fun} = Callbacks} = State) ->
 	?NOTICE("FreeSWITCH ring channel teminating ~p", [Reason]),
-	Fun(Reason, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state).
+	Out = Fun(Reason, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state),
+	freeswitch:bgapi(State#state.cnode, uuid_kill, State#state.uuid),
+	Out.
+	
 
 %%--------------------------------------------------------------------
 %% Description: Convert process state when code is changed

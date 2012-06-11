@@ -876,6 +876,9 @@ handle_call(Msg, _From, Call, State) ->
 %%--------------------------------------------------------------------
 %% @private
 
+handle_cast(call_bridged, _Call, #state{statename = oncall_hold_ringing} = State) ->
+	{{mediapush, call_bridged}, State};
+
 handle_cast(toggle_hold, Call, #state{statename = Statename} = State)
 		when Statename == oncall; Statename == oncall_ringing ->
 	?DEBUG("toggle hold while oncall", []),

@@ -211,10 +211,20 @@ handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = Stat
 	end;
 handle_event("CHANNEL_BRIDGE", _Data, {Node, UUID}, #state{no_oncall_on_bridge = true} = State) ->
 	freeswitch:api(Node, uuid_send_info, UUID ++ " call_bridged"),
+	case State#state.call of
+		undefined -> ok;
+		#call{source = Mpid} ->
+			gen_media:cast(Mpid, call_bridged)
+	end,
 	{noreply, State};
 handle_event("CHANNEL_BRIDGE", _Data, {Node, UUID}, #state{no_oncall_on_bridge = once} = State) ->
 	Res = freeswitch:api(Node, uuid_send_info, UUID ++ " call_bridged"),
 	?DEBUG("next bridge event I go oncall (send info res:  ~p)", [Res]),
+	case State#state.call of
+		undefined -> ok;
+		#call{source = Mpid} ->
+			gen_media:cast(Mpid, call_bridged)
+	end,
 	{noreply, State#state{no_oncall_on_bridge = undefined}};
 handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
 	?DEBUG("going on call",[]),

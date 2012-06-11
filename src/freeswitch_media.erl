@@ -511,7 +511,13 @@ handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Call
 handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
 	freeswitch_ring:hangup(RingChannel),
-	{ok, State#state{xferchannel = undefined, xferuuid = undefined}};
+	NextState = case State#state.statename of
+		oncall_hold_ringing ->
+			oncall_hold;
+		oncall_ringing ->
+			oncall
+	end,
+	{ok, State#state{statename = NextState, xferchannel = undefined, xferuuid = undefined}};
 handle_ring_stop(Callrec, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
 	case State#state.ringchannel of
@@ -564,7 +570,7 @@ handle_agent_transfer({AgentPid, #agent{endpointtype = {undefined, transient, _}
 	{error, {bad_endpoint, AgentRec}, State};
 
 handle_agent_transfer({AgentPid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Timeout, Call, State) ->
-	?INFO("using exising transient ring channel", []),
+	?INFO("using exising transient ring channel ~p", [RPid]),
 	link(RPid),
 	XferUUID = freeswitch_ring:get_uuid(RPid),
 	NextStatename = case State#state.statename of

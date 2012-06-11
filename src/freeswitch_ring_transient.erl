@@ -115,6 +115,10 @@ handle_cast({agent_state, _AState}, {FsNode, UUID}, State) ->
 	% live fast, die young, leave a beautiful exit message.
 	freeswitch:bgapi(FsNode, uuid_kill, UUID),
 	{stop, normal, State};
+
+handle_cast(hangup, _FsRef, State) ->
+	{stop, hangup, State};
+
 handle_cast(_Msg, _FsRef, State) ->
 	{noreply, State}.
 

@@ -1010,15 +1010,22 @@ handle_cast({merge_3rd_party, _IncludeSelf}, Call, #state{'3rd_party_id' = undef
 
 handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 	#state{cnode = Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdid, conference_id = Confid} = State,
+	Called = freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline"),
+	% TODO This is a nasty hack until a better solution can be put into place
+	% like a more robut ring set up that allows conditional interception of
+	% events.  Yeah...
 	NextState = case IncludeAgent of
 		true ->
-			freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " conference:" ++ Confid ++ " inline"),
+			Transfun = fun() ->
+				timer:sleep(200),
+				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline")
+			end,
+			proc_lib:spawn(Transfun),
 			'in_conference';
 		_ ->
-			freeswitch:bgapi(Fnode, uuid_transfer, Ringid ++ " park inline"),
 			'hold_conference'
 	end,
-	freeswitch:bgapi(Fnode, uuid_transfer, Thirdid ++ " conference:" ++ Confid ++ " inline"),
+	?DEBUG("merge.  next state:  ~p;  3rd:  ~p", [NextState, Called]),
 	{noreply, State#state{statename = NextState}};
 
 % hold_conference_3rd_party -> in_conference_3rd_party | hold_conference | %		3rdparty

@@ -1436,7 +1436,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"CUSTOM" -> {"CUSTOM", proplists:get_value("Event-Subclass", Rawcall)};
 		Else -> Else
 	end,
-	?DEBUG("Event ~p for ~s while in state ~p", [Ename, UUID, State#state.statename]),
+	%?DEBUG("Event ~p for ~s while in state ~p", [Ename, UUID, State#state.statename]),
 	case_event_name(Ename, UUID, Rawcall, Callrec, State).
 
 %% @private
@@ -1686,7 +1686,7 @@ case_event_name({error, notfound}, UUID, Rawcall, Callrec, State) ->
 	{noreply, State};
 
 case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
-	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
+	%?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
 get_exported_variables(Proplist) ->

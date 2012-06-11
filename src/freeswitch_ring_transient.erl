@@ -156,6 +156,8 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 			NotHold when NotHold =:= oncall; NotHold =:= oncall_ringing ->
 				timer:sleep(2000);
 			_ ->
+				% unspported is not a typo; that's how freeswitch expects it.
+				freeswitch:bgapi(FSNode, uuid_setvar, OncallUUID ++ " fs_send_unspported_info true"),
 				gen_server:cast(OtherRingPid, no_oncall_once),
 				gen_server:cast(Self, no_oncall_once),
 				BridgeRes = freeswitch:api(FSNode, uuid_bridge, OncallUUID ++ " " ++ UUID),
@@ -207,10 +209,12 @@ handle_event("CHANNEL_ANSWER", _Data, {FsNode, UUID}, #state{call = Call} = Stat
 			?DEBUG("Death due to noproc error setting non-voice call oncall", []),
 			{stop, normal, State}
 	end;
-handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = true} = State) ->
+handle_event("CHANNEL_BRIDGE", _Data, {Node, UUID}, #state{no_oncall_on_bridge = true} = State) ->
+	freeswitch:api(Node, uuid_send_info, UUID ++ " call_bridged"),
 	{noreply, State};
-handle_event("CHANNEL_BRIDGE", _Data, _FsRef, #state{no_oncall_on_bridge = once} = State) ->
-	?DEBUG("next bridge event I go oncall", []),
+handle_event("CHANNEL_BRIDGE", _Data, {Node, UUID}, #state{no_oncall_on_bridge = once} = State) ->
+	Res = freeswitch:api(Node, uuid_send_info, UUID ++ " call_bridged"),
+	?DEBUG("next bridge event I go oncall (send info res:  ~p)", [Res]),
 	{noreply, State#state{no_oncall_on_bridge = undefined}};
 handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type = voice} = Call} = State) ->
 	?DEBUG("going on call",[]),

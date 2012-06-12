@@ -85,7 +85,9 @@
 	get_pubkey/0,
 	get_keyfile/0,
 	get_certfile/0,
-	decrypt_password/1
+	decrypt_password/1,
+	proplist_set/3,
+	proplist_set/2
 ]).
 %% time tracking util functions
 -export([
@@ -95,6 +97,19 @@
 	timemark_clear/0,
 	timemark_clear/1
 ]).
+
+-type(proplist() :: [{any(), any()} | atom()]).
+
+-spec(proplist_set/3 :: (Key :: any(), Val :: any(), Proplist :: proplist()) -> proplist()).
+proplist_set(Key, Val, Proplist) ->
+	proplist_set([{Key, Val}], Proplist).
+
+-spec(proplist_set/2 :: (Setter :: proplist(), Proplist :: proplist()) ->
+proplist()).
+proplist_set(Setter, Proplist) ->
+	Setter0 = lists:keysort(1, Setter),
+	Proplist0 = lists:keysort(1, Proplist),
+	lists:ukeymerge(1, Setter0, Proplist0).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];

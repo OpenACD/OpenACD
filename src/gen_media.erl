@@ -579,13 +579,13 @@ init([Callback, Args]) ->
 					{Queue, Else}
 			end,
 			Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons}};
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons, url_pop_getvars = util:proplist_set([{"last_queue", Qnom}, {"last_state", "inqueue"}], [])}};
 		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
 			set_cpx_mon(#state{callrec = Callrec}, [], self()),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, url_pop_getvars = [{"last_state", CDRState}]}};
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
@@ -638,7 +638,7 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			cdr:hangup(State#state.callrec, "agent"),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{oncall_pid = undefined},
-			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
+			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons, url_pop_getvars = util:proplist_set("last_state", "wrapup", State#state.url_pop_getvars)}}
 	end;
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
@@ -657,7 +657,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {"default_queue", Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", "defalut_queue"}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}};
 		Qpid when is_pid(Qpid) ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:queue_transfer(State#state.callrec, Queue),
@@ -666,7 +666,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", Queue}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
@@ -683,7 +683,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {"default_queue", Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", "default_queue"}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}};
 		Qpid when is_pid(Qpid) ->
 			set_agent_state(Apid, [wrapup, State#state.callrec]),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
@@ -693,13 +693,18 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", Queue}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}}
 	end;
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = CachedCall, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, CachedCall#call.id, Timeout]),
-	case set_agent_state(Apid, [ringing, CachedCall#call{cook=QCall#queued_call.cook}]) of
+	#call{client = #client{options = ClientOpts} = CachedClient} = CachedCall,
+	ClientOpts0 = [ X || {_K, V} = X <- lists:ukeymerge(1,
+		lists:ukeysort(1, GenPopopts), lists:ukeysort(1, ClientOpts)),
+		V =/= undefined ],
+	CachedClient0 = CachedClient#client{options = ClientOpts0},
+	case set_agent_state(Apid, [ringing, CachedCall#call{cook=QCall#queued_call.cook, client = CachedClient0}]) of
 		ok ->
 			% TODO update callbacks to accept {string(), pid()} structure.
 			case Callback:handle_ring(Apid, State#state.callrec, State#state.substate) of
@@ -759,7 +764,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 						end
 					end),
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
-					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
+					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons, url_pop_getvars = util:proplist_set("last_state", "inqueue_ringing", State#state.url_pop_getvars)}};
 				{invalid, Substate} ->
 					agent:has_failed_ring(Apid),
 					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
@@ -784,7 +789,9 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_p
 	{reply, invalid, State};
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = {OcAgent, Ocpid}, monitors = Mons, url_pop_getvars = GenPopopts} = State) when is_pid(Ocpid) ->
 	?INFO("Agent transfer to Agent ~p for Call ~p", [Agent, Call#call.id]),
-	case set_agent_state(Apid, [ringing, State#state.callrec]) of
+	#call{client = Client} = Call,
+	Client0 = Client#client{options = util:proplist_set(GenPopopts, Client#client.options)},
+	case set_agent_state(Apid, [ringing, Call#call{client = Client0}]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
 				Success when element(1, Success) == ok ->
@@ -805,7 +812,7 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state
 					cdr:ringing(State#state.callrec, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newmons = Mons#monitors{ring_pid = erlang:monitor(process, Apid)},
-					{reply, ok, State#state{ring_pid = {Agent, Apid}, ringout = Tref, substate = Substate, monitors = Newmons}};
+					{reply, ok, State#state{ring_pid = {Agent, Apid}, ringout = Tref, substate = Substate, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_state", "oncall_ringing"}], State#state.url_pop_getvars)}};
 				{error, Error, NewState} ->
 					?NOTICE("Could not set agent ringing for transfer ~p due to ~p", [Error, Call#call.id]),
 					set_agent_state(Apid, [idle]),
@@ -932,7 +939,7 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = {Ragent, 
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{ring_pid = undefined, oncall_pid = Mons#monitors.ring_pid},
 			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Ragent}]),
-			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
+			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_state", "oncall"}, {"last_agent", Ragent}], State#state.url_pop_getvars)}};
 		{error, Reason, NewState} ->
 			?ERROR("Cannot set ~p for ~p to oncall due to ~p", [Rpid, Call#call.id, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
@@ -961,7 +968,7 @@ handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = {Ragent, Rpid}, 
 					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Ragent}]),
 					erlang:demonitor(Mons#monitors.oncall_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-					{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
+					{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_state", "oncall"}, {"last_agent", Ragent}], State#state.url_pop_getvars)}};
 				{error, Reason, NewState} ->
 					?ERROR("Cannot set ~p to oncall due to ~p for ~p", [Rpid, Reason, Call#call.id]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -979,7 +986,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = {Agent, Apid}}, [{agent, Agent}]),
 			erlang:demonitor(Mons#monitors.queue_pid),
 			Newsmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined, oncall_pid = {Agent, Apid}, outband_ring_pid = undefined, monitors = Newsmons}};
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined, oncall_pid = {Agent, Apid}, outband_ring_pid = undefined, monitors = Newsmons, url_pop_getvars = util:proplist_set([{"last_state", "oncall"}, {"last_agent", Agent}], State#state.url_pop_getvars)}};
 		{error, Reason, NewState} ->
 			?ERROR("Could not set ~p on call due to ~p for ~p", [Apid, Reason, Call#call.id]),
 			{reply, invalid, State#state{substate = NewState}}
@@ -1001,7 +1008,7 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 					set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = {Agent, Apid}, ring_pid = undefined}, [{agent, Agent}]),
 					erlang:demonitor(Mons#monitors.queue_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
+					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_agent", Agent}, {"last_state", "oncall"}], State#state.url_pop_getvars)}};
 				{error, Reason, NewState} ->
 					?ERROR("Could not set ~p on call with ~p due to ~p", [Apid, Call#call.id, Reason]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -1065,9 +1072,10 @@ handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = 
 	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
 	{noreply, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
 handle_cast({'$gen_media_set_url_getvars', Vars}, #state{url_pop_getvars = Oldvars} = State) ->
-	Newvars = lists:ukeymerge(1, lists:ukeysort(1, Vars), lists:ukeysort(1, Oldvars)),
-	?DEBUG("Input:  ~p;  Old:  ~p;  new:  ~p", [Vars, Oldvars, Newvars]),
-	{noreply, State#state{url_pop_getvars = Newvars}};
+	Newvars = util:proplist_set(Vars, Oldvars),
+	Newvars0 = [X || {_K, V} = X <- Newvars, V =/= undefined],
+	?DEBUG("Input:  ~p;  Old:  ~p;  new:  ~p", [Vars, Oldvars, Newvars0]),
+	{noreply, State#state{url_pop_getvars = Newvars0}};
 handle_cast({'$gen_media_add_skills', Skills}, #state{callrec = Call} = State) ->
 	Newskills = lists:umerge(Call#call.skills, Skills),
 	Newcall = Call#call{skills = Newskills},
@@ -1313,7 +1321,7 @@ handle_custom_return(Return, #state{monitors = Mons} = State, noreply) ->
 					cdr:inqueue(Callrec, "default_queue"),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
 					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", "default_queue"}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}};
 				invalid ->
 					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
@@ -1322,7 +1330,7 @@ handle_custom_return(Return, #state{monitors = Mons} = State, noreply) ->
 					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, Queue}]),
 					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", Queue}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}}
 			end;
 		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),
@@ -1361,13 +1369,13 @@ handle_custom_return(Return, #state{monitors = Mons} = State, reply) ->
 					cdr:inqueue(Callrec, "default_queue"),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, "default_queue"}]),
 					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", "default_queue"}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}};
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}, [{queue, Queue}]),
 					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_queue", Queue}, {"last_state", "inqueue"}], State#state.url_pop_getvars)}}
 			end;
 		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),

@@ -243,7 +243,7 @@ handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type 
 	end;
 handle_event("CHANNEL_HANGUP", _Data, _FsData, State) ->
 	?NOTICE("CHANNEL_HANGUP event, exiting", []),
-	{stop, "CHANNEL_HANGUP", State};
+	{stop, normal, State};
 handle_event(Event, _, _, State) ->
 	?INFO("Unhandled event ~s", [Event]),
 	{noreply, State}.

@@ -1255,6 +1255,9 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
 		oncall_ringing -> oncall;
 		oncall_hold_ringing -> oncall_hold
 	end,
+	SendInfo = binary_to_list(iolist_to_binary(io_lib:format("~s ~s", [State#state.ringuuid, NextState]))),
+	agent:media_push(State#state.agent_pid, NextState),
+	freeswitch:api(State#state.cnode, uuid_esnd_info, SendInfo),
 	{stop_ring, State#state{xferchannel = undefined, statename = NextState}};
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),

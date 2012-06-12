@@ -605,6 +605,7 @@ encode_statedata(Callrec) when is_record(Callrec, call) ->
 	{struct, [
 		{<<"callerid">>, list_to_binary(element(1, Callrec#call.callerid) ++ " " ++ element(2, Callrec#call.callerid))},
 		{<<"brandname">>, Client},
+		{<<"client">>, encode_statedata(Clientrec)},
 		{<<"ringpath">>, Callrec#call.ring_path},
 		{<<"mediapath">>, Callrec#call.media_path},
 		{<<"callid">>, list_to_binary(Callrec#call.id)},
@@ -616,8 +617,18 @@ encode_statedata(Clientrec) when is_record(Clientrec, client) ->
 		Else ->
 			list_to_binary(Else)
 	end,
+	Id = if
+		is_list(Clientrec#client.id) ->
+			list_to_binary(Clientrec#client.id);
+		true ->
+			Clientrec#client.id
+	end,
+	EncodedOptions = encode_client_opts(Clientrec#client.options),
 	{struct, [
-		{<<"brandname">>, Label}]};
+		{<<"brandname">>, Label},
+		{<<"id">>, Id},
+		{<<"options">>, {struct, EncodedOptions}}
+	]};
 encode_statedata({onhold, Holdcall, calling, Calling}) ->
 	Holdjson = encode_statedata(Holdcall),
 	Callingjson = encode_statedata(Calling),
@@ -634,6 +645,27 @@ encode_statedata(List) when is_list(List) ->
 	list_to_binary(List);
 encode_statedata({}) ->
 	false.
+
+encode_client_opts(Opts) ->
+	encode_client_opts(Opts, []).
+
+encode_client_opts([], Acc) ->
+	lists:reverse(Acc);
+
+encode_client_opts([{List, Val} | Tail], Acc) when is_list(List) ->
+	encode_client_opts([{list_to_binary(List), Val} | Tail], Acc);
+
+encode_client_opts([{BadKey, _Val} | Tail], Acc) when not is_binary(BadKey) ->
+	encode_client_opts(Tail, Acc);
+
+encode_client_opts([{Key, Val} | Tail], Acc) when is_list(Val) ->
+	encode_client_opts([{Key, list_to_binary(Val)} | Tail], Acc);
+
+encode_client_opts([{Key, Val} = H | Tail], Acc) when is_binary(Val); is_number(Val); is_atom(Val) ->
+	encode_client_opts(Tail, [H | Acc]);
+
+encode_client_opts([_BadHead | Tail], Acc) ->
+	encode_client_opts(Tail, Acc).
 
 %%====================================================================
 %% gen_server callbacks

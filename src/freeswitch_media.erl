@@ -771,7 +771,14 @@ handle_wrapup(#call{media_path = inband} = Call, State) ->
 	% TODO This could prolly stand to be a bit more elegant.
 	%freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
 	freeswitch:api(State#state.cnode, uuid_kill, State#state.ringuuid),
-	{hangup, State};
+	Oncall = lists:member(State#state.statename, ['oncall', 'oncall_hold', 'oncall_ringing', 'oncall_hold_ringing']),
+	if
+		Oncall ->
+			{hangup, State};
+		true ->
+			{ok, State#state{statename = wrapup_conference}}
+	end;
+
 handle_wrapup(_Call, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent
@@ -1292,7 +1299,12 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 
 handle_info({'EXIT', Pid, normal}, _Call, #state{ringchannel = Pid} = State) ->
 	?INFO("ring channel exit while in ~p state", [State#state.statename]),
-	{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}};
+	case State#state.statename of
+		wrapup_conference ->
+			{noreply, State};
+		_ ->
+			{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}}
+	end;
 
 handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, #state{ringchannel = Pid} = State) ->
 	?INFO("ring channel exit while in ~p state", [State#state.statename]),

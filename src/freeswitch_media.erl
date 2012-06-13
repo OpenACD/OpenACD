@@ -769,7 +769,8 @@ handle_warm_transfer_complete(_Call, State) ->
 
 handle_wrapup(#call{media_path = inband} = Call, State) ->
 	% TODO This could prolly stand to be a bit more elegant.
-	freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
+	%freeswitch:api(State#state.cnode, uuid_kill, Call#call.id),
+	freeswitch:api(State#state.cnode, uuid_kill, State#state.ringuuid),
 	{hangup, State};
 handle_wrapup(_Call, State) ->
 	% This intentionally left blank; media is out of band, so there's
@@ -1288,6 +1289,10 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 		oncall_ringing -> oncall
 	end,
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
+
+handle_info({'EXIT', Pid, normal}, _Call, #state{ringchannel = Pid} = State) ->
+	?INFO("ring channel exit while in ~p state", [State#state.statename]),
+	{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}};
 
 handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, #state{ringchannel = Pid} = State) ->
 	?INFO("ring channel exit while in ~p state", [State#state.statename]),

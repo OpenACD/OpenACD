@@ -941,8 +941,9 @@ handle_cast({contact_3rd_party, _Args, _NextState} = Cast, Call, #state{statenam
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
 	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
+	{ok, ConfProfile} = cpx:get_env(freeswitch_conference_profile, "default"),
 	case freeswitch:api(Fnode, uuid_transfer, Call#call.id ++ " conference:" ++ 
-		ConfId ++ "++flags{mintwo} inline") of
+		ConfId ++ "@" ++ ConfProfile ++ "++flags{mintwo} inline") of
 		{ok, Res} ->
 			?INFO("Success result creating conferance and transfering call to it:  ~p", [Res]),
 			% okay, solidify the conference state change, and go on.

@@ -901,6 +901,13 @@ handle_cast(toggle_hold, Call, #state{statename = Statename} = State)
 		oncall -> oncall_hold;
 		oncall_ringing -> oncall_hold_ringing
 	end,
+	case State#state.record_path of
+		undefined ->
+			ok;
+		Path ->
+			?DEBUG("Stopping recording due to going on hold for ~p", [Callid]),
+			freeswitch:api(Fnode, uuid_record, Callid ++ " stop " ++ State#state.record_path ++ ".wav")
+	end,
 	{noreply, State#state{statename = Statename0}};
 
 %% oncall hold -> next_state
@@ -910,6 +917,12 @@ handle_cast(toggle_hold, Call, #state{statename = oncall_hold} = State) ->
 	#call{id = Callid} = Call,
 	freeswitch:api(Fnode, uuid_bridge, Callid ++ " " ++ Ringid),
 	freeswitch:api(Fnode, uuid_setvar_multi, Callid ++ " hangup_after_bridge=true;park_after_bridge=false"),
+	case State#state.record_path of
+		undefined -> ok;
+		Path ->
+			?DEBUG("Starting recording for ~p", [Callid]),
+			freeswitch:api(Fnode, uuid_record, Callid ++ " start " ++ Path ++ ".wav")
+	end,
 	{noreply, State#state{statename = oncall}};
 
 handle_cast(toggle_hold, _Call, #state{statename = oncall_hold_ringing} = State) ->

@@ -138,7 +138,8 @@
 
 -define(cdr_states, ['oncall', 'oncall_hold', 'oncall_hold_ringing',
 	'hold_conference', 'hold_conference_3rdparty', 'in_conference_3rdparty', 
-	'3rd_party', 'in_conference', 'wrapup_conference', 'blind_transfered']).
+	'3rd_party', 'in_conference', 'wrapup_conference', 'blind_transfered',
+	'inqueue', 'inqueue_ringing', 'inivr']).
 
 -record(state, {
 	statename :: internal_statename(),
@@ -419,6 +420,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			freeswitch:bgapi(State#state.cnode, uuid_record, XferUUID ++ " start " ++ Path ++ ".agent." ++ Agent#agent.login ++ ".wav")
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+	cdr:media_custom(Callrec, oncall, self, []),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel, statename = oncall,
 		ringuuid = XferUUID,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
@@ -517,6 +519,7 @@ handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid
 		oncall_ringing ->
 			oncall
 	end,
+	cdr:media_custom(Callrec, NextState, self, []),
 	{ok, State#state{statename = NextState, xferchannel = undefined, xferuuid = undefined}};
 handle_ring_stop(Callrec, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
@@ -577,6 +580,12 @@ handle_agent_transfer({AgentPid, #agent{endpointtype = {RPid, transient, _}} = A
 		oncall -> oncall_ringing;
 		oncall_hold -> oncall_hold_ringing;
 		oncall_hold_ringing -> oncall_hold_ringing
+	end,
+	case NextStatename of
+		oncall_hold_ringing ->
+			cdr:media_custom(Call, oncall_hold_ringing, ?cdr_states, AgentRec#agent.login);
+		_ ->
+			ok
 	end,
 	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NextStatename, xferchannel = RPid, xferuuid = XferUUID}}.
 
@@ -776,6 +785,7 @@ handle_wrapup(#call{media_path = inband} = Call, State) ->
 		Oncall ->
 			{hangup, State};
 		true ->
+			cdr:media_custom(Call, wrapup_conference, self, []),
 			{ok, State#state{statename = wrapup_conference}}
 	end;
 
@@ -804,6 +814,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 					{"execute-app-name", "playback"},
 					{"execute-app-arg", "local_stream://" ++ State#state.moh}])
 	end,
+	cdr:media_custom(Call, inqueue, self, []),
 	{ok, State#state{statename = inqueue, queued = true, agent_pid = undefined}}.
 
 %%--------------------------------------------------------------------
@@ -1428,7 +1439,9 @@ terminate(Reason, Call, State) ->
 			% tear down the transfer channel if there is one
 			gen_server:cast(State#state.xferchannel, cancel_agent_transfer),
 			freeswitch:api(Fs, uuid_kill, Call#call.id),
-			freeswitch:api(Fs, uuid_kill, State#state.xferuuid)
+			freeswitch:api(Fs, uuid_kill, State#state.xferuuid);
+		true ->
+			ok
 	end,
 	ok.
 
@@ -1642,6 +1655,7 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 					{"execute-app-arg", "local_stream://"++Moh}])
 	end,
 	%% tell gen_media to (finally) queue the media
+	cdr:media_custom(NewCall, inqueue, self, Queue),
 	{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, vm_priority_diff = VMPriorityDiff, moh=Moh, ivroption = Ivropt, statename = inqueue}};
 
 case_event_name("CHANNEL_HANGUP", UUID, _Rawcall, Callrec, #state{uuid = UUID} = State)  when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->

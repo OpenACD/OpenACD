@@ -1414,8 +1414,22 @@ handle_info(Info, Call, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, Call, _State) ->
+terminate(Reason, Call, State) ->
+	#state{statename = Statename, cnode = Fs} = State,
 	?NOTICE("terminating: ~p ~p", [Reason, Call#call.id]),
+	OncallStates = [oncall, oncall_hold],
+	TransferStates = [oncall_ringing, oncall_hold_ringing],
+	Oncall = lists:member(Statename, OncallStates),
+	Transfer = lists:member(Statename, TransferStates),
+	if
+		Oncall ->
+			freeswitch:api(Fs, uuid_kill, Call#call.id);
+		Transfer ->
+			% tear down the transfer channel if there is one
+			gen_server:cast(State#state.xferchannel, cancel_agent_transfer),
+			freeswitch:api(Fs, uuid_kill, Call#call.id),
+			freeswitch:api(Fs, uuid_kill, State#state.xferuuid)
+	end,
 	ok.
 
 %%--------------------------------------------------------------------

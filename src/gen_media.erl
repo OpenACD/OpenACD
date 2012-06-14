@@ -629,6 +629,14 @@ handle_call({'$gen_media_spy', _Spy, _AgentRec}, _From, State) ->
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
 	cdr:wrapup(State#state.callrec, Ocagent),
+	case State#state.ring_pid of
+		undefined ->
+			ok;
+		{_Ragent, Rpid} ->
+			kill_outband_ring(State),
+			set_agent_state(Rpid, [idle]),
+			timer:cancel(State#state.ringout)
+	end,
 	case Callback:handle_wrapup(State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			erlang:demonitor(Mons#monitors.oncall_pid),

@@ -73,6 +73,7 @@
 	toggle_hold/1,
 	contact_3rd_party/2,
 	contact_3rd_party/3,
+	contact_3rd_party/4,
 	retrieve_conference/1,
 	retrieve_3rd_party/1,
 	hangup_3rd_party/1,
@@ -276,9 +277,17 @@ contact_3rd_party(MPid, Destination) ->
 %% @doc From the states oncall_hold, in_conference, and hold_conference, 
 %% contact the 3rd party.  Afterwards, either go in_conference, 
 %% 3rd_party, hold_conference-3rdparty, or hold_conference.
--spec(contact_3rd_party/3 :: (MPid :: pid(), Destination :: string(), NextState :: 'in_conference' | '3rd_party' | 'hold_conference_3rdparty' | 'hold_conference') -> 'ok').
+-spec(contact_3rd_party/3 :: (MPid :: pid(), Destination :: string(), NextState :: 'in_conference' | '3rd_party' | 'hold_conference_3rdparty' | 'hold_conference' | string()) -> 'ok').
 contact_3rd_party(MPid, Destination, NextState) when NextState =:= 'in_conference'; NextState =:= '3rd_party'; NextState =:= 'hold_conference_3rdparty'; NextState =:= 'hold_conference' ->
-	gen_media:cast(MPid, {contact_3rd_party, Destination, NextState}).
+	{ok, ConfProf} = cpx:get_env(freeswitch_conference_profile, "default"),
+	contact_3rd_party(MPid, Destination, NextState, ConfProf);
+contact_3rd_party(MPid, Destination, Profile) when is_list(Profile) ->
+	contact_3rd_party(MPid, Destination, '3rd_party', Profile).
+
+%% @doc And now even the conference profile can be defined.  Note that if
+%% a conference is already underway, the profile is ignored.
+contact_3rd_party(MPid, Destination, NextState, ConfProf) when NextState =:= 'in_conference'; NextState =:= '3rd_party'; NextState =:= 'hold_conference_3rdparty'; NextState =:= 'hold_conference', is_list(ConfProf) ->
+	gen_media:cast(MPid, {contact_3rd_party, Destination, NextState, ConfProf}).
 
 %% @doc While a conference is active, if the agent is talking to a 3rd
 %% party or just sitting in limbo, this puts the agent in the conference.
@@ -948,11 +957,11 @@ handle_cast(toggle_hold, _Call, #state{statename = oncall_hold_ringing} = State)
 	?DEBUG("Cannot back out of oncall_hold_ringing until ringing ends", []),
 	{noreply, State};
 
-handle_cast({contact_3rd_party, _Args, _NextState} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
+handle_cast({contact_3rd_party, _Args, _NextState, ConfProfile} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
 	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
-	{ok, ConfProfile} = cpx:get_env(freeswitch_conference_profile, "default"),
+	%{ok, ConfProfile} = cpx:get_env(freeswitch_conference_profile, "default"),
 	case freeswitch:api(Fnode, uuid_transfer, Call#call.id ++ " conference:" ++ 
 		ConfId ++ "@" ++ ConfProfile ++ "++flags{mintwo} inline") of
 		{ok, Res} ->
@@ -977,7 +986,7 @@ handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing}
 	{{stop_ring, agent_transfer_cancel}, State};
 
 %% hold_conference -> 3rd_party | in_conference
-handle_cast({contact_3rd_party, Destination, NextState}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
+handle_cast({contact_3rd_party, Destination, NextState, _ConfProf}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
 	% start a ring chan to 3rd party
 	% play a ringing sound to agent to be nice
 	% on any error, we just kill the playback
@@ -1085,7 +1094,7 @@ handle_cast(toggle_hold, Call, #state{statename = 'in_conference'} = State) ->
 	freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
 	{noreply, State#state{statename = hold_conference}};
 
-handle_cast({contact_3rd_party, _Targ, _NextState} = Cast, Call, #state{statename = 'in_conference'} = State) ->
+handle_cast({contact_3rd_party, _Targ, _NextState, _ConfProf} = Cast, Call, #state{statename = 'in_conference'} = State) ->
 	?INFO("contact 3rd party, means place conference on hold first", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(Cast, Call, MidState);

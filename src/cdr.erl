@@ -277,7 +277,7 @@ voicemail(Call, Queue) ->
 
 %% @doc Notify the cdr handler about a custom media vent for `#call{} Call'.
 -spec(media_custom/4 :: (Call :: #call{}, Name :: atom(), EndedBy :: [atom()], Data :: any()) -> 'ok').
-media_custom(Call, Name, EndedBy, Data) when is_atom(Name), is_list(EndedBy) ->
+media_custom(Call, Name, EndedBy, Data) when is_atom(Name), is_list(EndedBy); is_atom(Name), EndedBy == self ->
 	event({{media_custom, Name}, Call, util:now(), {EndedBy, Data}}).
 
 -spec(truncate/0 :: () -> ['none' | 'ok' | pid()]).

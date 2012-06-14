@@ -90,7 +90,8 @@
 	'voicemail' |
 	'hangup' |
 	'undefined' |
-	'cdrend'
+	'cdrend' |
+	{'media_custom', atom()}
 ).
 
 -type(cpx_time() :: pos_integer()).

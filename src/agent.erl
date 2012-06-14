@@ -684,7 +684,7 @@ precall({outgoing, Call}, _From, #state{agent_rec = #agent{statedata = StateCall
 	Newagent = Agent#agent{state=outgoing, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, outgoing, State#state{agent_rec = Newagent}};
-precall(idle, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) ->
+precall(idle, _From, #state{agent_rec = #agent{statedata = Call, queuedrelease = undefined} = Agent} = State) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
@@ -692,6 +692,9 @@ precall(idle, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = Stat
 	Newagent = Agent#agent{state=idle, oldstate=Agent#agent.state, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent}};
+precall(idle, From, State) ->
+	#state{agent_rec = #agent{queuedrelease = Release}} = State,
+	precall({release, Release}, From, State);
 precall({released, default}, From, State) ->
 	precall({released, ?DEFAULT_REL}, From, State);
 precall({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->

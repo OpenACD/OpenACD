@@ -587,7 +587,7 @@ After init_outbound, dial/contact the given contact.
 @param {Object} [options] Callbacks
 */
 OpenACD.Agent.prototype.dial = function(digits, options) {
-	this.agentApi("dial", options, digitis);
+	this.agentApi("dial", options, digits);
 };
 
 /**

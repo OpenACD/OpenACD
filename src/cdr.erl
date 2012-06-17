@@ -679,12 +679,13 @@ find_untermed(endwrapup, #call{id = Cid}, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(ringout, #call{id = Cid}, {_Reason, _Agent}) ->
+find_untermed(ringout, #call{id = Cid}, {_Reason, Agent}) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
 		X#cdr_raw.transaction =:= ringing,
-		X#cdr_raw.ended =:= undefined
+		X#cdr_raw.ended =:= undefined,
+		X#cdr_raw.eventdata =:= Agent
 	]),
 	qlc:e(QH);
 find_untermed(voicemail, #call{id = Cid}, _Whatever) ->

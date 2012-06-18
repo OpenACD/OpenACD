@@ -3123,24 +3123,6 @@ agent_interact_test_() ->
 		%end}
 	%end,
 	fun({Arec, Callrec}) ->
-		{"oncall with a bad callrec",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, but agent refuses",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, agent accepts",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->
 			gen_leader_mock:expect_cast(agent_manager, fun({update_skill_list, _, _}, _, _) -> ok end),

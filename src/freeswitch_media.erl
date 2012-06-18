@@ -209,9 +209,15 @@ statename(Mpid) when is_pid(Mpid) ->
 
 -spec(statedata/1 :: (Mpid :: pid()) -> #state{}).
 statedata(Mpid) when is_pid(Mpid) ->
-	State = dump_state(Mpid),
-	Fields = record_info(fields, state),
-	[{lists:nth(N, Fields), element(N + 1, State)} || N <- lists:seq(1, length(Fields))].
+	case dump_state(Mpid) of
+		State when is_record(State, state) ->
+			Fields = record_info(fields, state),
+			[{lists:nth(N, Fields), element(N + 1, State)} || N <- lists:seq(1, length(Fields))];
+		State when is_list(State) ->
+			State;
+		Else ->
+			Else
+	end.
 
 '3rd_party_pickup'(Mpid) ->
 	Self = self(),

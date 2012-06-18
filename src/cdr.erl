@@ -1012,6 +1012,7 @@ push_raw_test_() ->
 			{ringing, "testagent"},
 			{precall, "na"},
 			{oncall, "testagent"},
+			{oncall_transition, "testagent"},
 			{failedoutgoing, "na"},
 			{agent_transfer, "na"},
 			{queue_transfer, "na"},
@@ -1105,6 +1106,14 @@ push_raw_test_() ->
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall, eventdata = "testagent"}),
 			Testend = [inqueue, ringing, precall, warmxfer_cancel, dialoutgoing],
+			Ended(Pull(), Testend)
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"oncall_transition",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall_transition, eventdata = "testagent"}),
+			Testend = [],
 			Ended(Pull(), Testend)
 		end}
 	end,
@@ -1239,6 +1248,7 @@ push_raw_test_() ->
 				ringing,
 				precall,
 				oncall,
+				oncall_transition,
 				failedoutgoing,
 				agent_transfer,
 				queue_transfer,

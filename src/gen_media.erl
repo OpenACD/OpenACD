@@ -643,7 +643,6 @@ handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #s
 					case agent:set_state(AgentPid, oncall, InCall) of
 						ok ->
 							cdr:oncall_transition(InCall, Nom),
-							
 							{reply, ok, State#state{substate = SubState0, callrec = InCall}};
 						Error ->
 							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
@@ -3123,6 +3122,24 @@ agent_interact_test_() ->
 			%ok
 		%end}
 	%end,
+	fun({Arec, Callrec}) ->
+		{"oncall with a bad callrec",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, but agent refuses",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, agent accepts",
+		fun() ->
+			?assert(false)
+		end}
+	end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->

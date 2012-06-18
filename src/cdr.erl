@@ -52,6 +52,7 @@
 	ringing/2,
 	ringout/2,
 	oncall/2,
+	oncall_transition/2,
 	hangup/2,
 	wrapup/2,
 	endwrapup/2,
@@ -196,6 +197,14 @@ oncall(Call, Agent) when is_pid(Agent) ->
 	oncall(Call, agent_manager:find_by_pid(Agent));
 oncall(Call, Agent) ->
 	event({oncall, Call, util:now(), Agent}).
+
+%% @doc Notify cdr handler that `#call{} Call' is swapping which pid is
+%% "source" for the media.
+-spec(oncall_transition/2 :: (Call :: #call{}, Agent :: pid() | string()) -> 'ok').
+oncall_transition(Call, Agent) when is_pid(Agent) ->
+	oncall_transition(Call, agent_manager:find_by_pid(Agent));
+oncall_transition(Call, Agent) ->
+	event({oncall_transition, Call, util:now(), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' has been hungup by `string() | agent By'.
 -spec(hangup/2 :: (Call :: #call{}, By :: string() | 'agent') -> 'ok').
@@ -427,7 +436,7 @@ handle_event({mutate, Oldid, Newcallrec}, #state{id = Oldid} = State) when is_re
 			{ok, State}
 	end;
 handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
-	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail, endwrapup, queue_transfer, ringout]) of
+	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail, endwrapup, queue_transfer, ringout, oncall_transition]) of
 		true ->
 			Time;
 		false ->

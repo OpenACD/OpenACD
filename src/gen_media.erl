@@ -1991,7 +1991,6 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-
 	fun({Makestate, _QMock, _Qpid, Ammock, Assertmocks}) ->
 		{"oncall with a bad callrec",
 		fun() ->
@@ -3122,24 +3121,6 @@ agent_interact_test_() ->
 			%ok
 		%end}
 	%end,
-	fun({Arec, Callrec}) ->
-		{"oncall with a bad callrec",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, but agent refuses",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, agent accepts",
-		fun() ->
-			?assert(false)
-		end}
-	end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->

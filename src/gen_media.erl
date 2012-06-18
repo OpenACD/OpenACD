@@ -1954,7 +1954,25 @@ handle_call_test_() ->
 			?assertMatch({reply, ok, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State)),
 			Assertmocks()
 		end}
-	end,	
+	end,
+	fun({Madestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"oncall with a bad callrec",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Madestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"oncall with valid call data, but agent refuses",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Madestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"oncall with valid call data, agent accepts",
+		fun() ->
+			?assert(false)
+		end}
+	end,
 	fun({Makestate, _, _, Ammock, Assertmocks}) ->
 		{"oncall_pid requests wrapup",
 		fun() ->
@@ -3040,24 +3058,6 @@ agent_interact_test_() ->
 			%ok
 		%end}
 	%end,
-	fun({Arec, Callrec}) ->
-		{"oncall with a bad callrec",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, but agent refuses",
-		fun() ->
-			?assert(false)
-		end}
-	end,
-	fun({Arec, Callrec}) ->
-		{"oncall with valid call data, agent accepts",
-		fun() ->
-			?assert(false)
-		end}
-	end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->

@@ -1764,9 +1764,10 @@ url_pop_test_() ->
 	end}.
 	
 init_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_init_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_init_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -1820,12 +1821,14 @@ init_test_() ->
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"default_queue", Qpid}}}, Res),
 			Assertmocks()
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 handle_call_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_handle_call_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_handle_call_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -2641,12 +2644,14 @@ handle_call_test_() ->
 			?assertMatch({reply, invalid, _State}, Out),
 			Assertmocks()
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 handle_cast_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_handle_cast),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_handle_cast),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		Call = #call{
 			id = "testcall",
@@ -2711,12 +2716,14 @@ handle_cast_test_() ->
 			{noreply, #state{callrec = Newcall}} = handle_cast({'$gen_media_add_skills', [cookskill]}, State),
 			?assertEqual([cookskill], Newcall#call.skills)
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 handle_info_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_handle_info_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_handle_info_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{Seedstate}
@@ -2940,12 +2947,14 @@ handle_info_test_() ->
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			gen_leader_mock:stop(Mock)
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 	
 agent_interact_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_agent_interact_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_agent_interact_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		Callrec = #call{id = "testcall", source = self(), client = #client{}},
 		{ok, Mock} = gen_leader_mock:start(agent_manager),
@@ -3178,12 +3187,14 @@ agent_interact_test_() ->
 			?assertEqual(undefined, Res#state.ring_pid),
 			gen_event_mock:assert_expectations(cdr)
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 outgoing_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_outgoing_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_outgoing_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		{ok, Apid} = agent:start(#agent{login = "testagent", state = precall, statedata = "clientrec"}),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
@@ -3260,12 +3271,14 @@ outgoing_test_() ->
 			gen_leader_mock:assert_expectations(Ammock),
 			gen_event_mock:assert_expectations(cdr)
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 priv_queue_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_priv_queue_tests),
-	{spawn, N, {foreach,
+	%util:start_testnode(),
+	%N = util:start_testnode(gen_media_priv_queue_tests),
+	%{spawn, N, {foreach,
+	{foreach,
 	fun() ->
 		{ok, QMpid} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
@@ -3316,6 +3329,7 @@ priv_queue_test_() ->
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
 			Mocks()
 		end}
-	end]}}.
+	%end]}}.
+	end]}.
 
 -endif.

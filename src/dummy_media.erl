@@ -44,7 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete, call_end]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete, call_end, oncall_transiation]).
 
 %% API
 -export([
@@ -75,7 +75,8 @@
 	terminate/3, 
 	code_change/4,
 	handle_ring/3, 
-	handle_answer/3, 
+	handle_answer/3,
+	handle_oncall_transition/3,
 	handle_voicemail/3, 
 	handle_announce/3, 
 	handle_ring_stop/2,
@@ -480,6 +481,17 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 		fail_once ->
 			Newfail = dict:store(oncall, success, Fail),
 			{error, dummy_fail, State#state{fail = Newfail}}
+	end.
+
+handle_oncall_transition(InCall, Call, #state{fail = Fail} = State) ->
+	case dict:fetch(oncall_transition, Fail) of
+		success ->
+			{ok, State};
+		fail ->
+			{invalid, State};
+		fail_once ->
+			NewFail = dict:store(oncall_transition, success, Fail),
+			{invalid, State#state{fail = NewFail}}
 	end.
 
 handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->

@@ -145,16 +145,28 @@ handle_event("CHANNEL_ANSWER", _Data, {FSNode, UUID}, #state{call = #call{type =
 		% error (RTP reinvite error).  Various solutions were tried, including
 		% triggering this after park.  However, this was the most consistent
 		% in resolving the issue.
-		Statedata = freeswitch_media:statedata(Call#call.source),
+		Statedata = case freeswitch_media:statedata(Call#call.source) of
+			L when is_list(L) -> L;
+			SdGetElse ->
+				?DEBUG("State data dump didn't go as expected:  ~p", [SdGetElse]),
+				[]
+		end,
 		Statename = proplists:get_value(statename, Statedata),
 		OtherRingPid = proplists:get_value(ringchannel, Statedata),
-		OncallUUID = freeswitch_ring:get_uuid(OtherRingPid),
+		OncallUUID = if
+			not is_pid(OtherRingPid) ->
+				undefined;
+			true ->
+				freeswitch_ring:get_uuid(OtherRingPid)
+		end,
 		?DEBUG("The statename and oc uuid:  ~p; ~p", [Statename, OncallUUID]),
 		case Statename of
 			Q when Q =:= inqueue; Q =:= inqueue_ringing ->
 				ok;
 			NotHold when NotHold =:= oncall; NotHold =:= oncall_ringing ->
 				timer:sleep(2000);
+			_ when OncallUUID == undefined ->
+				ok;
 			_ ->
 				% unspported is not a typo; that's how freeswitch expects it.
 				freeswitch:bgapi(FSNode, uuid_setvar, OncallUUID ++ " fs_send_unspported_info true"),

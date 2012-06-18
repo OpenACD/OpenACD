@@ -146,14 +146,16 @@ handle_wrapup(_Call, State) ->
 %% handle_call
 %% ---------------------------------------------------------------------
 
-handle_call(_Msg, _From, _Call, State) ->
+handle_call(Msg, _From, _Call, State) ->
+	?WARNING("Unhandled call ~p", [Msg]),
 	{reply, {error, invalid}, State}.
 
 %% ---------------------------------------------------------------------
 %% handle_cast
 %% ---------------------------------------------------------------------
 
-handle_cast(_Msg, _Call, State) ->
+handle_cast(Msg, _Call, State) ->
+	?WARNING("Unhandled cast ~p", [Msg]),
 	{noreply, State}.
 
 %% ---------------------------------------------------------------------

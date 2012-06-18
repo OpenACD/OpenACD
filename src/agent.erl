@@ -1659,19 +1659,25 @@ expand_magic_skills_test_() ->
 	?_assert(lists:member({'_brand', "testbrand"}, Newskills))].
 
 start_change_test_() ->
-	util:start_testnode(),
-	NodeNames = [
-		from_idle_tests,
-		from_ringing_tests,
-		from_precall_tests,
-		from_oncall_tests,
-		from_outgoing_tests,
-		from_released_tests,
-		from_warmtransfer_tests,
-		from_wrapup_tests
-	],
-	NodesList = [{?MODULE:Name(), util:start_testnode(Name)} || Name <- NodeNames],
-	[{setup, {spawn, Node}, fun() -> ok end, Tests} || {Tests, Node} <- NodesList].
+	List = [from_idle_tests, from_ringing_tests, from_precall_tests,
+		from_oncall_tests, from_outgoing_tests, from_released_tests,
+		from_warmtransfer_tests, from_wrapup_tests],
+	[{atom_to_list(Name), ?MODULE:Name()} || Name <- List].
+	
+%start_change_test_() ->
+%	util:start_testnode(),
+%	NodeNames = [
+%		from_idle_tests,
+%		from_ringing_tests,
+%		from_precall_tests,
+%		from_oncall_tests,
+%		from_outgoing_tests,
+%		from_released_tests,
+%		from_warmtransfer_tests,
+%		from_wrapup_tests
+%	],
+%	NodesList = [{?MODULE:Name(), util:start_testnode(Name)} || Name <- NodeNames],
+%	[{setup, {spawn, Node}, fun() -> ok end, Tests} || {Tests, Node} <- NodesList].
 
 from_idle_tests() ->
 	{foreach,
@@ -1730,7 +1736,12 @@ from_idle_tests() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to ringing",
 		fun() ->
-			{ok, Fsmmm} = gen_server_mock:named({local, freeswitch_media_manager}),
+			{ok, Fsmmm} = case whereis(freeswitch_media_manager) of
+				undefined ->
+					gen_server_mock:named({local, freeswitch_media_manager});
+				FsmmmPid ->
+					{ok, FsmmmPid}
+			end,
 			application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
 			gen_server_mock:expect_call(Fsmmm, fun({ring, _Agent, _Call}, _From, State) ->
 				{ok, {ok, dumb_spawn(), both}, State}
@@ -2928,16 +2939,41 @@ from_released_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
-			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
+			{ok, Fsmmm} = case whereis(freeswitch_media_manager) of
+				undefined ->
+					gen_server_mock:named({local, freeswitch_media_manager});
+				FsmmmPid ->
+					{ok, FsmmmPid}
+			end,
+			application:set_env('OpenACD', ring_manager, freeswitch_media_manager),
+			gen_server_mock:expect_call(Fsmmm, fun({ring, _Agent, _Call}, _From, State) ->
+				{ok, {ok, dumb_spawn(), both}, State}
+			end),
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self,
+				ring_path = inband,
+				media_path = inband
+			},
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) ->
+				?DEBUG("Call:  ~p\nIncall:  ~p", [Call, Incall]),
+				Call = Incall,
 				ok
 			end),
-			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, "callrec"}, _State) -> ok end),
-			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", State)),
-			Assertmocks()
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, _Call}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			?assertMatch({reply, ok, ringing, _State}, released({ringing, Call}, "from", State)),
+			Assertmocks(),
+			gen_server_mock:assert_expectations(whereis(freeswitch_media_manager)),
+			gen_server_mock:stop(whereis(freeswitch_media_manager))
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->

@@ -622,7 +622,7 @@ init([Callback, Args]) ->
 handle_call({'$gen_media_oncall_transition', _InCall}, _From, #state{oncall_pid = undefined} = State) ->
 	{reply, {error, not_oncall}, State};
 
-handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #state{oncall_pid = {_Nom, AgentPid}, callrec = #call{id = Id}} = State) ->
+handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #state{oncall_pid = {Nom, AgentPid}, callrec = #call{id = Id}} = State) ->
 	#state{callback = Callback, substate = SubState, callrec = Call} = State,
 	case erlang:function_exported(Callback, handle_oncall_transition, 3) of
 		false ->
@@ -632,6 +632,8 @@ handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #s
 				{ok, SubState0} ->
 					case agent:set_state(AgentPid, oncall, InCall) of
 						ok ->
+							cdr:oncall_transition(InCall, Nom),
+							
 							{reply, ok, State#state{substate = SubState0, callrec = InCall}};
 						Error ->
 							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
@@ -640,6 +642,7 @@ handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #s
 				{mutate, Callback0, SubState0} ->
 					case agent:set_state(AgentPid, oncall, InCall) of
 						ok ->
+							cdr:oncall_transition(InCall, Nom),
 							{reply, ok, State#state{substate = SubState0, callback = Callback0, callrec = InCall}};
 						Error ->
 							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
@@ -1973,10 +1976,11 @@ handle_call_test_() ->
 		end}
 	end,
 
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+	fun({Makestate, _QMock, _Qpid, Ammock, Assertmocks}) ->
 		{"oncall with valid call data, but callback refuses",
 		fun() ->
 			Seedstate = Makestate(),
+			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
 			%gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
@@ -1984,20 +1988,23 @@ handle_call_test_() ->
 			dummy_media:set_mode(Seedstate#state.callrec#call.source, oncall_transition, fail),
 			InCall = Seedstate#state.callrec,
 			InCall0 = InCall#call{source = dead_spawn()},
-			?assertMatch({reply, {error, invalid}, _State0}, handle_call({'$gen_media_oncall_transition', InCall0}, "from", State)),
+			?assertMatch({reply, {error, dummy_fail}, _State0}, handle_call({'$gen_media_oncall_transition', InCall0}, "from", State)),
 			Assertmocks()
 		end}
 	end,
 
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
-		{"oncall with valid call data, agent accepts",
+	fun({Makestate, _QMock, _Qpid, Ammock, Assertmocks}) ->
+		{"oncall to oncall with valid call data, all is well",
 		fun() ->
 			Seedstate = Makestate(),
+			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
-			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall_transition, _Callrec, _Time, "testagent"}, State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
-			?assertMatch({reply, {error, _What}, _State0}, handle_call({'$gen_media_oncall_transition', "badcall"}, "from", State)),
+			InCall = State#state.callrec,
+			InCall0 = InCall#call{source = dead_spawn()},
+			?assertMatch({reply, ok, _State0}, handle_call({'$gen_media_oncall_transition', InCall0}, "from", State)),
 			Assertmocks()
 		end}
 	end,

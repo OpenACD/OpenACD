@@ -1064,12 +1064,19 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 					kill_outband_ring(State),
 					cdr:oncall(Call, Agent),
 					timer:cancel(State#state.ringout),
-					call_queue:remove(element(2, State#state.queue_pid), self()),
+					% can't assume they're in queue
+					Qname = case State#state.queue_pid of
+						{Qnom, Qpid} ->
+							call_queue:remove(Qpid, self()),
+							erlang:demonitor(Mons#monitors.queue_pid),
+							Qnom;
+						_ ->
+							undefined
+					end,
 					%Agent = agent_manager:find_by_pid(Apid),
 					set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = {Agent, Apid}, ring_pid = undefined}, [{agent, Agent}]),
-					erlang:demonitor(Mons#monitors.queue_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_agent", Agent}, {"last_state", "oncall"}], State#state.url_pop_getvars)}};
+					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = Qname, oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons, url_pop_getvars = util:proplist_set([{"last_agent", Agent}, {"last_state", "oncall"}], State#state.url_pop_getvars)}};
 				{error, Reason, NewState} ->
 					?ERROR("Could not set ~p on call with ~p due to ~p", [Apid, Call#call.id, Reason]),
 					{reply, invalid, State#state{substate = NewState}}

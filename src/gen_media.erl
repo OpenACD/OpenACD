@@ -327,6 +327,10 @@
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
+	% next is used for a 2nd gen media to request an oncall agent
+	% is considered oncall with itself.
+	oncall_transition/2,
+	% TODO warm transfer depricatd in favor of media specific handlings.
 	warm_transfer_begin/2,
 	warm_transfer_cancel/1,
 	warm_transfer_complete/1,
@@ -477,6 +481,17 @@ agent_transfer(Genmedia, Agent, Timeout) ->
 			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
 	end.
 
+-spec(oncall_transition/2 :: (Genmedia :: pid(), Call :: #call{}) -> 'ok' | {'error', any()}).
+oncall_transition(GenMedia, NewCall) ->
+	Self = self(),
+	case NewCall#call.source of
+		Self ->
+			gen_server:call(GenMedia, {'$gen_media_oncall_transition', NewCall});
+		_NotSelf ->
+			?WARNING("~p tried to do a transition on behalf of ~p", [Self, NewCall#call.source]),
+			{error, source_pid_mismatch}
+	end.
+
 -spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
 	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
@@ -604,6 +619,37 @@ init([Callback, Args]) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_call({'$gen_media_oncall_transition', _InCall}, _From, #state{oncall_pid = undefined} = State) ->
+	{reply, {error, not_oncall}, State};
+
+handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #state{oncall_pid = {_Nom, AgentPid}, callrec = #call{id = Id}} = State) ->
+	#state{callback = Callback, substate = SubState, callrec = Call} = State,
+	case erlang:function_exported(Callback, handle_oncall_transition, 3) of
+		false ->
+			{reply, {error, not_exported}, State};
+		true ->
+			case Callback:handle_oncall_transition(InCall, Call, SubState) of
+				{ok, SubState0} ->
+					case agent:set_state(AgentPid, oncall, InCall) of
+						ok ->
+							{reply, ok, State#state{substate = SubState0, callrec = InCall}};
+						Error ->
+							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
+							{reply, {error, Error}, State}
+					end;
+				{mutate, Callback0, SubState0} ->
+					case agent:set_state(AgentPid, oncall, InCall) of
+						ok ->
+							{reply, ok, State#state{substate = SubState0, callback = Callback0, callrec = InCall}};
+						Error ->
+							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
+							{reply, {error, Error}, State}
+					end;
+				{error, Error, Substate0} ->
+					{reply, {error, Error}, State#state{substate = Substate0}}
+			end
+	end;
+
 handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
@@ -2994,6 +3040,24 @@ agent_interact_test_() ->
 			%ok
 		%end}
 	%end,
+	fun({Arec, Callrec}) ->
+		{"oncall with a bad callrec",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, but agent refuses",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, agent accepts",
+		fun() ->
+			?assert(false)
+		end}
+	end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->

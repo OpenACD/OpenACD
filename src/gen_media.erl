@@ -1974,14 +1974,17 @@ handle_call_test_() ->
 	end,
 
 	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
-		{"oncall with valid call data, but agent refuses",
+		{"oncall with valid call data, but callback refuses",
 		fun() ->
 			Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
-			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, State) -> ok end),
+			%gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
-			?assertMatch({reply, {error, _What}, _State0}, handle_call({'$gen_media_oncall_transition', "badcall"}, "from", State)),
+			dummy_media:set_mode(Seedstate#state.callrec#call.source, oncall_transition, fail),
+			InCall = Seedstate#state.callrec,
+			InCall0 = InCall#call{source = dead_spawn()},
+			?assertMatch({reply, {error, invalid}, _State0}, handle_call({'$gen_media_oncall_transition', InCall0}, "from", State)),
 			Assertmocks()
 		end}
 	end,

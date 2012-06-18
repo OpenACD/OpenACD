@@ -488,10 +488,17 @@ handle_oncall_transition(InCall, Call, #state{fail = Fail} = State) ->
 		success ->
 			{ok, State};
 		fail ->
+<<<<<<< HEAD
 			{error, dummy_fail, State};
 		fail_once ->
 			NewFail = dict:store(oncall_transition, success, Fail),
 			{error, dummy_fail, State#state{fail = NewFail}}
+=======
+			{invalid, State};
+		fail_once ->
+			NewFail = dict:store(oncall_transition, success, Fail),
+			{invalid, State#state{fail = NewFail}}
+>>>>>>> oncall_transation callback fail test complete.
 	end.
 
 handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->

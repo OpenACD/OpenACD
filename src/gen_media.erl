@@ -307,47 +307,47 @@
 
 %% API
 -export([
-	behaviour_info/1,
-	start_link/2,
-	start/2
+behaviour_info/1,
+start_link/2,
+start/2
 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3, format_status/2]).
+ terminate/2, code_change/3, format_status/2]).
 
 %% gen_media api
 -export([
-	ring/4,
-	get_call/1,
-	voicemail/1,
-	announce/2,
-	%% TODO added for testing only (implemented with focus on real Calls - no other media)
-	end_call/1,
-	stop_ringing/1,
-	oncall/1,
-	agent_transfer/3,
-	% next is used for a 2nd gen media to request an oncall agent
-	% is considered oncall with itself.
-	oncall_transition/2,
-	% TODO warm transfer depricatd in favor of media specific handlings.
-	warm_transfer_begin/2,
-	warm_transfer_cancel/1,
-	warm_transfer_complete/1,
-	queue/2,
-	call/2,
-	call/3,
-	cast/2,
-	wrapup/1,
-	spy/3,
-	set_cook/2,
-	set_queue/2,
-	set_url_getvars/2,
-	get_url_getvars/1,
-	add_skills/2,
-	% set priority is used by the call queue, reporting aid only.
-	% to set the priority of a call while in queue, use the call_queue mod.
-	set_priority/4
+ring/4,
+get_call/1,
+voicemail/1,
+announce/2,
+%% TODO added for testing only (implemented with focus on real Calls - no other media)
+end_call/1,
+stop_ringing/1,
+oncall/1,
+agent_transfer/3,
+% next is used for a 2nd gen media to request an oncall agent
+% is considered oncall with itself.
+oncall_transition/2,
+% TODO warm transfer depricatd in favor of media specific handlings.
+warm_transfer_begin/2,
+warm_transfer_cancel/1,
+warm_transfer_complete/1,
+queue/2,
+call/2,
+call/3,
+cast/2,
+wrapup/1,
+spy/3,
+set_cook/2,
+set_queue/2,
+set_url_getvars/2,
+get_url_getvars/1,
+add_skills/2,
+% set priority is used by the call queue, reporting aid only.
+% to set the priority of a call while in queue, use the call_queue mod.
+set_priority/4
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -356,26 +356,26 @@
 -type(proplist() :: [proplist_item()]).
 
 -record(monitors, {
-	queue_pid :: 'undefined' | reference(),
-	ring_pid :: 'undefined' | reference(),
-	oncall_pid :: 'undefined' | reference(),
-	cook :: 'undefined' | reference()
+queue_pid :: 'undefined' | reference(),
+ring_pid :: 'undefined' | reference(),
+oncall_pid :: 'undefined' | reference(),
+cook :: 'undefined' | reference()
 }).
 
 -record(state, {
-	callback :: atom(),
-	substate :: any(),
-	callrec :: #call{},
-	ring_pid :: 'undefined' | {string(), pid()},
-	oncall_pid :: 'undefined' | {string(), pid()},
-	queue_failover = true :: 'true' | 'false',
-	queue_pid :: 'undefined' | string() | {string(), pid()},
-	ringout = false:: tref() | 'false',
-	outband_ring_pid :: 'undefined' | pid(),
-	warm_transfer = false :: boolean(),
-	monitors = #monitors{} :: #monitors{},
-	url_pop_getvars = [] :: [{string(), string()}],
-	queued_at :: 'undefined' | pos_integer()
+callback :: atom(),
+substate :: any(),
+callrec :: #call{},
+ring_pid :: 'undefined' | {string(), pid()},
+oncall_pid :: 'undefined' | {string(), pid()},
+queue_failover = true :: 'true' | 'false',
+queue_pid :: 'undefined' | string() | {string(), pid()},
+ringout = false:: tref() | 'false',
+outband_ring_pid :: 'undefined' | pid(),
+warm_transfer = false :: boolean(),
+monitors = #monitors{} :: #monitors{},
+url_pop_getvars = [] :: [{string(), string()}],
+queued_at :: 'undefined' | pos_integer()
 }).
 
 -type(state() :: #state{}).
@@ -383,183 +383,183 @@
 -include("gen_spec.hrl").
 
 -spec(behaviour_info/1 :: 
-	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
+(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
-	[
-		{handle_ring, 3},
-		{handle_ring_stop, 2},
-		{handle_answer, 3}, 
-		%{handle_voicemail, 3}, 
-		%{handle_announce, 3}, 
-		{handle_agent_transfer, 4},
-		{handle_queue_transfer, 2},
+[
+	{handle_ring, 3},
+	{handle_ring_stop, 2},
+	{handle_answer, 3}, 
+	%{handle_voicemail, 3}, 
+	%{handle_announce, 3}, 
+	{handle_agent_transfer, 4},
+	{handle_queue_transfer, 2},
 %		{handle_warm_transfer_begin, 3},
 %		{handle_warm_transfer_cancel, 2},
 %		{handle_warm_transfer_complete, 2},
-		{handle_wrapup, 2},
-		{handle_call, 4},
-		{handle_cast, 3},
-		{handle_info, 3},
-		{terminate, 3},
-		{code_change, 4}
-	];
+	{handle_wrapup, 2},
+	{handle_call, 4},
+	{handle_cast, 3},
+	{handle_info, 3},
+	{terminate, 3},
+	{code_change, 4}
+];
 behaviour_info(_Other) ->
-    undefined.
+	undefined.
 
 %% @doc Make the `pid() Genmedia' ring to `pid() Agent' based off of
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout}, infinity);
+gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout}, infinity);
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
-	case agent_manager:find_by_pid(Apid) of
-		notfound ->
-			invalid;
-		Agent ->
-			ring(Genmedia, {Agent, Apid}, Qcall, Timeout)
-	end;
+case agent_manager:find_by_pid(Apid) of
+	notfound ->
+		invalid;
+	Agent ->
+		ring(Genmedia, {Agent, Apid}, Qcall, Timeout)
+end;
 ring(Genmedia, Agent, Qcall, Timeout) ->
-	case agent_manager:query_agent(Agent) of
-		{true, Apid} ->
-			ring(Genmedia, {Agent, Apid}, Qcall, Timeout);
-		false ->
-			invalid
-	end.
+case agent_manager:query_agent(Agent) of
+	{true, Apid} ->
+		ring(Genmedia, {Agent, Apid}, Qcall, Timeout);
+	false ->
+		invalid
+end.
 
 %% @doc Get the call record associated with `pid() Genmedia'.
 -spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_get_call', infinity).
+gen_server:call(Genmedia, '$gen_media_get_call', infinity).
 
 %% @doc Send the passed `pid() Genmedia' to voicemail.
 -spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 voicemail(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_voicemail').
+gen_server:call(Genmedia, '$gen_media_voicemail').
 
 %% @doc Pass `any() Annouce' message to `pid() Genmedia'.
 -spec(announce/2 :: (Genmedia :: pid(), Annouce :: any()) -> 'ok').
 announce(Genmedia, Annouce) ->
-	gen_server:call(Genmedia, {'$gen_media_announce', Annouce}).
+gen_server:call(Genmedia, {'$gen_media_announce', Annouce}).
 
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
 %% @doc End the Call for `pid() Genmedia'.
 -spec(end_call/1 :: (Genmedia :: pid()) -> 'ok').
 end_call(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_end_call').
+gen_server:call(Genmedia, '$gen_media_end_call').
 
 %% @doc Sends the oncall agent associated with the call to wrapup; or, if it's
 %% the oncall agent making the request, gives the callback module a chance to
 %% handle it.
 -spec(wrapup/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 wrapup(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_wrapup').
+gen_server:call(Genmedia, '$gen_media_wrapup').
 
 %% @doc Send a stop ringing message to `pid() Genmedia'.
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
-	Self = self(),
-	Genmedia ! {'$gen_media_stop_ring', Self},
-	ok.
+Self = self(),
+Genmedia ! {'$gen_media_stop_ring', Self},
+ok.
 
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.
 -spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 oncall(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_agent_oncall', infinity).
+gen_server:call(Genmedia, '$gen_media_agent_oncall', infinity).
 
 %% @doc Transfer the call from the agent it is associated with to a new agent.
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid() | string() | {string(), pid()}, Timeout :: pos_integer()) -> 'ok' | 'invalid').
 agent_transfer(Genmedia, {_Login, Apid} = Agent, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Agent, Timeout});
+gen_server:call(Genmedia, {'$gen_media_agent_transfer', Agent, Timeout});
 agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
-	case agent_manager:find_by_pid(Apid) of
-		notfound ->
-			invalid;
-		Agent ->
-			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
-	end;
+case agent_manager:find_by_pid(Apid) of
+	notfound ->
+		invalid;
+	Agent ->
+		agent_transfer(Genmedia, {Agent, Apid}, Timeout)
+end;
 agent_transfer(Genmedia, Agent, Timeout) ->
-	case agent_manager:query_agent(Agent) of
-		false ->
-			invalid;
-		{true, Apid} ->
-			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
-	end.
+case agent_manager:query_agent(Agent) of
+	false ->
+		invalid;
+	{true, Apid} ->
+		agent_transfer(Genmedia, {Agent, Apid}, Timeout)
+end.
 
 -spec(oncall_transition/2 :: (Genmedia :: pid(), Call :: #call{}) -> 'ok' | {'error', any()}).
 oncall_transition(GenMedia, NewCall) ->
-	Self = self(),
-	case NewCall#call.source of
-		Self ->
-			gen_server:call(GenMedia, {'$gen_media_oncall_transition', NewCall});
-		_NotSelf ->
-			?WARNING("~p tried to do a transition on behalf of ~p", [Self, NewCall#call.source]),
-			{error, source_pid_mismatch}
-	end.
+Self = self(),
+case NewCall#call.source of
+	Self ->
+		gen_server:call(GenMedia, {'$gen_media_oncall_transition', NewCall});
+	_NotSelf ->
+		?WARNING("~p tried to do a transition on behalf of ~p", [Self, NewCall#call.source]),
+		{error, source_pid_mismatch}
+end.
 
 -spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
-	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
+gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
 
 -spec(warm_transfer_cancel/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_cancel(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_warm_transfer_cancel').
+gen_server:call(Genmedia, '$gen_media_warm_transfer_cancel').
 
 -spec(warm_transfer_complete/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_complete(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_warm_transfer_complete').
+gen_server:call(Genmedia, '$gen_media_warm_transfer_complete').
 
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
 queue(Genmedia, Queue) ->
-	gen_server:call(Genmedia, {'$gen_media_queue', Queue}).
+gen_server:call(Genmedia, {'$gen_media_queue', Queue}).
 	
 %% @doc Attempt to spy on the agent oncall with the given media.  `Spy' is
 %% the pid to send media events/load data to, and `AgentRec' is an 
 %% `#agent{}' used to hold the end point data.
 -spec(spy/3 :: (Genmedia :: pid(), Spy :: pid(), AgentRec :: #agent{}) -> 'ok' | 'invalid' | {'error', any()}).
 spy(Genmedia, Spy, AgentRec) ->
-	gen_server:call(Genmedia, {'$gen_media_spy', Spy, AgentRec}).
+gen_server:call(Genmedia, {'$gen_media_spy', Spy, AgentRec}).
 
 -spec(set_cook/2 :: (Genmedia :: pid(), CookPid :: pid()) -> 'ok').
 set_cook(Genmedia, CookPid) ->
-	gen_server:cast(Genmedia, {'$gen_media_set_cook', CookPid}).
+gen_server:cast(Genmedia, {'$gen_media_set_cook', CookPid}).
 
 -spec(set_queue/2 :: (Genmedia :: pid(), Qpid :: pid()) -> 'ok').
 set_queue(Genmedia, Qpid) ->
-	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
+gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
 
 -spec(set_url_getvars/2 :: (Genmedia :: pid(), Vars :: [{string(), string()}]) -> 'ok').
 set_url_getvars(Genmedia, Vars) ->
-	gen_server:cast(Genmedia, {'$gen_media_set_url_getvars', Vars}).
+gen_server:cast(Genmedia, {'$gen_media_set_url_getvars', Vars}).
 
 -spec(get_url_getvars/1 :: (Genmedia :: pid()) -> {'ok', [{string(), string()}]}).
 get_url_getvars(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_get_url_vars').
+gen_server:call(Genmedia, '$gen_media_get_url_vars').
 
 -spec(add_skills/2 :: (Genmedia :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 add_skills(Genmedia, Skills) ->
-	gen_server:cast(Genmedia, {'$gen_media_add_skills', Skills}).
+gen_server:cast(Genmedia, {'$gen_media_add_skills', Skills}).
 	
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
-	gen_server:call(Genmedia, Request).
+gen_server:call(Genmedia, Request).
 
 %% @doc Do the equivalent of `gen_server:call/3'.
 -spec(call/3 :: (Genmedia :: pid(), Request :: any(), Timeout :: pos_integer()) -> any()).
 call(Genmedia, Request, Timeout) ->
-	gen_server:call(Genmedia, Request, Timeout).
+gen_server:call(Genmedia, Request, Timeout).
 
 %% @doc Do the equivalent of `gen_server:cast/2'.
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
-	gen_server:cast(Genmedia, Request).
+gen_server:cast(Genmedia, Request).
 
 %% @doc Set the current priority of call.  This is useful only for
 %% reporting or if the call is requeued.
 -spec(set_priority/4 :: (MediaPid :: pid(), Priority :: non_neg_integer(), QueueNom :: string(), QueueTime :: non_neg_integer()) -> 'ok').
 set_priority(MediaPid, Priority, QueueNom, QueueTime) ->
-	gen_server:cast(MediaPid, {'$gen_media_set_priority', Priority, QueueNom, QueueTime}).
+gen_server:cast(MediaPid, {'$gen_media_set_priority', Priority, QueueNom, QueueTime}).
 
 %%====================================================================
 %% API
@@ -568,11 +568,11 @@ set_priority(MediaPid, Priority, QueueNom, QueueTime) ->
 %% @doc Start a gen_media linked to the calling process.
 -spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Callback, Args) ->
-	gen_server:start_link(?MODULE, [Callback, Args], []).
+gen_server:start_link(?MODULE, [Callback, Args], []).
 
 -spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Callback, Args) ->
-	gen_server:start(?MODULE, [Callback, Args], []).
+gen_server:start(?MODULE, [Callback, Args], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -580,49 +580,49 @@ start(Callback, Args) ->
 
 %% @private
 init([Callback, Args]) ->
-	case Callback:init(Args) of
-		{ok, {Substate, undefined}} ->
-		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
-		{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
-			Callrec = correct_client(PCallrec),
-			cdr:cdrinit(Callrec),
-			cpx_monitor:set({media, Callrec#call.id}, [], self()),
-			{Qnom, Qpid} = case priv_queue(Queue, Callrec, true) of
-				invalid when Queue =/= "default_queue" ->
-					% this clause, if hit, will cause a (justifiable) crash
-					% TODO wtf?
-					priv_queue("default_queue", Callrec, true),
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
-					cdr:inqueue(Callrec, "default_queue");
-				{default, Pid} ->
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
-					cdr:inqueue(Callrec, "default_queue"),
-					{"default_queue", Pid};
-				Else ->
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
-					{Queue, Else}
-			end,
-			Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons, url_pop_getvars = util:proplist_set([{"last_queue", Qnom}, {"last_state", "inqueue"}], [])}};
-		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
-			Callrec = correct_client(PCallrec),
-			cdr:cdrinit(Callrec),
-			apply(cdr, CDRState, [Callrec | CDRArgs]),
-			set_cpx_mon(#state{callrec = Callrec}, [], self()),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, url_pop_getvars = [{"last_state", CDRState}]}};
-		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
-			Callrec = correct_client(PCallrec),
-			cdr:cdrinit(Callrec),
-			set_cpx_mon(#state{callrec = Callrec}, [], self()),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
-		{stop, Reason} = O ->
-			?WARNING("init aborted due to ~p", [Reason]),
-			O;
-		ignore ->
-			?WARNING("init told to ignore", []),
-			ignore
-	end.
+case Callback:init(Args) of
+	{ok, {Substate, undefined}} ->
+			{ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
+	{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
+		Callrec = correct_client(PCallrec),
+		cdr:cdrinit(Callrec),
+		cpx_monitor:set({media, Callrec#call.id}, [], self()),
+		{Qnom, Qpid} = case priv_queue(Queue, Callrec, true) of
+			invalid when Queue =/= "default_queue" ->
+				% this clause, if hit, will cause a (justifiable) crash
+				% TODO wtf?
+				priv_queue("default_queue", Callrec, true),
+				set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
+				cdr:inqueue(Callrec, "default_queue");
+			{default, Pid} ->
+				set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
+				cdr:inqueue(Callrec, "default_queue"),
+				{"default_queue", Pid};
+			Else ->
+				cdr:inqueue(Callrec, Queue),
+				set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
+				{Queue, Else}
+		end,
+		Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
+		{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons, url_pop_getvars = util:proplist_set([{"last_queue", Qnom}, {"last_state", "inqueue"}], [])}};
+	{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
+		Callrec = correct_client(PCallrec),
+		cdr:cdrinit(Callrec),
+		apply(cdr, CDRState, [Callrec | CDRArgs]),
+		set_cpx_mon(#state{callrec = Callrec}, [], self()),
+		{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, url_pop_getvars = [{"last_state", CDRState}]}};
+	{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
+		Callrec = correct_client(PCallrec),
+		cdr:cdrinit(Callrec),
+		set_cpx_mon(#state{callrec = Callrec}, [], self()),
+		{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
+	{stop, Reason} = O ->
+		?WARNING("init aborted due to ~p", [Reason]),
+		O;
+	ignore ->
+		?WARNING("init told to ignore", []),
+		ignore
+end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -630,7 +630,7 @@ init([Callback, Args]) ->
 
 %% @private
 handle_call({'$gen_media_oncall_transition', _InCall}, _From, #state{oncall_pid = undefined} = State) ->
-	{reply, {error, not_oncall}, State};
+{reply, {error, not_oncall}, State};
 
 handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #state{oncall_pid = {Nom, AgentPid}, callrec = #call{id = Id}} = State) ->
 	#state{callback = Callback, substate = SubState, callrec = Call} = State,
@@ -3122,6 +3122,24 @@ agent_interact_test_() ->
 			%ok
 		%end}
 	%end,
+	fun({Arec, Callrec}) ->
+		{"oncall with a bad callrec",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, but agent refuses",
+		fun() ->
+			?assert(false)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"oncall with valid call data, agent accepts",
+		fun() ->
+			?assert(false)
+		end}
+	end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->

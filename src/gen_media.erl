@@ -650,6 +650,10 @@ handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #s
 			end
 	end;
 
+handle_call({'$gen_media_oncall_transition', InCall}, _From, State) ->
+	?DEBUG("Incall and oncall records have an id mismatch.  In:  ~p;  Current:  ~p", [InCall, State#state.callrec]),
+	{reply, {error, bad_callrec}, State};
+
 handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
@@ -1956,12 +1960,12 @@ handle_call_test_() ->
 		end}
 	end,
 
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+	fun({Makestate, _QMock, _Qpid, Ammock, Assertmocks}) ->
 		{"oncall with a bad callrec",
 		fun() ->
 			Seedstate = Makestate(),
+			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
-			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			?assertMatch({reply, {error, _What}, _State0}, handle_call({'$gen_media_oncall_transition', "badcall"}, "from", State)),

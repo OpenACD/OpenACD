@@ -112,7 +112,7 @@ handle_ring_stop(_Call, State) ->
 %% ---------------------------------------------------------------------
 
 handle_answer(_Agent, _Call, State) ->
-	{error, nyi, State}.
+	{ok, State}.
 
 %% ---------------------------------------------------------------------
 %% handle_end_call

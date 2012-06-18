@@ -734,6 +734,12 @@ oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent}
 	Newagent = Agent#agent{queuedrelease=Reason},
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
 
+oncall({oncall, #call{id = InCallId} = InCall}, {CallPid, _Tag}, #state{agent_rec = #agent{statedata = #call{source = CallPid, id = InCallId}} = Agent} = State) ->
+	?INFO("Changing call record at request of current call", []),
+	Newagent = Agent#agent{statedata = InCall},
+	gen_server:cast(Agent#agent.connection, {change_state, oncall, InCall}),
+	{reply, ok, oncall, State#state{agent_rec = Newagent}};
+
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Call#call.source ->
 	NewEndpoint = update_endpoint_state(Agent, {agent_state, wrapup}),
 	Newagent = Agent#agent{endpointtype = NewEndpoint, state=wrapup, lastchange = util:now(), oldstate = oncall},
@@ -2454,6 +2460,21 @@ from_oncall_tests() ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({oncall, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to oncall with valid change over",
+		fun() ->
+			#state{agent_rec = AgentRec} = Agent,
+			Call = AgentRec#agent.statedata,
+			NewCall = Call#call{source = dumb_spawn()},
+			AgentRec0 = AgentRec#agent{statedata = NewCall},
+			State0 = Agent#state{agent_rec = AgentRec0},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, NewCall}, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, oncall, State0}, oncall({oncall, NewCall}, {Call#call.source, "tag"}, Agent)),
 			Assertmocks()
 		end}
 	end,

@@ -334,7 +334,7 @@ load_plugin(Plugin) ->
 				non_existing ->
 					{error, appfile_noexist};
 				Appfile ->
-					case file:make_link(Appfile, filename:join(PluginDir, atom_to_list(Plugin) ++ ".app")) of
+					case file:make_symlink(Appfile, filename:join(PluginDir, atom_to_list(Plugin) ++ ".app")) of
 						ok ->
 							{ok, Plugins} = cpx:get_env(plugins, []),
 							application:set_env('OpenACD', plugins, lists:usort([Plugin | Plugins])),

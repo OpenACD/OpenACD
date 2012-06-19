@@ -129,8 +129,6 @@ start(Opts) ->
 		?MODULE:loop(Req, NewOpts)
 	end,
 	case proplists:get_value(ssl, Opts) of
-		undefined ->
-			mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]);
 		true ->
 			mochiweb_http:start([
 				{loop, F},
@@ -141,7 +139,9 @@ start(Opts) ->
 					{certfile, util:get_certfile()},
 					{keyfile, util:get_keyfile()}
 				]}
-			])
+			]);
+		_ ->
+			mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}])
 	end.
 
 -spec(start_link/0 :: () -> {'ok', pid()}).

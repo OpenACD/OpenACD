@@ -196,7 +196,6 @@ init(Options) ->
 			Mochi1
 	end,
 	MochiSslPid = case Ssl of
-		undefined -> undefined;
 		true ->
 			?DEBUG("Starting ssl on port ~p", [SslPort]),
 			{ok, Mochi2} = mochiweb_http:start([
@@ -209,7 +208,8 @@ init(Options) ->
 					{keyfile, SslKeyfile}
 				]}
 			]),
-			Mochi2
+			Mochi2;
+		_ -> undefined
 	end,
 	case {MochiNormalPid, MochiSslPid} of
 		{undefined, undefined} ->

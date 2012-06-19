@@ -1425,6 +1425,24 @@ handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename =
 	cdr:media_custom(Call, oncall, ?cdr_states, []),
 	{{mediapush, caller_offhold}, State#state{spawn_oncall_mon = undefined}};
 
+handle_info(channel_destroy, Call, State) ->
+	?INFO("channel destroy (likely from manager) for ~s.", [Call#call.id]),
+	Stopples = [inqueue, inivr, inqueue_ringing],
+	Hangups = [oncall, oncall_ringing, oncall_hold, oncall_hold_ringing],
+	Stopple = lists:member(State#state.statename, Stopples),
+	Hang = lists:member(State#state.statename, Hangups),
+	if
+		Stopple ->
+			?DEBUG("Stopping as inqueue, inqueue_ringing, or inivr", []),
+			{stop, normal, State};
+		Hangups ->
+			?DEBUG("hangup as oncall of some variant", []),
+			{{hangup, caller}, State};
+		true ->
+			?DEBUG("noop:  ~p", [State#state.statename]),
+			{noreply, State}
+	end;
+
 handle_info(Info, Call, State) ->
 	?INFO("unhandled info ~p for ~p", [Info, Call#call.id]),
 	?DEBUG("unhandled state:  ~p", [State]),

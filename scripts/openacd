@@ -16,7 +16,6 @@ OALIBDIR="$OADIR"/lib
 OABINDIR="$OADIR"/bin
 OAETCDIR="$ETCDIR"/openacd
 OAVARDIR="$VARDIR"/lib/openacd
-OAPLUGINDIR="$OADIR"/plugin.d
 OALOGDIR="$VARDIR"/log/openacd
 OADBDIR="$OAVARDIR"/db
 
@@ -36,8 +35,8 @@ fi
 # allow overriding vars from above
 [ -e "${OAETCDIR}/sysopenacd" ] && . "${OAETCDIR}/sysopenacd"
 
-# Add plug-in dir to path
-export ERL_LIBS=$ERL_LIBS:"$OALIBDIR":"$OAPLUGINDIR"
+# Add erlang paths
+export ERL_LIBS=$ERL_LIBS:"$OALIBDIR"
 
 # Extract the target node name from node.args
 NAME_ARG=`grep -e '-[s]*name' $OAETCDIR/vm.args`

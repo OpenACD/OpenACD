@@ -141,6 +141,8 @@ start(_Type, StartArgs) ->
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
 	merge_env(),
+
+	add_plugin_paths(),
 	try cpx_supervisor:start_link(Nodes) of
 		{ok, Pid} ->
 			application:set_env('OpenACD', uptime, util:now()),
@@ -1127,6 +1129,14 @@ start_plugin_app(Plugin) ->
 			Deps = proplists:get_value(applications, Keys),
 			start_plugin_apps(Deps),
 			StartFun()
+	end.
+
+add_plugin_paths() ->
+	case cpx:get_env(plugin_dir) of
+		{ok, Dir} ->
+			add_plugin_paths(Dir);
+		_ ->
+			ok
 	end.
 
 add_plugin_paths(PluginDir) ->

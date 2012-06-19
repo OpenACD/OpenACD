@@ -19,10 +19,6 @@ PIPE_DIR=/tmp/$RUNNER_BASE_DIR/
 export OPENACD_LOG_DIR
 export OPENACD_RUN_DIR
 
-# Add plug-in dir to path
-ERL_LIBS=$ERL_LIBS:"$OPENACD_PLUGIN_DIR"
-export ERL_LIBS
-
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     exec sudo -u $RUNNER_USER -i $0 $@

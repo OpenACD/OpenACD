@@ -301,14 +301,14 @@ contact_3rd_party(MPid, Destination, NextState, ConfProf) when NextState =:= 'in
 %% agents, getting them involved in the conference.
 -spec(contact_agent/2 :: (MPid :: pid(), Agent :: pid() | string() | #agent{}) -> 'ok' | {'error', any()}).
 contact_agent(MPid, Agent) ->
-	{ok, ConfProf} = cpx:get_env(freeswitch_conference_profile, "defalt"),
+	{ok, ConfProf} = cpx:get_env(freeswitch_conference_profile, "default"),
 	contact_agent(MPid, Agent, ConfProf).
 
 %% @doc like contact_agent/2, but allows a custom profile to be used for
 %% the conference in case the conference needs to be started.
 -spec(contact_agent/3 :: (MPid :: pid(), Agent :: pid() | string() | #agent{}, ConfProf :: string()) -> 'ok' | {'error', any()}).
 contact_agent(MPid, Agent, ConfProf) when is_list(Agent) ->
-	case agent_manager:query_agent("agent") of
+	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			contact_agent(MPid, Apid, ConfProf);
 		false ->
@@ -316,14 +316,6 @@ contact_agent(MPid, Agent, ConfProf) when is_list(Agent) ->
 	end;
 
 contact_agent(MPid, Agent, ConfProf) when is_pid(Agent) ->
-	case catch agent:dump_state(Agent) of
-		Rec when is_record(Rec, agent) ->
-			contact_agent(MPid, Rec, ConfProf);
-		Else ->
-			{error, Else}
-	end;
-
-contact_agent(MPid, Agent, ConfProf) ->
 	gen_media:cast(MPid, {contact_agent, Agent, ConfProf}).
 
 %% @doc While a conference is active, if the agent is talking to a 3rd
@@ -1041,6 +1033,24 @@ handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing}
 	gen_server:cast(Rpid, cancel_agent_transfer),
 	{{stop_ring, agent_transfer_cancel}, State};
 
+%% hold_conference -> 3rd_party
+handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_conference} = State) ->
+	#state{cnode = Fnode} = State,
+	case freeswitch_busy_agent:start(Fnode, Call) of
+		{ok, Pid} ->
+			case freeswitch_busy_agent:ring_agent(Pid, AgentPid) of
+				invalid ->
+					?WARNING("Could not contact agent", []),
+					freeswitch_busy_agent:cancel(Pid),
+					{noreply, State};
+				_DeferredOrOk ->
+					{noreply, State#state{'3rd_party_id' = Pid, statename = hold_conference_3rdparty, next_state = '3rd_party'}}
+			end;
+		Error ->
+			?WARNING("freeswitch_busy_agent could not start:  ~p", [Error]),
+			{noreply, State}
+	end;
+	
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination, NextState, _ConfProf}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
 	% start a ring chan to 3rd party

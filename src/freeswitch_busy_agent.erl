@@ -34,7 +34,8 @@
 -export([
 	start/2, start_link/2,
 	ring_agent/2, ring_agent/3,
-	cancel/1
+	cancel/1,
+	transfer/2
 ]).
 
 -record(state, {
@@ -65,6 +66,9 @@ ring_agent(Media, Apid, Timeout) ->
 
 cancel(Media) ->
 	gen_media:cast(Media, cancel).
+
+transfer(Media, Endpoint) ->
+	gen_media:cast(Media, {transfer, Endpoint}).
 
 %% =====================================================================
 %% Gen_media callbacks
@@ -160,6 +164,14 @@ handle_call(Msg, _From, _Call, State) ->
 %% ---------------------------------------------------------------------
 %% handle_cast
 %% ---------------------------------------------------------------------
+
+handle_cast({transfer, Endpoint}, _Call, State) ->
+	#state{ring_info = {_Pid, UUID}, fsnode = Fnode} = State,
+	?DEBUG("Got call to do transfer to ~s", [Endpoint]),
+	% allow the ring channel time to do it's unpark thing
+	timer:sleep(200),
+	freeswitch:api(Fnode, uuid_transfer, UUID ++ " " ++ Endpoint),
+	{noreply, State};
 
 handle_cast(cancel, _Call, State) ->
 	?INFO("Stopping due to cancel request", []),

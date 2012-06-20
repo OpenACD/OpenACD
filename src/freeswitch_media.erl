@@ -1039,12 +1039,13 @@ handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_
 			{noreply, State}
 	end;
 
-handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall, {_RPid, Ruuid}}, Call, #state{statename = hold_conference_3rdparty, '3rd_party_id' = BusyPid} = State) ->
+handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall, {_OPid, Ouuid}}, Call, #state{statename = hold_conference_3rdparty, '3rd_party_id' = BusyPid, ringuuid = Ruuid} = State) ->
 	#state{cnode = Fnode} = State,
 	% TODO too much control here?  Maybe freeswitch_busy_agent should do
 	% this?
+	freeswitch:api(Fnode, uuid_setvar_multi, Ouuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
 	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
-	freeswitch:bgapi(Fnode, uuid_bridge, Call#call.id ++ " " ++ Ruuid),
+	freeswitch:bgapi(Fnode, uuid_bridge,  Ruuid ++ " " ++ Ouuid),
 	{noreply, State#state{statename = '3rd_party'}};
 	
 %% hold_conference -> 3rd_party | in_conference
@@ -1114,7 +1115,12 @@ handle_cast({merge_3rd_party, _IncludeSelf}, Call, #state{'3rd_party_id' = undef
 
 handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 	#state{cnode = Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdid, conference_id = Confid} = State,
-	Called = freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline"),
+	Called = if
+		is_pid(Thirdid) ->
+			deferred;
+		is_list(Thirdid) ->
+			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline")
+	end,
 	% TODO This is a nasty hack until a better solution can be put into place
 	% like a more robut ring set up that allows conditional interception of
 	% events.  Yeah...
@@ -1122,7 +1128,13 @@ handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 		true ->
 			Transfun = fun() ->
 				timer:sleep(200),
-				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline")
+				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline"),
+				if
+					is_pid(Thirdid) ->
+						freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
+					true ->
+						ok
+				end
 			end,
 			proc_lib:spawn(Transfun),
 			'in_conference';
@@ -1155,6 +1167,10 @@ handle_cast(toggle_hold, Call, #state{statename = 'in_conference'} = State) ->
 	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
 	freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
 	{noreply, State#state{statename = hold_conference}};
+
+handle_cast({contact_3rd_party, T, N}, Call, State) ->
+	{ok, ConfProf} = cpx:get_env(freeswitch_conference_profile, "default"),
+	handle_cast({contact_3rd_party, T, N,ConfProf}, Call, State);
 
 handle_cast({contact_3rd_party, _Targ, _NextState, _ConfProf} = Cast, Call, #state{statename = 'in_conference'} = State) ->
 	?INFO("contact 3rd party, means place conference on hold first", []),

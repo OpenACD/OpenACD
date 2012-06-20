@@ -1319,11 +1319,16 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
 handle_info({'EXIT', Pid, normal}, _Call, #state{ringchannel = Pid} = State) ->
-	?INFO("ring channel exit while in ~p state", [State#state.statename]),
-	case State#state.statename of
-		wrapup_conference ->
+	Statename = State#state.statename,
+	NoopStates = [wrapup_conference, inqueue],
+	Noop = lists:member(Statename, NoopStates),
+	?INFO("ring channel exit while in ~p state", [Statename]),
+	if
+		Noop ->
 			{noreply, State};
-		_ ->
+		Statename =:= wrapup_conference ->
+			{noreply, State};
+		true ->
 			{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}}
 	end;
 

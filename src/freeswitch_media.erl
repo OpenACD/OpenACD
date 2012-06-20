@@ -316,14 +316,6 @@ contact_agent(MPid, Agent, ConfProf) when is_list(Agent) ->
 	end;
 
 contact_agent(MPid, Agent, ConfProf) when is_pid(Agent) ->
-	case catch agent:dump_state(Agent) of
-		Rec when is_record(Rec, agent) ->
-			contact_agent(MPid, Rec, ConfProf);
-		Else ->
-			{error, Else}
-	end;
-
-contact_agent(MPid, Agent, ConfProf) ->
 	gen_media:cast(MPid, {contact_agent, Agent, ConfProf}).
 
 %% @doc While a conference is active, if the agent is talking to a 3rd

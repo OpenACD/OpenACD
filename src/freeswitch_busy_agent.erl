@@ -33,7 +33,8 @@
 % api
 -export([
 	start/2, start_link/2,
-	ring_agent/2, ring_agent/3
+	ring_agent/2, ring_agent/3,
+	cancel/1
 ]).
 
 -record(state, {
@@ -60,6 +61,9 @@ ring_agent(Media, Apid, Timeout) ->
 	Call = gen_media:get_call(Media),
 	QCallFake = #queued_call{id = Call#call.id, media = Media, cook = Self},
 	gen_media:ring(Media, Apid, QCallFake, Timeout).
+
+cancel(Media) ->
+	gen_media:cast(Media, cancel).
 
 %% =====================================================================
 %% Gen_media callbacks
@@ -153,6 +157,10 @@ handle_call(Msg, _From, _Call, State) ->
 %% ---------------------------------------------------------------------
 %% handle_cast
 %% ---------------------------------------------------------------------
+
+handle_cast(cancel, _Call, State) ->
+	?INFO("Stopping due to cancel request", []),
+	{stop, normal, State};
 
 handle_cast(Msg, _Call, State) ->
 	?WARNING("Unhandled cast ~p", [Msg]),

@@ -39,6 +39,7 @@
 
 -record(state, {
 	fsnode,
+	other_media,
 	agent_info,
 	ring_info
 }).
@@ -75,7 +76,7 @@ cancel(Media) ->
 
 init([FsNode, BaseCall]) ->
 	process_flag(trap_exit, true),
-	{ok, {#state{fsnode = FsNode}, BaseCall}}.
+	{ok, {#state{fsnode = FsNode, other_media = BaseCall#call.source}, BaseCall}}.
 
 %% ---------------------------------------------------------------------
 %% handle_ring
@@ -115,7 +116,9 @@ handle_ring_stop(_Call, State) ->
 %% handle_answer
 %% ---------------------------------------------------------------------
 
-handle_answer(_Agent, _Call, State) ->
+handle_answer(_Agent, Call, State) ->
+	#state{other_media = OtherMedia, ring_info = RingInfo } = State,
+	gen_media:cast(OtherMedia, {?MODULE, answer, Call, RingInfo}),
 	{ok, State}.
 
 %% ---------------------------------------------------------------------

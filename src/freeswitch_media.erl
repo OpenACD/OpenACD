@@ -141,8 +141,8 @@
 
 -define(cdr_states, ['oncall', 'oncall_hold', 'oncall_hold_ringing',
 	'hold_conference', 'hold_conference_3rdparty', 'in_conference_3rdparty', 
-	'3rd_party', 'in_conference', 'wrapup_conference', 'blind_transfered',
-	'inqueue', 'inqueue_ringing', 'inivr']).
+	'3rd_party', 'agent_contact', 'in_conference', 'wrapup_conference',
+	'blind_transfered', 'inqueue', 'inqueue_ringing', 'inivr']).
 
 -record(state, {
 	statename :: internal_statename(),
@@ -1050,6 +1050,14 @@ handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_
 			?WARNING("freeswitch_busy_agent could not start:  ~p", [Error]),
 			{noreply, State}
 	end;
+
+handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall, {_RPid, Ruuid}}, Call, #state{statename = hold_conference_3rdparty, '3rd_party_id' = BusyPid} = State) ->
+	#state{cnode = Fnode} = State,
+	% TODO too much control here?  Maybe freeswitch_busy_agent should do
+	% this?
+	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
+	freeswitch:bgapi(Fnode, uuid_bridge, Call#call.id ++ " " ++ Ruuid),
+	{noreply, State#state{statename = '3rd_party'}};
 	
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination, NextState, _ConfProf}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
@@ -1690,6 +1698,11 @@ case_event_name("CHANNEL_BRIDGE", UUID, _Rawcall, Callrec, #state{'3rd_party_id'
 	?DEBUG("Telling agent we're now oncall w/ the 3rd party", []),
 	cdr:media_custom(Callrec, '3rd_party', ?cdr_states, []),
 	{{mediapush, '3rd_party'}, State};
+
+case_event_name("CHANNEL_BRIDGE", _UUID, _Rawcall, Call, #state{'3rd_party_id' = APid, statename = '3rd_party'} = State) ->
+	?DEBUG("Telling agent we're now oncall...with another agent!", []),
+	cdr:media_custom(Call, 'agent_contact', ?cdr_states, []),
+	{{mediapush, 'agent_contact'}, State};
 
 case_event_name(EventName, UUID, _Rawcall, _Callrec, #state{statename =  blind_transfered} = State) ->
 	?DEBUG("Blind transfer state doing nothing for event event ~s of uuid ~s", [EventName, UUID]),

@@ -74,6 +74,8 @@
 	contact_3rd_party/2,
 	contact_3rd_party/3,
 	contact_3rd_party/4,
+	contact_agent/2,
+	contact_agent/3,
 	retrieve_conference/1,
 	retrieve_3rd_party/1,
 	hangup_3rd_party/1,
@@ -294,6 +296,35 @@ contact_3rd_party(MPid, Destination, Profile) when is_list(Profile) ->
 %% a conference is already underway, the profile is ignored.
 contact_3rd_party(MPid, Destination, NextState, ConfProf) when NextState =:= 'in_conference'; NextState =:= '3rd_party'; NextState =:= 'hold_conference_3rdparty'; NextState =:= 'hold_conference', is_list(ConfProf) ->
 	gen_media:cast(MPid, {contact_3rd_party, Destination, NextState, ConfProf}).
+
+%% @doc To ensure agents are put in proper states, use this to call other
+%% agents, getting them involved in the conference.
+-spec(contact_agent/2 :: (MPid :: pid(), Agent :: pid() | string() | #agent{}) -> 'ok' | {'error', any()}).
+contact_agent(MPid, Agent) ->
+	{ok, ConfProf} = cpx:get_env(freeswitch_conference_profile, "defalt"),
+	contact_agent(MPid, Agent, ConfProf).
+
+%% @doc like contact_agent/2, but allows a custom profile to be used for
+%% the conference in case the conference needs to be started.
+-spec(contact_agent/3 :: (MPid :: pid(), Agent :: pid() | string() | #agent{}, ConfProf :: string()) -> 'ok' | {'error', any()}).
+contact_agent(MPid, Agent, ConfProf) when is_list(Agent) ->
+	case agent_manager:query_agent("agent") of
+		{true, Apid} ->
+			contact_agent(MPid, Apid, ConfProf);
+		false ->
+			{error, no_agent}
+	end;
+
+contact_agent(MPid, Agent, ConfProf) when is_pid(Agent) ->
+	case catch agent:dump_state(Agent) of
+		Rec when is_record(Rec, agent) ->
+			contact_agent(MPid, Rec, ConfProf);
+		Else ->
+			{error, Else}
+	end;
+
+contact_agent(MPid, Agent, ConfProf) ->
+	gen_media:cast(MPid, {contact_agent, Agent, ConfProf}).
 
 %% @doc While a conference is active, if the agent is talking to a 3rd
 %% party or just sitting in limbo, this puts the agent in the conference.
@@ -963,15 +994,22 @@ handle_cast(toggle_hold, _Call, #state{statename = oncall_hold_ringing} = State)
 	?DEBUG("Cannot back out of oncall_hold_ringing until ringing ends", []),
 	{noreply, State};
 
+handle_cast({contact_agent, _Agent, ConfProf} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
+	% first step, get into hold_conference state, ie: make the conference
+	case make_conference(Fnode, Call#call.id, ConfProf) of
+		{ok, ConfId} ->
+			Newstate = State#state{conference_id = ConfId, statename = hold_conference},
+			handle_cast(Cast, Call, Newstate);
+		Else ->
+			?WARNING("Could not make the conference:  ~p", [Else]),
+			{noreply, State}
+	end;
+
 handle_cast({contact_3rd_party, _Args, _NextState, ConfProfile} = Cast, Call, #state{statename = oncall_hold, cnode = Fnode} = State) ->
 	% first step is to move to hold_conference state, which means 
 	% creating the conference.
-	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
-	%{ok, ConfProfile} = cpx:get_env(freeswitch_conference_profile, "default"),
-	case freeswitch:api(Fnode, uuid_transfer, Call#call.id ++ " conference:" ++ 
-		ConfId ++ "@" ++ ConfProfile ++ "++flags{mintwo} inline") of
-		{ok, Res} ->
-			?INFO("Success result creating conferance and transfering call to it:  ~p", [Res]),
+	case make_conference(Fnode, Call#call.id, ConfProfile) of
+		{ok, ConfId} ->
 			% okay, solidify the conference state change, and go on.
 			Newstate = State#state{conference_id = ConfId, statename = hold_conference},
 			handle_cast(Cast, Call, Newstate);
@@ -1493,6 +1531,19 @@ code_change(_OldVsn, _Call, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+make_conference(Fnode, Callid, ConfProfile) ->
+	{ok, ConfId} = freeswitch:api(Fnode, create_uuid),
+	%{ok, ConfProfile} = cpx:get_env(freeswitch_conference_profile, "default"),
+	case freeswitch:api(Fnode, uuid_transfer, Callid ++ " conference:" ++ 
+		ConfId ++ "@" ++ ConfProfile ++ "++flags{mintwo} inline") of
+		{ok, Res} ->
+			?INFO("Success result creating conferance and transfering call to it:  ~p", [Res]),
+			{ok, ConfId};
+		Else ->
+			?ERROR("Could not create conference:  ~p", [Else]),
+			{error, Else}
+	end.
 
 %% @private
 fs_send_execute(Node, Callid, Name, Arg) ->

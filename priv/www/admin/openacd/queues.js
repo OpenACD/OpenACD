@@ -251,31 +251,22 @@ queues.newQueue = function(form, reciper, node){
 	var vals = form.get('value');
 	vals.recipe = dojo.toJson(reciper.getValue());
 	vals.skills = form.domNode.skills.getValues();
-	var doxhr = function(){
-		dojo.xhrPost({
-			url:"/queues/queue/new",
-			handleAs:"json",
-			content:vals,
-			load:function(resp, ioargs){
-				if(resp.success){
-					queues.refreshTree(node);
-				}
-				else{
-					errMessage(["new queue failed", resp.message]);
-					console.warn(["new queue failed", resp.message]);
-				}
-			},
-			error: function(res){
-				errMessage(["new queue errored", res]);
-				console.warn(["new queue errored", res]);
+	dojo.xhrPost({
+		url:"/queues/queue/new",
+		handleAs:"json",
+		content:vals,
+		load:function(resp, ioargs){
+			if(resp.success){
+				queues.refreshTree(node);
 			}
-		});
-	};
-	queues.store.fetchItemByIdentity({
-		identity:vals.group,
-		onItem:function(i){
-			vals.group = queues.store.getValue(i, 'name');
-			doxhr();
+			else{
+				errMessage(["new queue failed", resp.message]);
+				console.warn(["new queue failed", resp.message]);
+			}
+		},
+		error: function(res){
+			errMessage(["new queue errored", res]);
+			console.warn(["new queue errored", res]);
 		}
 	});
 };

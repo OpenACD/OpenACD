@@ -122,6 +122,7 @@ handle_ring_stop(_Call, State) ->
 
 handle_answer(_Agent, Call, State) ->
 	#state{other_media = OtherMedia, ring_info = RingInfo } = State,
+	?INFO("handling answer, telling other media:  ~p", [OtherMedia]),
 	gen_media:cast(OtherMedia, {?MODULE, answer, Call, RingInfo}),
 	{ok, State}.
 

@@ -1046,7 +1046,7 @@ handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall,
 	freeswitch:api(Fnode, uuid_setvar_multi, Ouuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
 	freeswitch:api(Fnode, uuid_setvar_multi, Ruuid ++ " hangup_after_bridge=false;park_after_bridge=true"),
 	freeswitch:bgapi(Fnode, uuid_bridge,  Ruuid ++ " " ++ Ouuid),
-	{noreply, State#state{statename = '3rd_party'}};
+	{{mediapush, agent_contact}, State#state{statename = '3rd_party'}};
 	
 %% hold_conference -> 3rd_party | in_conference
 handle_cast({contact_3rd_party, Destination, NextState, _ConfProf}, Call, #state{statename = hold_conference, cnode = Fnode} = State) ->
@@ -1930,7 +1930,7 @@ case_event_name({error, notfound}, UUID, Rawcall, Callrec, State) ->
 	{noreply, State};
 
 case_event_name(Ename, UUID, _, _, #state{statename = Statename} = State) ->
-	%?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
+	?DEBUG("Event ~p for ~s unhandled while in state ~p", [Ename, UUID, Statename]),
 	{noreply, State}.
 
 get_exported_variables(Proplist) ->

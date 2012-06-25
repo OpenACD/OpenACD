@@ -107,10 +107,19 @@ handle_event({Level, {_, _, MicroSec} = NowTime, Module, Line, Pid, Message, Arg
 		[] ->
 			ok;
 		List ->
-			Output = io_lib:format("~s~w:~s:~s.~s [~s] ~w@~s:~w ~s~s~n", [
+			Output = io_lib:format("~s~w-~s-~s ~s:~s:~s.~s [~s] ~w@~s:~w ~s~s~n", [
 					colorize(Level, State#state.color),
-					element(1, element(2, Time)),
+					% year
+					element(1, element(1, Time)),
+					% month
+					string:right(integer_to_list(element(2, element(1, Time))), 2, $0),
+					% day
+					string:right(integer_to_list(element(3, element(1, Time))), 2, $0),
+					% hour
+					string:right(integer_to_list(element(1, element(2, Time))), 2, $0),
+					% minute
 					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+					% second
 					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
 					string:right(integer_to_list(MicroSec), 6, $0),
 					string:to_upper(atom_to_list(Level)),

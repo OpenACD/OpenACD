@@ -166,10 +166,10 @@ handle_call(Msg, _From, _Call, State) ->
 %% ---------------------------------------------------------------------
 
 handle_cast({transfer, Endpoint}, _Call, State) ->
-	#state{ring_info = {_Pid, UUID}, fsnode = Fnode} = State,
+	#state{ring_info = {Pid, UUID}, fsnode = Fnode} = State,
 	?DEBUG("Got call to do transfer to ~s", [Endpoint]),
-	% allow the ring channel time to do it's unpark thing
-	timer:sleep(200),
+	%Any = freeswitch_ring:block_until(Pid, any),
+	%?DEBUG("unblocked on ~p", [Any]),
 	freeswitch:api(Fnode, uuid_transfer, UUID ++ " " ++ Endpoint),
 	{noreply, State};
 

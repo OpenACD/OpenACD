@@ -960,11 +960,11 @@ handle_cast(toggle_hold, Call, #state{statename = Statename} = State)
 	ok = fs_send_execute(Fnode, Ringid, "set", "hangup_after_bridge=false"),
 	ok = fs_send_execute(Fnode, Ringid, "set", "park_after_bridge=true"),
 	Res = freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
-	?ERROR("Res of the api:  ~p", [Res]),
+	%?ERROR("Res of the api:  ~p", [Res]),
 	case Muzak of
 		none -> ok;
 		_ ->
-			?ERROR("5 ~p", [fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)])
+			fs_send_execute(Fnode, Callid, "playback", "local_stream://" ++ Muzak)
 	end,
 	Statename0 = case Statename of
 		oncall -> oncall_hold;
@@ -1127,34 +1127,72 @@ handle_cast({merge_3rd_party, _IncludeSelf}, Call, #state{'3rd_party_id' = undef
 
 handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 	#state{cnode = Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdid, conference_id = Confid} = State,
-	Called = if
-		is_pid(Thirdid) ->
-			deferred;
-		is_list(Thirdid) ->
+	NextState = case {IncludeAgent, Thirdid} of
+		{true, _} when is_pid(Thirdid) ->
+			TransFun = fun() ->
+				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline"),
+				freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
+				freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline")
+			end,
+			proc_lib:spawn(TransFun),
+			'in_conference';
+		{true, _} ->
+			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline"),
+			TransFun = fun() ->
+				freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
+				freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline")
+			end,
+			proc_lib:spawn(TransFun),
+			'in_conference';
+		{_, _} when is_pid(Thirdid) ->
+			TransFun = fun() ->
+				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " park inline"),
+				freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
+				freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline")
+			end,
+			proc_lib:spawn(TransFun),
+			'hold_conference';
+		{_, _} ->
 			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline")
 	end,
-	% TODO This is a nasty hack until a better solution can be put into place
-	% like a more robut ring set up that allows conditional interception of
-	% events.  Yeah...
-	NextState = case IncludeAgent of
-		true ->
-			Transfun = fun() ->
-				timer:sleep(200),
-				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline"),
-				if
-					is_pid(Thirdid) ->
-						freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
-					true ->
-						ok
-				end
-			end,
-			proc_lib:spawn(Transfun),
-			'in_conference';
-		_ ->
-			'hold_conference'
-	end,
-	?DEBUG("merge.  next state:  ~p;  3rd:  ~p", [NextState, Called]),
 	{noreply, State#state{statename = NextState}};
+
+%	Called = if
+%		is_pid(Thirdid) ->
+%			deferred;
+%		is_list(Thirdid) ->
+%			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline")
+%	end,
+%	% TODO This is a nasty hack until a better solution can be put into place
+%	% like a more robut ring set up that allows conditional interception of
+%	% events.  Yeah...
+%	NextState = case IncludeAgent of
+%		true ->
+%			Transfun = fun() ->
+%				timer:sleep(200),
+%				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline"),
+%				if
+%					is_pid(Thirdid) ->
+%						freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
+%						freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
+%					true ->
+%						ok
+%				end
+%			end,
+%			proc_lib:spawn(Transfun),
+%			'in_conference';
+%		_ ->
+%			if
+%				is_pid(Thirdid) ->
+%					%freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
+%					freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
+%				true ->
+%					ok
+%			end,
+%			'hold_conference'
+%	end,
+%	?DEBUG("merge.  next state:  ~p;  3rd:  ~p", [NextState, Called]),
+%	{noreply, State#state{statename = NextState}};
 
 % hold_conference_3rd_party -> in_conference_3rd_party | hold_conference | %		3rdparty
 %		
@@ -1186,6 +1224,11 @@ handle_cast({contact_3rd_party, T, N}, Call, State) ->
 
 handle_cast({contact_3rd_party, _Targ, _NextState, _ConfProf} = Cast, Call, #state{statename = 'in_conference'} = State) ->
 	?INFO("contact 3rd party, means place conference on hold first", []),
+	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
+	handle_cast(Cast, Call, MidState);
+
+handle_cast({contact_agent, _Apid, _ConfProf} = Cast, Call, #state{statename = in_conference} = State) ->
+	?INFO("contact agent, placing conference on hold first", []),
 	{noreply, MidState} = handle_cast(toggle_hold, Call, State),
 	handle_cast(Cast, Call, MidState);
 

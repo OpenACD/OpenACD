@@ -1297,6 +1297,10 @@ handle_cast({<<"cancel_agent_transfer">>, _}, Call, State) ->
 handle_cast({<<"retrieve_3rd_party">>, _}, Call, State) ->
 	handle_cast(retrieve_3rd_party, Call, State);
 
+handle_cast({<<"contact_agent">>, Args}, Call, State) ->
+	Destination = binary_to_list(proplists:get_value("args", Args)),
+	handle_cast({contact_agent, Destination, "default"}, Call, State);
+
 handle_cast({<<"contact_3rd_party">>, Args}, Call, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),
 	handle_cast({contact_3rd_party, Destination, '3rd_party'}, Call, State);

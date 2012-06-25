@@ -102,7 +102,9 @@
 	start_link/3,
 	hangup/1,
 	get_uuid/1,
-	ring/3
+	ring/3,
+	block_until/2,
+	block_until/3
 	]).
 
 -export([
@@ -135,7 +137,8 @@
 	cnode :: atom(),
 	uuid :: string(),
 	options = [] :: [any()],
-	callbacks = #callbacks{}
+	callbacks = #callbacks{},
+	blocked = []
 	}).
 
 -type(state() :: #state{}).
@@ -221,6 +224,15 @@ get_uuid(Pid) ->
 ring(RingPid, CallId, Ringout) ->
 	gen_server:call(RingPid, {ring, CallId, Ringout}).
 
+-type(call_event() :: {'call_event', {event, [string()| {string(), string()}]}}).
+%% @doc blocks the calling process until one of the listed events, or any
+%% event, occurs.
+-spec(block_until/2 :: (RingPid :: pid(), EventNames :: 'any' | [string()]) -> call_event()).
+block_until(RingPid, EventNames) ->
+	block_until(RingPid, EventNames, infinity).
+
+block_until(RingPid, EventNames, Timeout) ->
+	gen_server:call(RingPid, {block_until, EventNames}, Timeout).
 
 %%====================================================================
 %% gen_server callbacks
@@ -362,6 +374,12 @@ handle_call({'$freeswitch_ring', get_uuid}, _From, #state{uuid = UUID} = State) 
 %	Callback = fun bgapi_handler/2,
 %	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:tone_stream://%(2000\\,4000\\,440\\,480);loops="++TrueRing++",park' inline", Callback),
 %	{reply, ok, State};
+handle_call({block_until, EventNames}, From, State) ->
+	?DEBUG("Blocking ~p until ~p", [From, EventNames]),
+	Blocked = State#state.blocked,
+	Blocked0 = [{From, EventNames} | Blocked],
+	{noreply, State#state{blocked = Blocked0}};
+
 handle_call(Request, From, #state{callbacks = #callbacks{handle_call = CbCall} = Callbacks} = State) ->
 	case CbCall(Request, From, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state) of
 		{noreply, NewCbState} ->
@@ -406,13 +424,14 @@ handle_info({call, {event, [UUID | _Rest]}}, #state{cnode = Cnode, options = Opt
 	Events = lists:umerge(OptEvents, BaseEvents),
 	freeswitch:session_setevent(Cnode, Events),
 	{noreply, State};
-handle_info({call_event, {event, [UUID | Rest]}}, #state{options = _Options, uuid = UUID, callbacks = #callbacks{handle_event = CbHandleEvent} = Callbacks} = State) ->
+handle_info({call_event, {event, [UUID | Rest]}} = CallEv, #state{options = _Options, uuid = UUID, callbacks = #callbacks{handle_event = CbHandleEvent} = Callbacks} = State) ->
 	Event = proplists:get_value("Event-Name", Rest),
+	Blocked = tell_blocked(State#state.blocked, Event, CallEv),
 	case CbHandleEvent(Event, Rest, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state) of
 		{stop, Reason, NewCbState} ->
-			{stop, Reason, State#state{callbacks = Callbacks#callbacks{state = NewCbState}}};
+			{stop, Reason, State#state{blocked = Blocked, callbacks = Callbacks#callbacks{state = NewCbState}}};
 		{noreply, NewCbState} ->
-			{noreply, State#state{callbacks = Callbacks#callbacks{state = NewCbState}}}
+			{noreply, State#state{blocked = Blocked, callbacks = Callbacks#callbacks{state = NewCbState}}}
 	end;
 
 %	Continue = case lists:keysearch(eventfun, 1, Options) of
@@ -512,6 +531,7 @@ terminate(Reason, #state{callbacks = #callbacks{terminate = Fun} = Callbacks} = 
 	?NOTICE("FreeSWITCH ring channel teminating ~p", [Reason]),
 	Out = Fun(Reason, {State#state.cnode, State#state.uuid}, Callbacks#callbacks.state),
 	freeswitch:bgapi(State#state.cnode, uuid_kill, State#state.uuid),
+	[gen_server:reply(From, timeout) || {From, _} <- State#state.blocked],
 	Out.
 	
 
@@ -532,6 +552,27 @@ code_change(OldVsn, #state{callbacks = #callbacks{code_change = Fun} = Callbacks
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+tell_blocked(Blocked, EvName, Ev) ->
+	?DEBUG("Old blocked:  ~p", [Blocked]),
+	tell_blocked(Blocked, EvName, Ev, []).
+
+tell_blocked([], _EvName, _Ev, Acc) ->
+	?DEBUG("New blocked:  ~p", [Acc]),
+	Acc;
+
+tell_blocked([{From, any} | Tail], EvName, Ev, Acc) ->
+	gen_server:reply(From, Ev),
+	tell_blocked(Tail, EvName, Ev, Acc);
+
+tell_blocked([{From, EventList} = H | Tail], EventName, Event, Acc) ->
+	case lists:member(EventName, EventList) of
+		true ->
+			gen_server:reply(From, Event),
+			tell_blocked(Tail, EventName, Event, Acc);
+		false ->
+			tell_blocked(Tail, EventName, Event, [H | Acc])
+	end.
+	
 %bgapi_handler(ok, Res) ->
 %	?DEBUG("Default bgapi handler:  ~p", [Res]),
 %	ok;

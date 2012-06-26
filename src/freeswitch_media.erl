@@ -458,6 +458,17 @@ handle_answer(Apid, Callrec, #state{statename = inqueue_ringing} = State) ->
 			end,
 			agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"800px">>}, {<<"height">>, <<"600px">>}, {<<"title">>, <<"Server Boosts">>}]}),
 			{ok, State#state{statename = oncall, agent_pid = Apid, ringuuid = UUID, record_path = RecPath, queued = false}};
+		{error, "-ERR Invalid uuid\n"} ->
+			proc_lib:spawn(fun() ->
+				case freeswitch:api(State#state.cnode, uuid_exists, Callrec#call.id) of
+					{ok, "true"} ->
+						ok;
+					NotTrue ->
+						?WARNING("freeswitch can't find call for ~s; exiting pid ~p", [Callrec#call.id, Callrec#call.source]),
+						exit(Callrec#call.source, kill)
+				end
+			end),
+			{error, "-ERR Invalid uuid\n", State};
 		{error, Error} ->
 			?WARNING("Could not do answer:  ~p", [Error]),
 			{error, Error, State}

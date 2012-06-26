@@ -90,51 +90,60 @@ handle_cast(Msg, State) ->
 	{noreply, State}.
 
 handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
-	case util:string_split(Parameters, " ") of
-		[Username] ->
-			Endpoint = {sip_registration, Username};
-		[Username, EndpointType] ->
-			Endpoint = construct_endpoint(EndpointType, Username);
-		[Username, EndpointType, EndpointData] ->
-			Endpoint = construct_endpoint(EndpointType, EndpointData)
+
+	{Username, EndpointRes} = case util:string_split(Parameters, " ") of
+		[U] ->
+			{U, construct_endpoint(sip_registration, U)};
+		[U, EndpointType] ->
+			{U, construct_endpoint(EndpointType, U)};
+		[U, EndpointType, EndpointData] ->
+			{U, construct_endpoint(EndpointType, EndpointData)};
+		_ ->
+			{undefined, {error, invalid_param_count}}
 	end,
 
-	case dict:find(Username, State#state.registry) of
-		error ->
-			case agent_auth:get_agent(Username) of
-				{atomic, []} ->
-					?INFO("no such agent ~p", [Username]),
-					{noreply, State};
-				{atomic, [_A, _B | _]} ->
-					?WARNING("more than one agent found for username ~p, login failed", [Username]),
-					{noreply, State};
-				{atomic, [_AgentAuth]} when Endpoint == error ->
-					?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
-				{atomic, [AgentAuth]} ->
-					Agent = #agent{
-						id = AgentAuth#agent_auth.id,
-						login = AgentAuth#agent_auth.login,
-						skills = lists:umerge(lists:sort(AgentAuth#agent_auth.skills), lists:sort(['_agent', '_node'])),
-						profile = AgentAuth#agent_auth.profile,
-						security_level = AgentAuth#agent_auth.securitylevel
-					},
-					case agent_dialplan_connection:start(Agent, proplists:get_value(unavailable_timeout, State#state.start_opts)) of
-						{ok, Pid} ->
-							?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
-							gen_server:call(Pid, {set_endpoint, Endpoint}),
-							link(Pid),
-							{noreply, State#state{registry = dict:store(Username, Pid, State#state.registry)}};
-						ignore ->
-							?WARNING("Ignore message trying to start connection for ~p", [Username]),
+	case EndpointRes of
+		{error, Err} ->
+			?WARNING("error ~p for agent_login parameters ~p", [Err, Parameters]),
+			{noreply, State};
+		{ok, Endpoint} ->
+			case dict:find(Username, State#state.registry) of
+				error ->
+					case agent_auth:get_agent(Username) of
+						{atomic, []} ->
+							?INFO("no such agent ~p", [Username]),
 							{noreply, State};
-						{error, Error} ->
-							?ERROR("Error ~p trying to start connection for ~p", [Error, Username]),
-							{noreply, State}
-					end
-			end;
-		{ok, Pid} ->
-			?NOTICE("~p is already logged in at ~p", [Username, Pid]),
-			{noreply, State}
+						{atomic, [_A, _B | _]} ->
+							?WARNING("more than one agent found for username ~p, login failed", [Username]),
+							{noreply, State};
+						{atomic, [_AgentAuth]} when Endpoint == error ->
+							?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
+						{atomic, [AgentAuth]} ->
+							Agent = #agent{
+								id = AgentAuth#agent_auth.id,
+								login = AgentAuth#agent_auth.login,
+								skills = lists:umerge(lists:sort(AgentAuth#agent_auth.skills), lists:sort(['_agent', '_node'])),
+								profile = AgentAuth#agent_auth.profile,
+								security_level = AgentAuth#agent_auth.securitylevel
+							},
+							case agent_dialplan_connection:start(Agent, proplists:get_value(unavailable_timeout, State#state.start_opts)) of
+								{ok, Pid} ->
+									?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
+									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									link(Pid),
+									{noreply, State#state{registry = dict:store(Username, Pid, State#state.registry)}};
+								ignore ->
+									?WARNING("Ignore message trying to start connection for ~p", [Username]),
+									{noreply, State};
+								{error, Error} ->
+									?ERROR("Error ~p trying to start connection for ~p", [Error, Username]),
+									{noreply, State}
+							end
+					end;
+				{ok, Pid} ->
+					?NOTICE("~p is already logged in at ~p", [Username, Pid]),
+					{noreply, State}
+			end
 	end;
 handle_info({freeswitch_sendmsg, "agent_logoff " ++ Username}, State) ->
 	case dict:find(Username, State#state.registry) of
@@ -193,19 +202,18 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 %% TODO - this should be a common function
+construct_endpoint(Type, Data) when is_list(Type) ->
+	case catch list_to_existing_atom(Type) of
+		{'EXIT', {badarg, _}} ->
+			{error, invalid_type};
+		Atm ->
+			construct_endpoint(Atm, Data)
+	end;
 construct_endpoint(Type, Data) ->
-	case list_to_existing_atom(Type) of
-			sip_registration ->
-				{sip_registration, Data};
-			sip ->
-				{sip, Data};
-			iax2 ->
-				{iax2, Data};
-			h323 ->
-				{h323, Data};
-			pstn ->
-				{pstn, Data};
-			_ ->
-				invalid
-		end.
-
+	Types = [sip, sip_registration, h323, iax2, pstn],
+	case lists:member(Type, Types) of
+		true ->
+			{ok, {freeswitch_media, [{type, Type}, {data, Data}]}};
+		false ->
+			{error, invalid_type}
+	end.

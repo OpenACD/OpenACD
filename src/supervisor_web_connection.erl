@@ -134,7 +134,9 @@
 %	get_avail_agents/1,
 %	peek/3,
 	drop_media/3,
-	voicemail/3
+	voicemail/3,
+	agent_transfer/3,
+	blind_transfer/3
 ]).
 
 -web_api_functions([
@@ -156,7 +158,9 @@
 %	{get_avail_agents, 1},
 %	{peek, 3},
 	{drop_media, 3},
-	{voicemail, 3}
+	{voicemail, 3},
+	{agent_transfer, 3},
+	{blind_transfer, 3}
 ]).
 
 %% gen_server callbacks
@@ -293,6 +297,19 @@ set_profile(Conn, Agent, NewProf) ->
 set_profile(Conn, Agent, NewProf, Permanent) ->
 	gen_server:call(Conn, {supervisor, {set_profile, Agent, NewProf, Permanent}}).
 
+%% @doc {@web} Send the call from one agent to another.
+-spec(agent_transfer/3 :: (Conn :: pid(), FromAgent :: string(), ToAgent :: string()) -> any()).
+agent_transfer(Conn, FromAgent, ToAgent) ->
+	gen_server:call(Conn, {supervisor, {agent_transfer, FromAgent, ToAgent}}).
+
+%% @doc {@web} Send the call to the endpoint/phone number immediately.
+%% Primarily useful to transfer a call to a supervisor that is not
+%% logged in as a proper agent.  Also, will likely only work for voice/
+%% freeswitch calls.
+-spec(blind_transfer/3 :: (Conn :: pid(), FromAgent :: string(), To :: string()) -> any()).
+blind_transfer(Conn, FromAgent, To) ->
+	gen_server:call(Conn, {supervisor, {blind_transfer, FromAgent, To}}).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -399,6 +416,44 @@ init(Opts) ->
 %%====================================================================
 %% handle_call
 %%====================================================================
+
+handle_call({supervisor, {blind_transfer, FromAgent, To}}, _From, State) ->
+	Json = case agent_manager:query_agent(binary_to_list(FromAgent)) of
+		false ->
+			[{succes, false}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}, {<<"message">>, <<"no such from agent">>}];
+		{true, APid} ->
+			AgentState = agent:dump_state(APid),
+			case AgentState#agent.state of
+				oncall ->
+					MediaPid = AgentState#agent.statedata#call.source,
+					gen_media:cast(MediaPid, {blind_transfer, binary_to_list(To)}),
+					[{success, true}];
+				_OtherState ->
+					[{success, false}, {<<"errcode">>, <<"INVALID_STATE">>}, {<<"message">>, <<"from agent not in valid state for transfer">>}]
+			end
+	end,
+	{reply, {200, [], mochijson2:encode({struct, Json})}, State};
+
+handle_call({supervisor, {agent_transfer, FromAgent, ToAgent}}, _From, State) ->
+	Json = case agent_manager:query_agent(binary_to_list(FromAgent)) of
+		false ->
+			[{success, false}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}, {<<"message">>, <<"no such from agent">>}];
+		{true, Apid} ->
+			AgentState = agent:dump_state(Apid),
+			case AgentState#agent.state of
+				oncall ->
+					MediaPid = AgentState#agent.statedata#call.source,
+					case gen_media:agent_transfer(MediaPid, binary_to_list(ToAgent), 60000) of
+						ok ->
+							[{success, true}];
+						invalid ->
+							[{success, false}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}, {<<"message">>, <<"an error occured trying to do transfer">>}]
+					end;
+				_OtherState ->
+					[{succes, false}, {<<"errcode">>, <<"INVALID_STATE">>}, {<<"from agent was in an invalid state for transfer">>}]
+			end
+	end,
+	{reply, {200, [], mochijson2:encode({struct, Json})}, State};
 
 handle_call({supervisor, {kick_agent, Agent}}, _From, State) ->
 	Json = case agent_manager:query_agent(binary_to_list(Agent)) of

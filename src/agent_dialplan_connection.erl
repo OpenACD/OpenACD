@@ -100,17 +100,18 @@ init([AgentRec, SelfKillTime]) ->
 handle_call(logout, {From, _Ref}, #state{listener = From} = State) ->
 	{stop, normal, ok, State};
 handle_call(go_released, {From, _Ref}, #state{listener = From} = State) ->
-	Res = agent:set_state(State#state.agent_fsm, released, default),
+	Res = agent:set_release(State#state.agent_fsm, default),
 	{reply, Res, State};
 handle_call(go_available, {From, _Ref}, #state{listener = From} = State) ->
-	Res = agent:set_state(State#state.agent_fsm, idle),
+	Res = agent:set_release(State#state.agent_fsm, none),
 	{reply, Res, State};
 handle_call({set_endpoint, MidEndpoint}, _From, #state{agent_fsm = Apid} = State) ->
 	% TODO flesh this out so more than just perfect data works.
 	{EndpointType, Endpointdata} = case MidEndpoint of
 		{_Type, _Data} -> MidEndpoint
 	end,
-	Reply = agent:set_endpoint(Apid, EndpointType, Endpointdata, transient),
+	Data = [{persistant, false} | Endpointdata],
+	Reply = agent:set_endpoint(Apid, EndpointType, Data),
 	{reply, Reply, State};
 handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),

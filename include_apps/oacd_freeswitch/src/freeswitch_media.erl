@@ -223,16 +223,16 @@ handle_announce(Announcement, Callrec, State) ->
 prepare_endpoint(Agent, Options) ->
 	{Node, Dialstring, Dest} = freeswitch_media_manager:get_ring_data(Agent, Options),
 	case proplists:get_value(persistant, Options) of
-		undefined ->
-			{ok, {freeswitch_ring, start, [Node, freeswitch_ring_transient, [
-				{destination, Dest},
-				{dialstring, Dialstring}]]}};
 		true ->
 			freeswitch_ring:start(Node, freeswitch_persistant_ring, [
 				{destination, Dest},
 				{dialstring, Dialstring},
 				persistant
-			])
+			]);
+		_ ->
+			{ok, {freeswitch_ring, start, [Node, freeswitch_ring_transient, [
+				{destination, Dest},
+				{dialstring, Dialstring}]]}}
 	end.
 
 %%--------------------------------------------------------------------

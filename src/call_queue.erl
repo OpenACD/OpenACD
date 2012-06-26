@@ -520,6 +520,7 @@ handle_call({set_priority, Id, Priority}, _From, State) when is_pid(Id), Priorit
 		{{Oldpri, Time}, Value} ->
 			State2 = State#state{queue=gb_trees:delete({Oldpri, Time}, State#state.queue)},
 			State3 = State2#state{queue=gb_trees:insert({Priority, Time}, Value, State2#state.queue)},
+			gen_media:set_priority(Value#queued_call.media, Priority, State#state.name, Time),
 			{reply, ok, State3}
 	end;
 
@@ -530,6 +531,7 @@ handle_call({set_priority, Id, Priority}, _From, State) when Priority >= 0 ->
 		{{Oldpri, Time}, Value} ->
 			State2 = State#state{queue=gb_trees:delete({Oldpri, Time}, State#state.queue)},
 			State3 = State2#state{queue=gb_trees:insert({Priority, Time}, Value, State2#state.queue)},
+			gen_media:set_priority(Value#queued_call.media, Priority, State#state.name, Time),
 			{reply, ok, State3}
 	end;
 

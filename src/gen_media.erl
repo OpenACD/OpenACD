@@ -340,7 +340,10 @@
 	set_queue/2,
 	set_url_getvars/2,
 	get_url_getvars/1,
-	add_skills/2
+	add_skills/2,
+	% set priority is used by the call queue, reporting aid only.
+	% to set the priority of a call while in queue, use the call_queue mod.
+	set_priority/4
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -367,7 +370,8 @@
 	outband_ring_pid :: 'undefined' | pid(),
 	warm_transfer = false :: boolean(),
 	monitors = #monitors{} :: #monitors{},
-	url_pop_getvars = [] :: [{string(), string()}]
+	url_pop_getvars = [] :: [{string(), string()}],
+	queued_at :: 'undefined' | pos_integer()
 }).
 
 -type(state() :: #state{}).
@@ -535,6 +539,12 @@ call(Genmedia, Request, Timeout) ->
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
 	gen_server:cast(Genmedia, Request).
+
+%% @doc Set the current priority of call.  This is useful only for
+%% reporting or if the call is requeued.
+-spec(set_priority/4 :: (MediaPid :: pid(), Priority :: non_neg_integer(), QueueNom :: string(), QueueTime :: non_neg_integer()) -> 'ok').
+set_priority(MediaPid, Priority, QueueNom, QueueTime) ->
+	gen_server:cast(MediaPid, {'$gen_media_set_priority', Priority, QueueNom, QueueTime}).
 
 %%====================================================================
 %% API
@@ -1067,6 +1077,16 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_cast({'$gen_media_set_priority', Priority, QueueNom, QueuedTime}, State) ->
+	?DEBUG("modifying priority:  ~p and ~p", [QueueNom, QueuedTime]),
+	Call = State#state.callrec,
+	Call0 = Call#call{priority = Priority},
+	State0 = State#state{callrec = Call0},
+	{Mega, Sec, _Micor} = QueuedTime,
+	QedTime = (Mega * 1000000) + Sec,
+	set_cpx_mon(State0, [{queue, QueueNom}, {queued_at, QedTime}]),
+	{noreply, State0};
+	
 handle_cast({'$gen_media_set_outband_ring_pid', Pid}, State) ->
 	{noreply, State#state{outband_ring_pid = Pid}};
 handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = Mons} = State) ->
@@ -1498,7 +1518,8 @@ set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
 		{ring_path, Call#call.ring_path},
 		{media_path, Call#call.media_path},
 		{direction, Call#call.direction},
-		{node, node()}
+		{node, node()},
+		{priority, Call#call.priority}
 	],
 	{_Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
 		{undefined, undefined} ->
@@ -1506,7 +1527,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details, Watch) ->
 		{undefined, _A} ->
 			{[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}], MidBasedet};
 		{_Q, _} ->
-			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, {timestamp, util:now()}}, {priority, Call#call.priority} | MidBasedet]}
+			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, {timestamp, proplists:get_value(queued_at, Details, util:now())}} | MidBasedet]}
 	end,
 	Fulldet = lists:append([Basedet, Details]),
 	cpx_monitor:set({media, Call#call.id}, Fulldet, Watch).

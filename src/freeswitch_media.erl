@@ -1306,11 +1306,17 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
 	NextState = case State#state.statename of
 		oncall_ringing -> oncall;
-		oncall_hold_ringing -> oncall_hold
+		oncall_hold_ringing -> oncall_hold;
+		Other -> Other
 	end,
 	SendInfo = binary_to_list(iolist_to_binary(io_lib:format("~s ~s", [State#state.ringuuid, NextState]))),
-	agent:media_push(State#state.agent_pid, NextState),
-	freeswitch:api(State#state.cnode, uuid_esnd_info, SendInfo),
+	if
+		is_pid(State#state.agent_pid) ->
+			agent:media_push(State#state.agent_pid, NextState);
+		true ->
+			ok
+	end,
+	freeswitch:api(State#state.cnode, uuid_send_info, SendInfo),
 	{stop_ring, State#state{xferchannel = undefined, statename = NextState}};
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
@@ -1352,6 +1358,12 @@ handle_info({'EXIT', Pid, normal}, Call, #state{ringchannel = Pid} = State) ->
 			proc_lib:spawn(fun() ->
 				gen_media:queue(Call#call.source, QueueNam)
 			end),
+			if
+				is_pid(State#state.xferchannel) ->
+					freeswitch:bgapi(State#state.cnode, uuid_kill, State#state.xferuuid);
+				true ->
+					ok
+			end,
 			{noreply, State};
 		true ->
 			{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}}

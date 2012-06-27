@@ -1329,15 +1329,29 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{statename = Statename, ringchann
 	end,
 	{stop_ring, State#state{statename = NextState, ringchannel = undefined}};
 
-handle_info({'EXIT', Pid, normal}, _Call, #state{ringchannel = Pid} = State) ->
+handle_info({'EXIT', Pid, normal}, Call, #state{ringchannel = Pid} = State) ->
 	Statename = State#state.statename,
 	NoopStates = [wrapup_conference, inqueue],
 	Noop = lists:member(Statename, NoopStates),
+	ReQueueStates = [oncall_hold, oncall_hold_ringing],
+	Requeue = lists:member(Statename, ReQueueStates),
 	?INFO("ring channel exit while in ~p state", [Statename]),
 	if
 		Noop ->
 			{noreply, State};
 		Statename =:= wrapup_conference ->
+			{noreply, State};
+		Requeue ->
+			QueueNam = case State#state.queue of
+				undefined ->
+					?INFO("Requeue back to default_queue", []),
+					"default_queue";
+				QElse ->
+					QElse
+			end,
+			proc_lib:spawn(fun() ->
+				gen_media:queue(Call#call.source, QueueNam)
+			end),
 			{noreply, State};
 		true ->
 			{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}}

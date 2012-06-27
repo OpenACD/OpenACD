@@ -1353,6 +1353,7 @@ handle_info({'EXIT', Pid, normal}, Call, #state{ringchannel = Pid} = State) ->
 					?INFO("Requeue back to default_queue", []),
 					"default_queue";
 				QElse ->
+					?INFO("Attempt to requeue back to ~p", [QElse]),
 					QElse
 			end,
 			proc_lib:spawn(fun() ->

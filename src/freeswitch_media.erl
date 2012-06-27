@@ -1433,7 +1433,7 @@ handle_info(channel_destroy, Call, State) ->
 		blind_transfered, inqueue, inqueue_ringing, inivr],
 	case lists:member(State#state.statename, Stoppy) of
 		true ->
-			?NOTICE("stopping due to channel_destroy while in state ~p", [State#state.statename),
+			?NOTICE("stopping due to channel_destroy while in state ~p", [State#state.statename]),
 			{stop, hangup, State};
 		_ ->
 			?INFO("Channel may be dead, but state ~p indicates more work to be done.", [State#state.statename]),

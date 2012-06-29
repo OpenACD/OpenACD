@@ -56,7 +56,6 @@
 	tref :: any(), % timer reference
 	qpid :: pid(),
 	tried_queues = [] :: [pid()],
-	agents = [] :: [pid()],
 	cook_mon :: reference() | 'undefined'
 }).
 

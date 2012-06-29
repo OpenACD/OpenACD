@@ -56,6 +56,7 @@
 	tref :: any(), % timer reference
 	qpid :: pid(),
 	tried_queues = [] :: [pid()],
+	tried_medias = [] :: [pid()],
 	cook_mon :: reference() | 'undefined'
 }).
 
@@ -89,7 +90,7 @@ init([]) ->
 			Self = self(),
 			erlang:send_after(Seconds * 1000, Self, max_life_reached)
 	end,
-	case grab_best() of
+	case grab_best([]) of
 		none ->
 			?DEBUG("no call to grab, lets start a timer", []),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
@@ -105,8 +106,10 @@ init([]) ->
 %% @private
 handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
+	?DEBUG("getting agents for ~p:~s with skills ~p", [Call#queued_call.media, Call#queued_call.id, Call#queued_call.skills]),
 	case agent_manager:filtered_route_list(Call#queued_call.skills) of
 		[] ->
+			?DEBUG("empty route list, auto regrab", []),
 			gen_server:reply(From, []),
 			handle_cast(regrab, State);
 		List ->
@@ -142,10 +145,11 @@ handle_cast(stop, State) ->
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
-handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
+handle_cast(regrab, State) ->
+	#state{tried_queues = Tried, call = OldCall, tried_medias = Exclude} = State,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
-	case loop_queues(Filtered) of
+	case loop_queues(Filtered, Exclude) of
 		none -> 
 			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
@@ -154,12 +158,14 @@ handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 				undefined -> ok;
 				Monitor -> erlang:demonitor(Monitor)
 			end,
-			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = [], cook_mon = undefined}};
+			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = [], cook_mon = undefined, tried_medias = [OldCall#queued_call.media | Exclude]}};
 		{Qpid, Call} ->
+			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, 	
+				State#state.qpid, Call#queued_call.id, Qpid]),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
-			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, State#state.qpid, Call#queued_call.id, Qpid]),
 			Cookmon = erlang:monitor(process, Call#queued_call.cook),
-			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried], cook_mon = Cookmon}}
+			Exclude0 = [OldCall#queued_call.media | Exclude],
+			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried], cook_mon = Cookmon, tried_medias = Exclude0}}
 	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -169,11 +175,13 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(grab_best, State) ->
-	case grab_best() of
+	case grab_best(State#state.tried_medias) of
 		none ->
+			?DEBUG("Grab best got no call", []),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
 			{noreply, State#state{tref = Tref}};
 		{Qpid, Call} ->
+			?DEBUG("Grab best got a call", []),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
 handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) when Reason =:= normal orelse Reason =:= shutdown ->
@@ -216,19 +224,25 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
+-ifdef(TEST).
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
-loop_queues([]) ->
+loop_queues(Queues) ->
+	loop_queues(Queues, []).
+-endif.
+
+-spec(loop_queues/2 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}], Exclude :: [pid()]) -> {pid(), #queued_call{}} | 'none').
+loop_queues([], _Exclude) ->
 	%?DEBUG("queue list is empty", []),
 	none;
-loop_queues(Queues) ->
+loop_queues(Queues, Exclude) ->
 	%?DEBUG("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
 	Rand = random:uniform(Total),
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
 	%?DEBUG("grabbing call", []),
-	case call_queue:grab(Qpid) of
+	case call_queue:grab(Qpid, Exclude) of
 			none -> 
-				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
+				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues), Exclude);
 			{_Key, Call2} ->
 				%?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
 				link(Call2#queued_call.cook),
@@ -256,10 +270,10 @@ biased_to([Queue | Tail], Acc, Random) ->
 bound_call(Pid) ->
 	gen_server:call(Pid, bound_call).
 
--spec(grab_best/0 :: () -> {pid(), #queued_call{}} | 'none').
-grab_best() ->
+-spec(grab_best/1 :: (Exclude :: [pid()]) -> {pid(), #queued_call{}} | 'none').
+grab_best(Exclude) ->
 	Queues = queue_manager:get_best_bindable_queues(),
-	loop_queues(Queues).
+	loop_queues(Queues, Exclude).
 
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> 'ok').
@@ -543,6 +557,20 @@ grab_test_() ->
 		dispatcher:regrab(DPid),
 		Regrabbed = dispatcher:bound_call(DPid),
 		?assertEqual(none, Regrabbed)
+	end} end,
+	fun([Pid1, _Pid2, _Pid3]) -> {"Regrabbing 3rd call in same queue", fun() ->
+		Mpids = [begin
+			Id = "C" ++ integer_to_list(I),
+			{ok, Mpid} = dummy_media:start([{id, Id}, {queues, none}]),
+			Mpid
+		end || I <- lists:seq(1,3)],
+		[call_queue:add(Pid1, Mpid) || Mpid <- Mpids],
+		{ok, DPid} = dispatcher:start(),
+		QueuedCall = dispatcher:bound_call(DPid),
+		?DEBUG("Das queued call:  ~p", [QueuedCall]),
+		[timer:sleep(?POLL_INTERVAL) || _ <- lists:seq(1,3)],
+		{ok, State} = gen_server:call(DPid, dump_state),
+		?assertEqual(lists:reverse(Mpids), State#state.tried_medias)
 	end} end,
 	fun([Pid1, _Pid2, _Pid3]) -> {"loop_queues test", fun() ->
 			?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))

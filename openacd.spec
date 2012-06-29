@@ -16,6 +16,7 @@ BuildRequires: erlang
 Requires: erlang
 
 BuildRoot: %{_builddir}/%{name}-root
+#make sure prefix ends with /
 Prefix: /
 
 %description

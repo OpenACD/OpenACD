@@ -50,7 +50,8 @@
 	start/0, 
 	stop/0, 
 	count_dispatchers/0,
-	deep_inspect/0
+	deep_inspect/0,
+	request_end/2
 ]).
 
 %% gen_server callbacks
@@ -237,9 +238,28 @@ balance(#state{dispatchers = Dispatchers} = State) ->
 				_ ->
 					balance(State)
 			end;
+		X when X < NumDisp ->
+			?DEBUG("More dispatchers than needed, try to end the oldest ~p", [NumDisp - X]),
+			Olders = lists:reverse(Dispatchers), 
+			proc_lib:spawn(?MODULE, request_end, [Olders, NumDisp - X]),
+			State;
 		_ ->
 			?DEBUG("It is fully balanced!",[]),
 			State
+	end.
+
+request_end(_Olders, 0) ->
+	ok;
+
+request_end([], _X) ->
+	ok;
+
+request_end([Old | Tail], X) ->
+	case dispatcher:stop(Old, false) of
+		no ->
+			request_end(Tail, X);
+		ok ->
+			request_end(Tail, X - 1)
 	end.
 
 %balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 

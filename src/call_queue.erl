@@ -63,6 +63,7 @@
 	add/2,
 	add_at/3,
 	ask/1,
+	ask/2,
 	get_call/2,
 	get_calls/1,
 	dump/1,
@@ -71,6 +72,7 @@
 	migrate/2,
 	stop/1,
 	grab/1,
+	grab/2,
 	ungrab/2,
 	set_priority/3,
 	to_list/1,
@@ -190,14 +192,26 @@ get_calls(Pid) when is_pid(Pid) ->
 %% bound to it or `none'.
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 ask(Pid) ->
-	gen_server:call(Pid, ask).
+	ask(Pid, []).
+
+%% @doc Like ask/1, but skips over the listed call pids.
+-spec(ask/2 :: (Pid :: pid(), Exclude :: [pid()]) -> 'none' | {key(), #queued_call{}}).
+ask(Pid, Exclude) ->
+	gen_server:call(Pid, {ask, Exclude}).
 
 %% @doc Bind to the first `{key, #queued_call{}} in the queue at `pid()' 
 %% `Pid' that doesn't have a dispatcher from this node already bound to it 
 %% or `none'.
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 grab(Pid) when is_pid(Pid) ->
-	gen_server:call(Pid, grab).
+	grab(Pid, []).
+
+%% @doc Instead of binding to the first queued call, filters out any calls which
+%% have pids in the ExcludePids list, then bind to the first one.  This allows
+%% a dispatcher to skip over calls it has already tried (and failed) to route.
+-spec(grab/2 :: (Pid :: pid(), Exclude :: [pid()]) -> 'none' | {key(), #queued_call{}}).
+grab(Pid, ExcludePid) ->
+		gen_server:call(Pid, {grab, ExcludePid}).
 
 %% @doc Reverse of {@link grab/1}.  Releases the call identified by 
 %% `pid()' or `string()' `Callid' from any bound dispatchers at queue 
@@ -301,25 +315,35 @@ stop_when_empty(Pid) ->
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
 %% @private
--spec(find_unbound/2 :: (GbTree :: call_queue(), From :: pid()) -> {key(), #queued_call{}} | 'none').
-find_unbound(GbTree, From) when is_pid(From) ->
-	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
+-spec(find_unbound/3 :: (GbTree :: call_queue(), From :: pid(), Exclude :: [pid()]) -> {key(), #queued_call{}} | 'none').
+find_unbound(GbTree, From, Exclude) when is_pid(From) ->
+	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From, Exclude).
 
 %% @private
--spec(find_unbound_/2 :: (Iterator :: {key(), #queued_call{}, any()} | 'none', From :: pid()) -> {key(), #queued_call{}} | 'none').
-find_unbound_(none, _From) ->
+-spec(find_unbound_/3 :: (Iterator :: {key(), #queued_call{}, any()} | 'none', From :: pid(), Exclude :: [pid()]) -> {key(), #queued_call{}} | 'none').
+find_unbound_(none, _From, _Exclude) ->
 	none;
-find_unbound_({Key, #queued_call{dispatchers = []} = Callrec, _Iter}, _From) ->
-	{Key, Callrec};
-find_unbound_({Key, #queued_call{dispatchers = Dispatchers} = Callrec, Iter}, From) ->
+find_unbound_({Key, #queued_call{dispatchers = []} = Callrec, Iter}, From, Exclude) ->
+	case lists:member(Callrec#queued_call.media, Exclude) of
+		true ->
+			find_unbound_(gb_trees:next(Iter), From, Exclude);
+		false ->
+			{Key, Callrec}
+	end;
+find_unbound_({Key, #queued_call{dispatchers = Dispatchers} = Callrec, Iter}, From, Exclude) ->
 	F = fun(Pid) ->
 		node(Pid) =:= node(From)
 	end,
 	case lists:filter(F, Dispatchers) of
 		[] ->
-			{Key, Callrec};
+			case lists:member(Callrec#queued_call.media, Exclude) of
+				true ->
+					find_unbound_(gb_trees:next(Iter), From, Exclude);
+				false ->
+					{Key, Callrec}
+			end;
 		_ ->
-			find_unbound_(gb_trees:next(Iter), From)
+			find_unbound_(gb_trees:next(Iter), From, Exclude)
 	end.
 
 % return the {Key, Value} pair where Value#call.id == Needle or none
@@ -465,14 +489,20 @@ handle_call({remove_skills, Callid, Skills}, _From, State) ->
 			{reply, ok, State2}
 	end;
 
-handle_call(ask, {From, _Tag}, State) ->
+handle_call(ask, From, State) ->
+	handle_call({ask, []}, From, State);
+
+handle_call({ask, Exclude}, {From, _Tag}, State) ->
 	%return a call in queue excluding those already bound
 	% return a tuple:  {key, val}
-	{reply, find_unbound(State#state.queue, From), State};
+	{reply, find_unbound(State#state.queue, From, Exclude), State};
 
 handle_call(grab, {From, _Tag}, State) ->
+	handle_call({grab, []}, From, State);
+
+handle_call({grab, Exclude}, {From, _Tag}, State) ->
 	% ask and bind in one handy step
-	case find_unbound(State#state.queue, From) of
+	case find_unbound(State#state.queue, From, Exclude) of
 		none ->
 			{reply, none, State};
 		{Key, Value} ->
@@ -553,7 +583,7 @@ handle_call({call_count_by_client, Client}, _From, State) ->
 	{reply, Count, State};
 
 handle_call(selection_info, {From, _tag}, State) ->
-	{reply, {find_unbound(State#state.queue, From), State#state.weight, State#state.last_service}, State};
+	{reply, {find_unbound(State#state.queue, From, []), State#state.weight, State#state.last_service}, State};
 
 handle_call(stop_when_empty, _From, #state{flag = default_queue} = State) ->
 	{reply, invalid, State};
@@ -948,6 +978,16 @@ call_in_out_grab_test_() ->
 					?assertEqual("testcall", Call1#queued_call.id),
 					?assertEqual("C3", Call3#queued_call.id),
 					?assertEqual(none, grab(Pid))
+				end
+			}, {
+				"Grab, skipping a few", fun() ->
+					Pid = whereis(testqueue),
+					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+					add(Pid, 1, Dummy2),
+					add(Pid, 1, Dummy3),
+					{_Key3, Call3} = grab(Pid, [whereis(media_dummy), Dummy2]),
+					?assertEqual("C3", Call3#queued_call.id)
 				end
 			}, {
 				"Ungrabbing", fun() ->

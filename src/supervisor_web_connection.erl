@@ -970,13 +970,10 @@ encode_groups(Stats, Count) ->
 
 -spec(encode_groups/5 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()], Gotqgroup :: [string()], Gotaprof :: [string()]) -> {non_neg_integer(), [tuple()]}).
 encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
-	F = fun() ->
-		Qqh = qlc:q([{Qgroup, "queuegroup"} || #queue_group{name = Qgroup} <- mnesia:table(queue_group), lists:member(Qgroup, Gotqgroup) =:= false]),
-		Aqh = qlc:q([{Aprof, "agentprofile"} || #agent_profile{name = Aprof} <- mnesia:table(agent_profile), lists:member(Aprof, Gotaprof) =:= false]),
-		Qgroups = qlc:e(Qqh),
-		Aprofs = qlc:e(Aqh),
-		lists:append(Qgroups, Aprofs)
-	end,
+	Qgroups = [{Qgroup, "queuegroup"} || #queue_group{name = Qgroup} <- call_queue_config:get_queue_groups(), lists:member(Qgroup, Gotqgroup) =:= false],
+	Aprofs = [{Aprof, "agentprofile"} || #agent_profile{name = Aprof} <- agent_auth:get_profiles(), lists:member(Aprof, Gotaprof) =:= false],
+	List = Qgroups ++ Aprofs,
+
 	Encode = fun({Name, Type}) ->
 		{struct, [
 			{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
@@ -984,7 +981,7 @@ encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
 			{<<"display">>, list_to_binary(Name)}
 		]}
 	end,
-	{atomic, List} = mnesia:transaction(F),
+
 	Encoded = lists:map(Encode, List),
 	Newacc = lists:append([Acc, Encoded]),
 	{Count + length(Newacc), Newacc};

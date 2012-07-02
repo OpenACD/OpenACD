@@ -1157,45 +1157,6 @@ handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 	end,
 	{noreply, State#state{statename = NextState}};
 
-%	Called = if
-%		is_pid(Thirdid) ->
-%			deferred;
-%		is_list(Thirdid) ->
-%			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline")
-%	end,
-%	% TODO This is a nasty hack until a better solution can be put into place
-%	% like a more robut ring set up that allows conditional interception of
-%	% events.  Yeah...
-%	NextState = case IncludeAgent of
-%		true ->
-%			Transfun = fun() ->
-%				timer:sleep(200),
-%				freeswitch:api(Fnode, uuid_transfer, Ringid ++ " 'conference:" ++ Confid ++ "' inline"),
-%				if
-%					is_pid(Thirdid) ->
-%						freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
-%						freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
-%					true ->
-%						ok
-%				end
-%			end,
-%			proc_lib:spawn(Transfun),
-%			'in_conference';
-%		_ ->
-%			if
-%				is_pid(Thirdid) ->
-%					%freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
-%					freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline");
-%				true ->
-%					ok
-%			end,
-%			'hold_conference'
-%	end,
-%	?DEBUG("merge.  next state:  ~p;  3rd:  ~p", [NextState, Called]),
-%	{noreply, State#state{statename = NextState}};
-
-% hold_conference_3rd_party -> in_conference_3rd_party | hold_conference | %		3rdparty
-%		
 % retrieve conference also works here.
 handle_cast(retrieve_3rd_party, Call, #state{statename = hold_conference_3rdparty} = State) ->
 	#state{cnode= Fnode, ringuuid = Ringid, '3rd_party_id' = Thirdpid} = State,

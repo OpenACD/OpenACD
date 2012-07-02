@@ -823,6 +823,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 			freeswitch:api(Fnode, uuid_record, Call#call.id ++ " stop " ++ Path ++ ".wav")
 	end,
 	freeswitch:api(Fnode, uuid_park, Call#call.id),
+	freeswitch:api(Fnode, uuid_setvar, Call#call.id ++ " park_after_bridge false"),
 	% play musique d'attente
 	% TODO this can generate an annoying warning in FS, but I don't care right now
 	case State#state.moh of
@@ -1722,7 +1723,9 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 				[{"call-command", "execute"},
 					{"execute-app-name", "answer"}])
 	end,
+	% reset park after bridge in case this was ever on hold.
 	freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " hangup_after_bridge true"),
+	freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " park_after_bridge false"),
 	% play musique d'attente
 	case Moh of
 		none ->

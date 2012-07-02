@@ -1041,7 +1041,8 @@ dojo.addOnLoad(function(){
 				'label':label,
 				'onClick':function(){loadTab(label, href)}
 			}));
-		}
+		};
+		tabsMenuDij.destroyDescendants(false);
 		for(tabIndex in tabsMenuList.tabs){
 			var tabItem = tabsMenuList.tabs[tabIndex];
 			addMenuItem(tabItem.label, tabItem.href);

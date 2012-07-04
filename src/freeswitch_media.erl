@@ -93,7 +93,11 @@
 	conference_command/2,
 
 	complete_agent_transfer/1,
-	cancel_agent_transfer/1
+	cancel_agent_transfer/1,
+	cede_control/2,
+
+	% helper for the cede control:
+	set_state_agent/5
 	]).
 
 %% gen_media callbacks
@@ -117,6 +121,7 @@
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
 	handle_warm_transfer_complete/2,
+	handle_oncall_transition_accepted/4,
 	terminate/3,
 	code_change/4]).
 
@@ -419,6 +424,29 @@ complete_agent_transfer(Mpid) ->
 cancel_agent_transfer(Mpid) ->
 	gen_media:cast(Mpid, cancel_agent_transfer).
 
+%% @doc While in a conference with the passing agent, give control of this call
+%% to the agent.
+-spec(cede_control/2 :: (MPid :: pid(), NewController :: string()) -> 'ok').
+cede_control(MPid, NewController) ->
+	case agent_manager:query_agent(NewController) of
+		false ->
+			?INFO("~s agent doesn't exist", [NewController]),
+			{error, noagent};
+		{true, Apid} ->
+			case agent:dump_state(Apid) of
+				#agent{statedata = #call{source = MPid}} ->
+					{error, self_oncall_transition};
+				#agent{statedata = #call{source = OtherMedia}} ->
+					gen_media:oncall_transition(MPid, OtherMedia);
+				_ ->
+					{error, invalid_agent_state}
+			end
+	end.
+
+%% @hidden
+set_state_agent(Login, Pid, RingChan, RingUUID, State) ->
+	State#state{agent = Login, agent_pid = Pid, ringchannel = RingChan, ringuuid = RingUUID}.
+
 %%====================================================================
 %% gen_media callbacks
 %%====================================================================
@@ -441,6 +469,17 @@ handle_announce(Announcement, Callrec, State) ->
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
+
+handle_oncall_transition_accepted(freeswitch_busy_agent, BusyAgentState, Call, State) ->
+	#state{agent_pid = Apid, agent = Agent, ringchannel = RingChan, ringuuid = RingUUID} = State,
+	AgentNom = if
+		is_record(Agent, agent) ->
+			Agent#agent.login;
+		true ->
+			Agent
+	end,
+	BusyAgentState0 = freeswitch_busy_agent:set_state_agent(AgentNom, Apid, RingChan, RingUUID, BusyAgentState),
+	{ok, BusyAgentState0}.
 
 handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
@@ -1033,6 +1072,11 @@ handle_cast(cancel_agent_transfer, Call, #state{statename = oncall_hold_ringing}
 	gen_server:cast(Rpid, cancel_agent_transfer),
 	{{stop_ring, agent_transfer_cancel}, State};
 
+handle_cast({cede_control, NewController}, Call, State) ->
+	Self = self(),
+	proc_lib:spawn(?MODULE, cede_control, [Self, NewController]),
+	{noreply, State};
+
 %% hold_conference -> 3rd_party
 handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_conference} = State) ->
 	#state{cnode = Fnode} = State,
@@ -1050,6 +1094,13 @@ handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_
 			?WARNING("freeswitch_busy_agent could not start:  ~p", [Error]),
 			{noreply, State}
 	end;
+
+handle_cast({cede_control, OtherAgent}, _Call, State) ->
+	Self = self(),
+	proc_lib:spawn(fun() ->
+		?MODULE:cede_control(Self, OtherAgent)
+	end),
+	{noreply, State};
 
 handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall, {_OPid, Ouuid}}, Call, #state{statename = hold_conference_3rdparty, '3rd_party_id' = BusyPid, ringuuid = Ruuid} = State) ->
 	#state{cnode = Fnode} = State,
@@ -1261,6 +1312,10 @@ handle_cast({<<"retrieve_3rd_party">>, _}, Call, State) ->
 handle_cast({<<"contact_agent">>, Args}, Call, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),
 	handle_cast({contact_agent, Destination, "default"}, Call, State);
+
+handle_cast({<<"cede_control">>, Args}, Call, State) ->
+	OtherAgent = binary_to_list(proplists:get_value("args", Args)),
+	handle_cast({cede_control, OtherAgent}, Call, State);
 
 handle_cast({<<"contact_3rd_party">>, Args}, Call, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),
@@ -1577,7 +1632,7 @@ handle_info(channel_destroy, Call, State) ->
 		Stopple ->
 			?DEBUG("Stopping as inqueue, inqueue_ringing, or inivr", []),
 			{stop, normal, State};
-		Hangups ->
+		Hang ->
 			?DEBUG("hangup as oncall of some variant", []),
 			{{hangup, caller}, State};
 		true ->

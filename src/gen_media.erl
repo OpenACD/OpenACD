@@ -318,36 +318,35 @@ start/2
 
 %% gen_media api
 -export([
-ring/4,
-get_call/1,
-voicemail/1,
-announce/2,
-%% TODO added for testing only (implemented with focus on real Calls - no other media)
-end_call/1,
-stop_ringing/1,
-oncall/1,
-agent_transfer/3,
-% next is used for a 2nd gen media to request an oncall agent
-% is considered oncall with itself.
-oncall_transition/2,
-% TODO warm transfer depricatd in favor of media specific handlings.
-warm_transfer_begin/2,
-warm_transfer_cancel/1,
-warm_transfer_complete/1,
-queue/2,
-call/2,
-call/3,
-cast/2,
-wrapup/1,
-spy/3,
-set_cook/2,
-set_queue/2,
-set_url_getvars/2,
-get_url_getvars/1,
-add_skills/2,
-% set priority is used by the call queue, reporting aid only.
-% to set the priority of a call while in queue, use the call_queue mod.
-set_priority/4
+	ring/4,
+	get_call/1,
+	voicemail/1,
+	announce/2,
+	%% TODO added for testing only (implemented with focus on real Calls - no other media)
+	end_call/1,
+	stop_ringing/1,
+	oncall/1,
+	agent_transfer/3,
+	% Try to swap the oncall agent of two media.
+	oncall_transition/2,
+	% TODO warm transfer depricatd in favor of media specific handlings.
+	warm_transfer_begin/2,
+	warm_transfer_cancel/1,
+	warm_transfer_complete/1,
+	queue/2,
+	call/2,
+	call/3,
+	cast/2,
+	wrapup/1,
+	spy/3,
+	set_cook/2,
+	set_queue/2,
+	set_url_getvars/2,
+	get_url_getvars/1,
+	add_skills/2,
+	% set priority is used by the call queue, reporting aid only.
+	% to set the priority of a call while in queue, use the call_queue mod.
+	set_priority/4
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -485,16 +484,16 @@ case agent_manager:query_agent(Agent) of
 		agent_transfer(Genmedia, {Agent, Apid}, Timeout)
 end.
 
--spec(oncall_transition/2 :: (Genmedia :: pid(), Call :: #call{}) -> 'ok' | {'error', any()}).
-oncall_transition(GenMedia, NewCall) ->
-Self = self(),
-case NewCall#call.source of
-	Self ->
-		gen_server:call(GenMedia, {'$gen_media_oncall_transition', NewCall});
-	_NotSelf ->
-		?WARNING("~p tried to do a transition on behalf of ~p", [Self, NewCall#call.source]),
-		{error, source_pid_mismatch}
-end.
+%% @doc Used by a media to get another media to swap agents.  A1 is oncall with
+%% M1.  M1 starts a new media M2 to A2.  This would allow A1 to go oncall with
+%% M2 and A2 oncall with A1.  This is accomplished by gen_media of M1 doing a 
+%% call to M2, passing it's state.  Assuming the M2 callback accepts, M2 is
+%% updated with the the modified callback state of M1, but over all the state
+%% of M1.  M2 replies to M1 the state of M2, and M1 uses the callback to 
+%% modifiy the state, and then carries on.
+-spec(oncall_transition/2 :: (Genmedia :: pid(), OtherMedia :: pid()) -> 'ok' | {'error', any()}).
+oncall_transition(GenMedia, OtherMedia) ->
+	gen_server:call(GenMedia, {'$gen_media_start_oncall_transition', OtherMedia}).
 
 -spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
@@ -629,42 +628,56 @@ end.
 %%--------------------------------------------------------------------
 
 %% @private
-handle_call({'$gen_media_oncall_transition', _InCall}, _From, #state{oncall_pid = undefined} = State) ->
-{reply, {error, not_oncall}, State};
+handle_call({'$gen_media_start_oncall_transition', _OtherMedia}, _From, #state{oncall_pid = undefined} = State) ->
+	{reply, {error, not_oncall}, State};
 
-handle_call({'$gen_media_oncall_transition', #call{id = Id} = InCall}, _From, #state{oncall_pid = {Nom, AgentPid}, callrec = #call{id = Id}} = State) ->
-	#state{callback = Callback, substate = SubState, callrec = Call} = State,
-	case erlang:function_exported(Callback, handle_oncall_transition, 3) of
-		false ->
-			{reply, {error, not_exported}, State};
+handle_call({'$gen_media_start_oncall_transition', OtherMedia}, _From, State) ->
+	#state{callback = Callback, substate = Substate, callrec = Call, oncall_pid = {Nam, Pid}} = State,
+	FuncExported = erlang:function_exported(Callback, handle_oncall_transition_accepted, 4),
+	if
+		FuncExported ->
+			case gen_server:call(OtherMedia, {'$gen_media_accept_oncall_transition', State}) of
+				{ok, State0} ->
+					#state{callback = OtherCb, substate = OtherSubstate} = State0,
+					{ok, Substate0} = Callback:handle_oncall_transition_accepted(OtherCb, OtherSubstate, Call, Substate),
+					cdr:oncall_transition(Call, Nam),
+					set_agent_state(Pid, [oncall, Call]),
+					?DEBUG("Success switching to using callback ~p", [State0#state.callback]),
+					{reply, ok, State0#state{substate = Substate0, oncall_pid = {Nam, Pid}}};
+				Else ->
+					?INFO("Oncall transition failed:  ~p", [Else]),
+					{reply, Else, State}
+			end;
 		true ->
-			case Callback:handle_oncall_transition(InCall, Call, SubState) of
-				{ok, SubState0} ->
-					case agent:set_state(AgentPid, oncall, InCall) of
-						ok ->
-							cdr:oncall_transition(InCall, Nom),
-							{reply, ok, State#state{substate = SubState0, callrec = InCall}};
-						Error ->
-							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
-							{reply, {error, Error}, State}
-					end;
-				{mutate, Callback0, SubState0} ->
-					case agent:set_state(AgentPid, oncall, InCall) of
-						ok ->
-							cdr:oncall_transition(InCall, Nom),
-							{reply, ok, State#state{substate = SubState0, callback = Callback0, callrec = InCall}};
-						Error ->
-							?WARNING("Agent could not go oncall to oncall:  ~p", [Error]),
-							{reply, {error, Error}, State}
-					end;
-				{error, Error, Substate0} ->
-					{reply, {error, Error}, State#state{substate = Substate0}}
-			end
+			?INFO("call ~p does not support oncall_transitions", [State#state.callback]),
+			{reply, {error, not_exported}, State}
 	end;
 
-handle_call({'$gen_media_oncall_transition', InCall}, _From, State) ->
-	?DEBUG("Incall and oncall records have an id mismatch.  In:  ~p;  Current:  ~p", [InCall, State#state.callrec]),
-	{reply, {error, bad_callrec}, State};
+handle_call({'$gen_media_accept_oncall_transition', _M1State}, _From, #state{oncall_pid = undefined} = State) ->
+	{reply, {error, not_oncall}, State};
+
+handle_call({'$gen_media_accept_oncall_transition', #state{callrec = #call{id = M1Callid}}}, _From, #state{callrec = #call{id = Callid}} = State) when M1Callid =/= Callid ->
+	{reply, {error, call_id_mismatch}, State};
+
+handle_call({'$gen_media_accept_oncall_transition', M1State}, From, State) ->
+	#state{callback = Callback, substate = Substate, callrec = Call, oncall_pid = {ANome, Apid}} = State,
+	FuncExported = erlang:function_exported(Callback, handle_oncall_transition_accept, 5),
+	if
+		FuncExported ->
+			#state{callback = M1Cb, substate = M1SubState} = M1State,
+			case Callback:handle_oncall_transition_accept(M1Cb, M1SubState, From, Call, Substate) of
+				{ok, M1Substate0} ->
+					set_agent_state(Apid, [oncall, Call]),
+					?DEBUG("Accepting oncall transition to ~p", [M1State#state.callback]),
+					{reply, {ok, State}, M1State#state{substate = M1Substate0, oncall_pid = {ANome, Apid}}};
+				{error, What, Substate0} ->
+					?INFO("~p Did not accept oncall_transition due to ~p", [State#state.callback, What]),
+					{reply, {error, What}, State#state{substate = Substate0}}
+			end;
+		true ->
+			?INFO("Callback ~p does not support oncall_transitions", [State#state.callback]),
+			{reply, {error, accept_not_exported}, State}
+	end;
 
 handle_call({'$gen_media_spy', Spy, _AgentRec}, _From, #state{oncall_pid = {_Nom, Spy}} = State) ->
 	%% Can't spy on yourself.
@@ -689,7 +702,7 @@ handle_call({'$gen_media_spy', Spy, AgentRec}, _From, #state{callback = Callback
 handle_call({'$gen_media_spy', _Spy, _AgentRec}, _From, State) ->
 	{reply, invalid, State};
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
-	?INFO("Request to end call ~p from agent", [Call#call.id]),
+	?INFO("Request to end call ~p from agent ~s", [Call#call.id, Ocagent]),
 	cdr:wrapup(State#state.callrec, Ocagent),
 	case State#state.ring_pid of
 		undefined ->
@@ -713,6 +726,11 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
 	{reply, invalid, State};
+
+handle_call('$gen_media_wrapup', From, State) ->
+	?DEBUG("Invalid wrapup call from ~p in state ~p", [From, State]),
+	{reply, invalid, State};
+
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Ocpid}, monitors = Mons} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% Decrement the call's priority by 5 when requeueing
@@ -1402,6 +1420,9 @@ handle_custom_return(Return, #state{monitors = Mons} = State, noreply) ->
 		{stop, Reason, NewState} ->
 			Newstop = handle_stop(Reason, State),
 			{stop, Newstop, State#state{substate = NewState}};
+		{mutate, NewCallback, NewState} ->
+			?DEBUG("Mutations from ~p to ~p", [State#state.callback, NewCallback]),
+			{noreply, State#state{callback = NewCallback, substate = NewState}};
 		{queue, Queue, PCallrec, NewState} ->
 			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
@@ -1441,6 +1462,12 @@ handle_custom_return(Return, #state{monitors = Mons} = State, reply) ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState, Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
+		{mutate, NewCallback, NewState} ->
+			?DEBUG("Mutations from ~p to ~p", [State#state.callback, NewCallback]),
+			{noreply, State#state{callback = NewCallback, substate = NewState}};
+		{mutate, Reply, NewCallback, NewState} ->
+			?DEBUG("Mutations from ~p to ~p", [State#state.callback, NewCallback]),
+			{reply, Reply, State#state{callback = NewCallback, substate = NewState}};
 		{stop, Reason, Reply, NewState} ->
 			Newreason = handle_stop(Reason, State),
 			{stop, Newreason, Reply, State#state{substate = NewState}};

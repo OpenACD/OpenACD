@@ -19,6 +19,7 @@
 	handle_ring/3,
 	handle_ring_stop/2,
 	handle_answer/3,
+	handle_oncall_transition_accept/5,
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
 	handle_end_call/2,
 	handle_agent_transfer/4, % always fail.
@@ -35,7 +36,10 @@
 	start/2, start_link/2,
 	ring_agent/2, ring_agent/3,
 	cancel/1,
-	transfer/2
+	transfer/2,
+
+	% exported as a cede control helper
+	set_state_agent/5
 ]).
 
 -record(state, {
@@ -69,6 +73,9 @@ cancel(Media) ->
 
 transfer(Media, Endpoint) ->
 	gen_media:cast(Media, {transfer, Endpoint}).
+
+set_state_agent(Login, Apid, RingChanPid, RingChanUUID, State) ->
+	State#state{agent_info = {Apid, Login}, ring_info = {RingChanPid, RingChanUUID}}.
 
 %% =====================================================================
 %% Gen_media callbacks
@@ -127,6 +134,20 @@ handle_answer(_Agent, Call, State) ->
 	{ok, State}.
 
 %% ---------------------------------------------------------------------
+%% handle_oncall_transition_accept
+%% ---------------------------------------------------------------------
+
+handle_oncall_transition_accept(freeswitch_media, FsMediaState, {From, _Tag}, Call, #state{other_media = From} = State) ->
+	#state{agent_info = {Login, Apid}, ring_info = {RingChan, RingUUID}} = State,
+	FsState0 = freeswitch_media:set_state_agent(Login, Apid, RingChan, RingUUID, FsMediaState),
+	freeswitch:handlecall(State#state.fsnode, Call#call.id),
+	{ok, FsState0};
+
+handle_oncall_transition_accept(Mod, ModState, {From, _Tag}, _Call, State) ->
+	?WARNING("One of Mod, ModState, or From unacceptable:  ~p, ~p, ~p", [Mod, ModState, From]),
+	{error, invalid, State}.
+
+%% ---------------------------------------------------------------------
 %% handle_end_call
 %% ---------------------------------------------------------------------
 
@@ -167,7 +188,7 @@ handle_call(Msg, _From, _Call, State) ->
 %% ---------------------------------------------------------------------
 
 handle_cast({transfer, Endpoint}, _Call, State) ->
-	#state{ring_info = {Pid, UUID}, fsnode = Fnode} = State,
+	#state{ring_info = {_Pid, UUID}, fsnode = Fnode} = State,
 	?DEBUG("Got call to do transfer to ~s", [Endpoint]),
 	%Any = freeswitch_ring:block_until(Pid, any),
 	%?DEBUG("unblocked on ~p", [Any]),

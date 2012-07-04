@@ -749,7 +749,7 @@ oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent}
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
 
 oncall({oncall, #call{id = InCallId} = InCall}, {CallPid, _Tag}, #state{agent_rec = #agent{statedata = #call{source = CallPid, id = InCallId}} = Agent} = State) ->
-	?INFO("Changing call record at request of current call", []),
+	?INFO("Changing call record to ~p at request of current call ~p", [InCall#call.source, CallPid]),
 	Newagent = Agent#agent{statedata = InCall},
 	gen_server:cast(Agent#agent.connection, {change_state, oncall, InCall}),
 	{reply, ok, oncall, State#state{agent_rec = Newagent}};

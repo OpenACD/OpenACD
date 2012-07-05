@@ -41,6 +41,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -define(POLL_INTERVAL, 500).
+-define(max_regrabs, 10).
 
 -behaviour(gen_server).
 
@@ -57,6 +58,7 @@
 	qpid :: pid(),
 	tried_queues = [] :: [pid()],
 	tried_medias = [] :: [pid()],
+	regrabs = 1 :: non_neg_integer(),
 	cook_mon :: reference() | 'undefined'
 }).
 
@@ -175,14 +177,17 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(grab_best, State) ->
+	#state{regrabs = Grabs} = State,
 	case grab_best(State#state.tried_medias) of
-		none ->
-			?DEBUG("Grab best got no call", []),
+		none when Grabs < ?max_regrabs ->
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
-			{noreply, State#state{tref = Tref}};
+			{noreply, State#state{tref = Tref, regrabs = Grabs + 1}};
+		none ->
+			?DEBUG("Tried to grab ~p times with no success, exiting", [Grabs]),
+			{stop, normal, State};
 		{Qpid, Call} ->
 			?DEBUG("Grab best got a call", []),
-			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
+			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined, regrabs = 1}}
 	end;
 handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) when Reason =:= normal orelse Reason =:= shutdown ->
 	?DEBUG("Monitor'ed cook (~p) exited cleanly, going down", [Pid]),
@@ -571,6 +576,22 @@ grab_test_() ->
 		[timer:sleep(?POLL_INTERVAL) || _ <- lists:seq(1,3)],
 		{ok, State} = gen_server:call(DPid, dump_state),
 		?assertEqual(lists:reverse(Mpids), State#state.tried_medias)
+	end} end,
+	fun([_Pid1, _Pid2, _Pid3]) -> {"regrab only 10 times at most", timeout, 60, fun() ->
+		OldFlag = process_flag(trap_exit, true),
+		After = ?POLL_INTERVAL * 11,
+		{ok, DPid} = dispatcher:start(),
+		link(DPid),
+		?DEBUG("The dispatcher:  ~p", [DPid]),
+		receive
+			{'EXIT', DPid, normal} ->
+				?assert(true);
+			Msg ->
+				?assert(Msg)
+		after After ->
+			?assert(timeout)
+		end,
+		process_flag(trap_exit, OldFlag)
 	end} end,
 	fun([Pid1, _Pid2, _Pid3]) -> {"loop_queues test", fun() ->
 			?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))

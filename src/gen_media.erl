@@ -812,7 +812,7 @@ inqueue({{'$gen_media', announce}, Announce}, _From, {#base_state{
 	end,
 	{reply, ok, inqueue, {BaseState#base_state{substate = Substate}, Internal}};
 
-inqueue({{'$gen_meida', voicemail}, undefined}, _From, {BaseState, Internal}) ->
+inqueue({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
 	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
 	case erlang:function_exported(Callback, handle_voicemail, 3) of

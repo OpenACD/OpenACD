@@ -710,6 +710,7 @@ init([Callback, Args]) ->
 					{Queue, Else}
 			end,
 			InqState = #inqueue_state{
+				queue_pid = {Queue, Qpid},
 				queue_mon = erlang:monitor(process, Qpid)
 			},
 			{ok, inqueue, {BaseState, InqState}};

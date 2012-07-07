@@ -82,7 +82,7 @@
 	prepare_endpoint/2,
 	handle_ring/4, 
 	handle_answer/5, 
-	handle_voicemail/3, 
+	handle_voicemail/4,
 	handle_announce/3, 
 	handle_ring_stop/4,
 	handle_agent_transfer/4,
@@ -558,8 +558,8 @@ handle_ring(_Agent, _RingData, _Call, #state{fail = Fail} = State) ->
 			{invalid, State#state{fail = Newfail}}
 	end.
 
--spec(handle_voicemail/3 :: (Whatever :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}}).
-handle_voicemail(_Whatever, _Callrec, #state{fail = Fail} = State) ->
+-spec(handle_voicemail/4 :: (Whatever :: any(), Callrec :: #call{}, Internal :: any(), State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}}).
+handle_voicemail(_Whatever, _Callrec, _Internal, #state{fail = Fail} = State) ->
 	case dict:fetch(voicemail, Fail) of
 		fail_once ->
 			Newfail = dict:store(voicemail, success, Fail),
@@ -777,14 +777,14 @@ dummy_test_() ->
 			"Answer voicemail call when set to success",
 			fun() ->
 				{ok, {State, _Call}} = init([[{queues, none}], success]),
-				?assertMatch({ok, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
+				?assertMatch({ok, State}, handle_voicemail("doesn't matter", "doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
 				{ok, {State, _Call}} = init([[{queues, none}], failure]),
-				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
+				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", "doesn't matter", "doesn't matter", State))
 			end
 		},
 		{

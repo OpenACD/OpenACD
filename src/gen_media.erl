@@ -475,7 +475,7 @@ behaviour_info(callbacks) ->
 		{handle_ring, 4},
 		{handle_ring_stop, 4},
 		{handle_answer, 5}, 
-		%{handle_voicemail, 3}, 
+		%{handle_voicemail, 4},
 		%{handle_announce, 3}, 
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 5},
@@ -816,7 +816,7 @@ inqueue({{'$gen_media', announce}, Announce}, _From, {#base_state{
 inqueue({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
 	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
-	case erlang:function_exported(Callback, handle_voicemail, 3) of
+	case erlang:function_exported(Callback, handle_voicemail, 4) of
 		false ->
 			{reply, invalid, inqueue, {BaseState, Internal}};
 		true ->
@@ -941,7 +941,7 @@ inqueue_ringing({{'$gen_media', announce}, Announce}, _From, {BaseState, Interna
 inqueue_ringing({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 	#base_state{callback = Callback, callrec = Call} = BaseState,
 	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
-	case erlang:function_exported(Callback, handle_voicemail, 3) of
+	case erlang:function_exported(Callback, handle_voicemail, 4) of
 		false ->
 			{reply, invalid, inqueue_ringing, {BaseState, Internal}};
 		true ->

@@ -138,7 +138,7 @@ prepare_endpoint(Agent,Options) ->
 handle_answer(Apid, oncall_ringing, Callrec, _GenMediaState, #state{file=File, xferchannel = XferChannel} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
 	%freeswitch_ring:hangup(State#state.ringchannel),
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
+	agent_channel:media_push(Apid, Callrec, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
 	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
 		[{"call-command", "execute"},
@@ -155,7 +155,7 @@ handle_answer(Apid, oncall_ringing, Callrec, _GenMediaState, #state{file=File, x
 
 handle_answer(Apid, inqueue_ringing, Callrec, _GenMediaState, #state{file=File} = State) ->
 	?NOTICE("Voicemail ~s successfully answered! Time to play ~s", [Callrec#call.id, File]),
-	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
+	agent_channel:media_push(Apid, Callrec, {mediaload, Callrec, [{<<"width">>, <<"300px">>},{<<"height">>, <<"180px">>},{<<"title">>,<<>>}]}),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"event-lock", "true"},

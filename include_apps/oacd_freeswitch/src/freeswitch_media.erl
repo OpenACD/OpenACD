@@ -72,7 +72,7 @@
 	handle_ring/4,
 	handle_ring_stop/4,
 	handle_answer/5,
-	handle_voicemail/3,
+	handle_voicemail/4,
 	handle_spy/3,
 	handle_announce/3,
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
@@ -334,11 +334,11 @@ handle_ring_stop(StateName, Callrec, _GenMedia, State) ->
 	{ok, State#state{statename = NewStatename, ringchannel=undefined}}.
 
 %% @hidden
--spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
-handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
-	{ok, Midstate} = handle_ring_stop(undefined, Callrec, undefined, State),
-	handle_voicemail(undefined, Callrec, Midstate);
-handle_voicemail(undefined, Call, State) ->
+-spec(handle_voicemail/4 :: (StateName :: atom(), Call :: #call{}, Internal :: any(), State :: #state{}) -> {'ok', #state{}}).
+handle_voicemail(inqueue_ringing, Callrec, Internal, State) ->
+	{ok, Midstate} = handle_ring_stop(inqueue_ringing, Callrec, undefined, State),
+	handle_voicemail(undefined, Callrec, Internal, Midstate);
+handle_voicemail(_, Call, _, State) ->
 	UUID = Call#call.id,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{statename = inivr, voicemail = "/tmp/"++UUID++".wav"}}.

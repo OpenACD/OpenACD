@@ -790,6 +790,8 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 			end;
 		Else ->
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, CachedCall#call.id]),
+			% Tell cook to try someone else
+			gen_server:cast(Requester, stop_ringing),
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_ring', {_Agent, Apid}, QCall, _Timeout}, _From, #state{callrec = _Call, callback = _Callback, ring_pid = undefined} = State) ->

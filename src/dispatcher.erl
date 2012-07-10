@@ -250,7 +250,6 @@ loop_queues(Queues, Exclude) ->
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues), Exclude);
 			{_Key, Call2} ->
 				%?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
-				link(Call2#queued_call.cook),
 				{Qpid, Call2}
 	end.
 

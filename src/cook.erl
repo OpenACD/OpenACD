@@ -123,6 +123,18 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
 
+-ifdef(TEST).
+
+%% @doc Used only for debugging, puts the cook in a state of 'do nothing'.
+%% This is to aid testing the dispatchers mainly.
+do_nothing(Cook) ->
+	gen_server:cast(Cook, do_nothing).
+
+resume_work(Cook) ->
+	gen_server:cast(Cook, resume_work).
+
+-endif.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -169,6 +181,16 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast(do_nothing, #state{tref = undefined} = State) ->
+	{noreply, State#state{tref = do_nothing}};
+
+handle_cast(do_nothing, State) ->
+	{noreply, State0} = handle_cast(stop_tick, State),
+	handle_cast(do_nothing, State0);
+
+handle_cast(resume_work, #state{tref = NoWork} = State) when NoWork =:= undefined; NoWork =:= do_nothing ->
+	handle_cast(restart_tick, State#state{tref = undefined});
+
 handle_cast(restart_tick, #state{qpid = Qpid} = State) ->
 	case do_route(State#state.ringstate, Qpid, State#state.call) of
 		nocall ->
@@ -180,6 +202,11 @@ handle_cast(restart_tick, #state{qpid = Qpid} = State) ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
+
+handle_cast(Msg, #state{tref = do_nothing} = State) ->
+	?WARNING("In do nothing state, ignoring ~p", [Msg]),
+	{noreply, State};
+
 handle_cast(stop_ringing, #state{qpid = Qpid} = State) ->
 	?DEBUG("rang out or ring aborted, trying to find new candidate", []),
 	case do_route(none, Qpid, State#state.call) of
@@ -211,6 +238,10 @@ handle_cast(Msg, #state{callid = CallID} = State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_info(Msg, #state{tref = do_nothing} = State) ->
+	?WARNING("in do nothing state, ignoring ~p", [Msg]),
+	{noreply, State};
+
 handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	NewRecipe = do_recipe(State#state.recipe, State#state.ticked, Qpid, State#state.call),
 	Tref = case NewRecipe of

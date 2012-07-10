@@ -177,7 +177,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(grab_best, State) ->
-	#state{regrabs = Grabs} = State,
+	#state{regrabs = Grabs, qpid = OldQPid, call = OldCall} = State,
 	case grab_best(State#state.tried_medias) of
 		none when Grabs < ?max_regrabs ->
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
@@ -186,6 +186,12 @@ handle_info(grab_best, State) ->
 			?DEBUG("Tried to grab ~p times with no success, exiting", [Grabs]),
 			{stop, normal, State};
 		{Qpid, Call} ->
+			case OldQPid of
+				undefined ->
+					ok;
+				_ ->
+					call_queue:ungrab(OldQPid, OldCall#queued_call.id)
+			end,
 			?DEBUG("Grab best got a call", []),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined, regrabs = 1}}
 	end;
@@ -591,6 +597,24 @@ grab_test_() ->
 			?assert(timeout)
 		end,
 		process_flag(trap_exit, OldFlag)
+	end} end,
+	fun([Pid1, Pid2, _Pid3]) -> {"grab_best ungrabs properly", fun() ->
+		{ok, M1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+		{ok, M2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+		call_queue:add(Pid1, M1),
+		call_queue:add(Pid2, M2),
+		M1inP1 = call_queue:to_list(Pid1),
+		M2inP2 = call_queue:to_list(Pid2),
+		[cook:do_nothing(QedCall#queued_call.cook) || QedCall <- lists:flatten([M1inP1, M2inP2])],
+		{ok, Dpid} = dispatcher:start(),
+		Dpid ! grab_best,
+		timer:sleep(10),
+		[Q1QCall] = call_queue:to_list(Pid1),
+		[Q2QCall] = call_queue:to_list(Pid2),
+		?DEBUG("hi:\n\tDispatcher:  ~p\n\tQ1qcall:  ~p\n\tQ2qcall:  ~p", [Dpid, Q1QCall, Q2QCall]),
+		% Pid2 queue has a higher weight, so it was bound first.
+		?assertEqual([Dpid], Q1QCall#queued_call.dispatchers),
+		?assertEqual([], Q2QCall#queued_call.dispatchers)
 	end} end,
 	fun([Pid1, _Pid2, _Pid3]) -> {"loop_queues test", fun() ->
 			?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))

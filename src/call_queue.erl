@@ -440,6 +440,7 @@ handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 		none ->
 			{reply, ok, State};
 		{Key, Value} ->
+			unlink(From),
 			{reply, ok, State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:delete(From, Value#queued_call.dispatchers)}, State#state.queue)}}
 	end;
 handle_call({set_weight, Weight}, _From, State) when is_integer(Weight), Weight > 0 ->

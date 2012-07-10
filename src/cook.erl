@@ -50,12 +50,12 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(TICK_LENGTH, 500).
--define(RINGOUT, 3).
+
+-export([do_nothing/1, resume_work/1]).
 
 -else.
 
 -define(TICK_LENGTH, 1000).
--define(RINGOUT, 60).
 
 -endif.
 
@@ -1754,7 +1754,7 @@ agent_interaction_test_() ->
 				% dispather unbinds, tests new agent
 				% ringout'th + 1 tick, rings to an agent
 				receive
-				after ?TICK_LENGTH * (?RINGOUT) + 100 ->
+				after ?getRingout + 100 ->
 					ok
 				end,
 				?CONSOLE("2nd test time!", []),

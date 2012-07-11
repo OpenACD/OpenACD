@@ -36,6 +36,7 @@
 -behaviour(gen_media).
 
 -ifdef(TEST).
+-compile([export_all]).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -944,12 +945,56 @@ handle_call({conference_command, _}, _From, _Call, #state{conference_id = undefi
 
 handle_call({conference_command, Command}, _From, _Call, #state{conference_id = ConfId} = State) ->
 	#state{cnode = Fsnode} = State,
+	?DEBUG("Conference command issued:  ~s", [Command]),
 	case freeswitch:api(Fsnode, conference, ConfId ++ " " ++ Command) of
 		{ok, Data} ->
 			{reply, {ok, {ConfId, Data}}, State};
 		Else ->
 			{reply, Else, State}
 	end;
+
+handle_call({<<"conference_status">>, _Post}, From, Call, State) ->
+	{reply, Reply, State0} = handle_call({conference_command, "list"}, From, Call, State),
+	case Reply of
+		{error, no_conference} ->
+			Json = {struct, [{success, false},{<<"message">>, no_conference}, {<<"errcode">>, no_conferece}]},
+			{reply, iolist_to_binary(mochijson2:encode(Json)), State0};
+		{ok, {ConfId,ConfData}} ->
+			InfoLines = string:tokens(ConfData, "\n"),
+			ConfData0 = parse_conference_info(InfoLines),
+			ConfData1 = [{struct, [{list_to_binary(K),list_to_binary(V)} || {K,V} <- InfoProplist]}
+				|| InfoProplist <- ConfData0],
+			Json = {struct, [{success,true},{<<"result">>,ConfData1}]},
+			{reply, iolist_to_binary(mochijson2:encode(Json)),State0};
+		Else ->
+			Json = {struct, [{success,false},{<<"message">>, iolist_to_binary(io_lib:format("some error: ~p", [Else]))},{<<"errcode">>, <<"UNKNOWN_ERROR">>}]},
+			{reply, iolist_to_binary(mochijson2:encode(Json)), State0}
+	end;
+
+handle_call({<<"conference_command">>, Post}, From, Call, State) ->
+	case catch begin
+		Args = proplists:get_value("args", Post, []),
+		Args0 = case Args of
+			_ when is_binary(Args) ->
+				[binary_to_list(Args)];
+			_ when is_list(Args) ->
+				[binary_to_list(A) || A <- Args]
+		end,
+		Command = string:join(Args0, " "),
+		case handle_call({conference_command, Command}, From, Call, State) of
+			{reply, {ok, {ConfId,ConfData}}, State0} ->
+				Struct = {struct, [{success, true}, {<<"result">>, list_to_binary(ConfData)}]},
+				{ok, Struct, State0};
+			{reply, Else, State0} ->
+				Struct = {struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("Command no workie:  ~p", [Else]))}]},
+				{ok, Struct, State0}
+		end end of
+			{ok, Json, State1} ->
+				{reply, {[], iolist_to_binary(mochijson2:encode(Json))}, State1};
+			Error ->
+				Json = {struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("some error:  ~p", [Error]))},{<<"errcode">>, <<"UNKNOWN_ERROR">>}]},
+				{reply, {[], iolist_to_binary(mochijson2:encode(Json))}, State}
+		end;
 
 handle_call(Msg, _From, Call, State) ->
 	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
@@ -1716,7 +1761,6 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"CUSTOM" -> {"CUSTOM", proplists:get_value("Event-Subclass", Rawcall)};
 		Else -> Else
 	end,
-	%?DEBUG("Event ~p for ~s while in state ~p", [Ename, UUID, State#state.statename]),
 	case_event_name(Ename, UUID, Rawcall, Callrec, State).
 
 %% @private
@@ -1929,8 +1973,6 @@ case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid =
 					?NOTICE("~s hungup without leaving a voicemail", [UUID])
 			end
 	end,
-%	{hangup, State2};
-%"CHANNEL_HANGUP_COMPLETE" ->
 	% TODO - this is protocol specific and we only handle SIP right now
 	% TODO - this should go in the CDR
 	Cause = proplists:get_value("variable_hangup_cause", Rawcall),

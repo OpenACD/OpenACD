@@ -1571,6 +1571,13 @@ parse_media_call(#call{type = email}, {<<"get_from">>, _}, {Label, Address}) ->
 		{<<"address">>, Address}
 	]},
 	{[], mochijson2:encode({struct, [{success, true}, {<<"result">>, Json}]})};
+
+parse_media_call(_MediaRec, _Command, Response) when is_binary(Response) ->
+	{[], Response};
+
+parse_media_call(_MediaRec, _Command, {Head, Response}) when is_binary(Response) ->
+	{Head, Response};
+
 parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}, {<<"errcode">>, <<"BAD_RETURN">>}]})}.

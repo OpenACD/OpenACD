@@ -1109,6 +1109,7 @@ handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_
 					freeswitch_busy_agent:cancel(Pid),
 					{noreply, State};
 				_DeferredOrOk ->
+					link(Pid),
 					{noreply, State#state{'3rd_party_id' = Pid, statename = hold_conference_3rdparty, next_state = '3rd_party'}}
 			end;
 		Error ->
@@ -1545,6 +1546,22 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
+
+handle_info({'EXIT', Pid, Reason}, Call, #state{'3rd_party_id' = Pid} = State) ->
+	?INFO("Contacted agent likely hung up; other call pid ~p exited due to ~p", [Pid, Reason]),
+	NextState = case State#state.statename of
+		hold_conference_3rdparty ->
+			hold_conference;
+		in_conference_3rdparty ->
+			in_conference;
+		agent_contact ->
+			hold_conference;
+		'3rd_party' ->
+			hold_conference;
+		OtherState ->
+			OtherState
+	end,
+	{{mediapush, NextState}, State#state{'3rd_party_id' = undefined, statename = NextState}};
 
 handle_info({call, {event, [UUID | Rest]}} = Event, Call, #state{uuid = undefined} = State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p when uuid not set", [UUID]),

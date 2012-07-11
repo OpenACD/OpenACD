@@ -567,36 +567,12 @@ handle_ring({Apid, #agent{endpointtype = {EndpointPid, persistent, _EndPointType
 	end,
 	{ok, [{"itext", State#state.ivroption}], Callrec#call{ring_path = inband, media_path = inband}, State#state{statename = NewStatename, ringchannel = EndpointPid, agent_pid = Apid}};
 handle_ring({Apid, #agent{endpointtype = {RPid, transient, _}} = AgentRec}, Callrec, State) ->
-	% if we get to this point, the ring channel is already up.
-	%case freeswitch_media_manager:ring(AgentRec, freeswitch_ring_transient, [{call, Callrec}]) of
-	%	{ok, Pid} ->
-	%		link(Pid),
 	NewStatename = case State#state.statename of
 		inqueue -> inqueue_ringing;
 		oncall -> oncall_ringing
 	end,
 	link(RPid),
 	{ok, [{"itxt", State#state.ivroption}], State#state{statename = NewStatename, agent_pid = Apid, ringchannel = RPid}}.
-	%	{error, Error} ->
-	%		?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
-	%		{invalid, State}
-	%end.
-%	F = fun(UUID) ->
-%		fun(ok, _Reply) ->
-%			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
-%		(error, Reply) ->
-%			?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
-%			ok
-%		end
-%	end,
-%	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [{dial_vars, State#state.dial_vars}]) of
-%		{ok, Pid} ->
-%			link(Pid),
-%			{ok, [{"itxt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
-%		{error, Error} ->
-%			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
-%			{invalid, State}
-%	end.
 
 handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
 	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
@@ -1541,7 +1517,6 @@ handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	end,
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
-	%?DEBUG("reporting existing call progess ~p.", [UUID]),
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};

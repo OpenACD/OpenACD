@@ -1117,13 +1117,6 @@ handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_
 			{noreply, State}
 	end;
 
-handle_cast({cede_control, OtherAgent}, _Call, State) ->
-	Self = self(),
-	proc_lib:spawn(fun() ->
-		?MODULE:cede_control(Self, OtherAgent)
-	end),
-	{noreply, State};
-
 handle_cast({freeswitch_busy_agent, answer, #call{source = BusyPid} = OtherCall, {_OPid, Ouuid}}, Call, #state{statename = hold_conference_3rdparty, '3rd_party_id' = BusyPid, ringuuid = Ruuid} = State) ->
 	#state{cnode = Fnode} = State,
 	% TODO too much control here?  Maybe freeswitch_busy_agent should do

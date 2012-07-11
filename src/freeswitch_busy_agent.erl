@@ -209,7 +209,7 @@ handle_cast(Msg, _Call, State) ->
 
 handle_info({'EXIT', Rpid, Cause}, _Call, #state{ring_info = {Rpid, _Ruuid}} = State) ->
 	?DEBUG("Hangup of ring channel due to ~p indicates unbusy agent", [Cause]),
-	{{hangup, agent}, State};
+	{stop, {hangup, agent}, State};
 
 handle_info(Msg, _Call, State) ->
 	?DEBUG("unhandled info:  ~p", [Msg]),

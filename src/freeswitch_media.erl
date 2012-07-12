@@ -1204,11 +1204,6 @@ handle_cast({merge_3rd_party, IncludeAgent}, Call, State) ->
 			'in_conference';
 		{true, _} ->
 			freeswitch:api(Fnode, uuid_transfer, Thirdid ++ " 'conference:" ++ Confid ++ "' inline"),
-			TransFun = fun() ->
-				freeswitch_ring:block_until(State#state.ringchannel, ["CHANNEL_UNBRIDGE"]),
-				freeswitch_busy_agent:transfer(Thirdid, "'conference:" ++ Confid ++ "' inline")
-			end,
-			proc_lib:spawn(TransFun),
 			'in_conference';
 		{_, _} when is_pid(Thirdid) ->
 			TransFun = fun() ->

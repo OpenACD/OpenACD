@@ -267,7 +267,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 	Agent2 = Agent#agent{skills = MergedSkills, profile = Profile, source = self()},
 	agent_manager:update_skill_list(Agent2#agent.login, Agent2#agent.skills),
 	StateName = case Agent#agent.release_data of
-		none ->
+		undefined ->
 			dispatch_manager:now_avail(self(), Agent2#agent.available_channels),
 			idle;
 		_Other ->
@@ -275,6 +275,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 			released
 	end,
 	cpx_agent_event:agent_init(Agent2),
+	set_cpx_monitor_release(Agent2),
 	{ok, StateName, #state{agent_rec = Agent2, original_endpoints = OriginalEnds}}.
 
 % ======================================================================
@@ -293,7 +294,7 @@ idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agen
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
-	set_cpx_monitor(NewAgent, [{released, true}, {reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor_release(NewAgent),
 	cpx_agent_event:change_agent(Agent, NewAgent),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
@@ -341,7 +342,7 @@ released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	agent_manager:set_avail(Agent#agent.login, Agent#agent.available_channels),
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = undefined, last_change = Now},
-	set_cpx_monitor(NewAgent, [{released, false}]),
+	set_cpx_monitor_release(NewAgent),
 	cpx_agent_event:change_agent(Agent, NewAgent),
 	inform_connection(Agent, {set_release, none, Now}),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
@@ -350,7 +351,7 @@ released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = A
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
-	set_cpx_monitor(NewAgent, [{released, true}, {reason, Label}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor_release(NewAgent),
 	cpx_agent_event:change_agent(Agent, NewAgent),
 	{reply, ok, released, State#state{agent_rec = NewAgent}};
 
@@ -769,6 +770,11 @@ create_persistant_endpoint(Agent) ->
 		{ok, Manager} ->
 			gen_server:call(Manager, {ring, Agent, none})
 	end.
+
+set_cpx_monitor_release(#agent{release_data = {Id, Reason, Bias}} = Agent) ->
+	set_cpx_monitor(Agent, [{released, true}, {reason, Reason}, {bias, Bias}, {reason_id, Id}]);
+set_cpx_monitor_release(#agent{release_data = undefined} = Agent) ->
+	set_cpx_monitor(Agent, [{released, false}]).
 
 set_cpx_monitor(State, Otherdeatils)->
 	set_cpx_monitor(State, Otherdeatils, ignore).

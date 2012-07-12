@@ -233,36 +233,44 @@ if(typeof(agentDashboard) == 'undefined'){
 		this.name = initEvent.details.login;
 		this.id = initEvent.name;
 		this.start = Math.floor(new Date().getTime() / 1000);
-		this.state = initEvent.details.state;
+
+		// this.state = initEvent.details.state;
+		if (initEvent.details.released) {
+			this.state = 'released';
+		} else {
+			this.state = 'idle';
+		}
+
+
 		this._setStateData(initEvent.details);
 		//this.statedata = initEvent.details.statedata;
-		this.setWorking(initEvent);
-		var now = Math.floor(new Date().getTime() / 1000);
-		if(this._isWorking){
-			this._working = now - initEvent.details.lastchange.timestamp;
-			this._idleing = 0;
-		} else {
-			this._working = 0;
-			this._idleing = now - initEvent.details.lastchange.timestamp;
-		}
-		//this._isWorking = false;
-		this.lastchange = initEvent.details.lastchange.timestamp;
+		// this.setWorking(initEvent);
+		// var now = Math.floor(new Date().getTime() / 1000);
+		// if(this._isWorking){
+		// 	this._working = now - initEvent.details.lastchange.timestamp;
+		// 	this._idleing = 0;
+		// } else {
+		// 	this._working = 0;
+		// 	this._idleing = now - initEvent.details.lastchange.timestamp;
+		// }
+		// //this._isWorking = false;
+		// this.lastchange = initEvent.details.lastchange.timestamp;
 	}
 	
-	agentDashboard.Agent.prototype.setWorking = function(event){
-		switch(event.details.state){
-			case this.state:
-				// can't really go from one state to same
-				// and released doesn't really change anything important here.
-				break;
-			case 'idle':
-			case 'released':
-				this._isWorking = false;
-				break;
-			default:
-				this._isWorking = true;
-		}
-	}
+	// agentDashboard.Agent.prototype.setWorking = function(event){
+	// 	switch(event.details.state){
+	// 		case this.state:
+	// 			// can't really go from one state to same
+	// 			// and released doesn't really change anything important here.
+	// 			break;
+	// 		case 'idle':
+	// 		case 'released':
+	// 			this._isWorking = false;
+	// 			break;
+	// 		default:
+	// 			this._isWorking = true;
+	// 	}
+	// }
 	
 	agentDashboard.Agent.prototype.consumeEvent = function(event){
 		//var oldWorking = this._working;
@@ -272,14 +280,21 @@ if(typeof(agentDashboard) == 'undefined'){
 		} else {
 			this._idleing += (now - this.lastchange);
 		}
-		this.setWorking(event);
+		//this.setWorking(event);
 		var out = {};
 		out.oldState = this.state;
 		out.newState = event.details.state;
-		this.state = event.details.state;
+
+		if (event.details.released) {
+			out.newState = 'released';
+		} else {
+			out.newState = 'idle';
+		}
+
+		this.state = out.newState;
 		this._setStateData(event.details);
 		//this.statedata = event.details.statedata;
-		this.lastchange = event.details.lastchange.timestamp;
+		//this.lastchange = event.details.lastchange.timestamp;
 		dojo.publish('agentDashboard/agent/' + this.id + '/update', [this]);
 		return out;
 	}
@@ -330,13 +345,13 @@ if(typeof(agentDashboard) == 'undefined'){
 			case 'released':
 				return this.statedata;
 				break;
-			case 'oncall':
-			case 'wrapup':
-			case 'ringing':
-			case 'outgoing':
-			case 'precall':
-			case 'warmtransfer':
-				return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
+			// case 'oncall':
+			// case 'wrapup':
+			// case 'ringing':
+			// case 'outgoing':
+			// case 'precall':
+			// case 'warmtransfer':
+			// 	return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
 			default:
 				//console.log(['dinna parse', this.statedata]);
 				return '';
@@ -415,15 +430,16 @@ if(typeof(agentDashboard) == 'undefined'){
 				dojo.create('td', {purpose: 'name', innerHTML: testnom}, profileTr);
 				dojo.create('td', {purpose: 'agentCount', innerHTML: profCache.agentsCount}, profileTr);
 				dojo.create('td', {purpose: 'idle', innerHTML: profCache.idle}, profileTr);
-				dojo.create('td', {purpose: 'incall', innerHTML: profCache.oncall}, profileTr);
+				//dojo.create('td', {purpose: 'incall', innerHTML: profCache.oncall}, profileTr);
 				dojo.create('td', {purpose: 'released', innerHTML: profCache.released}, profileTr);
-				dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
+				//dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
 				profileTr.sub = dojo.subscribe('agentDashboard/profile/' + testnom + '/update', profileTr, function(inProf){
 					this.cells[1].innerHTML = inProf.agentsCount;
 					this.cells[2].innerHTML = inProf.idle;
-					this.cells[3].innerHTML = inProf.oncall;
-					this.cells[4].innerHTML = inProf.released;
-					this.cells[5].innerHTML = inProf.wrapup;
+					this.cells[3].innerHTML = inProf.released;
+
+				//	this.cells[3].innerHTML = inProf.oncall;
+				//	this.cells[5].innerHTML = inProf.wrapup;
 				});
 				profileTr.onclick = function(){
 					var profileNom = this.getAttribute('profile');
@@ -452,6 +468,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				}));
 				menu.bindDomNode(profileTr);
 				agentDashboard.drawAgentTable(profCache);
+				profileTr.style.display = '';
 				if (profCache.agentsCount == 0) {
 					profileTr.style.display = 'none';
 				}
@@ -471,8 +488,8 @@ if(typeof(agentDashboard) == 'undefined'){
 		table.innerHTML = '<tr>' + 
 		'<th>name</th>' +
 		'<th>state</th>' +
-		'<th>time</th>' +
-		'<th>util</th>' +
+//		'<th>time</th>' +
+//		'<th>util</th>' +
 		'<th>Details</th>';
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
 		for(var i in profCache.agents){
@@ -488,8 +505,8 @@ if(typeof(agentDashboard) == 'undefined'){
 		var now = Math.floor(new Date().getTime() / 1000);
 		dojo.create('td', {'agent':escape(agent.id), purpose:'name', innerHTML:agent.name}, tr);
 		dojo.create('td', {'agent':escape(agent.id), purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
-		dojo.create('td', {'agent':escape(agent.id), purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
-		dojo.create('td', {'agent':escape(agent.id), purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
+//		dojo.create('td', {'agent':escape(agent.id), purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
+//		dojo.create('td', {'agent':escape(agent.id), purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
 		dojo.create('td', {'agent':escape(agent.id), purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile.name + '"][purpose="agentDisplay"] table')[0];
@@ -507,9 +524,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
 			var nowTime = Math.floor(new Date().getTime() / 1000);
 			tr.cells[1].style.backgroundImage = 'url("/images/' + inAgent.state + '.png")';
-			tr.cells[2].innerHTML = formatseconds(nowTime - inAgent.lastchange);
-			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
-			tr.cells[4].innerHTML = inAgent.statedataDisplay();
+			tr.cells[2].innerHTML = inAgent.statedataDisplay();
 		}));
 		var menu = agentDashboard.makeMenu(profile.name, agent.id);
 		menu.bindDomNode(tr);

@@ -48,7 +48,9 @@
 	eunit/1,
 	start_testnode/0,
 	start_testnode/1,
-	start_testnode/2
+	start_testnode/2,
+	zombie/0,
+	spawn_zombie/0
 ]).
 -endif.
 
@@ -639,6 +641,10 @@ run_dir() ->
 -endif.
 
 -ifdef(TEST).
+
+zombie() -> receive headshot -> exit end.
+
+spawn_zombie() -> proc_lib:spawn(?MODULE, zombie, []).
 
 add_paths() ->
 	{Pre, Deps} = case {file:list_dir("deps"), file:list_dir("../deps")} of

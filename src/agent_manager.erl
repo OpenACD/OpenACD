@@ -85,6 +85,8 @@ lists_requested = 0 :: integer()
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	sort_agents_by_elegibility/1,
+	route_list/0,
+	filter_avail_agents_by_skill/2,
 	filtered_route_list/1,
 	rotate_based_on_list_count/1,
 	find_by_pid/1,
@@ -1071,6 +1073,78 @@ single_node_test_() ->
 						receive after 1000 -> ok end,
 						agent:set_state(Agent3Pid, idle),
 						?assertMatch([{_, {Agent2Pid, "Agent2", _}}, {_, {Agent3Pid, "Agent3", _}}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"filtered route list:  only busy agents",
+					fun() ->
+						_Apids = [begin
+							Agent = #agent{login = Login, id = Login},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
+							Apid
+						end || Login <- ["A1", "A2", "A3"]],
+						Got = agent_manager:filtered_route_list(['_all']),
+						?assertEqual([], Got)
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"filtered route list:  only idle agents",
+					fun() ->
+						MakeAgents = fun(Login) ->
+							Agent = #agent{login = Login, id = Login},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
+							agent:set_state(Apid, idle),
+							Apid
+						end,
+						_Apids = lists:map(MakeAgents, ["A1", "A2", "A3"]),
+						Got = agent_manager:filtered_route_list(['_all']),
+						?assertEqual(3, length(Got))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"filtered route list: mix and match",
+					fun() ->
+						Skills = [english, german],
+						States = [idle, released],
+						SkillStates = [{Skill, State} || Skill <- Skills, State <- States],
+						MakeAgents = fun({Skill, State}) ->
+							Name = binary_to_list(iolist_to_binary(io_lib:format("~s_~s", [Skill, State]))),
+							Agent = #agent{login = Name, id = Name, skills = [Skill]},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
+							case State of
+								idle ->
+									agent:set_state(Apid, idle);
+								_ ->
+									ok
+							end,
+							Apid
+						end,
+						_Apids = lists:map(MakeAgents, SkillStates),
+						Got = agent_manager:filtered_route_list([english]),
+						?assertMatch([{_Key, {_V, "english_idle", [english]}}], Got)
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"subsequent filtered route lists are not equal",
+					fun() ->
+						Skills = [english, german],
+						States = [idle, released],
+						SkillStates = [{Skill, State} || Skill <- Skills, State <- States],
+						MakeAgents = fun({Skill, State}) ->
+							Name = binary_to_list(iolist_to_binary(io_lib:format("~s_~s", [Skill, State]))),
+							Agent = #agent{login = Name, id = Name, skills = [Skill]},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, Agent}),
+							agent:set_state(Apid, idle),
+							Apid
+						end,
+						_Apids = lists:map(MakeAgents, SkillStates),
+						Got1 = agent_manager:filtered_route_list(['_all']),
+						Got2 = agent_manager:filtered_route_list(['_all']),
+						?assertNotEqual(Got1, Got2)
 					end
 				}
 			end

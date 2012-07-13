@@ -330,6 +330,12 @@ count_downs(FilterPid, N) ->
 zombie() ->
 	receive headshot -> exit end.
 
+fake_cook() ->
+	spawn(fun() ->
+		dispatch_manager:cook_started(),
+		zombie()
+	end).
+
 monitor_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(dispatch_manger_monitor_tests),
@@ -353,6 +359,19 @@ monitor_test_() ->
 		FakeAgent ! headshot,
 		Count = count_downs(FakeAgent, 0),
 		?assertEqual(0, Count)
+	end},
+	{"Cook gets monitored only once", fun() ->
+		{ok, State} = init([]),
+		Cook = spawn(fun() ->
+			dispatch_manager:cook_started(),
+			dispatch_manager:cook_started(),
+			zombie()
+		end),
+		{noreply, State2} = handle_cast({cook_started, Cook}, State),
+		{noreply, State3} = handle_cast({cook_started, Cook}, State2),
+		Cook ! headshot,
+		Count = count_downs(Cook, 0),
+		?assertEqual(1, Count)
 	end}]}}}.
 
 balance_test_() ->
@@ -373,6 +392,7 @@ balance_test_() ->
 		timer:sleep(50)
 	end,
 	[{"Agent started, but is still released", fun() ->
+		Cook = fake_cook(),
 		{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		receive
 		after 100 ->
@@ -380,9 +400,11 @@ balance_test_() ->
 		end,
 		State1 = dump(),
 		?assertEqual(dict:new(), State1#state.agents),
-		?assertEqual([], State1#state.dispatchers)
+		?assertEqual([], State1#state.dispatchers),
+		Cook ! headshot
 	end},
 	{"Agent started then set available, so a dispatcher starts", fun() ->
+		Cook = fake_cook(),
 		State1 = dump(),
 		?assertEqual(dict:new(), State1#state.agents),
 		?assertEqual([], State1#state.dispatchers),
@@ -394,28 +416,31 @@ balance_test_() ->
 		end,
 		State2 = dump(),
 		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
-		?assertEqual(1, length(State2#state.dispatchers))
+		?assertEqual(1, length(State2#state.dispatchers)),
+		Cook ! headshot
 	end},
-	{"Agent died, but dispatchers don't die automatically", fun() ->
-		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		agent:set_state(Apid, idle),
-		receive
-		after 100 ->
-			ok
-		end,
-		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers)),
-		exit(Apid, kill),
-		receive
-		after 100 ->
-			ok
-		end,
-		State2 = dump(),
-		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(1, length(State2#state.dispatchers))
-	end},
+	% commented out until proper behavior defined.
+	%{"Agent died, but dispatchers don't die automatically", fun() ->
+		%{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		%agent:set_state(Apid, idle),
+		%receive
+		%after 100 ->
+		%	ok
+		%end,
+		%State1 = dump(),
+		%?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
+		%?assertEqual(1, length(State1#state.dispatchers)),
+		%exit(Apid, kill),
+		%receive
+		%after 100 ->
+		%	ok
+		%end,
+		%State2 = dump(),
+		%?assertEqual(dict:new(), State2#state.agents),
+		%?assertEqual(1, length(State2#state.dispatchers))
+	%end},
 	{"Unexpected dispatcher death", fun() ->
+		Cook = fake_cook(),
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
 		#state{dispatchers = [PidToKill]} = dump(),
@@ -429,6 +454,7 @@ balance_test_() ->
 		?assertNot([PidToKill] =:= State1#state.dispatchers)
 	end},
 	{"Agent unavailable, do a dispatcher ends", fun() ->
+		Cook = fake_cook(),
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
 		receive
@@ -445,9 +471,11 @@ balance_test_() ->
 		end,
 		State2 = dump(),
 		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(dict:new(), State2#state.agents)
+		?assertEqual(dict:new(), State2#state.agents),
+		Cook ! headshot
 	end},
 	{"Agent avail and already tracked", fun() ->
+		Cook = fake_cook(),
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
 		receive
@@ -460,9 +488,23 @@ balance_test_() ->
 		gen_server:cast(?MODULE, {now_avail, Apid}),
 		State2 = dump(),
 		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
-		?assertEqual(1, length(State1#state.dispatchers))
+		?assertEqual(1, length(State1#state.dispatchers)),
+		Cook ! headshot
 	end},
-	{"Dispatcher unfortunately dies, but notices agents on it's return.", fun() ->
+	{"Dispatcher unfortunately dies, but notices agents and cooks on it's return.", fun() ->
+		FakeCookLoop = fun(Ref, CbFun) ->
+			receive
+				headshot -> ok;
+			{'DOWN', _, _, _, _} ->
+				timer:sleep(),
+				Ref0 = dispatch_manager:cook_started(),
+				CbFun(Ref, CbFun)
+			end
+		end,
+		Cooks= [spawn(fun() ->
+			Ref = dispatch_manager:start_cook(),
+			FakeCookLoop(Ref, FakeCookLoop)
+		end) || _ <- lists:seq(5)],
 		agent_dummy_connection:start_x(10),
 		Agents = agent_manager:list(),
 		Setrel = fun(I) ->
@@ -485,8 +527,29 @@ balance_test_() ->
 		end, Newdispathers),
 		lists:foreach(fun({I, _}) ->
 			?assert(dict:is_key(I, Expectedagents))
-		end, dict:to_list(Newagents))
-	end}]}}}.
+		end, dict:to_list(Newagents)),
+		[Cook ! headshot || Cook <- Cooks]
+	end},
+	{"agent spawns but no cooks, so no dispatchers", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive after 100 -> ok end,
+		State1 = dump(),
+		?assertEqual(0, length(State1#state.dispatchers))
+	end},
+	{"cook spanws, but no agents, so no dispatchers", fun() ->
+		Cook = fake_cook(),
+		State1 = dump(),
+		?assertEqual(0, length(State1#state.dispatchers))
+	end},
+	{"cook spanws, and there's an agent, so a dispatcher is spawned", fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive after 100 -> ok end,
+		Cook = fake_cook(),
+		State1 = dump(),
+		?assertEqual(1, length(State1#state.dispatchers))
+	end} ]}}}.
 
 gen_server_test_start() ->
 	util:start_testnode(),

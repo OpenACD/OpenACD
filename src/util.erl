@@ -471,6 +471,17 @@ reload_all(Mode) ->
 
 -spec(distribution/1 :: (Mean :: pos_integer()) -> float()).
 distribution(Mean) ->
+	% Let's break this down and explain it, 'cause it's pretty cool.
+	% rand_uniform:  the random part.  Using 65535 for a reasonably fine grain
+	% divide the radom by the max value to get 0 < ratio <= 1; flattens the line
+	% 1 - ratio:  Flips the line along y = .5, sloping downward
+	% log(diff_ration):  actually curve the line.  As rand gets large, y gets smaller
+	% (Mean) * log:  scale the curve so the top end is Mean.
+	% scaled_log * -1:  Flip the curve along the x axis.
+	% a number along the x axis, the closer it is to Mean, the 
+	% crpyto:rand_uniform:  take a random ratio between 0 and 1, excluding 0.
+	% 1 - rand:  flips the curve along the y axis
+	% end result:  as rand approaches max_rand, diff of mean - y decreases exponentially.
 	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
 
 %% @doc Generally only used in the 'dummy' collection, these allow multiple ways

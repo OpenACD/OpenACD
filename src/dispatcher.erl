@@ -108,14 +108,21 @@ init([]) ->
 %% @private
 handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
+	Skills = Call#queued_call.skills,
 	?DEBUG("getting agents for ~p:~s with skills ~p", [Call#queued_call.media, Call#queued_call.id, Call#queued_call.skills]),
-	case agent_manager:filtered_route_list(Call#queued_call.skills) of
+	case agent_manager:route_list() of
 		[] ->
-			?DEBUG("empty route list, auto regrab", []),
-			gen_server:reply(From, []),
-			handle_cast(regrab, State);
-		List ->
-			{reply, List, State}
+			?DEBUG("No agents, exiting", []),
+			{stop, normal, [], State};
+		RouteList ->
+			case agent_manager:filter_avail_agents_by_skill(RouteList, Skills) of
+				[] ->
+					?DEBUG("empty route list, auto regrab", []),
+					gen_server:reply(From, []),
+					handle_cast(regrab, State);
+				List ->
+					{reply, List, State}
+			end
 	end;
 handle_call(bound_call, _From, State) ->
 	case State#state.call of

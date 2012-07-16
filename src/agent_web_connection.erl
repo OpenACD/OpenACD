@@ -879,7 +879,7 @@ handle_call(stop, _From, State) ->
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call(get_avail_agents, _From, State) ->
-	Agents = [AgState || {_K, {Pid, _Id, _Time, _Skills}} <-
+	Agents = [AgState || {_K, #agent_cache{pid=Pid}} <-
 		agent_manager:list(),
 		AgState <- [agent:dump_state(Pid)]],
 

@@ -157,6 +157,7 @@ init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 					do_recipe(OptRecipe, 0, Qpid, Call)
 			end,
 			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
+			dispatch_manager:cook_started(),
 			{ok, State}
 	catch
 		Why:Reason ->
@@ -787,7 +788,7 @@ init_test_() ->
 				ok
 			end),
 			init([Media#call.source, [], "default_queue", Qpid, {1, os:timestamp()}]),
-			?assert(gen_server_mock:assert_expectations(DPid))
+			?assertEqual(ok, gen_server_mock:assert_expectations(DPid))
 		end}]
 	end}.
 

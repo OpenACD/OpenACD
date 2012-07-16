@@ -51,7 +51,8 @@
 	stop/0, 
 	count_dispatchers/0,
 	deep_inspect/0,
-	request_end/2
+	request_end/2,
+	cook_started/0
 ]).
 
 %% gen_server callbacks
@@ -60,7 +61,7 @@
 
 -record(state, {
 	dispatchers = [] :: [pid()],
-	agents = dict:new() :: dict()
+	monitored_items = dict:new() :: dict()
 	}).
 	
 -type(state() :: #state{}).
@@ -93,7 +94,17 @@ count_dispatchers() ->
 -spec(deep_inspect/0 :: () -> 'ok').
 deep_inspect() ->
 	gen_server:cast(?MODULE, deep_inspect).
-	
+
+%% @doc The calling process should be considered a cook when the 
+%% dispatch_manager does dispatch balancing.  Returns a monitor reference to
+%% the dispatch_manager process so the calling process can inform the
+%% dispatch manager to start counting itself should the manager die.
+-spec(cook_started/0 :: () -> reference()).
+cook_started() ->
+	Self = self(),
+	gen_server:cast(dispatch_manager, {cook_started, Self}),
+	erlang:monitor(process, whereis(dispatch_manager)).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -143,26 +154,60 @@ handle_call(Request, _From, State) ->
 %% @private
 handle_cast({now_avail, AgentPid}, State) -> 
 	?DEBUG("Someone's (~p) available now.", [AgentPid]),
-	case dict:is_key(AgentPid, State#state.agents) of
-		true -> 
+	FindAgent = fun
+		(_Mon, _Value, true) ->
+			true;
+		(_Mon, {agent, APid}, _Found) ->
+			APid =:= AgentPid;
+		(_Mon, _Val, Found) ->
+			Found
+	end,
+	case dict:fold(FindAgent, false, State#state.monitored_items) of
+		true ->
 			{noreply, balance(State)};
-		false -> 
+		false ->
 			Ref = erlang:monitor(process, AgentPid),
-			State2 = State#state{agents = dict:store(AgentPid, Ref, State#state.agents)},
-			{noreply, balance(State2)}
+			MonItems = dict:store(Ref, {agent, AgentPid}, State#state.monitored_items),
+			{noreply, balance(State#state{monitored_items = MonItems})}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
 	?DEBUG("An agent (~p) is no longer available.", [AgentPid]),
-	NewDict = case dict:is_key(AgentPid, State#state.agents) of
-		true ->
-			{ok, Ref} = dict:find(AgentPid, State#state.agents),
-			erlang:demonitor(Ref),
-			dict:erase(AgentPid, State#state.agents);
-		false ->
-			State#state.agents
+	FilterAgent = fun
+		(MonRef, {agent, Pid}, Dict) ->
+			if
+				AgentPid =:= Pid ->
+					erlang:demonitor(MonRef),
+					dict:erase(MonRef, Dict);
+				true ->
+					Dict
+			end;
+		(_MonRef, _Value, Dict) ->
+			Dict
 	end,
-	State2 = State#state{agents = NewDict},
+	NewDict = dict:fold(FilterAgent, State#state.monitored_items, State#state.monitored_items),
+	State2 = State#state{monitored_items = NewDict},
 	{noreply, balance(State2)};
+handle_cast({cook_started, Cook}, State) ->
+	?DEBUG("A cook (~p) reporting", [Cook]),
+	PidKnownFun = fun
+		(_Mon, _Val, true) ->
+			true;
+		(_Mon, {cook, Pid}, _Acc) ->
+			Pid =:= Cook;
+		(_Mon, _Val, Acc) ->
+			Acc
+	end,
+	case dict:fold(PidKnownFun, false, State#state.monitored_items) of
+		false ->
+			?DEBUG("Cook ~p wasn't known", [Cook]),
+			Mon = erlang:monitor(process, Cook),
+			Cooks = dict:store(Mon, {cook, Cook}, State#state.monitored_items),
+			State2 = State#state{monitored_items = Cooks},
+			{noreply, balance(State2)};
+		true ->
+			?DEBUG("Cook ~p already known", [Cook]),
+			{noreply, State}
+	end;
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
 	Fun = fun(Pid) ->
 		{ok, Dispstate} = gen_server:call(Pid, dump_state),
@@ -181,15 +226,14 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	?DEBUG("Announcement that an agent (~p) is down, balancing in response.", [Object]),
-	NewDict = dict:filter(fun(InObject, MonRef) ->
-		case InObject of
-			Object -> false;
-			_ -> true
-		end
-	end, State#state.agents),
-	State2 = State#state{agents = NewDict},
+handle_info({'DOWN', MonitorRef, process, Object, _Info}, State) ->
+	?DEBUG("Announce that a monitored item (~p) is down", [MonitorRef]),
+	FilterFun = fun
+		(MonRef, {Type, MonObj}) ->
+			MonRef =/= MonitorRef
+	end,
+	NewDict = dict:filter(FilterFun, State#state.monitored_items),
+	State2 = State#state{monitored_items = NewDict},
 	{noreply, balance(State2)};
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	case (Reason =:= normal orelse Reason =:= shutdown) of
@@ -227,26 +271,40 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(#state{dispatchers = Dispatchers} = State) ->
-	NumAgents = dict:size(State#state.agents),
+	#state{monitored_items = Monitored} = State,
+	{CookCount, AgentCount} = count_cooks_agents(Monitored),
+	TargetNum = if
+		CookCount < AgentCount ->
+			CookCount;
+		true ->
+			AgentCount
+	end,
 	NumDisp = length(Dispatchers),
-	case NumAgents of
-		X when X > NumDisp ->
-			?DEBUG("Starting new dispatcher",[]),
+	if
+		NumDisp < TargetNum ->
+			?DEBUG("Starting new dispatcher", []),
 			case dispatcher:start_link() of
 				{ok, Pid} ->
 					balance(State#state{dispatchers = [ Pid | Dispatchers]});
 				_ ->
 					balance(State)
 			end;
-		X when X < NumDisp ->
-			?DEBUG("More dispatchers than needed, try to end the oldest ~p", [NumDisp - X]),
-			Olders = lists:reverse(Dispatchers), 
-			proc_lib:spawn(?MODULE, request_end, [Olders, NumDisp - X]),
+		TargetNum < NumDisp ->
+			?DEBUG("More dispatcher than needed (should be temporary)", []),
 			State;
-		_ ->
+		true ->
 			?DEBUG("It is fully balanced!",[]),
 			State
 	end.
+
+count_cooks_agents(Dict) ->
+	dict:fold(fun count_cooks_agents/3, {0,0}, Dict).
+
+count_cooks_agents(_MonRef, {agent, _Pid}, {Cooks, Agents}) ->
+	{Cooks, Agents + 1};
+
+count_cooks_agents(_MonRef, {cook, _Pid}, {Cooks, Agents}) ->
+	{Cooks + 1, Agents}.
 
 request_end(_Olders, 0) ->
 	ok;
@@ -323,7 +381,7 @@ count_downs(FilterPid, N) ->
 	receive
 		{'DOWN', _MonRef, process, FilterPid, _Info} ->
 			count_downs(FilterPid, N+1)
-	after 0 ->
+	after 10 ->
 		N
 	end.
 
@@ -335,6 +393,10 @@ fake_cook() ->
 		dispatch_manager:cook_started(),
 		zombie()
 	end).
+
+dict_find_by_val(Needle, Dict) ->
+	List = dict:to_list(Dict),
+	[X || {X, Needle0} <- List, Needle0 =:= Needle].
 
 monitor_test_() ->
 	util:start_testnode(),
@@ -399,14 +461,15 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertEqual(dict:new(), State1#state.agents),
+		?assertEqual({1,0}, count_cooks_agents(State1#state.monitored_items)),
 		?assertEqual([], State1#state.dispatchers),
 		Cook ! headshot
 	end},
 	{"Agent started then set available, so a dispatcher starts", fun() ->
 		Cook = fake_cook(),
+		timer:sleep(10),
 		State1 = dump(),
-		?assertEqual(dict:new(), State1#state.agents),
+		?assertEqual({1,0}, count_cooks_agents(State1#state.monitored_items)),
 		?assertEqual([], State1#state.dispatchers),
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
@@ -415,7 +478,7 @@ balance_test_() ->
 			ok
 		end,
 		State2 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
+		?assertMatch({1,1}, count_cooks_agents(State2#state.monitored_items)),
 		?assertEqual(1, length(State2#state.dispatchers)),
 		Cook ! headshot
 	end},
@@ -462,7 +525,7 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
+		?assertMatch({1,1}, count_cooks_agents(State1#state.monitored_items)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		agent:set_state(Apid, released, default),
 		receive
@@ -470,8 +533,7 @@ balance_test_() ->
 			ok
 		end,
 		State2 = dump(),
-		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(dict:new(), State2#state.agents),
+		?assertEqual({1,0}, count_cooks_agents(State2#state.monitored_items)),
 		Cook ! headshot
 	end},
 	{"Agent avail and already tracked", fun() ->
@@ -483,11 +545,11 @@ balance_test_() ->
 			ok
 		end,
 		State1 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State1#state.agents)),
+		?assertMatch({1,1}, count_cooks_agents(State1#state.monitored_items)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		gen_server:cast(?MODULE, {now_avail, Apid}),
 		State2 = dump(),
-		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
+		?assertMatch({1,1}, count_cooks_agents(State2#state.monitored_items)),
 		?assertEqual(1, length(State1#state.dispatchers)),
 		Cook ! headshot
 	end},
@@ -496,15 +558,15 @@ balance_test_() ->
 			receive
 				headshot -> ok;
 			{'DOWN', _, _, _, _} ->
-				timer:sleep(),
+				timer:sleep(6),
 				Ref0 = dispatch_manager:cook_started(),
 				CbFun(Ref, CbFun)
 			end
 		end,
 		Cooks= [spawn(fun() ->
-			Ref = dispatch_manager:start_cook(),
+			Ref = dispatch_manager:cook_started(),
 			FakeCookLoop(Ref, FakeCookLoop)
-		end) || _ <- lists:seq(5)],
+		end) || _ <- lists:seq(1, 5)],
 		agent_dummy_connection:start_x(10),
 		Agents = agent_manager:list(),
 		Setrel = fun(I) ->
@@ -512,22 +574,27 @@ balance_test_() ->
 			agent:set_state(Pid, released, default)
 		end,
 		lists:foreach(Setrel, lists:seq(1, 5)),
-		#state{agents = Expectedagents, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
+		#state{monitored_items = ExpectedMonitored, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
 		exit(whereis(dispatch_manager), kill),
 		timer:sleep(5),
 		{ok, _Pid} = start(),
 		timer:sleep(1000),
-		#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
-		?DEBUG("Expected:  ~p", [Expectedagents]),
-		?DEBUG("New agents:  ~p", [Newagents]),
-		?assertEqual(length(dict:to_list(Expectedagents)), length(dict:to_list(Newagents))),
+		#state{monitored_items = NewMonitored, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
+		?DEBUG("Expected:  ~p", [ExpectedMonitored]),
+		?DEBUG("New agents:  ~p", [NewMonitored]),
+		?assertEqual(length(dict:to_list(ExpectedMonitored)), length(dict:to_list(NewMonitored))),
 		?assertEqual(5, length(Newdispathers)),
 		lists:foreach(fun(I) ->
 			?assertNot(lists:member(I, Unexpecteddispatchers))
 		end, Newdispathers),
-		lists:foreach(fun({I, _}) ->
-			?assert(dict:is_key(I, Expectedagents))
-		end, dict:to_list(Newagents)),
+		AssertFold = fun
+			(_Mon, {agent, Pid} = Val, _) ->
+				?assertEqual(1, length(dict_find_by_val(Val, ExpectedMonitored)));
+			(_, _, _) ->
+				ok
+		end,
+		dict:fold(AssertFold, ok, NewMonitored),
+		?DEBUG("Bing", []),
 		[Cook ! headshot || Cook <- Cooks]
 	end},
 	{"agent spawns but no cooks, so no dispatchers", fun() ->
@@ -547,6 +614,7 @@ balance_test_() ->
 		agent:set_state(Apid, idle),
 		receive after 100 -> ok end,
 		Cook = fake_cook(),
+		timer:sleep(10),
 		State1 = dump(),
 		?assertEqual(1, length(State1#state.dispatchers))
 	end} ]}}}.

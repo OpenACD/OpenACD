@@ -778,6 +778,16 @@ init_test_() ->
 			{ok, State} = init([Media#call.source, Recipe, "default_queue", Qpid, {1, os:timestamp()}]),
 			?assertEqual([], State#state.recipe),
 			gen_server_mock:assert_expectations(Qpid)
+		end},
+		{"Ensure dispatch_manager is alerted to start", fun() ->
+			{ok, DPid} = gen_server_mock:named({local, dispatch_manager}),
+			Self = self(),
+			gen_server_mock:expect_cast(dispatch_manager, fun({cook_started, InCook}, State) ->
+				?assertEqual(Self, InCook),
+				ok
+			end),
+			init([Media#call.source, [], "default_queue", Qpid, {1, os:timestamp()}]),
+			?assert(gen_server_mock:assert_expectations(DPid))
 		end}]
 	end}.
 

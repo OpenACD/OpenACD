@@ -1774,6 +1774,39 @@ case_event_name({"CUSTOM", "conference::maintenance"}, UUID, _Rawcall, Callrec, 
 	cdr:media_custom(Callrec, Statename, ?cdr_states, []),
 	{{mediapush, Statename}, State#state{'3rd_party_id' = undefined}};
 
+case_event_name({"CUSTOM", "conference::maintenance"}, UUID, Rawcall, Callrec, State) ->
+	#state{cnode = Fsnode, conference_id = ConfId} = State,
+	Action = proplists:get_value("Action", Rawcall),
+	ConfList = if
+		Action =:= "add-member"; Action =:= "del-member" ->
+			{ok, Data} = freeswitch:api(Fsnode, conference, ConfId ++ " list"),
+			InfoLines = string:tokens(Data, "\n"),
+			InfoLines0 = parse_conference_info(InfoLines),
+			[{struct, [{list_to_binary(K), list_to_binary(V)} || {K,V} <- InfoProplist]}
+				|| InfoProplist <- InfoLines0];
+		true ->
+			undefined
+	end,
+	MakeJson = fun() ->
+		MemberId = proplists:get_value("Member-ID", Rawcall),
+		{struct, [
+			{<<"member_id">>, list_to_binary(MemberId)},
+			{<<"conference_id">>, list_to_binary(ConfId)},
+			{<<"conference_members">>, ConfList}
+		]}
+	end,
+	case Action of
+		"add-member" ->
+			JsonData = MakeJson(),
+			{{mediapush, {<<"conference_add_member">>, JsonData}}, State};
+		"del-member" ->
+			JsonData = MakeJson(),
+			{{mediapush, {<<"conference_del_member">>, JsonData}}, State};
+		_Other ->
+			?DEBUG("Conference maintaince action ~s ignored", [Action]),
+			{noreply, State}
+	end;
+
 case_event_name("CHANNEL_ANSWER", UUID, _Rawcall, Callrec, #state{
 		statename = hold_conference_3rdparty, '3rd_party_id' = UUID} = State) ->
 	#state{cnode = Fnode, ringuuid = Ruuid, next_state = NextState} = State,

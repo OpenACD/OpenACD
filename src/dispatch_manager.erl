@@ -29,7 +29,8 @@
 
 %% @doc Handles the creation and desctruction of dispatchers.
 %% Locally registered on each node.
-%% There is to be 1 dipatcher for every available agent on a node.
+%% There is to be 1 dipatcher for every available agent on a node, or 1 per
+%% cook in the entire cluster (whichever is less).
 %% @see dispatcher
 -module(dispatch_manager).
 -author("Micah").
@@ -102,7 +103,7 @@ deep_inspect() ->
 -spec(cook_started/0 :: () -> reference()).
 cook_started() ->
 	Self = self(),
-	gen_server:cast(dispatch_manager, {cook_started, Self}),
+	gen_server:abcast(dispatch_manager, {cook_started, Self}),
 	erlang:monitor(process, whereis(dispatch_manager)).
 
 %%====================================================================
@@ -617,7 +618,17 @@ balance_test_() ->
 		timer:sleep(10),
 		State1 = dump(),
 		?assertEqual(1, length(State1#state.dispatchers))
-	end} ]}}}.
+	end},
+	{"remote cook spawns, there's a local agent, so a dispathcer is spawned", timeout, 60, fun() ->
+		{ok, Apid} = agent_manager:start_agent(#agent{login  = "testagent"}),
+		agent:set_state(Apid, idle),
+		receive after 100 -> ok end,
+		{ok, Slave} = slave:start_link(list_to_atom(net_adm:localhost()), dispatch_cook_remote_state),
+		Cook = spawn(Slave, fun() -> fake_cook() end),
+		timer:sleep(10),
+		State1 = dump(),
+		?assertEqual(1, length(State1#state.dispatchers))
+	end}]}}}.
 
 gen_server_test_start() ->
 	util:start_testnode(),

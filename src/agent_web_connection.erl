@@ -1174,6 +1174,16 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 						{<<"event">>, SimpleCommand}
 					]},
 					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				{Command, Details} ->
+					% command should be json stringable, Details should just be jsonalble.
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, voice},
+						{<<"event">>, Command},
+						{<<"data">>, Details}
+					]},
+					Newstate = push_event(Json, State),
 					{noreply, Newstate}
 			end;
 		Else ->

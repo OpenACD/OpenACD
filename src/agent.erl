@@ -448,6 +448,19 @@ idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = 
 idle({ringing, _Call}, _From, #state{agent_rec = #agent{endpointtype = {undefined, persistent, _}} = Agent} = State) ->
 	?INFO("~s rejected a ring request since persistent ring channel is not yet established.", [Agent#agent.login]),
 	{reply, invalid, idle, State};
+idle({ringing, InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) when is_record(InCall, call) ->
+	case get_ring_pid(InCall, Agent) of
+		{error, Err} ->
+			?NOTICE("Error getting ring pid:  ~p", [Err]),
+			{reply, invalid, idle, State};
+		{ok, RingPid, Call2} ->
+				NewEp = {RingPid, transient, EpType},
+				gen_server:cast(Agent#agent.connection, {change_state, ringing, Call2}),
+				gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
+				Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call2, lastchange = util:now(), endpointtype = NewEp},
+				set_cpx_monitor(Newagent, []),
+				{reply, ok, ringing, State#state{agent_rec = Newagent}}
+		end;
 idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #agent{endpointtype = {undefined, transient, EpType}} = Agent} = State) ->
 	MyNode = node(),
 	Callnode = node(InCall#call.source),
@@ -459,6 +472,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 	end,
 	case RingManPid of
 		undefined ->
+			?NOTICE("Rejected ring as ring manager not found", []),
 			{reply, invalid, idle, State};
 		{ok, RingMan} ->
 			case gen_server:call({RingMan, Callnode}, {ring, Agent, InCall}) of
@@ -981,15 +995,20 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agen
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 
 released({ringing, Call}, From, #state{agent_rec = Agent} = State) ->
-	#state{agent_rec = Agent} = State,
-	Agent0 = Agent#agent{queuedrelease = Agent#agent.statedata},
-	State0 = State#state{agent_rec = Agent0},
-	idle({ringing, Call}, From, State0);
-%	% TODO Wow is this ever enemic.
-%	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
-%	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
-%	set_cpx_monitor(Newagent, []),
-%	{reply, ok, ringing, State#state{agent_rec = Newagent}};
+	case get_ring_pid(Call, Agent) of
+		{error, Err} ->
+			?NOTICE("Error getting ring pid:  ~p", [Err]),
+			{reply, invalid, idle, State};
+		{ok, RingPid, Call2} ->
+				#agent{endpointtype = {_OldPid, _OldTransientism, EpType}} = Agent,
+				NewEp = {RingPid, transient, EpType},
+				gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
+				Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), endpointtype = NewEp},
+				set_cpx_monitor(Newagent, []),
+				Newagent0 = Newagent#agent{queuedrelease = Agent#agent.statedata},
+				State0 = State#state{agent_rec = Newagent0},
+				{reply, ok, ringing, State0}
+	end;
 released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = Agent} = State) ->
 	case self() of
 		Target ->
@@ -1402,6 +1421,55 @@ handle_info(Info, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% @private
+
+% currently only works for transient ring pids that are not yet up.
+get_ring_pid(Callrec, AgentState) ->
+	#call{ring_path = Ringpath} = Callrec,
+	MyNode = node(),
+	Callnode = node(Callrec#call.source),
+	RingManPid = case Callnode of
+		MyNode ->
+			cpx:get_env(ring_manager);
+		_OtherNode ->
+			rpc:call(Callnode, cpx, get_env, [ring_manager])
+	end,
+	case RingManPid of
+		undefined when Ringpath =:= outband ->
+			?NOTICE("Rejected ring as ring manager not found", []),
+			{error, no_ring_manager};
+		undefined ->
+			{ok, undefined, Callrec};
+		{ok, RingMan} when Ringpath =:= inband ->
+			case gen_server:call(RingMan, {ring, AgentState, Callrec}) of
+				{ok, NewRingPid, _Paths} ->
+					% TODO do something w/ paths?
+					link(NewRingPid),
+					{ok, NewRingPid, Callrec};
+				InbandRingManElse ->
+					?DEBUG("ignorable error getting ring channel for inband ring call", [InbandRingManElse]),
+					{ok, undefined, Callrec}
+			end;
+		{ok, RingMan} ->
+			case gen_server:call({RingMan, Callnode}, {ring, AgentState, Callrec}) of
+				{ok, RingPid, Paths} ->
+					Callrec2 = case Paths of
+						both ->
+							Callrec#call{ring_path = inband, media_path = inband};
+						answer ->
+							Callrec#call{ring_path = inband};
+						hangup ->
+							Callrec#call{media_path = inband};
+						neither ->
+							Callrec
+					end,
+					link(RingPid),
+					{ok, RingPid, Callrec2};
+				Else ->
+					?WARNING("Trying to get ring chan didn't work:  ~p", [Else]),
+					{error, Else}
+			end
+	end.
+
 -spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 agent_manager_exit(Reason, StateName, State) ->
 	case Reason of
@@ -2887,7 +2955,7 @@ from_released_tests() ->
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid, endpointtype = {undefined, transient, pstn}},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			cpx_monitor:assert_mock(),
@@ -2928,15 +2996,16 @@ from_released_tests() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
-			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
+			Callrec = #call{source = self(), id = "testcall", ring_path = inband},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Callrec}, _State) ->
 				ok
 			end),
 			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], ignore}),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, "callrec"}, _State) -> ok end),
-			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", State)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, Callrec}, _State) -> ok end),
+			?assertMatch({reply, ok, ringing, _State}, released({ringing, Callrec}, "from", State)),
 			Assertmocks()
 		end}
 	end,

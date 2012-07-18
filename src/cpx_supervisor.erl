@@ -85,7 +85,10 @@
 	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup},
 	#cpx_conf{id = gen_cdr_dumper, module_name = gen_cdr_dumper, start_function = start_link, start_args = [], supervisor = management_sup}
 ]).
-	
+
+-define(routing_sup_spec, {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]}).
+-define(agent_sup_spec, {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]}).
+
 %% API
 -export([start_link/1, start/1]).
 %% Conf handling
@@ -137,17 +140,16 @@
 start_link(Nodes) ->
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
 	
-	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
+	%Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
-	Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Mediamanagerspec = {mediamanager_sup, {cpx_middle_supervisor, start_named, [3, 5, mediamanager_sup]}, permanent, 2000, supervisor, [?MODULE]},
-	Specs = [Routingspec, Agentspec, Managementspec, Mediamanagerspec],
+	Specs = [?routing_sup_spec, ?agent_sup_spec, Managementspec, Mediamanagerspec],
 	?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 	
 	%load_specs(),
 	%supervisor:start_child(management_sup, Cpxmonitorspec),
 
-	{ok, _} = supervisor:start_child(Pid, Routingspec),
+	{ok, _} = supervisor:start_child(Pid, ?routing_sup_spec),
 	
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
@@ -163,7 +165,7 @@ start_link(Nodes) ->
 	
 	{ok, _} = supervisor:start_child(Pid, Mediamanagerspec),
 		
-	{ok, _} = supervisor:start_child(Pid, Agentspec),
+	{ok, _} = supervisor:start_child(Pid, ?agent_sup_spec),
 	
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
@@ -193,7 +195,13 @@ restart(agent_connection_sup, _Args) ->
 	?INFO("Restaring agent_connection_sup.", []),
 	supervisor:restart_child(agent_sup, agent_connection_sup);
 restart(routing_sup, Nodes) ->
-	Out = supervisor:restart_child(cpx_supervisor, routing_sup),
+	CurrentKids = supervisor:which_children(?MODULE),
+	Out = case lists:keysearch(routing_sup, 1, CurrentKids) of
+		false ->
+			supervisor:start_child(?MODULE, ?routing_sup_spec);
+		{value, _} ->
+			supervisor:restart_child(cpx_supervisor, routing_sup)
+	end,
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
@@ -205,7 +213,13 @@ restart(routing_sup, Nodes) ->
 	Out;
 restart(agent_sup, Nodes) ->
 	?INFO("Restarting agent_sup.", []),
-	Out = supervisor:restart_child(cpx_supervisor, agent_sup),
+	CurrentKids = supervisor:which_children(?MODULE),
+	Out = case lists:keysearch(agent_sup, 1, CurrentKids) of
+		false ->
+			supervisor:start_child(?MODULE, ?agent_sup_spec);
+		{value, _} ->
+			supervisor:restart_child(cpx_supervisor, agent_sup)
+	end,
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
 	supervisor:start_child(agent_sup, Agentconnspec),

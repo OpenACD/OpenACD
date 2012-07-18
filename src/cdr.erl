@@ -1179,7 +1179,7 @@ push_raw_test_() ->
 	fun({Call, Pull, Ended}) ->
 		{"ringout",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = ringout, eventdata = {ringout, {badagent, "testagent"}}}),
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = ringout, eventdata = {badagent, "testagent"}}),
 			Ended(Pull(), [ringing])
 		end}
 	end,

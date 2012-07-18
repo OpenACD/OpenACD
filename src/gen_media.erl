@@ -820,7 +820,7 @@ inqueue({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Internal}) ->
 		false ->
 			{reply, invalid, inqueue, {BaseState, Internal}};
 		true ->
-			case  Callback:handle_voicemail(inqueue, Call, Internal, BaseState#base_state.substate) of
+			case Callback:handle_voicemail(inqueue, Call, Internal, BaseState#base_state.substate) of
 				{ok, Substate} ->
 					priv_voicemail({BaseState, Internal}),
 					{reply, ok, inqueue, {BaseState#base_state{substate = Substate}, Internal}};
@@ -945,7 +945,7 @@ inqueue_ringing({{'$gen_media', voicemail}, undefined}, _From, {BaseState, Inter
 		false ->
 			{reply, invalid, inqueue_ringing, {BaseState, Internal}};
 		true ->
-			case  Callback:handle_voicemail(inqueue_ringing, Call, Internal, BaseState#base_state.substate) of
+			case Callback:handle_voicemail(inqueue_ringing, Call, Internal, BaseState#base_state.substate) of
 				{ok, Substate} ->
 					priv_voicemail({BaseState, Internal}),
 					NewInternal = #inqueue_state{
@@ -1948,6 +1948,20 @@ set_agent_state(Apid, Args) ->
 			badagent
 	end.
 
+stop_agent_channel(Apid) ->
+	try agent_channel:stop(Apid) of
+		ok ->
+			ok;
+		Res ->
+			?ERROR("Agent stop:  ~p", [Res]),
+			Res
+	catch
+		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?WARNING("Agent ~p is a dead pid", [Apid]),
+			badagent
+	end.
+	
+
 handle_stop(hangup, StateName, BaseState, Internal) ->
 	handle_stop({hangup, undefined}, StateName, BaseState, Internal);
 
@@ -2136,7 +2150,7 @@ priv_queue(Queue, Callrec, Failover) ->
 
 priv_voicemail({BaseState, #inqueue_ringing_state{ring_mon = Rmon, ring_pid = {_, Rpid}} = Internal}) ->
 	erlang:demonitor(Rmon),
-	set_agent_state(Rpid, [idle]),
+	stop_agent_channel(Rpid),
 	NewInternal = #inqueue_state{
 		queue_mon = Internal#inqueue_ringing_state.queue_mon,
 		queue_pid = Internal#inqueue_ringing_state.queue_pid,

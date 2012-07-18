@@ -1007,7 +1007,6 @@ inqueue_ringing({{'$gen_media', agent_oncall}, undefined}, From, {BaseState, Int
 		ok ->
 			case Callback:handle_answer(Apid, inqueue_ringing, Call, Internal, BaseState#base_state.substate) of
 				{ok, NewState} ->
-					kill_outband_ring({BaseState, Internal}),
 					cdr:oncall(Call, Agent),
 					case Internal#inqueue_ringing_state.ringout of
 						undefined -> ok;

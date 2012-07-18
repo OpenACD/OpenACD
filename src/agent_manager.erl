@@ -574,7 +574,13 @@ handle_call({notify, Login, Id, Pid, TimeAvail, Skills}, _From, #state{agents = 
 					{reply, ok, State#state{agents = Agents2}};
 				_ ->
 					% only clear the lists_requested if the agent is actually available.
-					Midroutelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), TimeAvail}, {Pid, Id, Skills}, State#state.route_list),
+					Rindex = case gb_trees:is_empty(State#state.route_list) of
+						true -> 0;
+						false ->
+							{{BiggestIndex, _, _, _}, _Val} = gb_trees:largest(State#state.route_list),
+							BiggestIndex
+					end,
+					Midroutelist = gb_trees:enter({Rindex, ?has_all(Skills), length(Skills), TimeAvail}, {Pid, Id, Skills}, State#state.route_list),
 					{reply, ok, State#state{agents = Agents2, lists_requested = 0, route_list = clear_rotates(Midroutelist)}}
 			end;
 		{ok, {Pid, _Id}} ->
@@ -598,7 +604,13 @@ handle_cast({now_avail, Nom}, #state{agents = Agents} = State, Election) ->
 	end, State#state.route_list),
 	Time = os:timestamp(),
 	Out = {Pid, Id, Time, Skills},
-	Routelist = gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist),
+	RotateIndex = case gb_trees:is_empty(Midroutelist) of
+		true -> 0;
+		false ->
+			{{RIndex, _, _, _}, _Val} = gb_trees:largest(Midroutelist),
+			RIndex
+	end,
+	Routelist = gb_trees:enter({RotateIndex, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist),
 	F = fun(_) ->
 		case gen_leader:leader_node(Election) of
 			Node ->
@@ -631,11 +643,22 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 	Midroutelist = clear_rotates(gb_trees_filter(fun({_, {Apid, _, _}}) ->
 		Apid =/= Pid
 	end, State#state.route_list)),
+	Rindex = case gb_trees:is_empty(State#state.route_list) of
+		true -> 0;
+		false ->
+			case find_via_pid(Pid, gb_trees:to_list(State#state.route_list)) of
+				notfound ->
+					{{BiggestRIndex, _, _, _}, _} = gb_trees:largest(State#state.route_list),
+					BiggestRIndex;
+				{CurrentRindex, _, _, _} ->
+					CurrentRindex
+			end
+	end,
 	Routelist = case Time of
 		0 ->
 			Midroutelist;
 		_ ->
-			gb_trees:enter({0, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist)
+			gb_trees:enter({Rindex, ?has_all(Skills), length(Skills), Time}, {Pid, Id, Skills}, Midroutelist)
 	end,
 	F = fun({_FunPid, _FunId, _FunTime, _OldSkills}) ->
 		case gen_leader:leader_node(Election) of
@@ -717,19 +740,33 @@ gb_trees_filter(Fun, {Key, Val, Itor}, Tree) ->
 			gb_trees_filter(Fun, gb_trees:next(Itor), Newtree)
 	end.
 
-clear_rotates({{0, _, _, _} = Key, Val, Tree}) ->
-	gb_trees:enter(Key, Val, Tree);
-clear_rotates({{_, AllSkillFlag, Len, Time}, Val, Tree}) ->
-	Newtree = gb_trees:enter({0, AllSkillFlag, Len, Time}, Val, Tree),
-	clear_rotates(gb_trees:take_largest(Newtree));
 clear_rotates(Tree) ->
 	case gb_trees:is_empty(Tree) of
 		true ->
 			Tree;
 		false ->
-			clear_rotates(gb_trees:take_largest(Tree))
+			{{SmallestRotate, _, _, _}, _Val} = gb_trees:smallest(Tree),
+			case SmallestRotate of
+				0 ->
+					Tree;
+				_ ->
+					Iter = gb_trees:iterator(Tree),
+					clear_rotates(Iter, SmallestRotate, gb_trees:empty())
+			end
 	end.
-	
+
+clear_rotates(Iter, Diff, Tree) ->
+	case gb_trees:next(Iter) of
+		none ->
+			Tree;
+		{Key, Val, Iter2} ->
+			{OldRotate, HasAll, SkillLen, Time} = Key,
+			Rotate = OldRotate - Diff,
+			Key2 = {Rotate, HasAll, SkillLen, Time},
+			Tree2 = gb_trees:enter(Key2, Val, Tree),
+			clear_rotates(Iter2, Diff, Tree2)
+	end.
+
 build_tables() ->
 	agent_auth:build_tables(),
 	util:build_table(agent_state, [
@@ -1145,6 +1182,61 @@ single_node_test_() ->
 						Got1 = agent_manager:filtered_route_list(['_all']),
 						Got2 = agent_manager:filtered_route_list(['_all']),
 						?assertNotEqual(Got1, Got2)
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"agent avail semi-resets the route list rotation",
+					fun() ->
+						MakeAgent = fun(N) ->
+							AgentRec = #agent{login = integer_to_list(N), id = integer_to_list(N)},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, AgentRec}),
+							Apid
+						end,
+						RotesAndName = fun({Key,Agent}) ->
+							{element(1, Key), element(2, Agent)}
+						end,
+						Agents = lists:map(MakeAgent, lists:seq(1,5)),
+						[agent:set_state(Apid, idle) || Apid <- Agents],
+						agent_manager:route_list(),
+						agent_manager:route_list(),
+						Got1 = agent_manager:route_list(),
+						Expected = [{0,"3"},{0,"4"},{0,"5"},{1,"1"},{1,"2"}],
+						?assertEqual(Expected, lists:map(RotesAndName, Got1)),
+						[A1 | _] = Agents,
+						agent:set_state(A1, released, default),
+						agent:set_state(A1, idle),
+						timer:sleep(10),
+						Got2 = agent_manager:route_list(),
+						Expected2 = [{0,"4"},{0,"5"},{1,"2"},{1,"3"},{1,"1"}],
+						?assertEqual(Expected2, lists:map(RotesAndName, Got2))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"agent avail semi-resets, flooring lowests rotate to 0",
+					fun() ->
+						MakeAgent = fun(N) ->
+							AgentRec = #agent{login = integer_to_list(N), id = integer_to_list(N)},
+							{ok, Apid} = gen_leader:call(?MODULE, {start_agent, AgentRec}),
+							Apid
+						end,
+						RotesAndName = fun({Key,Agent}) ->
+							{element(1, Key), element(2, Agent)}
+						end,
+						Agents = lists:map(MakeAgent, lists:seq(1,5)),
+						[agent:set_state(Apid, idle) || Apid <- Agents],
+						[agent_manager:route_list() || _ <- lists:seq(1, 27)],
+						Got1 = agent_manager:route_list(),
+						Expected = [{5,"3"},{5,"4"},{5,"5"},{6,"1"},{6,"2"}],
+						?assertEqual(Expected, lists:map(RotesAndName, Got1)),
+						[A1 | _] = Agents,
+						agent:set_state(A1, released, default),
+						agent:set_state(A1, idle),
+						timer:sleep(10),
+						Got2 = agent_manager:route_list(),
+						Expected2 = [{0,"4"},{0,"5"},{1,"2"},{1,"3"},{1,"1"}],
+						?assertEqual(Expected2, lists:map(RotesAndName, Got2))
 					end
 				}
 			end

@@ -100,6 +100,10 @@ handle_cast({agent_state, _AState}, {FsNode, UUID}, State) ->
 	% live fast, die young, leave a beautiful exit message.
 	freeswitch:bgapi(FsNode, uuid_kill, UUID),
 	{stop, normal, State};
+handle_cast(hangup, {FsNode, UUID}, State) ->
+	freeswitch:sendmsg(FsNode, UUID,
+		[{"call-command", "hangup"}]),
+	{stop, normal, State};
 handle_cast(_Msg, _FsRef, State) ->
 	{noreply, State}.
 
@@ -172,7 +176,7 @@ handle_event("CHANNEL_BRIDGE", _Data, {Fsnode, _UUID}, #state{call = #call{type 
 
 handle_event("CHANNEL_HANGUP", _Data, _Fsref, State) ->
 	?WARNING("Hangup event, stopping", []),
-	{stop,agent_hangup,State};
+	{stop, normal, State};
 
 handle_event(Event, _, _, State) ->
 	?DEBUG("Ignoring event ~p", [Event]),

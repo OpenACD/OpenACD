@@ -1590,7 +1590,7 @@ handle_info({'DOWN', Ref, process, Pid, Info}, inqueue, {BaseState,
 	#base_state{callrec = Call} = BaseState,
 	NewCall = Call#call{cook = undefined},
 	NewBase = BaseState#base_state{callrec = Call},
-	NewInternal = #inqueue_state{
+	NewInternal = Internal#inqueue_state{
 		cook = undefined,
 		cook_mon = undefined
 	},

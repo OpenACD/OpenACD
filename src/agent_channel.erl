@@ -141,8 +141,8 @@ start_link(AgentRec, CallRec, EndpointData, InitState) ->
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) -> 
-	gen_fsm:send_all_state_event(Pid, stop).
+stop(APid) -> 
+	gen_fsm:sync_send_event(APid, stop).
 	
 %% @doc link the given agent  `Pid' to the given connection `Socket'.
 -spec(set_connection/2 :: (Pid :: pid(), Socket :: pid()) -> 'ok' | 'error').
@@ -180,7 +180,7 @@ set_state(Pid, State, Data) ->
 %% @doc End the channel while in wrapup.
 -spec(end_wrapup/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
 end_wrapup(Pid) ->
-	gen_fsm:sync_send_event(Pid, stop).
+	stop(Pid).
 
 %% @doc attmept to push data from the media connection to the agent.  It's up to
 %% the agent connection to interpret this correctly.
@@ -369,6 +369,10 @@ ringing({oncall, Call}, _From, #state{state_data = Call} = State) ->
 	conn_cast(State#state.agent_connection, {set_channel, self(), oncall, Call}),
 	cpx_agent_event:change_agent_channel(self(), oncall, Call),
 	{reply, ok, oncall, State};
+
+ringing(stop, _From, #state{endpoint = Pid} = State) ->
+	gen_server:cast(Pid, hangup),
+	{stop, normal, ok, State};
 
 ringing(_Msg, _From, State) ->
 	{reply, {error, invalid}, ringing, State}.

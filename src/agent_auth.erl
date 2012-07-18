@@ -1214,18 +1214,18 @@ profile_integration_test_() ->
 		gen_server_mock:stop(Mock),
 		ok
 	end,
-	[{"Get a profile in integration", fun(Mock) ->
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", [testskill], []}} end),
-		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", [testskill], []}} end),
+	[fun(Mock) -> {"Get a profile in integration", fun() ->
+		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "1", 1, [], [testskill]}, State} end),
+		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, {ok, "test profile", "2", 1, [], [testskill]}, State} end),
 
 		?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill], options=[]}, get_profile("test profile")),
 		?assertEqual(#agent_profile{name = "test profile", id = "2", skills = [testskill], options=[]}, get_profile("test profile"))
 
-	end},
-	{"Get a non-existing profile in integration", fun(Mock) ->
+	end} end,
+	fun(Mock) -> {"Get a non-existing profile in integration", fun() ->
 		gen_server_mock:expect_call(Mock, fun({get_profile, "test profile"}, _, State) -> {ok, none} end),
 		?assertEqual(undefined, get_profile("test profile"))
-	end}
+	end} end
 	]}}.	
 
 diff_recs_test_() ->

@@ -396,7 +396,7 @@ balance_test_() ->
 		?assertMatch([{Apid, _}], dict:to_list(State2#state.agents)),
 		?assertEqual(1, length(State2#state.dispatchers))
 	end},
-	{"Agent died, but dispatchers don't die automatically", fun() ->
+	{"Agent died, but dispatchers don't die automatically, except they do.", fun() ->
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		agent:set_state(Apid, idle),
 		receive
@@ -413,7 +413,7 @@ balance_test_() ->
 		end,
 		State2 = dump(),
 		?assertEqual(dict:new(), State2#state.agents),
-		?assertEqual(1, length(State2#state.dispatchers))
+		?assertEqual(0, length(State2#state.dispatchers))
 	end},
 	{"Unexpected dispatcher death", fun() ->
 		{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),

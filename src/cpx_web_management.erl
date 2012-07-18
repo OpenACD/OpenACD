@@ -3191,22 +3191,26 @@ cookie_test_() ->
 	]}}.
 
 recipe_encode_decode_test_() ->
-	[{"Simple encode",
-	?_assertEqual([{struct, [
-		{<<"conditions">>, [{struct, [
-			{<<"property">>, ticks},
-			{<<"comparison">>, '='},
-			{<<"value">>, 3}
-		]}]},
-		{<<"actions">>, [{struct, [
-			{<<"action">>, set_priority},
-			{<<"arguments">>, 5}
-		]}]},
-		{<<"runs">>, run_once},
-		{<<"comment">>, <<"commented">>}
-	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}]))},
+	[{"Simple encode", fun() ->
+		Expected = [{struct, [
+			{<<"conditions">>, [{struct, [
+				{<<"property">>, <<"prop-ticks">>},
+				{<<"comparison">>, <<"comp-=">>},
+				{<<"value">>, 3}
+			]}]},
+			{<<"actions">>, [{struct, [
+				{<<"action">>, set_priority},
+				{<<"arguments">>, 5}
+			]}]},
+			{<<"runs">>, run_once},
+			{<<"comment">>, <<"commented">>}
+		]}],
+		Got = encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}]),
+		?DEBUG("Expected:  ~p\nGot:  ~p", [Expected, Got]),
+		?assertEqual(Expected, Got)
+	end},
 	{"Simple decode",
-	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
+	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"prop-ticks\",\"comparison\":\"comp-=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
 	util:start_testnode(),

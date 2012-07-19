@@ -68,7 +68,8 @@
 	stop/1,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/6
+	start_at/6,
+	ring_to/3
 ]).
 
 %% gen_server callbacks
@@ -122,6 +123,11 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 		end
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
+
+%% @doc ring the agent for the given queued call
+-spec(ring_to/3 :: (Cook :: pid(), Apid :: pid(), QCall :: #queued_call{}) -> 'ok' | 'invalid').
+ring_to(Cook, Apid, QCall) ->
+	gen_server:cast(Cook, {ring_to, Apid, QCall}).
 
 %%====================================================================
 %% gen_server callbacks

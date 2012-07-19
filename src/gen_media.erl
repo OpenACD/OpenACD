@@ -497,6 +497,7 @@ behaviour_info(_Other) ->
 %% 60000.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
+	?INFO("Ring invoked to: ~p from ~p", [_Agent, self()]),
 	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', ring}, {A, Qcall, Timeout}}, infinity);
 
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
@@ -587,9 +588,12 @@ wrapup(Genmedia) ->
 %% @doc Send a stop ringing message to `pid() Genmedia'.
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
-	Self = self(),
-	gen_fsm:send_event(Genmedia, {{'$gen_media', stop_ringing}, Self}),
-	ok.
+	stop_ringing(Genmedia, undefined).
+
+%% @doc Send a stop ringing message to `pid() Genmedia' with reason.
+-spec(stop_ringing/2 :: (Genmedia :: pid(), Reason :: atom()) -> 'ok').
+stop_ringing(Genmedia, Reason) ->
+	gen_fsm:send_event(Genmedia, {{'$gen_media', stop_ringing}, Reason}).
 
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.
 -spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
@@ -1062,7 +1066,7 @@ inqueue_ringing({{'$gen_media', set_queue}, Qpid}, _From, State) ->
 	},
 	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
 
-inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, ChanType, takeover}},
+inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, _ChanType, takeover}},
 		From, {_, #inqueue_ringing_state{ring_pid = {Agent, Apid}}} = State) ->
 	?DEBUG("~p said it's taking over ring", [From]),
 	{BaseState, Internal} = State,
@@ -1071,10 +1075,32 @@ inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, ChanType, takeover}},
 	NewInternal = Internal#inqueue_ringing_state{ringout = undefined},
 	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
 
-inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, QCall, Timeout}} = Req, From, State) ->
-	Cook = QCall#queued_call.cook,
-	{next_state, inqueue, MidState} = inqueue_ringing({{'$gen_media', stop_ring}, Cook}, State),
-	inqueue(Req, From, MidState);
+inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, QCall, Timeout}} = Req, From, {BaseState, Internal}) ->
+	#inqueue_ringing_state{ringout = Ringout,
+		ring_pid = RingAgent, ring_mon = RMon} = Internal,
+	#base_state{callrec = Call} = BaseState,
+
+	Cook = Call#call.cook,
+	case Ringout of
+		undefined -> ok;
+		_ -> gen_fsm:cancel_timer(Ringout)
+	end,
+	cook:ring_to(Cook, Apid, QCall),
+
+	case RingAgent of
+		undefined -> ok;
+		{Nom, PrevApid} ->
+			erlang:demonitor(RMon),
+			stop_agent_channel(PrevApid),
+			cdr:ringout(Call, {forwarded, Nom})
+	end,
+
+	NewInternal = #inqueue_state{
+		queue_mon = Internal#inqueue_ringing_state.queue_mon,
+		queue_pid = Internal#inqueue_ringing_state.queue_pid,
+		cook = Internal#inqueue_ringing_state.cook
+	},
+	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
 
 inqueue_ringing({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
 		callrec = #call{cook = Cook}} = BaseState, InternalState}) ->
@@ -1140,7 +1166,11 @@ inqueue_ringing({{'$gen_media', takeover_ring}, {{Agent, Apid}, OutbandRinger}},
 	agent_channel:set_state(Apid, ringing, BaseState#base_state.callrec),
 	NewInternal = Internal#inqueue_ringing_state{ringout = undefined, outband_ring_pid = OutbandRinger},
 	{next_state, inqueue_ringing, {BaseState, NewInternal}};
-	
+
+inqueue_ringing({{'$gen_media', stop_ring}, Reason}, State) ->
+	NewState = requeue_ringing(Reason, State),
+	{next_state, inqueue, NewState};
+
 inqueue_ringing({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("Invalid command event ~s while inqueue_ringing", [Command]),
 	{next_state, inqueue_ringing, State};
@@ -2163,6 +2193,36 @@ priv_voicemail({BaseState, #inqueue_state{queue_mon = Mon, queue_pid = {QNom, QP
 	cdr:voicemail(BaseState#base_state.callrec, QNom),
 	ok.
 
+requeue_ringing(Reason, {BaseState, Internal}) ->
+	#inqueue_ringing_state{ringout = Ringout,
+		ring_pid = RingAgent, ring_mon = RMon} = Internal,
+	#base_state{
+		callrec = Call} = BaseState,
+
+	case Call#call.cook of
+		CookPid when is_pid(CookPid) ->
+			gen_server:cast(CookPid, stop_ringing);
+		_ ->
+			ok
+	end,
+	case Ringout of
+		undefined -> ok;
+		_ -> gen_fsm:cancel_timer(Ringout)
+	end,
+	case RingAgent of
+		undefined -> ok;
+		{Nom, Apid} ->
+			erlang:demonitor(RMon),
+			stop_agent_channel(Apid),
+			cdr:ringout(Call, {Reason, Nom})
+	end,
+	NewInternal = #inqueue_state{
+		queue_mon = Internal#inqueue_ringing_state.queue_mon,
+		queue_pid = Internal#inqueue_ringing_state.queue_pid,
+		cook = Internal#inqueue_ringing_state.cook
+	},
+	{BaseState, NewInternal}.
+
 % make the call higher priority in preparation for requeueing
 reprioritize_for_requeue(Call) ->
 	NewPriority = case Call#call.priority of
@@ -2238,32 +2298,9 @@ agent_interact({stop_ring, Reason}, oncall_ringing, #base_state{
 	},
 	{oncall, {BaseState, NewInternal}};
 
-agent_interact({stop_ring, Reason}, inqueue_ringing, #base_state{
-		callrec = Call} = BaseState, #inqueue_ringing_state{ringout = Ringout,
-		ring_pid = RingAgent, ring_mon = RMon} = Internal, _Agent) ->
-	case Call#call.cook of
-		CookPid when is_pid(CookPid) ->
-			gen_server:cast(CookPid, stop_ringing);
-		_ ->
-			ok
-	end,
-	case Ringout of
-		undefined -> ok;
-		_ -> gen_fsm:cancel_timer(Ringout)
-	end,
-	case RingAgent of
-		undefined -> ok;
-		{Nom, Apid} ->
-			set_agent_state(Apid, [idle]),
-			cdr:ringout(Call, {Reason, Nom}),
-			erlang:demonitor(RMon)
-	end,
-	NewInternal = #inqueue_state{
-		queue_mon = Internal#inqueue_ringing_state.queue_mon,
-		queue_pid = Internal#inqueue_ringing_state.queue_pid,
-		cook = Internal#inqueue_ringing_state.cook
-	},
-	{inqueue, {BaseState, NewInternal}};
+agent_interact({stop_ring, Reason}, inqueue_ringing, BaseState, Internal, _Agent) ->
+	NewState = requeue_ringing(Reason, {BaseState, Internal}),
+	{inqueue, NewState};
 
 agent_interact(wrapup, StateName, #base_state{callrec = Call} = BaseState,
 		Internal, {Mon, {Agent, Apid}}) ->

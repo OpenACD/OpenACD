@@ -390,24 +390,14 @@ handle_leader_cast({info, _Time, _Params} = Msg, State, _Election) ->
 	tell_subs(Msg, State#state.subscribers),
 	%% no ets need updating, so not telling cands.
 	{noreply, State};
-handle_leader_cast({set, Time, {Key, Details, Node} = Event, ignore}, State, Election) ->
-	NewElements = [
-		{2, Details},
-		{3, Node},
-		{4, Time}
-	],
-	ets:update_element(?MODULE, Key, NewElements),
-	tell_cands({set, Time, Event}, Election),
-	tell_subs({set, Time, Event}, State#state.subscribers),
-	{noreply, State};
 handle_leader_cast({set, Time, {Key, _Details, _Node} = Event, Watchwhat}, State, Election) ->
 	case qlc:e(qlc:q([X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
 		[] ->
 			Monref = case Watchwhat of
-				none ->
-					undefined;
+				Pid when is_pid(Pid) ->
+					erlang:monitor(process, Watchwhat);
 				_ ->
-					erlang:monitor(process, Watchwhat)
+					undefined
 			end,
 			cache_event(Event, Time, Watchwhat, Monref);
 		[{Key, _, _, _, Watchwhat, Monref}] ->

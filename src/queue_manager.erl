@@ -642,22 +642,48 @@ single_node_test_() ->
 	slave_qm
 }).
 
+rpc_call(Nodes, Mod, Func, Args) ->
+	[rpc:call(Node, Mod, Func, Args) || Node <- Nodes].
+
+rpc_cast(Nodes, Mod, Func, Args) ->
+	[rpc:cast(Node, Mod, Func, Args) || Node <- Nodes].
+
+fake_queue_list() ->
+	fun
+		("queue2") ->
+			#call_queue{name = "queue2", skills = [], recipe = []};
+		("queue1") ->
+			#call_queue{name = "queue1", skills = [], recipe = []}
+	end.
+
+death_waiter() ->
+	death_waiter(0, []).
+
+death_waiter(4, Acc) ->
+	lists:reverse(Acc);
+
+death_waiter(N, Acc) ->
+	receive
+		{'DOWN', _, _, _, _} = D ->
+			death_waiter(N + 1, [D | Acc]);
+		{'EXIT', _, _} = E ->
+			death_waiter(N + 1, [E | Acc])
+	after 5010 ->
+		death_waiter(N + 1, [timeout | Acc])
+	end.
+
 multi_node_test_() ->
 	util:start_testnode(),
-	Master = util:start_testnode(queue_manager_master),
-	Slave = util:start_testnode(queue_manager_slave),
-	mnesia:start(),
-	{atomic, ok} = mnesia:change_table_copy_type(schema, node(), disc_copies),
-	ok = rpc:call(Master, mnesia, start, []),
-	ok = rpc:call(Slave, mnesia, start, []),
-	{ok, R} = mnesia:change_config(extra_db_nodes, [Master, Slave]),
-	{atomic, ok} = mnesia:change_table_copy_type(schema, Master, disc_copies),
-	{atomic, ok} = mnesia:change_table_copy_type(schema, Slave, disc_copies),
-	?INFO("change config return:  ~p", [R]),
-	?INFO("schema table info:  ~p", [mnesia:table_info(schema, all)]),
-	cover:start([Master, Slave]),
 	{inorder, {foreach, fun() ->
+		process_flag(trap_exit, true),
 		?DEBUG("========== Build it up! ==========", []),
+		Master = util:start_testnode(queue_manager_master),
+		Slave = util:start_testnode(queue_manager_slave),
+		cover:start([Master, Slave]),
+		Nodes = [Master, Slave],
+		rpc_call(Nodes, meck, new, [call_queue_config, [no_link]]),
+		rpc_call(Nodes, meck, expect, [call_queue_config, build_tables, fun() -> ok end]),
+		rpc_call(Nodes, meck, expect, [call_queue_config, get_queues, 0, []]),
 		{ok, QMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 		{ok, QMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 		?DEBUG("building done", []),
@@ -670,45 +696,41 @@ multi_node_test_() ->
 	end,
 	fun(Rec) ->
 		?DEBUG("========== Tear it down! ==========", []),
-		rpc:call(Master, ?MODULE, stop, []),
-		rpc:call(Slave, ?MODULE, stop, []),
-		{atomic, ok} = mnesia:delete_table(call_queue),
-		ok = rpc:call(Master, call_queue_config, build_tables, []),
-		ok = rpc:call(Slave, call_queue_config, build_tables, []),
-		Sleeper = fun(SleepFun) ->
-			timer:sleep(1000),
-			case mnesia:table_info(call_queue, all) of
-				{aborted, {no_exists, call_queue, all}} ->
-					SleepFun(SleepFun);
-				_ ->
-					ok
-			end
-		end,
-		Sleeper(Sleeper),
+		#multinode_test_state{master_node = Master, slave_node = Slave} = Rec,
+		%rpc:call(Master, ?MODULE, stop, []),
+		%rpc:call(Slave, ?MODULE, stop, []),
+		%rpc_call(Nodes, meck, unload, [call_queue_config]),
+		[slave:stop(N) || N <- [Master, Slave]],
 		?DEBUG("Tear down done", [])
 	end,
-	[fun(_) -> Name = "Master Death", {Name, fun() ->
+	[fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Master Death", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		rpc:call(Master, ?MODULE, stop, []),
 		?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 	end} end,
-	fun(_) -> Name = "Slave Death", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Slave Death", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
+		Nodes = [Master, Slave],
+		rpc_call(Nodes, meck, expect, [call_queue_config, get_queue, fake_queue_list()]),
 		?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 		ok = rpc:call(Slave, ?MODULE, stop, []),
 		?assertMatch(false, rpc:call(Master, ?MODULE, query_queue, ["queue1"]))
 	end} end,
-	fun(_) -> Name = "Net Split", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Net Split", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
+		Nodes = [Master, Slave],
 		rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
 		rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
-		rpc:call(Master, call_queue_config, new_queue, ["queue1", 1, [], [], "default"]),
+		rpc_call(Nodes, meck, expect, [call_queue_config, get_queue, fake_queue_list()]),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 		rpc:call(Slave, erlang, disconnect_node, [Master]),
-		?debugFmt("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
-		?debugFmt("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
+		% give the slave and master time to realize they are split.
+		timer:sleep(5000),
+		?DEBUG("Awake, chicken, awake!", []),
+		?DEBUG("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
+		?DEBUG("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue2"])),
 		?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
@@ -716,7 +738,7 @@ multi_node_test_() ->
 		?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 		?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1", []]))
 	end} end,
-	fun(_) -> Name = "Queues in sync", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Queues in sync", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
 		?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
@@ -728,24 +750,30 @@ multi_node_test_() ->
 		?assertMatch(ok, rpc:call(Master, ?MODULE, stop, [])),
 		?assertMatch(ok, rpc:call(Slave, ?MODULE, stop, []))
 	end} end,
-	fun(_) -> Name = "No proc", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "No proc", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		slave:stop(Master),
 		timer:sleep(200),
 		?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 	end} end,
-	fun(_) -> Name = "Best bindable queues with failed master", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Best bindable queues with failed master", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+		rpc:call(Slave, meck, expect, [call_queue_config, get_client, fun(id, undefined) ->
+			#client{}
+		end]),
 		{ok, Dummy1} = rpc:call(Slave, dummy_media, start, [[{id, "Call1"}, {queues, none}]]),
 		?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 		slave:stop(Master),
 		timer:sleep(200),
 		?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
 	end} end,
-	fun(_) -> Name = "Leader is told about a call_queue that dies and did not come back", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Leader is told about a call_queue that dies and did not come back", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		{ok, QPid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_queue, fun("queue2") ->
+			#call_queue{name = "queue2", skills = [], recipe = []}
+		end]),
 		?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 		gen_server:call(QPid, {stop, test_kill}),
 		receive
@@ -755,10 +783,14 @@ multi_node_test_() ->
 		NewQPid = rpc:call(Slave, ?MODULE, get_queue, ["queue2"]),
 		?CONSOLE("the pids:  ~p and ~p", [QPid, NewQPid]),
 		?assertNot(QPid =:= NewQPid),
-		?assertEqual(undefined, rpc:call(Master, ?MODULE, get_queue, ["queue2"]))
+		?assertNot(node(QPid) =/= node(NewQPid))
+		%?assertEqual(undefined, rpc:call(Master, ?MODULE, get_queue, ["queue2"]))
 	end} end,
-	fun(_) -> Name = "Leader is told about a call_queue that died but is reborn", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Leader is told about a call_queue that died but is reborn", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_queue, fun("default_queue") ->
+			#call_queue{name = "default_queue", skills = [], recipe = []}
+		end]),
 		QPid = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
 		?CONSOLE("qpid: ~p", [QPid]),
 		gen_server:call(QPid, {stop, test_kill}),
@@ -771,20 +803,29 @@ multi_node_test_() ->
 		?assertNot(QPid =:= NewQPid),
 		?assertNot(NewQPid =:= undefined)
 	end} end,
-	fun(_) -> Name = "A queue is only started (or stays started) on one node", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "A queue is only started (or stays started) on one node", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
 		% because a queue_manager starts every queue in the database on init,
 		% a queue will always exist locally.
 		% this is not desired behavior, so on a surrender, it must ditch any
 		% empty queues it already has, and notify the leader of the rest.
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_queue, fun("default_queue") ->
+			#call_queue{name = "default_queue", skills = [], recipe = []}
+		end]),
 		MasterQ = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
 		SlaveQ = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
 		?CONSOLE("dah qs:  ~p and ~p", [MasterQ, SlaveQ]),
 		?assert(node(MasterQ) =:= node(SlaveQ)),
 		?assert(MasterQ =:= SlaveQ)
 	end} end,
-	fun(_) -> Name = "Queue migration", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "Queue migration", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_queue, fun("default_queue") ->
+			#call_queue{name = "default_queue", skills = [], recipe = []}
+		end]),
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_merged_queue, fun("default_queue") ->
+			#call_queue{name = "default_queue", skills = [], recipe = []}
+		end]),
 		Oldq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
 		?debugFmt("Queue is at ~p ~p", [Oldq, node(Oldq)]),
 		call_queue:migrate(Oldq, Slave),
@@ -795,9 +836,9 @@ multi_node_test_() ->
 		?assertNot(Oldq =:= Newq),
 		?assertNot(OldNode =:= NewNode)
 	end} end,
-	fun(_Whatever) -> Name = "The slave dies, but the queue on that is brought back by master", {Name, fun() ->
+	fun(#multinode_test_state{master_node = Master, slave_node = Slave}) -> Name = "The slave dies, but the queue on that is brought back by master", {Name, fun() ->
 		?DEBUG("Starting test ~s", [Name]),
-		call_queue_config:new_queue(#call_queue{name = "queue2"}),
+		rpc_call([Master, Slave], meck, expect, [call_queue_config, get_queue, fake_queue_list()]),
 		{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 		?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),
 		?assertEqual(Pid, rpc:call(Master, ?MODULE, get_queue, ["queue2"])),

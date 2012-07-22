@@ -495,6 +495,17 @@ end.
 oncall_transition(GenMedia, OtherMedia) ->
 	gen_server:call(GenMedia, {'$gen_media_start_oncall_transition', OtherMedia}).
 
+%% @doc Used by a media to get another media to swap agents.  A1 is oncall with
+%% M1.  M1 starts a new media M2 to A2.  This would allow A1 to go oncall with
+%% M2 and A2 oncall with A1.  This is accomplished by gen_media of M1 doing a 
+%% call to M2, passing it's state.  Assuming the M2 callback accepts, M2 is
+%% updated with the the modified callback state of M1, but over all the state
+%% of M1.  M2 replies to M1 the state of M2, and M1 uses the callback to 
+%% modifiy the state, and then carries on.
+-spec(oncall_transition/2 :: (Genmedia :: pid(), OtherMedia :: pid()) -> 'ok' | {'error', any()}).
+oncall_transition(GenMedia, OtherMedia) ->
+	gen_server:call(GenMedia, {'$gen_media_start_oncall_transition', OtherMedia}).
+
 -spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
 gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).

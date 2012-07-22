@@ -426,15 +426,35 @@ send_to_connection(_ApiArea, {_Ref, _Salt, undefined} = Cookie, _Function, _Args
 	?DEBUG("sent to connection with no connection pid", []),
 	check_cookie(Cookie);
 send_to_connection(api, {_Ref, _Salt, Conn}, <<"poll">>, _Args) ->
-	agent_web_connection:poll(Conn, self()),
-	receive
-		{poll, Return} ->
-			%?DEBUG("Got poll message, spitting back ~p", [Return]),
-			 Return; 
-		{kill, Headers, Body} -> 
-			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
-			{408, Headers, Body}
+	case agent_web_connection:poll(Conn, self()) of
+		{ok, Json} ->
+			?DEBUG("Everything ok, got json:  ~p", [Json]),
+			{200, [], mochijson2:encode(Json)};
+		{StatusCode, Else} when is_integer(StatusCode) ->
+			?INFO("Poll failed with status code ~p becuase ~p", [StatusCode, Else]),
+			Json = {struct, [
+				{success, false},
+				{<<"errcode">>, <<"UNKNOWN_ERROR">>},
+				{<<"message">>, iolist_to_binary(io_lib:format("~p", [Else]))}
+			]},
+			{StatusCode, [], mochijson2:encode(Json)};
+		Else ->
+			?WARNING("poll failed due to ~p", [Else]),
+			Json = {struct, [
+				{success, false},
+				{<<"errcode">>, <<"UNKNOWN_ERROR">>},
+				{<<"message">>, iolist_to_binary(io_lib:format("~p", [Else]))}
+			]},
+			{500, [], mochijson2:encode(Json)}
 	end;
+%	receive
+%		{poll, Return} ->
+%			%?DEBUG("Got poll message, spitting back ~p", [Return]),
+%			 Return; 
+%		{kill, Headers, Body} -> 
+%			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
+%			{408, Headers, Body}
+%	end;
 send_to_connection(ApiArea, Cookie, Func, Args) when is_binary(Func) ->
 	try list_to_existing_atom(binary_to_list(Func)) of
 		Atom ->

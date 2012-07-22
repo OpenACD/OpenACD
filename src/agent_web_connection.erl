@@ -547,7 +547,8 @@ stop(Pid) ->
 %% </table>
 -spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
 poll(Pid, Frompid) ->
-	gen_server:cast(Pid, {poll, Frompid}).
+	%gen_server:cast(Pid, {poll, Frompid}).
+	gen_server:call(Pid, poll, infinity).
 
 %% @doc Do a web api call.
 -spec(api/2 :: (Pid :: pid(), Apicall :: any()) -> any()).
@@ -714,6 +715,19 @@ init([Agent]) ->
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+
+handle_call(poll, {FromPid, _Tag} = From, #state{poll_pid = undefined, poll_queue = []} = State) ->
+	link(FromPid),
+	{noreply, State#state{poll_pid = From, poll_pid_established = util:now()}};
+
+handle_call(poll, _From, #state{poll_pid = undefined, poll_queue = Pollq} = State) ->
+	State0 = State#state{poll_queue = [], poll_pid_established = util:now()},
+	Json = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}, {<<"result">>, lists:reverse(Pollq)}]},
+	{reply, {ok, Json}, State0};
+
+handle_call(poll, _From, #state{poll_pid = OtherFrom} = State) ->
+	{reply, {408, poll_in_progress}, State};
+
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
 handle_call(logout, _From, State) ->
@@ -1078,26 +1092,26 @@ handle_call(Allothers, _From, State) ->
 handle_cast(keep_alive, #state{poll_pid = undefined} = State) ->
 	%?DEBUG("keep alive", []),
 	{noreply, State#state{poll_pid_established = util:now()}};
-handle_cast({poll, Frompid}, State) ->
-	%?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
-	case State#state.poll_pid of
-		undefined -> 
-			ok;
-		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}, {<<"errcode">>, <<"POLL_PID_REPLACED">>}]})}
-	end,
-	case State#state.poll_queue of
-		[] ->
-			%?DEBUG("Empty poll queue", []),
-			link(Frompid),
-			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
-		Pollq ->
-			%?DEBUG("Poll queue length: ~p", [length(Pollq)]),
-			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
-			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}, {<<"result">>, lists:reverse(Pollq)}]},
-			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
-			{noreply, Newstate}
-	end;
+%handle_cast({poll, Frompid}, State) ->
+%	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
+%	case State#state.poll_pid of
+%		undefined -> 
+%			ok;
+%		Pid when is_pid(Pid) ->
+%			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}, {<<"errcode">>, <<"POLL_PID_REPLACED">>}]})}
+%	end,
+%	case State#state.poll_queue of
+%		[] ->
+%			%?DEBUG("Empty poll queue", []),
+%			link(Frompid),
+%			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
+%		Pollq ->
+%			%?DEBUG("Poll queue length: ~p", [length(Pollq)]),
+%			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
+%			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}, {<<"result">>, lists:reverse(Pollq)}]},
+%			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
+%			{noreply, Newstate}
+%	end;
 handle_cast({mediaload, #call{type = email} = Call}, State) ->
 	Midstate = case State#state.current_call of
 		expect ->
@@ -1267,15 +1281,20 @@ handle_info(poll_flush, State) ->
 	FullQueue = lists:append(lists:reverse(State#state.poll_queue), SupPollQueue),
 	case {State#state.poll_pid, FullQueue} of
 		{undefined, _} ->
+			?DEBUG("No poll pid, no flush", []),
 			{noreply, State#state{poll_flush_timer = undefined}};
-		{_Pid, []} ->
+		{_From, []} ->
+			?DEBUG("Empty poll queue, has poll pid, ignoring", []),
 			{noreply, State#state{poll_flush_timer = undefined}};
-		{Pid, _PollQueue} when is_pid(Pid) ->
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [
+		{From, _PollQueue} ->
+			?DEBUG("Poll queue ~p and poll pid ~p, sending what we have", [FullQueue, From]),
+			Json = {struct, [
 				{success, true},
 				{<<"result">>, FullQueue}
-			]})}},
-			unlink(Pid),
+			]},
+			gen_server:reply(From, {ok, Json}),
+			{FromPid, _Tag} = From,
+			unlink(FromPid),
 			{noreply, State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now(), poll_flush_timer = undefined, supervisor_state = NewSupState}}
 	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
@@ -1288,7 +1307,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			{noreply, State#state{ack_timer = Tref}}
 	end;
-handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
+handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) ->
 	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 	case util:now() - Last of
 		N when N > 20 ->
@@ -1345,9 +1364,8 @@ terminate(Reason, State) ->
 	case State#state.poll_pid of
 		undefined ->
 			ok;
-		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}, {<<"errcode">>, <<"FORCED_LOGOUT">>}]})},
-			ok
+		From ->
+			gen_server:reply(From, {403, force_logout})
 	end.
 
 %%--------------------------------------------------------------------
@@ -1373,13 +1391,14 @@ format_status(terminate, [_PDict, State]) ->
 -spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
 push_event(Eventjson, State) ->
 	Newqueue = [Eventjson | State#state.poll_queue],
-	case State#state.poll_flush_timer of
+	PollTimer = case State#state.poll_flush_timer of
 		undefined ->
 			Self = self(),
-			State#state{poll_flush_timer = erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush), poll_queue = Newqueue};
-		_ ->
-			State#state{poll_queue = Newqueue}
-	end.
+			erlang:send_after(?POLL_FLUSH_INTERVAL, Self, poll_flush);
+		PT ->
+			PT
+	end,
+	State#state{poll_flush_timer = PollTimer, poll_queue = Newqueue}.
 
 get_nodes("all") ->
 	[node() | nodes()];

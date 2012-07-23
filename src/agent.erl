@@ -347,6 +347,9 @@ released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 	inform_connection(Agent, {set_release, none, Now}),
 	{reply, ok, idle, State#state{agent_rec = NewAgent}};
 
+released({set_release, default}, From, State) ->
+	released({set_release, ?DEFAULT_RELEASE}, From, State);
+
 released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},

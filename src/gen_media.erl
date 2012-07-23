@@ -1817,14 +1817,14 @@ handle_custom_return({stop, Reason, Reply, NewState}, StateName, reply,
 handle_custom_return({stop, Reason, NewState}, StateName, _Reply,
 		{BaseState, Internal}) ->
 	{NewStop, {NewBase, NewInternal}} = handle_stop(Reason, StateName, BaseState, Internal),
-	{stop, NewStop, {NewBase#base_state{substate = NewState}, Internal}};
+	{stop, NewStop, {NewBase#base_state{substate = NewState}, NewInternal}};
 
 handle_custom_return({outgoing, AgentChannel, NewState}, StateName, Reply,
 		{#base_state{callrec = Call} = BaseState, InternalState}) when 
 		is_record(BaseState#base_state.callrec, call) ->
 	handle_custom_return({outgoing, AgentChannel, Call, NewState}, StateName, Reply, {BaseState, InternalState});
 
-handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, StateName, Reply,
+handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, _StateName, Reply,
 		{BaseState, InternalState}) when is_record(Call, call) ->
 	?INFO("Told to set ~s (~p) to outgoing for ~p", [AgentName, AgentChannel, Call#call.id]),
 	Response = set_agent_state(AgentChannel, [oncall, Call]),
@@ -1841,7 +1841,7 @@ handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, Stat
 			},
 			set_cpx_mon({NewBase, NewInternal}, [{agent, AgentName}]),
 			{NewBase, NewInternal};
-		Else ->
+		_Else ->
 			{BaseState, InternalState}
 	end,
 	case {Response, Reply} of
@@ -1892,7 +1892,7 @@ handle_custom_return({{hangup, Who}, NewSub}, inqueue, Reply,
 	end;
 
 handle_custom_return({{hangup, Who}, NewSub}, inivr, Reply,
-		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
+		{#base_state{callrec = Callrec} = BaseState, _Internal}) ->
 	case is_record(Callrec, call) of
 		true ->
 			?INFO("hangup for ~s while inivr", [Callrec#call.id]),
@@ -2302,8 +2302,8 @@ agent_interact({stop_ring, Reason}, inqueue_ringing, BaseState, Internal, _Agent
 	NewState = requeue_ringing(Reason, {BaseState, Internal}),
 	{inqueue, NewState};
 
-agent_interact(wrapup, StateName, #base_state{callrec = Call} = BaseState,
-		Internal, {Mon, {Agent, Apid}}) ->
+agent_interact(wrapup, _StateName, #base_state{callrec = Call} = BaseState,
+		_Internal, {Mon, {Agent, Apid}}) ->
 	?INFO("Attempting to set agent at ~p to wrapup for ~p", [Apid, Call#call.id]),
 	set_agent_state(Apid, [wrapup, Call]),
 	cdr:wrapup(Call, Agent),
@@ -2329,7 +2329,7 @@ agent_interact({hangup, Who}, oncall_ringing, #base_state{
 	{wrapup, {BaseState, #wrapup_state{}}};
 
 agent_interact({hangup, Who}, inqueue_ringing, #base_state{
-		callrec = Call} = BaseState, Internal, {Rmon, {Rname, Rpid}}) ->
+		callrec = Call} = BaseState, Internal, {Rmon, {_Rname, Rpid}}) ->
 	?INFO("hangup for ~p when both agent and queue are pid", [Call#call.id]),
 	set_agent_state(Rpid, [idle]),
 	cdr:hangup(Call, Who),
@@ -2341,7 +2341,7 @@ agent_interact({hangup, Who}, inqueue_ringing, #base_state{
 	{wrapup, {BaseState, #wrapup_state{}}};
 
 agent_interact({hangup, Who}, oncall, #base_state{callrec = Callrec} = 
-		BaseState, Internal, {Mon, {Agent, Apid}}) ->
+		BaseState, _Internal, {Mon, {Agent, Apid}}) ->
 	?INFO("hangup for ~p when only oncall is a pid", [Callrec#call.id]),
 	set_agent_state(Apid, [wrapup, Callrec]),
 	cdr:wrapup(Callrec, Agent),

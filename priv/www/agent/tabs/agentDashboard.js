@@ -47,13 +47,13 @@ if(typeof(agentDashboard) == 'undefined'){
 		menu.addChild(new dijit.MenuItem({
 			label:'Idle',
 			onClick:function(){
-				this.getParent().agent.setState('idle');
+				this.getParent().agent.setReleased('none');
 			}
 		}));
 		menu.addChild(new dijit.MenuItem({
 			label:'Released',
 			onClick:function(){
-				this.getParent().agent.setState('released', 'default');
+				this.getParent().agent.setReleased('default');
 			}
 		}));
 		menu.addChild(new dijit.MenuItem({
@@ -369,22 +369,18 @@ if(typeof(agentDashboard) == 'undefined'){
 		}, this.name);
 	}
 
-	agentDashboard.Agent.prototype.setState = function(stateName, stateData){
+	agentDashboard.Agent.prototype.setReleased = function(released){
 		var callbacks = {
 			failure: function(resp, message){
-				errMessage(["setting state to idle failed", message]);
+				errMessage(["setting release failed", message]);
 			},
 			error: function(res){
-				errMessage(["setting state to idle error'ed", res]);
+				errMessage(["setting release error'ed", res]);
 			}
 		};
 
-		if(stateData){
-			window.agentConnection.webApi('supervisor', 'agent_state', callbacks, this.name, stateName, stateData)
-		} else {
-			window.agentConnection.webApi('supervisor', 'agent_state', callbacks, this.name, stateName);
-		}
-	}
+		window.agentConnection.webApi('supervisor', 'agent_release', callbacks, this.name, released);
+	}	
 	
 	agentDashboard.Agent.prototype.setProfile = function(newProf, makePerm){
 		// letting the subscriptions that happen on agent changes deal w/ the repercussions.

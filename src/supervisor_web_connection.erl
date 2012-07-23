@@ -118,8 +118,7 @@
 -export([
 	get_profiles/1,
 	spy/2,
-	agent_state/3,
-	agent_state/4,
+	agent_release/3,
 	set_profile/3,
 	kick_agent/2,
 	blab/4,
@@ -140,8 +139,7 @@
 -web_api_functions([
 	{get_profiles, 1},
 	{spy, 2},
-	{agent_state, 3},
-	{agent_state, 4},
+	{agent_release, 3},
 	{set_profile, 3},
 	{kick_agent, 2},
 	{blab, 4},
@@ -268,18 +266,13 @@ agent_ring(Conn, Queue, MediaId, Agent) ->
 drop_media(Conn, Queue, MediaId) ->
 	gen_server:call(Conn, {supervisor, {drop_media, Queue, MediaId}}).
 
-%% @doc {@web} Change the agent's state.
--spec(agent_state/3 :: (Conn :: pid(), Agent :: string(), State :: string()) -> any()).
-agent_state(Conn, Agent, State) ->
-	agent_state(Conn, Agent, State, undefined). 
-
-%% @doc {@web} Change the agent's state and state data.  Note when setting
+%% @doc {@web} Change the agent's release state.  Note when setting
 %% an agent released from oncall or wrapup, the do not go released 
 %% immediately.  They are flagged to go released instead of idle once the
 %% call is completed.
--spec(agent_state/4 :: (Conn :: pid(), Agent :: string(), State :: string(), Statedata :: string()) -> any()).
-agent_state(Conn, Agent, State, Statedata) ->
-	gen_server:call(Conn, {supervisor, {agent_state, Agent, State, Statedata}}).
+-spec(agent_release/3 :: (Conn :: pid(), Agent :: string(), Released :: 'none' | 'default' | release_code()) -> any()).
+agent_release(Conn, Agent, Released) ->
+	gen_server:call(Conn, {supervisor, {agent_release, Agent, Released}}).
 
 %% @doc {@web} Change the agent's profile for the duration of that agent's
 %% session.
@@ -445,21 +438,18 @@ handle_call({supervisor, {set_profile, Agent, InNewProf, Permanent}}, _From, Sta
 		{ok, _} ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
 	end;
-handle_call({supervisor, {agent_state, Agent, InStateName, Statedata}}, _From, State) ->
-	StateName = binary_to_list(InStateName),
+handle_call({supervisor, {agent_release, Agent, Released}}, _From, State) ->
 	Json = case agent_manager:query_agent(binary_to_list(Agent)) of
 		{true, Apid} ->
-			Statechange = case {StateName, Statedata} of
-				{"released", <<"default">>} ->
-					agent:set_state(Apid, released, default);
-				{StateName, undefined} ->
-					Astate = agent:list_to_state(StateName),
-					agent:set_state(Apid, Astate);
-				{StateName, Statedata} ->
-					Astate = agent:list_to_state(StateName),
-					agent:set_state(Apid, Astate, binary_to_list(Statedata))
+			RelOptKey= case Released of
+				<<"default">> ->
+					default;
+				<<"none">> ->
+					none;
+				_ ->
+					Released
 			end,
-			case Statechange of
+			case agent:set_release(Apid, RelOptKey) of
 				invalid ->
 					mochijson2:encode({struct, [{success, false}, {<<"errcode">>, <<"INVALID_STATE_CHANGE">>}, {<<"message">>, <<"invalid state change">>}]});
 				ok ->

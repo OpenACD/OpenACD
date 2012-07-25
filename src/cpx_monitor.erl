@@ -380,7 +380,12 @@ handle_leader_cast({drop, _Time, Key} = Msg, State, Election) ->
 		[{Key, _, _, _, none, _}] ->
 			ets:delete(?MODULE, Key);
 		[{Key, _, _, _, _Monitoring, Monref}] ->
-			erlang:demonitor(Monref),
+			case Monref of
+				Pid when is_pid(Pid) ->
+					erlang:demonitor(Pid);
+				_ ->
+					ok
+			end,
 			ets:delete(?MODULE, Key)
 	end,
 	tell_subs(Msg, State#state.subscribers),

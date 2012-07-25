@@ -1075,7 +1075,8 @@ inqueue_ringing({{'$gen_media', ring}, {{Agent, Apid}, _ChanType, takeover}},
 	NewInternal = Internal#inqueue_ringing_state{ringout = undefined},
 	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
 
-inqueue_ringing({{'$gen_media', ring}, {{_Agent, Apid}, QCall, _Timeout}}, _From, {BaseState, Internal}) ->
+inqueue_ringing({{'$gen_media', ring}, {{_Agent, Apid}, QCall, _Timeout}},
+		_From, {BaseState, Internal}) ->
 	#inqueue_ringing_state{ringout = Ringout,
 		ring_pid = RingAgent, ring_mon = RMon} = Internal,
 	#base_state{callrec = Call} = BaseState,
@@ -1100,7 +1101,7 @@ inqueue_ringing({{'$gen_media', ring}, {{_Agent, Apid}, QCall, _Timeout}}, _From
 		queue_pid = Internal#inqueue_ringing_state.queue_pid,
 		cook = Internal#inqueue_ringing_state.cook
 	},
-	{reply, ok, inqueue_ringing, {BaseState, NewInternal}};
+	{reply, deferred, inqueue, {BaseState, NewInternal}};
 
 inqueue_ringing({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
 		callrec = #call{cook = Cook}} = BaseState, InternalState}) ->

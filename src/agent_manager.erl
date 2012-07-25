@@ -522,12 +522,16 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = InAgent}, _From, #sta
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
+	Channels = case Agent#agent.release_data of
+		undefined -> Agent#agent.available_channels;
+		_Other -> []
+	end,
 	Value = #agent_cache{
 		pid = Apid,
 		id = Aid,
 		time_avail = os:timestamp(),
 		skills = Agent#agent.skills,
-		channels = Agent#agent.available_channels,
+		channels = Channels,
 		endpoints = dict:fetch_keys(Agent#agent.endpoints)
 	},
 	Leader = gen_leader:leader_node(Election),

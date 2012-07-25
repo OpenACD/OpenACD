@@ -248,7 +248,7 @@ ringing(Apid, Call) ->
 
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
-init([Agent, Options]) when is_record(Agent, agent) ->
+init([Agent, _Options]) when is_record(Agent, agent) ->
 	process_flag(trap_exit, true),
 	OriginalEnds = Agent#agent.endpoints,
 	#agent_profile{name = Profile, skills = Skills} = try agent_auth:get_profile(Agent#agent.profile) of
@@ -288,7 +288,7 @@ idle({set_release, none}, _From, State) ->
 idle({set_release, default}, From, State) ->
 	idle({set_release, ?DEFAULT_RELEASE}, From, State);
 
-idle({set_release, {Id, Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
+idle({set_release, {_Id, _Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
 	dispatch_manager:end_avail(self()),
 	agent_manager:set_avail(Agent#agent.login, []),
 	Now = util:now(),
@@ -331,6 +331,7 @@ idle(Msg, _From, State) ->
 	{reply, {invalid, Msg}, idle, State}.
 
 idle(Msg, State) ->
+	?INFO("unhandled while idle: ~p", [Msg]),
 	{next_state, idle, State}.
 
 % ======================================================================
@@ -350,7 +351,7 @@ released({set_release, none}, _From, #state{agent_rec = Agent} = State) ->
 released({set_release, default}, From, State) ->
 	released({set_release, ?DEFAULT_RELEASE}, From, State);
 
-released({set_release, {Id, Label, Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
+released({set_release, {_Id, _Label, _Bias} = Release}, _From, #state{agent_rec = Agent} = State) ->
 	Now = util:now(),
 	NewAgent = Agent#agent{release_data = Release, last_change = Now},
 	inform_connection(Agent, {set_release, Release, Now}),
@@ -362,6 +363,7 @@ released(Msg, _From, State) ->
 	{reply, {error, Msg}, released, State}.
 
 released(Msg, State) ->
+	?INFO("unhandled while released: ~p", [Msg]),
 	{next_state, released, State}.
 	
 % ======================================================================
@@ -442,7 +444,7 @@ handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_r
 			NewOEnds = dict:store(Module, Data, OEnds),
 			agent_manager:set_ends(Agent#agent.login, dict:fetch_keys(NewAgent#agent.endpoints)),
 			{reply, ok, StateName, State#state{agent_rec = NewAgent, original_endpoints = NewOEnds}};
-		{error, Err} = Error ->
+		{error, _Err} = Error ->
 			{reply, Error, StateName, State}
 	end;
 	
@@ -524,7 +526,7 @@ handle_info({'EXIT', Pid, Reason}, StateName, #state{agent_rec = Agent} = State)
 					end,
 					{next_state, StateName, State#state{agent_rec = Agent1}}
 			end;
-		{ok, Type} ->
+		{ok, _Type} ->
 			NewDict = dict:erase(Pid, Agent#agent.used_channels),
 			Blockers = dict:fold(fun(_, ChanType, Acc) -> [ChanType | Acc] end, [], NewDict),
 			NewAvail = block_channels(Blockers, Agent#agent.all_channels, ?default_category_blocks),
@@ -593,7 +595,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % INTERNAL
 % ======================================================================
 
-get_endpoint_by_pid(Pid, []) ->
+get_endpoint_by_pid(_Pid, []) ->
 	error;
 
 get_endpoint_by_pid(Pid, [{End, {Orig, Pid}} | _]) ->
@@ -691,7 +693,6 @@ start_channel(Agent, Call, StateName) ->
 		{true, {error, notfound}} ->
 			{error, noendpoint};
 		{true, {ok, {_Orig, Endpoint}}} ->
-			Self = self(),
 			case agent_channel:start_link(Agent, Call, Endpoint, StateName) of
 				{ok, Pid} ->
 					Available = block_channels(Call#call.type, Agent#agent.available_channels, ?default_category_blocks),
@@ -764,14 +765,6 @@ wait_for_agent_manager(Count, StateName, #state{agent_rec = Agent} = State) ->
 			Time = util:now(),
 			agent_manager:notify(Agent#agent.login, Agent#agent.id, self(), Time, Agent#agent.skills),
 			{next_state, StateName, State}
-	end.
-
-create_persistant_endpoint(Agent) ->
-	case cpx:get_env(ring_manager) of
-		undefined ->
-			{error, no_ring_manager};
-		{ok, Manager} ->
-			gen_server:call(Manager, {ring, Agent, none})
 	end.
 
 set_cpx_monitor_release(#agent{release_data = {Id, Reason, Bias}} = Agent) ->

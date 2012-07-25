@@ -87,6 +87,7 @@ set_state_agent(Login, Apid, RingChanPid, RingChanUUID, State) ->
 
 init([FsNode, BaseCall]) ->
 	process_flag(trap_exit, true),
+	link(BaseCall#call.source),
 	{ok, {#state{fsnode = FsNode, other_media = BaseCall#call.source}, BaseCall}}.
 
 %% ---------------------------------------------------------------------
@@ -140,8 +141,9 @@ handle_answer(_Agent, Call, State) ->
 handle_oncall_transition_accept(freeswitch_media, FsMediaState, {From, _Tag}, Call, #state{other_media = From} = State) ->
 	#state{agent_info = {Login, Apid}, ring_info = {RingChan, RingUUID}} = State,
 	FsState0 = freeswitch_media:set_state_agent(Login, Apid, RingChan, RingUUID, FsMediaState),
+	FsState1 = freeswitch_media:set_3rd_party(From, FsState0),
 	freeswitch:handlecall(State#state.fsnode, Call#call.id),
-	{ok, FsState0};
+	{ok, FsState1};
 
 handle_oncall_transition_accept(Mod, ModState, {From, _Tag}, _Call, State) ->
 	?WARNING("One of Mod, ModState, or From unacceptable:  ~p, ~p, ~p", [Mod, ModState, From]),

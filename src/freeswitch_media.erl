@@ -98,7 +98,8 @@
 	cede_control/2,
 
 	% helper for the cede control:
-	set_state_agent/5
+	set_state_agent/5,
+	set_3rd_party/2
 	]).
 
 %% gen_media callbacks
@@ -447,6 +448,9 @@ cede_control(MPid, NewController) ->
 %% @hidden
 set_state_agent(Login, Pid, RingChan, RingUUID, State) ->
 	State#state{agent = Login, agent_pid = Pid, ringchannel = RingChan, ringuuid = RingUUID}.
+
+set_3rd_party(ThirdPid, State) ->
+	State#state{'3rd_party_id' = ThirdPid}.
 
 %%====================================================================
 %% gen_media callbacks

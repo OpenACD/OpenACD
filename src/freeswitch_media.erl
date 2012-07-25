@@ -1644,24 +1644,6 @@ handle_info({bgerror, Reply}, Call, State) ->
 handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR for ~p", [Call#call.id]),
 	{stop, hangup, State};
-%handle_info(channel_destroy, Call, State) ->
-%	Stoppy = [oncall, oncall_hold, oncall_hold_ringing, oncall_ringing,
-%		blind_transfered, inqueue, inqueue_ringing, inivr],
-%	case lists:member(State#state.statename, Stoppy) of
-%		true ->
-%			?NOTICE("stopping due to channel_destroy while in state ~p", [State#state.statename]),
-%			{stop, hangup, State};
-%		_ ->
-%			?INFO("Channel may be dead, but state ~p indicates more work to be done.", [State#state.statename]),
-%			{noreply, State}
-%	end;
-
-% TODO This had a use at some point, but was cuasing ramdom hangups.
-% need to find what was sending :(
-%handle_info(call_hangup, Call, State) ->
-%	?NOTICE("Call hangup info, terminating ~p", [Call#call.id]),
-%	catch freeswitch_ring:hangup(State#state.ringchannel),
-%	{stop, normal, State};
 
 handle_info({'DOWN', Ref, process, Pid, Cause}, Call, #state{statename = 
 		oncall, spawn_oncall_mon = {Pid, Ref}} = State) ->

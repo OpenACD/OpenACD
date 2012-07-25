@@ -1618,7 +1618,7 @@ handle_info({'DOWN', Ref, process, Pid, Info}, inqueue, {BaseState,
 	% not much to do, a ressurected cook will tell us about itself.
 	#base_state{callrec = Call} = BaseState,
 	NewCall = Call#call{cook = undefined},
-	NewBase = BaseState#base_state{callrec = Call},
+	NewBase = BaseState#base_state{callrec = NewCall},
 	NewInternal = Internal#inqueue_state{
 		cook = undefined,
 		cook_mon = undefined
@@ -1631,10 +1631,10 @@ handle_info({'DOWN', Ref, process, Pid, Info}, inqueue_ringing, {BaseState,
 	?WARNING("ringing Agent fsm ~p died due to ~p (I'm ~p)", [Aname, Info, Call#call.id]),
 	% no need to modify agent state since it's already dead.
 	gen_server:cast(Call#call.cook, stop_ringing),
-	{ok, Newsub} = Callback:handle_ring_stop(inqueue_ringing, Call, Internal, Sub),
+	{ok, NewSub} = Callback:handle_ring_stop(inqueue_ringing, Call, Internal, Sub),
 	kill_outband_ring({BaseState, Internal}),
 	cdr:ringout(Call, {agent_fsm_death, Aname}),
-	NewBase = BaseState#base_state{substate = Sub},
+	NewBase = BaseState#base_state{substate = NewSub},
 	#inqueue_ringing_state{queue_mon = Qmon, queue_pid = Qpid, cook_mon = Cmon,
 		cook = Cook} = Internal,
 	NewInternal = #inqueue_state{
@@ -1683,8 +1683,8 @@ handle_info({'DOWN', Ref, process, Pid, Info}, oncall, {BaseState,
 		invalid ->
 			{stop, {agent_died, Info}, {BaseState, Internal}};
 		Qpid ->
-			{ok, NewState} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, Call, Internal, Sub),
-			NewBase = BaseState#base_state{substate = Sub},
+			{ok, NewSub} = Callback:handle_queue_transfer({"default_queue", Qpid}, oncall, Call, Internal, Sub),
+			NewBase = BaseState#base_state{substate = NewSub},
 			Qmon = erlang:monitor(process, Qpid),
 			NewInternal = #inqueue_state{
 				queue_pid = {"default_queue", Qpid},

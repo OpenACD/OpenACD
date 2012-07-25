@@ -203,12 +203,12 @@ run_hooks([{_P, M, F, A, Id} | Tail], Args, StopWhen) ->
 	Args0 = lists:append(Args, A),
 	try {apply(M, F, Args0), StopWhen} of
 		{{ok, Val}, first} ->
-			?DEBUG("hook ~p supplied value", [Id]),
+%			?DEBUG("hook ~p supplied value", [Id]),
 			{ok, Val};
 		{{ok, Val}, Acc} ->
 			run_hooks(Tail, Args, [Val | Acc]);
 		{Else, _} ->
-			?DEBUG("Hook ~p gave back a weird value:  ~p", [Id, Else]),
+%			?DEBUG("Hook ~p gave back a weird value:  ~p", [Id, Else]),
 			run_hooks(Tail, Args, StopWhen)
 	catch
 		What:Why ->

@@ -1175,7 +1175,13 @@ handle_cast(toggle_hold, Call, #state{statename = '3rd_party'} = State) ->
 		none -> "park";
 		_ -> "park:,playback:local_stream://" ++ Muzak
 	end,
-	freeswitch:bgapi(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline"),
+	if
+		is_pid(ThirdPId) ->
+			% assuming it's freeswitch_busy_agent.
+			freeswitch_busy_agent:transfer(ThirdPId, Helddp);
+		true ->
+			freeswitch:bgapi(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline")
+	end,
 	{noreply, State#state{statename = hold_conference_3rdparty}};
 
 handle_cast(retrieve_conference, Call, #state{statename = '3rd_party'} = State) ->
@@ -1526,6 +1532,22 @@ handle_info({'EXIT', Pid, "CHANNEL_HANGUP"}, _Call, #state{ringchannel = Pid} = 
 	?INFO("ring channel exit while in ~p state", [State#state.statename]),
 	{wrapup, State#state{ringchannel = undefined, ringuuid = undefined}};
 
+handle_info({'EXIT', Pid, Reason}, _Call, #state{'3rd_party_id' = Pid} = State) ->
+	?INFO("3rd party pid exit (fs busy agent):  ~p", [Pid]),
+	State0 = State#state{'3rd_party_id' = undefined, '3rd_party_mon' = undefined},
+	StateName = case State#state.statename of
+		'3rd_party' ->
+			'hold_conference';
+		'hold_conference_3rdparty' ->
+			'hold_conference';
+		'in_conference_3rdparty' ->
+			'in_conference';
+		OtherState ->
+			OtherState
+	end,
+	State1 = State0#state{statename = StateName},
+	{{mediapush, StateName}, State1};
+
 handle_info({'EXIT', Pid, noconnection}, _Call, State) ->
 	?WARNING("Exit of ~p due to noconnection; this normally indicates a fatal freeswitch failure, so going down too.", [Pid]),
 	{stop, noconnection, State};
@@ -1622,17 +1644,17 @@ handle_info({bgerror, Reply}, Call, State) ->
 handle_info(channel_destroy, Call, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR for ~p", [Call#call.id]),
 	{stop, hangup, State};
-handle_info(channel_destroy, Call, State) ->
-	Stoppy = [oncall, oncall_hold, oncall_hold_ringing, oncall_ringing,
-		blind_transfered, inqueue, inqueue_ringing, inivr],
-	case lists:member(State#state.statename, Stoppy) of
-		true ->
-			?NOTICE("stopping due to channel_destroy while in state ~p", [State#state.statename]),
-			{stop, hangup, State};
-		_ ->
-			?INFO("Channel may be dead, but state ~p indicates more work to be done.", [State#state.statename]),
-			{noreply, State}
-	end;
+%handle_info(channel_destroy, Call, State) ->
+%	Stoppy = [oncall, oncall_hold, oncall_hold_ringing, oncall_ringing,
+%		blind_transfered, inqueue, inqueue_ringing, inivr],
+%	case lists:member(State#state.statename, Stoppy) of
+%		true ->
+%			?NOTICE("stopping due to channel_destroy while in state ~p", [State#state.statename]),
+%			{stop, hangup, State};
+%		_ ->
+%			?INFO("Channel may be dead, but state ~p indicates more work to be done.", [State#state.statename]),
+%			{noreply, State}
+%	end;
 
 % TODO This had a use at some point, but was cuasing ramdom hangups.
 % need to find what was sending :(

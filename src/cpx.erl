@@ -1069,7 +1069,7 @@ load_plugin_envs(Plugins) ->
 
 load_plugin_env(Plugin) ->
 	Transfun = fun() ->
-		Qh = qlc:q([Env || #cpx_conf{id = P, start_args = Env, supervisor = plugin} <- mensia:table(cpx_conf),
+		Qh = qlc:q([Env || #cpx_conf{id = P, start_args = Env, supervisor = plugin} <- mnesia:table(cpx_conf),
 			P =:= Plugin
 		]),
 		qlc:e(Qh)

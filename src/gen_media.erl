@@ -603,7 +603,7 @@ oncall(Genmedia) ->
 %% @doc Transfer the call from the agent it is associated with to a new agent.
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid() | string() | {string(), pid()}, Timeout :: pos_integer()) -> 'ok' | 'invalid').
 agent_transfer(Genmedia, {_Login, Apid} = Agent, Timeout) when is_pid(Apid) ->
-	gen_fms:sync_send_event(Genmedia, {{'$gen_media', agent_transfer}, {Agent, Timeout}});
+	gen_fsm:sync_send_event(Genmedia, {{'$gen_media', agent_transfer}, {Agent, Timeout}});
 agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
 		notfound ->

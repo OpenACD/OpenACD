@@ -37,6 +37,8 @@
 	ring_agent/2, ring_agent/3,
 	cancel/1,
 	transfer/2,
+	get_other/1,
+	set_other/2,
 
 	% exported as a cede control helper
 	set_state_agent/5
@@ -76,6 +78,12 @@ transfer(Media, Endpoint) ->
 
 set_state_agent(Login, Apid, RingChanPid, RingChanUUID, State) ->
 	State#state{agent_info = {Apid, Login}, ring_info = {RingChanPid, RingChanUUID}}.
+
+get_other(Pid) ->
+	gen_media:call(Pid, get_other).
+
+set_other(Pid, OtherPid) ->
+	gen_media:cast(Pid, {set_other, OtherPid}).
 
 %% =====================================================================
 %% Gen_media callbacks
@@ -181,6 +189,9 @@ handle_wrapup(_Call, State) ->
 %% handle_call
 %% ---------------------------------------------------------------------
 
+handle_call(get_other, _From, _Call, State) ->
+	{reply, State#state.other_media, State};
+
 handle_call(Msg, _From, _Call, State) ->
 	?WARNING("Unhandled call ~p", [Msg]),
 	{reply, {error, invalid}, State}.
@@ -188,6 +199,9 @@ handle_call(Msg, _From, _Call, State) ->
 %% ---------------------------------------------------------------------
 %% handle_cast
 %% ---------------------------------------------------------------------
+
+handle_cast({set_other, Other}, _Call, State) ->
+	{noreply, State#state{other_media = Other}};
 
 handle_cast({transfer, Endpoint}, _Call, State) ->
 	#state{ring_info = {_Pid, UUID}, fsnode = Fnode} = State,

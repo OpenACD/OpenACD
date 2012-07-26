@@ -96,6 +96,7 @@
 	complete_agent_transfer/1,
 	cancel_agent_transfer/1,
 	cede_control/2,
+	cede_control_then_wrapup/2,
 
 	% helper for the cede control:
 	set_state_agent/5,
@@ -439,10 +440,32 @@ cede_control(MPid, NewController) ->
 				#agent{statedata = #call{source = MPid}} ->
 					{error, self_oncall_transition};
 				#agent{statedata = #call{source = OtherMedia}} ->
-					gen_media:oncall_transition(MPid, OtherMedia);
+					case gen_media:oncall_transition(MPid, OtherMedia) of
+						ok -> freeswitch_busy_agent:set_other(MPid, OtherMedia);
+						Else ->
+							Else
+					end;
 				_ ->
 					{error, invalid_agent_state}
 			end
+	end.
+
+%% @doc Does a cede_control, then tries to hangup the 3rd party.  This will
+%% only do what you expect if the call was in agent_contact state.  IE:  Use
+%% this is you have call C oncall with A1.  A1 toggle_hold's, then
+%% agent_contacts A2.  A1 then does this call which cedes control, (making A1
+%% the 3rd party), and puts A2 in hold_conference, after which the conference
+%% is retrieved.
+-spec(cede_control_then_wrapup/2 :: (MPid :: pid(), NewController :: string()) -> 'ok').
+cede_control_then_wrapup(MPid, NewController) ->
+	case cede_control(MPid, NewController) of
+		ok ->
+			Other = freeswitch_busy_agent:get_other(MPid),
+			?DEBUG("Control successsfully ceded of ~p to ~p; the other:  ~p", [MPid, NewController, Other]),
+			retrieve_conference(Other),
+			hangup_3rd_party(Other);
+		Else ->
+			Else
 	end.
 
 %% @hidden
@@ -1102,6 +1125,11 @@ handle_cast({cede_control, NewController}, Call, State) ->
 	proc_lib:spawn(?MODULE, cede_control, [Self, NewController]),
 	{noreply, State};
 
+handle_cast({cede_control_then_wrapup, NewController}, Call, State) ->
+	Self = self(),
+	proc_lib:spawn(?MODULE, cede_control_then_wrapup, [Self, NewController]),
+	{noreply, State};
+
 %% hold_conference -> 3rd_party
 handle_cast({contact_agent, AgentPid, _ConfProf}, Call, #state{statename = hold_conference} = State) ->
 	#state{cnode = Fnode} = State,
@@ -1336,6 +1364,10 @@ handle_cast({<<"contact_agent">>, Args}, Call, State) ->
 handle_cast({<<"cede_control">>, Args}, Call, State) ->
 	OtherAgent = binary_to_list(proplists:get_value("args", Args)),
 	handle_cast({cede_control, OtherAgent}, Call, State);
+
+handle_cast({<<"cede_control_then_wrapup">>, Args}, Call, State) ->
+	OtherAgent = binary_to_list(proplists:get_value("args", Args)),
+	handle_cast({cede_control_then_wrapup, OtherAgent}, Call, State);
 
 handle_cast({<<"contact_3rd_party">>, Args}, Call, State) ->
 	Destination = binary_to_list(proplists:get_value("args", Args)),

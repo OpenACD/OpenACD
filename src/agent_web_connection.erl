@@ -726,7 +726,13 @@ handle_call(poll, _From, #state{poll_pid = undefined, poll_queue = Pollq} = Stat
 	{reply, {ok, Json}, State0};
 
 handle_call(poll, _From, #state{poll_pid = OtherFrom} = State) ->
-	{reply, {408, poll_in_progress}, State};
+	?DEBUG("Existing poll:  ~p", [OtherFrom]),
+	{noreply, State0} = handle_info(poll_flush, State),
+	case State#state.poll_flush_timer of
+		undefined -> ok;
+		PTimer -> erlang:cancel_timer(PTimer)
+	end,
+	{reply, {408, poll_in_progress}, State0};
 
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
@@ -1089,7 +1095,7 @@ handle_call(Allothers, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(keep_alive, #state{poll_pid = undefined} = State) ->
+handle_cast(keep_alive, State) ->
 	%?DEBUG("keep alive", []),
 	{noreply, State#state{poll_pid_established = util:now()}};
 %handle_cast({poll, Frompid}, State) ->
@@ -1282,9 +1288,6 @@ handle_info(poll_flush, State) ->
 	case {State#state.poll_pid, FullQueue} of
 		{undefined, _} ->
 			?DEBUG("No poll pid, no flush", []),
-			{noreply, State#state{poll_flush_timer = undefined}};
-		{_From, []} ->
-			?DEBUG("Empty poll queue, has poll pid, ignoring", []),
 			{noreply, State#state{poll_flush_timer = undefined}};
 		{From, _PollQueue} ->
 			?DEBUG("Poll queue ~p and poll pid ~p, sending what we have", [FullQueue, From]),

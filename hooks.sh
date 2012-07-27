@@ -3,28 +3,12 @@
 BASEDIR="$( cd "$( dirname "$0" )" && pwd)"
 REBAR="$BASEDIR/rebar"
 
-function do_included_apps {	
-	for file in "$BASEDIR"/include_apps/*
-	do
-		echo "das file:  $file"
-		cd "$file"
-		$REBAR "$1"
-		cd "$BASEDIR"
-	done
-}
-
-function post_compile {
-	do_included_apps "compile"
-}
-
 function pre_compile {
 	ebinDir="$BASEDIR/ebin"
 
 	if [ ! -d "$ebinDir" ]; then
 		mkdir "$ebinDir"
 	fi
-	
-	# hack for include_apps
 	
 	# hack for reltool
 	oaDir="$BASEDIR/OpenACD"
@@ -69,16 +53,8 @@ function pre_get-deps {
 	fi
 }
 
-function post_get-deps {
-	do_included_apps "get-deps"
-}
-
 function pre_clean {
 	rm -rf "$BASEDIR/OpenACD"
-}
-
-function post_clean {
-	do_included_apps clean
 }
 
 case "$1" in

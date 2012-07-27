@@ -1210,11 +1210,12 @@ handle_cast(toggle_hold, Call, #state{statename = '3rd_party'} = State) ->
 	if
 		is_pid(ThirdPId) ->
 			% assuming it's freeswitch_busy_agent.
-			freeswitch_busy_agent:transfer(ThirdPId, Helddp, park);
+			freeswitch_busy_agent:transfer(ThirdPId, Helddp, park),
+			{{mediapush, hold_conference_agent}, State#state{statename = 'hold_conference_3rdparty'}};
 		true ->
-			freeswitch:bgapi(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline")
-	end,
-	{noreply, State#state{statename = hold_conference_3rdparty}};
+			freeswitch:bgapi(Fnode, uuid_transfer, ThirdPId ++ " " ++ Helddp ++ " inline"),
+			{noreply, State#state{statename = hold_conference_3rdparty}}
+	end;
 
 handle_cast(retrieve_conference, Call, #state{statename = '3rd_party'} = State) ->
 	?INFO("Place 3rd party on hold, and go to the conference", []),

@@ -3,48 +3,11 @@
 BASEDIR="$( cd "$( dirname "$0" )" && pwd)"
 REBAR="$BASEDIR/rebar"
 
-function do_included_apps {	
-	for file in "$BASEDIR"/include_apps/*
-	do
-		echo "das file:  $file"
-		cd "$file"
-		$REBAR "$1"
-		cd "$BASEDIR"
-	done
-}
-
-function post_compile {
-	do_included_apps "compile"
-}
-
 function pre_compile {
 	ebinDir="$BASEDIR/ebin"
 
 	if [ ! -d "$ebinDir" ]; then
 		mkdir "$ebinDir"
-	fi
-	
-	for file in "$BASEDIR"/proto_src/*.proto
-	do
-		nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
-		nameBase="src/${nameBase}"
-		if [ ! -e $nameBase -o $file -nt $nameBase ]
-		then
-			cp $file src/
-		fi
-	done
-	
-	# hack for include_apps
-	
-	# hack for reltool
-	oaDir="$BASEDIR/OpenACD"
-	if [ ! -d "$oaDir" ]; then
-		mkdir "$oaDir"
-		ln -sf ../ebin "$oaDir"/ebin
-		ln -sf ../src "$oaDir"/src
-		ln -sf ../include "$oaDir"/include
-		ln -sf ../priv "$oaDir"/priv
-		ln -sf ../deps "$oaDir"/deps
 	fi
 	
 	# record what commit/version openacd is at
@@ -79,16 +42,21 @@ function pre_get-deps {
 	fi
 }
 
-function post_get-deps {
-	do_included_apps "get-deps"
+function pre_generate {
+	# hack for reltool
+	oaDir="$BASEDIR/OpenACD"
+	if [ ! -d "$oaDir" ]; then
+		mkdir "$oaDir"
+		ln -sf ../ebin "$oaDir"/ebin
+		ln -sf ../src "$oaDir"/src
+		ln -sf ../include "$oaDir"/include
+		ln -sf ../priv "$oaDir"/priv
+		ln -sf ../deps "$oaDir"/deps
+	fi
 }
 
-function pre_clean {
+function post_generate {
 	rm -rf "$BASEDIR/OpenACD"
-}
-
-function post_clean {
-	do_included_apps clean
 }
 
 case "$1" in
@@ -104,4 +72,8 @@ case "$1" in
 		pre_clean;;
 	"post_clean")
 		post_clean;;
+	"pre_generate")
+		pre_generate;;
+	"post_generate")
+		post_generate;;
 esac

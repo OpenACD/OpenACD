@@ -10,17 +10,6 @@ function pre_compile {
 		mkdir "$ebinDir"
 	fi
 	
-	# hack for reltool
-	oaDir="$BASEDIR/OpenACD"
-	if [ ! -d "$oaDir" ]; then
-		mkdir "$oaDir"
-		ln -sf ../ebin "$oaDir"/ebin
-		ln -sf ../src "$oaDir"/src
-		ln -sf ../include "$oaDir"/include
-		ln -sf ../priv "$oaDir"/priv
-		ln -sf ../deps "$oaDir"/deps
-	fi
-	
 	# record what commit/version openacd is at
 	OPENACD_COMMIT=""
 	if [ -d ".git" ]
@@ -53,7 +42,20 @@ function pre_get-deps {
 	fi
 }
 
-function pre_clean {
+function pre_generate {
+	# hack for reltool
+	oaDir="$BASEDIR/OpenACD"
+	if [ ! -d "$oaDir" ]; then
+		mkdir "$oaDir"
+		ln -sf ../ebin "$oaDir"/ebin
+		ln -sf ../src "$oaDir"/src
+		ln -sf ../include "$oaDir"/include
+		ln -sf ../priv "$oaDir"/priv
+		ln -sf ../deps "$oaDir"/deps
+	fi
+}
+
+function post_generate {
 	rm -rf "$BASEDIR/OpenACD"
 }
 
@@ -70,4 +72,8 @@ case "$1" in
 		pre_clean;;
 	"post_clean")
 		post_clean;;
+	"pre_generate")
+		pre_generate;;
+	"post_generate")
+		post_generate;;
 esac

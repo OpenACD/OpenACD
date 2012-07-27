@@ -24,16 +24,6 @@ function pre_compile {
 		mkdir "$ebinDir"
 	fi
 	
-	for file in "$BASEDIR"/proto_src/*.proto
-	do
-		nameBase=`echo "$file" | sed -e "s/^proto_src\///"`
-		nameBase="src/${nameBase}"
-		if [ ! -e $nameBase -o $file -nt $nameBase ]
-		then
-			cp $file src/
-		fi
-	done
-	
 	# hack for include_apps
 	
 	# hack for reltool

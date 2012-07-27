@@ -37,6 +37,7 @@
 	ring_agent/2, ring_agent/3,
 	cancel/1,
 	transfer/2,
+	transfer/3,
 	get_other/1,
 	set_other/2,
 
@@ -74,7 +75,10 @@ cancel(Media) ->
 	gen_media:cast(Media, cancel).
 
 transfer(Media, Endpoint) ->
-	gen_media:cast(Media, {transfer, Endpoint}).
+	transfer(Media, Endpoint, undefined).
+
+transfer(Media, Endpoint, SendEvent) ->
+	gen_media:cast(Media, {transfer, Endpoint, SendEvent}).
 
 set_state_agent(Login, Apid, RingChanPid, RingChanUUID, State) ->
 	State#state{agent_info = {Apid, Login}, ring_info = {RingChanPid, RingChanUUID}}.
@@ -203,13 +207,21 @@ handle_call(Msg, _From, _Call, State) ->
 handle_cast({set_other, Other}, _Call, State) ->
 	{noreply, State#state{other_media = Other}};
 
-handle_cast({transfer, Endpoint}, _Call, State) ->
+handle_cast({transfer, Endpoint}, Call, State) ->
+	handle_cast({transfer, Endpoint, undefined}, Call, State);
+
+handle_cast({transfer, Endpoint, SendToAgent}, Call, State) ->
 	#state{ring_info = {_Pid, UUID}, fsnode = Fnode} = State,
 	?DEBUG("Got call to do transfer to ~s", [Endpoint]),
 	%Any = freeswitch_ring:block_until(Pid, any),
 	%?DEBUG("unblocked on ~p", [Any]),
 	freeswitch:api(Fnode, uuid_transfer, UUID ++ " " ++ Endpoint),
-	{noreply, State};
+	case SendToAgent of
+		undefined ->
+			{noreply, State};
+		_ ->
+			{{mediapush, SendToAgent}, State}
+	end;
 
 handle_cast(cancel, _Call, State) ->
 	?INFO("Stopping due to cancel request", []),

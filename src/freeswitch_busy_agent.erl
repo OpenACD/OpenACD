@@ -49,7 +49,8 @@
 	fsnode,
 	other_media,
 	agent_info,
-	ring_info
+	ring_info,
+	recording_path
 }).
 
 %% =====================================================================
@@ -141,10 +142,26 @@ handle_ring_stop(_Call, State) ->
 %% ---------------------------------------------------------------------
 
 handle_answer(_Agent, Call, State) ->
-	#state{other_media = OtherMedia, ring_info = RingInfo } = State,
+	#state{other_media = OtherMedia, ring_info = {_Rpid, Ruuid} = RingInfo, agent_info = {_Apid, Agent} } = State,
+	Login = Agent#agent.login,
+	RecPath = case cpx_supervisor:get_archive_path(Call) of
+		none ->
+			?DEBUG("archiving is not configured for ~p", [Call#call.id]),
+			undefined;
+		{error, _Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory for recording ~p for ~p", [Path, Call#call.id]),
+			undefined;
+		Path ->
+			%% get_archive_path ensures the directory is writeable by us and exists, so this
+			%% should be safe to do (the call will be hungup if creating the recording file fails)
+			?DEBUG("archiving ~p to ~s.wav", [Call#call.id, Path]),
+			freeswitch:bgapi(State#state.fsnode, uuid_setvar, Ruuid ++ " RECORD_APPEND true"),
+			freeswitch:bgapi(State#state.fsnode, uuid_record, Ruuid ++ " start " ++ Path ++ "." ++ Login ++ "." ++ ".wav"),
+			Path
+	end,
 	?INFO("handling answer, telling other media:  ~p", [OtherMedia]),
 	gen_media:cast(OtherMedia, {?MODULE, answer, Call, RingInfo}),
-	{ok, State}.
+	{ok, State#state{recording_path = RecPath}}.
 
 %% ---------------------------------------------------------------------
 %% handle_oncall_transition_accept

@@ -9,7 +9,6 @@ tarballfiles = attic \
        misc \
        priv \
        include \
-       proto_src \
        rel \
        src \
        tests \

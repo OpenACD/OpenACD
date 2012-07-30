@@ -626,16 +626,17 @@ OpenACD.Agent.prototype._handleLoginFailure = function(errCode, msg){
 @private
 */
 OpenACD.Agent.prototype._handleLoginSuccess = function(results){
-	this.profile = results.profile;
-	this.securityLevel = results.securityLevel;
-	this.timestamp = results.timestamp;
-	this.poll();
-	try{
-		this.loggedIn = true;
-		dojo.publish("OpenACD/Agent/login", [this]);
-	} catch (err) {
-		console.error("OpenACD/Agent/login", err);
-	}
+	// this.profile = results.profile;
+	// this.securityLevel = results.securityLevel;
+	// this.timestamp = results.timestamp;
+	// this.poll();
+	// try{
+	// 	this.loggedIn = true;
+	// 	dojo.publish("OpenACD/Agent/login", [this]);
+	// } catch (err) {
+	// 	console.error("OpenACD/Agent/login", err);
+	// }
+	window.location.reload();
 }
 
 /**

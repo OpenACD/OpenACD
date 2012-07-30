@@ -25,7 +25,8 @@ tarballfiles = attic \
        success_message \
        install.sh \
        config \
-       scripts
+       scripts \
+       apps
 
 MACHINE := $(shell uname -m)
 

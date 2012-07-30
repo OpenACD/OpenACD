@@ -1891,6 +1891,12 @@ handle_custom_return({{hangup, Who}, NewState}, inqueue_ringing, noreply,
 	erlang:demonitor(Internal#inqueue_ringing_state.cook_mon),
 	erlang:demonitor(Internal#inqueue_ringing_state.queue_mon),
 	unqueue(Internal#inqueue_ringing_state.queue_pid,self()),
+	case Internal#inqueue_ringing_state.ring_pid of
+		{_, APid} ->
+			stop_agent_channel(APid);
+		_ ->
+			ok
+	end,
 	{next_state, wrapup, {BaseState#base_state{substate = NewState}, #wrapup_state{}}};
 
 handle_custom_return({{hangup, Who}, NewState}, wrapup, noreply,

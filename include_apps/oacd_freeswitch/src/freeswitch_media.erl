@@ -1068,29 +1068,6 @@ case_event_name("CHANNEL_PARK", UUID, Rawcall, Callrec, #state{
 
 case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid = UUID} = State) ->
 	?DEBUG("Channel hangup ~p", [Callrec#call.id]),
-	Apid = State#state.agent_pid,
-	case Apid of
-		undefined ->
-			?WARNING("Agent undefined ~p", [Callrec#call.id]),
-			State2 = State#state{agent = undefined, agent_pid = undefined};
-		_Other ->
-			try agent:query_state(Apid) of
-				{ok, ringing} ->
-					?NOTICE("caller hung up while we were ringing an agent ~p", [Callrec#call.id]),
-					case State#state.ringchannel of
-						undefined ->
-							ok;
-						RingChannel ->
-							freeswitch_ring:hangup(RingChannel)
-					end;
-				_Whatever ->
-					ok
-			catch
-				exit:{noproc, _} ->
-					?WARNING("agent ~p is a dead pid ~p", [Apid, Callrec#call.id])
-			end,
-			State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
-	end,
 	case State#state.voicemail of
 		false -> % no voicemail
 			ok;
@@ -1127,6 +1104,7 @@ case_event_name("CHANNEL_HANGUP_COMPLETE", UUID, Rawcall, Callrec, #state{uuid =
 	%{noreply, State};
 	Hupstates = [oncall, oncall_hold, inqueue, inqueue_ringing, inivr],
 	Statename = State#state.statename,
+	State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined},
 	case lists:member(Statename, Hupstates) of
 		true -> {{hangup, Who}, State2};
 		_ -> {noreply, State2}

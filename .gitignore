@@ -27,6 +27,7 @@ ebin
 OpenACD/
 include/commit_ver.hrl
 
+apps/*
 include_apps/**/doc
 
 # unique config files

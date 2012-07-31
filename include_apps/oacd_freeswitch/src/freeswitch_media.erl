@@ -74,7 +74,7 @@
 	handle_answer/5,
 	handle_voicemail/4,
 	handle_spy/3,
-	handle_announce/3,
+	handle_announce/5,
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
 	handle_end_call/4,
 	handle_agent_transfer/4,
@@ -195,9 +195,9 @@ urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
 	[{"itxt", Ivropt}].
 
 %% @private
--spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
-handle_announce(Announcement, Callrec, State) ->
-	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+-spec(handle_announce/5 :: (Announcement :: string(), StateName :: atom(), Call :: #call{}, Internal :: any(), State :: #state{}) -> {'ok', #state{}}).
+handle_announce(Announcement, _StateName, Call, Internal, State) ->
+	freeswitch:sendmsg(State#state.cnode, Call#call.id,
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", Announcement}]),

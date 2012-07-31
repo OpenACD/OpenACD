@@ -476,7 +476,7 @@ behaviour_info(callbacks) ->
 		{handle_ring_stop, 4},
 		{handle_answer, 5}, 
 		%{handle_voicemail, 4},
-		%{handle_announce, 3}, 
+		%{handle_announce, 5}, 
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 5},
 		{handle_wrapup, 5},
@@ -808,7 +808,7 @@ inqueue({{'$gen_media', announce}, Announce}, _From, {#base_state{
 		callback = Callback, substate = InSubstate, callrec = Call} =
 		BaseState, Internal}) ->
 	?INFO("Doing announce for ~p", [Call#call.id]),
-	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
+	Substate = case erlang:function_exported(Callback, handle_announce, 5) of
 		true ->
 			{ok, N} = Callback:handle_announce(Announce, inqueue, Call, Internal, InSubstate),
 			N;
@@ -933,7 +933,7 @@ inqueue_ringing({{'$gen_media', announce}, Announce}, _From, {BaseState, Interna
 	#base_state{callback = Callback, substate = InSubstate,
 		callrec = Call} = BaseState,
 	?INFO("Doing announce for ~p", [Call#call.id]),
-	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
+	Substate = case erlang:function_exported(Callback, handle_announce, 5) of
 		true ->
 			{ok, N} = Callback:handle_announce(Announce, inqueue_ringing, Call, Internal, InSubstate),
 			N;

@@ -57,6 +57,7 @@ deps:
 	./rebar get-deps update-deps
 
 compile:
+	mkdir -p ./ebin
 	./rebar compile generate force=1
 
 clean:

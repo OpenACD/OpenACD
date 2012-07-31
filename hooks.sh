@@ -50,15 +50,18 @@ function post_get-deps {
 	appsDir="$BASEDIR/apps"
 	if [ ! -d "$appsDir" ]; then
 		mkdir -p "$appsDir"
-		ln -s "$BASEDIR"/include_apps/* "$appsDir"
+		includeApps=./include_apps/*
+		for app in $includeApps; do
+			ln -sf ../"$app" "$appsDir"
+		done
 
 		oaDir="$appsDir"/OpenACD
 		mkdir "$oaDir"
-		ln -sf "$BASEDIR"/ebin "$oaDir"/ebin
-		ln -sf "$BASEDIR"/src "$oaDir"/src
-		ln -sf "$BASEDIR"/include "$oaDir"/include
-		ln -sf "$BASEDIR"/priv "$oaDir"/priv
-		ln -sf "$BASEDIR"/deps "$oaDir"/deps
+		ln -sf ../../ebin "$oaDir"/ebin
+		ln -sf ../../src "$oaDir"/src
+		ln -sf ../../include "$oaDir"/include
+		ln -sf ../../priv "$oaDir"/priv
+		ln -sf ../../deps "$oaDir"/deps
 	fi
 }
 

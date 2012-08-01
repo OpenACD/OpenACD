@@ -73,7 +73,7 @@
 	handle_ring_stop/4,
 	handle_answer/5,
 	handle_voicemail/4,
-	handle_spy/3,
+	handle_spy/5,
 	handle_announce/5,
 %% TODO added for testing only (implemented with focus on real Calls - no other media)
 	handle_end_call/4,
@@ -344,8 +344,8 @@ handle_voicemail(_, Call, _, State) ->
 	{ok, State#state{statename = inivr, voicemail = "/tmp/"++UUID++".wav"}}.
 
 %% @hidden
--spec(handle_spy/3 :: (Agent :: {pid(), #agent{}}, Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
-handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
+-spec(handle_spy/5 :: (Spy :: {pid(), #agent{}}, StateName :: atom(), Call :: #call{}, Internal :: #state{}, State :: any()) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
+handle_spy({Agent, AgentRec}, oncall, Call, #state{cnode = Fnode, ringchannel = Chan} = Internal, State) when is_pid(Chan) ->
 	agent:blab(Agent, "While spying, you have the following options:\n"++
 		"* To whisper to the agent; press 1\n"++
 		"* To whisper to the caller; press 2\n"++
@@ -353,8 +353,8 @@ handle_spy({Agent, AgentRec}, Call, #state{cnode = Fnode, ringchannel = Chan} = 
 		"* To resume spying; press 0"),
 	Dialstring = freeswitch_media_manager:get_agent_dial_string(AgentRec, []),
 	freeswitch:bgapi(Fnode, originate, Dialstring ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-	{ok, State};
-handle_spy(_Agent, _Call, State) ->
+	{ok, Internal};
+handle_spy(_Spy, _StateName, _Call, _Internal, State) ->
 	{invalid, State}.
 
 %% @hidden

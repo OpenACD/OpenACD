@@ -56,12 +56,12 @@ if(typeof(agentDashboard) == 'undefined'){
 				this.getParent().agent.setReleased('default');
 			}
 		}));
-		menu.addChild(new dijit.MenuItem({
-			label:'Spy',
-			onClick:function(){
-				this.getParent().agent.spy();
-			}
-		}));
+		// menu.addChild(new dijit.MenuItem({
+		// 	label:'Spy',
+		// 	onClick:function(){
+		// 		this.getParent().agent.spy();
+		// 	}
+		// }));
 		menu.addChild(new dijit.MenuSeparator());
 		menu.addChild(new dijit.MenuItem({
 			label:'Blab...',

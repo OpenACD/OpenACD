@@ -475,7 +475,7 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 			?NOTICE("Rejected ring as ring manager not found", []),
 			{reply, invalid, idle, State};
 		{ok, RingMan} ->
-			case gen_server:call({RingMan, Callnode}, {ring, Agent, InCall}) of
+			try gen_server:call({RingMan, Callnode}, {ring, Agent, InCall}) of
 				{ok, RingPid, Paths} ->
 					Call = case Paths of
 						both ->
@@ -496,6 +496,10 @@ idle({ringing, #call{ring_path = outband} = InCall}, _From, #state{agent_rec = #
 					{reply, ok, ringing, State#state{agent_rec = Newagent}};
 				Else ->
 					?WARNING("Trying to get ring chan didn't work:  ~p", [Else]),
+					{reply, invalid, idle, State}
+			catch
+				What:Why ->
+					?ERROR("Ring manager throw:  ~p:~p", [What,Why]),
 					{reply, invalid, idle, State}
 			end
 	end;

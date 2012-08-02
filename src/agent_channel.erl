@@ -430,7 +430,6 @@ oncall({warmtransfer_3rd_party, Data}, From, State) ->
 		end;
 
 %% -----
-
 oncall(wrapup, From, #state{state_data = Call} = State) ->
 	oncall({wrapup, Call}, From, State);
 
@@ -440,6 +439,7 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 			?DEBUG("Moving from oncall to wrapup", []),
 			conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
 			cpx_agent_event:change_agent_channel(self(), wrapup, Call),
+			prep_autowrapup(Call),
 			{reply, ok, wrapup, State#state{state_data = Call}};
 		CallSource ->
 			case gen_media:wrapup(CallSource) of
@@ -447,6 +447,7 @@ oncall({wrapup, Call}, {From, _Tag}, #state{state_data = Call} = State) ->
 					?DEBUG("Moving from oncall to wrapup", []),
 					conn_cast(State#state.agent_connection, {set_channel, self(), wrapup, Call}),
 					cpx_agent_event:change_agent_channel(self(), wrapup, Call),
+					prep_autowrapup(Call),
 					{reply, ok, wrapup, State#state{state_data = Call}};
 				Else ->
 					{reply, Else, oncall, State}
@@ -575,6 +576,7 @@ handle_info({'EXIT', Pid, Why}, oncall, #state{endpoint = Pid} = State) ->
 	CallPid = Callrec#call.source,
 	case gen_media:wrapup(CallPid) of
 		ok ->
+			prep_autowrapup(Callrec),
 			{next_state, wrapup, State};
 		Else ->
 			?WARNING("could not set gen_media to wrapup:  ~p", [Else]),
@@ -654,6 +656,15 @@ start_endpoint({Mod, Func, XtraArgs}, Agent, Call) ->
 	end;
 start_endpoint(E, _, _) ->
 	{error, {badendpoint, E}}.
+
+prep_autowrapup(#call{client = Client}) ->
+	case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
+		N when is_integer(N) andalso N > 0 ->
+			Self = self(),
+			erlang:send_after(N * 1000, Self, end_wrapup);
+		_ ->
+			ok
+	end.
 
 % ======================================================================
 % TESTS

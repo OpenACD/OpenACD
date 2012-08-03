@@ -1831,6 +1831,55 @@ from_idle_tests() ->
 			gen_server_mock:stop(whereis(freeswitch_media_manager))
 		end}
 	end,
+	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
+		{"to ringing with a faulty ring manager; inband call", timeout, 60, 
+		fun() ->
+			ZombieFun = fun(ZF) -> receive headshot -> ok; X -> ?DEBUG("Dah x:  ~p", [X]), ZF(ZF) end end,
+			Zombie = spawn(fun() -> ZombieFun(ZombieFun) end),
+			register(zombie_ring_manager, Zombie),
+			application:set_env('OpenACD', ring_manager, zombie_ring_manager),
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self,
+				ring_path = inband,
+				media_path = inband
+			},
+			cpx_monitor:add_set({{agent, "testid"}, [], ignore}),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) ->
+				?DEBUG("Call:  ~p\nIncall:  ~p", [Call, Incall]),
+				Call = Incall,
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, _Call}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", State)),
+			Assertmocks(),
+			Zombie ! headshot
+		end}
+	end,
+	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
+		{"to ringing with a faulty ring manager; outband call", timeout, 60, 
+		fun() ->
+			ZombieFun = fun(ZF) -> receive headshot -> ok; X -> ?DEBUG("Dah x:  ~p", [X]), ZF(ZF) end end,
+			Zombie = spawn(fun() -> ZombieFun(ZombieFun) end),
+			register(zombie_ring_manager, Zombie),
+			application:set_env('OpenACD', ring_manager, zombie_ring_manager),
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self,
+				ring_path = outband,
+				media_path = inband
+			},
+			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", State)),
+			Assertmocks(),
+			Zombie ! headshot 
+		end}
+	end,
 	fun({Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks} = _Testargs) ->
 		{"to ringing with a ring lock in effect",
 		fun() ->

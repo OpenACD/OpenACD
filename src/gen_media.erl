@@ -1279,7 +1279,7 @@ oncall({{'$gen_media', warm_transfer_hold}, undefined}, _From, {BaseState, Inter
 			case Callback:handle_warm_transfer_hold(oncall, Call, Internal, Substate) of
 				{ok, CallerRef, NewState} ->
 					set_agent_state(Apid, [warm_transfer_hold]),
-					cdr:warm_transfer_hold(Call, Apid),
+					% cdr:warm_transfer_hold(Call, Apid),
 					NewBase = BaseState#base_state{ substate = NewState },
 					NewInternal = #warm_transfer_hold_state{
 						oncall_pid = Internal#oncall_state.oncall_pid,

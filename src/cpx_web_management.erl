@@ -2143,7 +2143,7 @@ api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			Else when is_list(Else) -> [{Newkey, list_to_binary(Else)} | Acc];
 			Else when Key =:= sipauth, Else =:= true -> [{sipauth,<<"sipauth">>}|Acc];
 			Else when is_atom(Else) -> [{Newkey, Else} | Acc];
-			Else -> Acc
+			_Else -> Acc
 		end
 	end,
 	Props0 = lists:foldl(Builder,[],PropToPost),
@@ -2428,7 +2428,7 @@ api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 			"autoend_wrapup" ->
 				try list_to_integer(Value) of
 					0 -> Acc;
-					N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
+					_N -> [{autoend_wrapup, list_to_integer(Value)} | Acc]
 				catch
 					error:badarg -> Acc
 				end;
@@ -2849,7 +2849,7 @@ decode_endpoints([{<<"dummy_media">>, {struct, Props}}|T], Acc) ->
 		end;
 decode_endpoints([_Other|T], Acc) ->
 	?WARNING("unknown endpoint: ~p", [_Other]),
-	Acc.
+	decode_endpoints(T, Acc).
 
 
 decode_recipe([Test | Tail]) when is_tuple(Test) ->

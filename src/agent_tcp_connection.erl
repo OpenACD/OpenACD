@@ -223,7 +223,7 @@ handle_cast({set_channel, Pid, StateName, Statedata}, #state{channels = AChannel
 	server_event(State#state.socket, Command, State#state.radix),
 	{noreply, State#state{channels = NewDict}};
 
-handle_cast({channel_died, Pid, NewAvail}, #state{channels = AChannels} = State) ->
+handle_cast({channel_died, Pid, _NewAvail}, #state{channels = AChannels} = State) ->
 	NewDict = dict:erase(Pid, AChannels),
 	Command = #serverevent{
 		command = 'ACHANNEL_DOWN',
@@ -244,7 +244,7 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, Callrec}}, State) ->
 	end,
 	{noreply, State#state{channels = NewDict}};
 
-handle_cast({mediapush, ChanPid, Callrec, Data}, State) ->
+handle_cast({mediapush, _ChanPid, Callrec, Data}, State) ->
 	Newpush = translate_media_push(Callrec, Data, State),
 	case Newpush of
 		false -> 
@@ -346,7 +346,7 @@ biggify_atom(Atom, safe) ->
 biggify_atom(Atom, ToAtom) ->
 	ToAtom(string:to_upper(atom_to_list(Atom))).
 
-translate_media_push(#call{type = voice} = Callrec, Data, State) when is_atom(Data) ->
+translate_media_push(#call{type = voice}, Data, _State) when is_atom(Data) ->
 	NewData = case Data of
 		'3rd_party' -> 'THIRD_PARTY';
 		caller_hold -> 'CALLER_ONHOLD';
@@ -448,9 +448,9 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 			Username = LoginRequest#loginrequest.username,
 			Agent = #agent{
 				id = Id, 
-				login = LoginRequest#loginrequest.username, 
+				login = Username, 
 				skills = Skills, 
-				profile=Profile, 
+				profile = Profile, 
 				security_level = Security
 			},
 			case agent_manager:start_agent(Agent) of
@@ -776,13 +776,13 @@ service_request(_, BaseReply, State) ->
 	},
 	{Reply, State}.
 
-service_channel_request(#agentchannelrequest{request_hint = 'AGENT_TRANSFER', agent_transfer_request = Transfer} = ChanReq, BaseReply, State)
+service_channel_request(#agentchannelrequest{request_hint = 'AGENT_TRANSFER', agent_transfer_request = Transfer}, BaseReply, State)
 		when is_record(Transfer, agenttransferrequest) ->
 	%% TODO use the channel id to do this.
 	case Transfer#agenttransferrequest.other_data of
 		undefined ->
 			ok;
-		Caseid ->
+		_Caseid ->
 			%gen_media:cast(Call#call.source, {set_caseid, Caseid})
 			ok
 	end,
@@ -806,7 +806,7 @@ service_channel_request(#agentchannelrequest{request_hint = 'AGENT_TRANSFER', ag
 	{Reply, State};
 
 service_channel_request(#agentchannelrequest{request_hint =
-		'MEDIA_COMMAND', media_command_request = Command} = ChanReq,
+		'MEDIA_COMMAND', media_command_request = Command},
 		BaseReply, State) when is_record(Command, mediacommandrequest) ->
 	% TODO kinda useless w/o pulling out the channel id.
 	Reply = case Command#mediacommandrequest.need_reply of
@@ -841,9 +841,9 @@ service_channel_request(#agentchannelrequest{request_hint =
 		'QUEUE_TRANSFER', queue_transfer_request = Trans}, BaseReply, State)
 		when is_record(Trans, queuetransferrequest) ->
 	% TODO use the channel id.
-	TransOpts = Trans#queuetransferrequest.transfer_options,
+	%TransOpts = Trans#queuetransferrequest.transfer_options,
 	%gen_media:set_url_getvars(C#call.source, TransOpts#queuetransferoptions.options),
-	Skills = convert_skills(TransOpts#queuetransferoptions.skills),
+	%Skills = convert_skills(TransOpts#queuetransferoptions.skills),
 	%gen_media:add_skills(C#call.source, Skills),
 	Reply = case agent:queue_transfer(State#state.agent_fsm, Trans#queuetransferrequest.queue_name) of
 		ok ->
@@ -857,44 +857,24 @@ service_channel_request(#agentchannelrequest{request_hint =
 	{Reply, State}.
 % TODO add media_load and media_hangup handlings.
 
-state_to_pb(idle) ->
-	'IDLE';
-state_to_pb(ringing) ->
-	'RINGING';
-state_to_pb(precall) ->
-	'PRECALL';
-state_to_pb(oncall) ->
-	'ONCALL';
-state_to_pb(outgoing) ->
-	'OUTGOING';
-state_to_pb(released) ->
-	'RELEASED';
-state_to_pb(warmtransfer) ->
-	'WARMTRANSFER';
-state_to_pb(wrapup) ->
-	'WRAPUP';
-state_to_pb(_) ->
-	'PRELOGIN'.
+% convert_skills(Skills) ->
+% 	convert_skills(Skills, []).
 
-
-convert_skills(Skills) ->
-	convert_skills(Skills, []).
-
-convert_skills([], Acc) ->
-	lists:reverse(Acc);
-convert_skills([Head | Tail], Acc) ->
-	try list_to_existing_atom(Head#skill.atom) of
-		A ->
-			case Head#skill.expanded of
-				undefined ->
-					convert_skills(Tail, [A | Acc]);
-				X ->
-					convert_skills(Tail, [{A, X} | Acc])
-			end
-	catch
-		error:badarg ->
-			convert_skills(Tail, Acc)
-	end.
+% convert_skills([], Acc) ->
+% 	lists:reverse(Acc);
+% convert_skills([Head | Tail], Acc) ->
+% 	try list_to_existing_atom(Head#skill.atom) of
+% 		A ->
+% 			case Head#skill.expanded of
+% 				undefined ->
+% 					convert_skills(Tail, [A | Acc]);
+% 				X ->
+% 					convert_skills(Tail, [{A, X} | Acc])
+% 			end
+% 	catch
+% 		error:badarg ->
+% 			convert_skills(Tail, Acc)
+% 	end.
 
 -ifdef(TEST).
 

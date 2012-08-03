@@ -259,7 +259,7 @@ init(Options) ->
 %% prepare_endpoint
 %%--------------------------------------------------------------------
 
-prepare_endpoint(Agent, _Data) ->
+prepare_endpoint(_Agent, _Data) ->
 	{ok, {module, dummy_media}}.
 
 %%--------------------------------------------------------------------
@@ -504,7 +504,7 @@ handle_wrapup(_From, _Statename, _Callrec, _Gmstate, State) ->
 	{hangup, State}.
 
 -spec(handle_spy/3 :: (Spy :: {pid(), #agent{}}, Callrec :: #call{}, State :: #state{}) -> 'ok').
-handle_spy({Spy, _AgentRec}, Callrec, State) ->
+handle_spy({_Spy, _AgentRec}, _Callrec, State) ->
 	%agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
 	

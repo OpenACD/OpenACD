@@ -220,6 +220,7 @@
 	warm_transfer_cancel/1,
 	queue_transfer/3,
 	init_outbound/3,
+	get_endpoint/2,
 	set_endpoint/3,
 	logout/1,
 	plugin_call/3,
@@ -410,19 +411,19 @@ media_cast(Conn, Channel, Command, Args) ->
 %% `"cast"' mode, there is no result as it's a simple succcess.  Check the 
 %% documentation of the media modules to see what possible returns there 
 %% are.
--spec(media_command/4 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string(), Args :: [any()]) -> any()).
-media_command(Conn, Command, Mode, Args) ->
-	Post = [
-		{"command", Command},
-		{"mode", binary_to_list(Mode)},
-		{"args", Args}
-	],
-	gen_server:call(Conn, {media, Post}).
+% -spec(media_command/4 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string(), Args :: [any()]) -> any()).
+% media_command(Conn, Command, Mode, Args) ->
+% 	Post = [
+% 		{"command", Command},
+% 		{"mode", binary_to_list(Mode)},
+% 		{"args", Args}
+% 	],
+% 	gen_server:call(Conn, {media, Post}).
 
 %% @doc {@web} media_command with an empty argument list.
--spec(media_command/3 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string()) -> any()).
-media_command(Conn, Command, Mode) ->
-	media_command(Conn, Command, Mode, []).
+% -spec(media_command/3 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string()) -> any()).
+% media_command(Conn, Command, Mode) ->
+% 	media_command(Conn, Command, Mode, []).
 
 %% @doc {@web} Start a warmtransfer of the media associated with the 
 %% oncall agent to `Number'.  No result is sent back as it's simply 
@@ -958,7 +959,7 @@ handle_call({get_endpoint, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	{reply, Reply, State};
 handle_call({set_endpoint, Type, Data}, _From, #state{agent_fsm = Apid} = State) ->
 	{reply, agent:set_endpoint(Apid, Type, Data), State};
-handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
+handle_call({dial, _Number}, _From, State) ->
 	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]})}, State};
 %	AgentRec = agent:dump_state(AgentPid),
 %	case AgentRec#agent.state of
@@ -1004,7 +1005,7 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 	% TODO depricated; staring precall is a media specific thing, so this 
 	% should just be reactive.
 	Reply = case agent:precall(Apid, {precall, Client, Type})of
-		{ok, ChanPid} ->
+		{ok, _ChanPid} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		{error, Else} ->
 			?INFO("Could not start precall for ~p of ~p due to ~p", [Client, Type, Else]),
@@ -1039,7 +1040,7 @@ handle_call({media_cast, Channel, Command, Args}, _From, #state{agent_channels =
 	case fetch_channel(Channel, Channels) of
 		none ->
 			{reply, ?reply_err(<<"Channel doesn't exist">>, <<"CHANNEL_NOEXISTS">>), State};
-		{_ChanPid, #channel_state{current_call = #call{source = CallPid} = Call}} ->
+		{_ChanPid, #channel_state{current_call = #call{source = CallPid}}} ->
 			gen_media:cast(CallPid, {?MODULE, Command, Args}),
 			{reply, ?simple_success(), State}
 	end;
@@ -1136,7 +1137,7 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
-handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, agent_fsm = Apid} = State) ->
+handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined} = State) ->
 	Json = {struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}, {<<"errcode">>, <<"NYI">>}]},
 %	AgentRec = agent:dump_state(Apid), % TODO - avoid
 %	Json = case cpx:get_env(ring_manager) of
@@ -1470,10 +1471,10 @@ handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AC
 		{Call, {ok, Cache}} ->
 			Store = Cache#channel_state{current_call = Call},
 			dict:store(Pid, Store, AChannels);
-		{{Call, Number}, error} ->
+		{{Call, _Number}, error} ->
 			Store = #channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels);
-		{{Call, Number}, {ok, Cache}} ->
+		{{Call, _Number}, {ok, Cache}} ->
 			Store = Cache#channel_state{mediaload = Call, current_call = Call},
 			dict:store(Pid, Store, AChannels)
 	end,
@@ -1719,19 +1720,19 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = Newqueue}
 	end.
 
-get_nodes("all") ->
-	[node() | nodes()];
-get_nodes(Nodestring) ->
-	case atom_to_list(node()) of
-		Nodestring ->
-			[node()];
-		_Else ->
-			F = fun(N) ->
-				atom_to_list(N) =/= Nodestring
-			end,
-			[Out | _Tail] = lists:dropwhile(F, nodes()),
-			[Out]
-	end.
+% get_nodes("all") ->
+% 	[node() | nodes()];
+% get_nodes(Nodestring) ->
+% 	case atom_to_list(node()) of
+% 		Nodestring ->
+% 			[node()];
+% 		_Else ->
+% 			F = fun(N) ->
+% 				atom_to_list(N) =/= Nodestring
+% 			end,
+% 			[Out | _Tail] = lists:dropwhile(F, nodes()),
+% 			[Out]
+% 	end.
 
 email_props_to_json(Proplist) ->
 	email_props_to_json(Proplist, []).
@@ -1928,28 +1929,28 @@ parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.source_module, element(2, Command), Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}, {<<"errcode">>, <<"BAD_RETURN">>}]})}.
 
-encode_agent(Agent) when is_record(Agent, agent) ->
-	%{Mega, Sec, _Micro} = Agent#agent.lastchange,
-	%Now = (Mega * 1000000) + Sec,
-	%Remnum = case Agent#agent.remotenumber of
-		%undefined ->
-			%<<"undefined">>;
-		%Else when is_list(Else) ->
-			%list_to_binary(Else)
-	%end,
-	Prestatedata = [
-		{<<"login">>, list_to_binary(Agent#agent.login)},
-		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
-		{<<"profile">>, list_to_binary(Agent#agent.profile)}
-		%{<<"remotenumber">>, Remnum}
-	],
-	Proplist = Prestatedata,
-	{struct, Proplist}.
+% encode_agent(Agent) when is_record(Agent, agent) ->
+% 	%{Mega, Sec, _Micro} = Agent#agent.lastchange,
+% 	%Now = (Mega * 1000000) + Sec,
+% 	%Remnum = case Agent#agent.remotenumber of
+% 		%undefined ->
+% 			%<<"undefined">>;
+% 		%Else when is_list(Else) ->
+% 			%list_to_binary(Else)
+% 	%end,
+% 	Prestatedata = [
+% 		{<<"login">>, list_to_binary(Agent#agent.login)},
+% 		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
+% 		{<<"profile">>, list_to_binary(Agent#agent.profile)}
+% 		%{<<"remotenumber">>, Remnum}
+% 	],
+% 	Proplist = Prestatedata,
+% 	{struct, Proplist}.
 
-encode_agents([], Acc) -> 
-	lists:reverse(Acc);
-encode_agents([Head | Tail], Acc) ->
-	encode_agents(Tail, [encode_agent(Head) | Acc]).
+% encode_agents([], Acc) -> 
+% 	lists:reverse(Acc);
+% encode_agents([Head | Tail], Acc) ->
+% 	encode_agents(Tail, [encode_agent(Head) | Acc]).
 
 encode_call(Call) when is_record(Call, call) ->
 	{struct, [
@@ -1995,17 +1996,17 @@ encode_client(_) ->
 %encode_clients([Head | Tail], Acc) ->
 %	encode_clients(Tail, [encode_client(Head) | Acc]).
 
-encode_queue_list([], Acc) ->
-	lists:reverse(Acc);
-encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
-	Time = (Mega * 1000000) + Sec,
-	Struct = {struct, [
-		{<<"queued">>, Time},
-		{<<"priority">>, Priority},
-		{<<"id">>, list_to_binary(Call#queued_call.id)}
-	]},
-	Newacc = [Struct | Acc],
-	encode_queue_list(Tail, Newacc).
+% encode_queue_list([], Acc) ->
+% 	lists:reverse(Acc);
+% encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
+% 	Time = (Mega * 1000000) + Sec,
+% 	Struct = {struct, [
+% 		{<<"queued">>, Time},
+% 		{<<"priority">>, Priority},
+% 		{<<"id">>, list_to_binary(Call#queued_call.id)}
+% 	]},
+% 	Newacc = [Struct | Acc],
+% 	encode_queue_list(Tail, Newacc).
 
 endpoint_to_struct(freeswitch_media, Data) ->
 	FwType = proplists:get_value(type, Data, null), %% atom()

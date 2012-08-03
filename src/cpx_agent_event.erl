@@ -183,7 +183,7 @@ init([Agent, ChannelId, Statename, Statedata]) when is_pid(ChannelId) ->
 	case mnesia:async_dirty(TransactFun) of
 		ok ->
 			{ok, {AgentPid, ChannelId}};
-		Else ->
+		_Else ->
 			?WARNING("Storing initial agent channel event for ~p failed", [ChannelId]),
 			{ok, {AgentPid, ChannelId}}
 	end;
@@ -235,7 +235,7 @@ init(Agent) when is_record(Agent, agent) ->
 
 %% @private
 handle_event({change_profile, #agent{id = Id} = OldAgent, NewAgent},
-#agent{id = Id} = CurrentAgent) ->
+#agent{id = Id}) ->
 	#agent{profile = OldProfile, skills = OldSkills} = OldAgent,
 	#agent{profile = NewProfile, skills = NewSkills} = NewAgent,
 	DroppedSkills = OldSkills -- NewSkills,
@@ -252,8 +252,8 @@ handle_event({change_profile, #agent{id = Id} = OldAgent, NewAgent},
 	cpx_monitor:info({agent_profile, ProfChangeRec}),
 	{ok, NewAgent};
 	
-handle_event({change_state, #agent{id = Id} = OldAgent, NewAgent},
-#agent{id = Id} = CurrentAgent) ->
+handle_event({change_state, #agent{id = Id}, NewAgent},
+#agent{id = Id}) ->
 	#agent{login = Agentname, release_data = Statedata,
 		profile = Profile} = NewAgent,
 	State = case Statedata of
@@ -333,7 +333,7 @@ handle_event({change_agent_channel, ChanId, Statename, Statedata},
 	end;
 
 % ignore any event we can't handle.
-handle_event(Event, State) ->
+handle_event(_Event, State) ->
 	{ok, State}.
 
 %% -----
@@ -341,7 +341,7 @@ handle_event(Event, State) ->
 %% -----
 
 %% @private
-handle_call(Request, State) ->
+handle_call(_Request, State) ->
 	{ok, invalid, State}.
 
 %% -----
@@ -387,7 +387,7 @@ terminate({stop, Reason}, #agent{id = AgentId} = Agent) ->
 	end,
 	mnesia:async_dirty(Transfun);
 
-terminate(Why, State) ->
+terminate(Why, _State) ->
 	?INFO("Some other exit:  %p", [Why]),
 	ok.
 
@@ -396,7 +396,7 @@ terminate(Why, State) ->
 %% -----
 
 %% @private
-code_change(OldVsn, State, Extra) ->
+code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 %% =====
@@ -481,7 +481,8 @@ truncate_channels([#agent_channel_state{ended = undefined} = A | Tail]) ->
 	NewA = A#agent_channel_state{ended = Now},
 	ExitA = A#agent_channel_state{start = Now, oldstate = A#agent_channel_state.state, state = 'exit', statedata = undefined},
 	cpx_monitor:info({agent_channel_state, NewA}),
-	cpx_monitor:info({agent_channel_state, ExitA});
+	cpx_monitor:info({agent_channel_state, ExitA}),
+	truncate_channels(Tail);
 
 truncate_channels([_|Tail]) ->
 	truncate_channels(Tail).

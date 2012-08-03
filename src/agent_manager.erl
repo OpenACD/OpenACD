@@ -638,7 +638,7 @@ handle_cast({set_avail, Nom, Chans}, #state{agents = Agents} = State, Election) 
 handle_cast({set_ends, Nom, Ends}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
 	#agent_cache{ pid = Pid, id = Id, time_avail = Time, skills = Skills,
-		channels = Chans, endpoints = OldEnds} = dict:fetch(Nom, Agents),
+		channels = Chans} = dict:fetch(Nom, Agents),
 	Midroutelist = gb_trees_filter(fun({_Key, #agent_cache{pid = Apid}}) ->
 		Apid =/= Pid
 	end, State#state.route_list),

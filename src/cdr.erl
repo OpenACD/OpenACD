@@ -487,7 +487,7 @@ handle_call(_Request, State) ->
 	{ok, ok, State}.
 
 %% @private
-handle_info({'DOWN', Monref, process, Pid, Reason}, #state{mon_ref = Monref} = State) ->
+handle_info({'DOWN', Monref, process, _Pid, _Reason}, #state{mon_ref = Monref} = State) ->
 	% handle this like a hangup, only the pid did the hanging up.
 	case State#state.hangup of
 		false ->

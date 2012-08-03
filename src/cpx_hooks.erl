@@ -41,7 +41,7 @@
 % api
 -export([start_link/0, set_hook/3, set_hook/6, drop_hook/1, drop_hooks/1,
 	get_hooks/1, trigger_hooks/2, trigger_hooks/3,
-	async_trigger_hooks/2, async_trigger_hooks/3]).
+	async_trigger_hooks/2, async_trigger_hooks/3, stop/0]).
 
 %% =================================================================
 %% API
@@ -207,7 +207,7 @@ run_hooks([{_P, M, F, A, Id} | Tail], Args, StopWhen) ->
 			{ok, Val};
 		{{ok, Val}, Acc} ->
 			run_hooks(Tail, Args, [Val | Acc]);
-		{Else, _} ->
+		{_Else, _} ->
 %			?DEBUG("Hook ~p gave back a weird value:  ~p", [Id, Else]),
 			run_hooks(Tail, Args, StopWhen)
 	catch

@@ -70,6 +70,7 @@
 	bgremove/2,
 	migrate/2,
 	stop/1,
+	stop_when_empty/1,
 	grab/1,
 	ungrab/2,
 	set_priority/3,

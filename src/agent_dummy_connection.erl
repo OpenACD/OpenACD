@@ -70,7 +70,6 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
--type(endpoints() :: any()).
 -type(login_option() :: {'login', string()}).
 -type(password_option() :: {'password', string()}).
 -type(endpoint_type() :: {'endpoint_type', endpointtype()}).
@@ -290,4 +289,5 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
 

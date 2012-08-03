@@ -729,7 +729,7 @@ get_skill(Skill) when is_atom(Skill) ->
 			local_get_skill(Skill)
 	catch
 		throw:{badreturn, Err} ->
-			?WARNING("Integration failed with message:  ~p", [Skill]),
+			?WARNING("Integration failed with message: ~p", [Err]),
 			local_get_skill(Skill)
 	end.
 

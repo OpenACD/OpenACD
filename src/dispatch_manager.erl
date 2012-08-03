@@ -150,7 +150,7 @@ handle_call(Request, _From, State) ->
 handle_cast({now_avail, AgentPid, Channels}, #state{channel_count = Chans} = State) -> 
 	?DEBUG("Someone's (~p) available now.", [AgentPid]),
 	case dict:find(AgentPid, State#state.agents) of
-		{ok, {Ref, Channels}} ->
+		{ok, {_Ref, Channels}} ->
 			{noreply, balance(State)};
 		{ok, {Ref, DiffChannels}} ->
 			Diff = length(Channels) - length(DiffChannels),

@@ -368,7 +368,7 @@ service_json_local({struct, Props}, State) ->
 	Args = proplists:get_value(<<"args">>, Props, []),
 	service_json_local(ReqId, Mod, Func, Args, State);
 
-service_json_local(Json, State) ->
+service_json_local(_Json, _State) ->
 	{error, not_local}.
 
 service_json_local(_ReqId, Mod, _Func, _Args, _State) when Mod =/= undefined ->

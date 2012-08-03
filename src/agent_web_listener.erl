@@ -655,10 +655,10 @@ login({_Ref, undefined, _Conn}, _, _, _) ->
 	?reply_err(<<"Your client is requesting a login without first requesting a salt.">>, <<"NO_SALT">>);
 login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 	ProtoEndpointdata = proplists:get_value(voipendpointdata, Opts),
-	Persistantness = case proplists:get_value(use_persistent_ring, Opts) of
-		true -> persistent;
-		_ -> transient
-	end,
+	% Persistantness = case proplists:get_value(use_persistent_ring, Opts) of
+	% 	true -> persistent;
+	% 	_ -> transient
+	% end,
 	?INFO("login opts:  ~p", [Opts]),
 	{Endpoint, Endpointdata} = case {proplists:get_value(voipendpoint, Opts), ProtoEndpointdata} of
 		{undefined, _} ->
@@ -689,10 +689,10 @@ login({Ref, Salt, _Conn}, Username, Password, Opts) ->
 					case {AuthResponse, SupervisorReq} of
 						{deny, _} ->
 							?reply_err(<<"Authentication failed">>, <<"AUTH_FAILED">>);
-						{{allow, Id, Skills, agent, Profile}, true} ->
+						{{allow, Id, _Skills, agent, _Profile}, true} ->
 							?WARNING("Agent ~s tried to act as a supervisor.  Slap 'em.", [Id]),
 							?reply_err(<<"Authentication failed">>, <<"AUTH_FAILED">>);
-						{{allow, Id, Skills, _, Profile}, true} ->
+						{{allow, Id, _Skills, _, _Profile}, true} ->
 							SupStartOpts = [
 								{login, Username},
 								{ring_path, Bandedness},

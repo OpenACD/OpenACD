@@ -183,7 +183,6 @@
 -include("gen_spec.hrl").
 
 -type(json_simple() :: {'struct', [{binary(), binary()}]}).
--type(bin_string() :: binary()).
 
 %%====================================================================
 %% WEB API
@@ -499,15 +498,15 @@ handle_call({supervisor, {agent_ring, Queue, MediaId, Agent}}, _From, State) ->
 	end,
 	{reply, {200, [], Json}, State};
 handle_call({supervisor, {spy, Agent}}, _From, State) ->
-	FakeAgent = #agent{
-		login=State#state.login
-	},
-	SpyPid = case agent_manager:query_agent(State#state.login) of
-		{true, Spid} -> Spid;
-		false -> self()
-	end,
+	% FakeAgent = #agent{
+	% 	login=State#state.login
+	% },
+	% SpyPid = case agent_manager:query_agent(State#state.login) of
+	% 	{true, Spid} -> Spid;
+	% 	false -> self()
+	% end,
 	Json  = case agent_manager:query_agent(binary_to_list(Agent)) of
-		{true, Apid} ->
+		{true, _Apid} ->
 %			case agent:dump_state(Apid) of
 %				#agent{statedata = CallRec} when is_record(CallRec, call) ->
 %					case gen_media:spy(CallRec#call.source, SpyPid, FakeAgent) of
@@ -583,8 +582,8 @@ handle_call({supervisor, {remove_problem_recording, Clientid}}, _From, State) ->
 	end;
 handle_call({supervisor, {start_problem_recording, Clientid}}, _From, State) ->
 	Login = State#state.login,
-	Endpoint = State#state.endpointtype,
-	EndpointData = State#state.endpointdata,
+	% Endpoint = State#state.endpointtype,
+	% EndpointData = State#state.endpointdata,
 	AgentRec = #agent{
 		login = Login,
 		id = Login,
@@ -700,7 +699,7 @@ handle_call({supervisor, status}, _From, State) ->
 %					{reply, {200, [], Data}, State}
 %			end;
 
-handle_call({Request, Args}, _From, State) ->
+handle_call({_Request, _Args}, _From, State) ->
 	{reply, {200, [], mochijson2:encode({struct, [
 		{success, false},
 		{<<"message">>, <<"unknown request">>},
@@ -861,7 +860,7 @@ handle_info(_Msg, State) ->
 %% terminate
 %%====================================================================
 
-terminate(_Cause, State) ->
+terminate(_Cause, _State) ->
 	ok.
 
 %%====================================================================

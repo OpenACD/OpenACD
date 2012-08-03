@@ -603,19 +603,19 @@ get_queue_transfer_options(State, Channel) ->
 %% usually through a brutal kill of the media pid.  Best used as an
 %% emergency escape hatch, and not under normal call flow.  No result set
 %% as it's merely success or failure.
--spec(media_hangup/2 :: (State :: #state{}, Channel :: binary()) ->
-	{'ok', json(), #state{}}).
-media_hangup(State, Channel) ->
-	case fetch_channel(Channel, State) of
-		none ->
-			{error, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>};
-		{_ChanPid, #channel_state{current_call = Call}} when is_record(Call, call) ->
-			?DEBUG("The agent is committing call murder!", []),
-			exit(Call#call.source, agent_connection_request),
-			ok;
-		_ ->
-			{error, <<"channel not oncall">>, <<"INVALID_STATE_CHANGE">>}
-	end.
+% -spec(media_hangup/2 :: (State :: #state{}, Channel :: binary()) ->
+% 	{'ok', json(), #state{}}).
+% media_hangup(State, Channel) ->
+% 	case fetch_channel(Channel, State) of
+% 		none ->
+% 			{error, <<"no such channel">>, <<"CHANNEL_NOEXISTS">>};
+% 		{_ChanPid, #channel_state{current_call = Call}} when is_record(Call, call) ->
+% 			?DEBUG("The agent is committing call murder!", []),
+% 			exit(Call#call.source, agent_connection_request),
+% 			ok;
+% 		_ ->
+% 			{error, <<"channel not oncall">>, <<"INVALID_STATE_CHANGE">>}
+% 	end.
 
 %% @doc {@agent_api} Transfer the channel's call into `Queue' with
 %% the given `Opts'.  The options is a json object with any number of 
@@ -777,10 +777,10 @@ get_tabs_menu(State) ->
 %% @doc Useful when a plugin needs to send information or results to the
 %% agent ui.
 % TODO another special snowflake.
--spec(arbitrary_command/3 :: (Conn :: pid(), Command :: binary() | atom(),
-	JsonProps :: [{binary() | atom(), any()}]) -> 'ok').
-arbitrary_command(Conn, Command, JsonProps) ->
-	gen_server:cast(Conn, {arbitrary_command, Command, JsonProps}).
+% -spec(arbitrary_command/3 :: (Conn :: pid(), Command :: binary() | atom(),
+% 	JsonProps :: [{binary() | atom(), any()}]) -> 'ok').
+% arbitrary_command(Conn, Command, JsonProps) ->
+% 	gen_server:cast(Conn, {arbitrary_command, Command, JsonProps}).
 
 %% =======================================================================
 %% Internal Functions

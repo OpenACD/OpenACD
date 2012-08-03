@@ -99,7 +99,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
-	#queued_call{skills = Skills, channel = Chan, module = Mod} = Call = State#state.call,
+	#queued_call{skills = Skills, channel = Chan, module = Mod} = State#state.call,
 	case agent_manager:filtered_route_list(Skills, Chan, Mod) of
 		[] ->
 			gen_server:reply(From, []),

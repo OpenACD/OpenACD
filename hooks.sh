@@ -65,11 +65,6 @@ function post_get-deps {
 	fi
 }
 
-function post_clean {
-	appsDir="$BASEDIR/apps"	
-	rm -Rf "$appsDir"
-}
-
 case "$1" in
 	"pre_get-deps")
 		pre_get-deps;;
@@ -79,6 +74,4 @@ case "$1" in
 		pre_compile;;
 	"post_compile")
 		post_compile;;
-	"post_clean")
-		post_clean;;
 esac

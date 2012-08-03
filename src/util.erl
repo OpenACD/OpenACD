@@ -689,7 +689,8 @@ start_testnode(Name, Host) ->
 		{ok, N} -> 
 			rpc:cast(N, util, add_paths, []),
 			N;
-		{error, {already_running, N}} -> N
+		{error, {already_running, N}} -> N;
+		Else -> Else
 	end.
 
 code_reload_test_() ->

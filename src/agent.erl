@@ -508,13 +508,17 @@ idle({ringing, Incall}, _From, #state{agent_rec = #agent{endpointtype = {undefin
 		undefined ->
 			undefined;
 		{ok, RingMan} ->
-			case gen_server:call(RingMan, {ring, Agent, Incall}) of
+			try gen_server:call(RingMan, {ring, Agent, Incall}) of
 				{ok, NewRingPid, _Paths} ->
 					% TODO do something w/ paths?
 					link(NewRingPid),
 					NewRingPid;
 				RingManErr ->
 					?INFO("non-vital failure of the ring manager ~s:  ~p", [RingMan, RingManErr]),
+					undefined
+			catch
+				What:Why ->
+					?INFO("non-vital failure of the ring manager ~p:~p", [What, Why]),
 					undefined
 			end
 	end,
@@ -1444,17 +1448,21 @@ get_ring_pid(Callrec, AgentState) ->
 		undefined ->
 			{ok, undefined, Callrec};
 		{ok, RingMan} when Ringpath =:= inband ->
-			case gen_server:call(RingMan, {ring, AgentState, Callrec}) of
+			try gen_server:call(RingMan, {ring, AgentState, Callrec}) of
 				{ok, NewRingPid, _Paths} ->
 					% TODO do something w/ paths?
 					link(NewRingPid),
 					{ok, NewRingPid, Callrec};
 				InbandRingManElse ->
-					?DEBUG("ignorable error getting ring channel for inband ring call", [InbandRingManElse]),
+					?DEBUG("ignorable error getting ring channel for inband ring call:  ~p", [InbandRingManElse]),
+					{ok, undefined, Callrec}
+			catch
+				What1:Why1 ->
+					?DEBUG("ignorable error getting ring channel for inband ring call ~p:~p", [What1, Why1]),
 					{ok, undefined, Callrec}
 			end;
 		{ok, RingMan} ->
-			case gen_server:call({RingMan, Callnode}, {ring, AgentState, Callrec}) of
+			try gen_server:call({RingMan, Callnode}, {ring, AgentState, Callrec}) of
 				{ok, RingPid, Paths} ->
 					Callrec2 = case Paths of
 						both ->
@@ -1471,6 +1479,10 @@ get_ring_pid(Callrec, AgentState) ->
 				Else ->
 					?WARNING("Trying to get ring chan didn't work:  ~p", [Else]),
 					{error, Else}
+			catch
+				What2:Why2 ->
+					?WARNING("Trying to get ring chan didn't work:  ~p:~p", [What2,Why2]),
+					{error, {What2, Why2}}
 			end
 	end.
 

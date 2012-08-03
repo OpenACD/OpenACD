@@ -25,6 +25,7 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 %%	Micah Warren <micahw at lordnull dot com>
+%%	Travis Odom <travis.a.odom at gmail dot com>
 %%
 
 %% @doc A utility module containing several handy functions not provided by
@@ -700,7 +701,7 @@ code_reload_test_() ->
 	{spawn, [{"Reloading everything", ?_assertEqual(ok, reload_all())}]}].
 
 now_test() ->
-	{Mega, Sec, _} = erlang:now(),
+	{Mega, Sec, _} = os:timestamp(),
 	Res = ?MODULE:now(),
 	?assertEqual(Mega * 1000000 + Sec, Res).
 

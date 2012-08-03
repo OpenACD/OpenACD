@@ -1832,7 +1832,7 @@ from_idle_tests() ->
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
-		{"to ringing with a faulty ring manager; inband call", timeout, 60, 
+		{"to ringing with a faulty ring manager; inband call", timeout, 15,
 		fun() ->
 			ZombieFun = fun(ZF) -> receive headshot -> ok; X -> ?DEBUG("Dah x:  ~p", [X]), ZF(ZF) end end,
 			Zombie = spawn(fun() -> ZombieFun(ZombieFun) end),
@@ -1862,7 +1862,7 @@ from_idle_tests() ->
 		end}
 	end,
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
-		{"to ringing with a faulty ring manager; outband call", timeout, 60, 
+		{"to ringing with a faulty ring manager; outband call", timeout, 15,
 		fun() ->
 			ZombieFun = fun(ZF) -> receive headshot -> ok; X -> ?DEBUG("Dah x:  ~p", [X]), ZF(ZF) end end,
 			Zombie = spawn(fun() -> ZombieFun(ZombieFun) end),

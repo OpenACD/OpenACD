@@ -612,7 +612,7 @@ agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
 	end;
 agent_transfer(Genmedia, Agent, Timeout) ->
-	case agent_transfer:query_agent(Agent) of
+	case agent:query_agent(Agent) of
 		false ->
 			invalid;
 		{true, Apid} ->
@@ -622,7 +622,7 @@ agent_transfer(Genmedia, Agent, Timeout) ->
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
 queue(Genmedia, Queue) ->
-	gen_fsm:syn_send_event(Genmedia, {'$gen_media', queue, Queue}).
+	gen_fsm:sync_send_event(Genmedia, {'$gen_media', queue, Queue}).
 	
 %% @doc Attempt to spy on the agent oncall with the given media.  `Spy' is
 %% the pid to send media events/load data to, and `AgentRec' is an 

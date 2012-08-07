@@ -494,7 +494,7 @@ handle_call({remove, Callpid}, _From, State) ->
 			{reply, none, State};
 		{Key, #queued_call{cook=Cookpid} = Qcall} ->
 			unlink(Cookpid),
-			gen_server:cast(Cookpid, stop),
+			cook:stop(Cookpid),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
@@ -582,7 +582,7 @@ handle_cast({remove, Callpid}, State) ->
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid, id=ID}} ->
 			unlink(Cookpid),
-			gen_server:cast(Cookpid, stop),
+			cook:stop(Cookpid),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			?INFO("Removed ~p from ~p", [ID, State#state.name]),
@@ -628,7 +628,7 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 			?INFO("~p Did not find pid ~w", [State#state.name, Pid]),
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
-			gen_server:cast(Cookpid, stop),
+			cook:stop(Cookpid),
 			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
@@ -1347,7 +1347,7 @@ queue_manager_and_cook_test_() ->
 						{_Key1, Call1} = get_call(Pid, Dummy1),
 						?assertEqual(Call1#queued_call.media, Dummy1),
 						?CONSOLE("Dummy1: ~p~nCall1:  ~p~nQPid:  ~p", [Dummy1, Call1, Pid]),
-						gen_server:call(Call1#queued_call.cook, {stop, test_kill}),
+						gen_server:stop(Call1#queued_call.cook, test_kill),
 						?assert(is_process_alive(Call1#queued_call.cook) =:= false),
 						receive
 						after 300 ->

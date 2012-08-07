@@ -65,10 +65,12 @@
 -export([
 	start_link/5,
 	start/5,
+	start_at/6,
 	stop/1,
+	stop/2,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/6,
+	stop_ringing/1,
 	ring_to/3
 ]).
 
@@ -128,6 +130,21 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 -spec(ring_to/3 :: (Cook :: pid(), Apid :: pid(), QCall :: #queued_call{}) -> 'ok' | 'invalid').
 ring_to(Cook, Apid, QCall) ->
 	gen_server:cast(Cook, {ring_to, Apid, QCall}).
+
+%% @doc stops the agent ring
+-spec(stop_ringing/1 :: (Cook :: pid()) -> 'ok' | 'invalid').
+stop_ringing(Cook) ->
+	gen_server:cast(Cook, stop_ringing).
+
+%% @doc Stop the cook with reason `normal'.
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
+stop(Pid) ->
+	gen_server:call(Pid, stop).
+
+%% @doc Stop the cook with reason.
+-spec(stop/2 :: (Pid :: pid(), Reason :: atom()) -> 'ok').
+stop(Pid, Reason) ->
+	gen_server:call(Pid, {stop, Reason}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -325,11 +342,6 @@ wait_for_queue(Qname) ->
 			?DEBUG("Queue ~p is back up", [Qname]),
 			Qpid
 	end.
-
-%% @doc Stop the cook with reason `normal'.
--spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) ->
-	gen_server:call(Pid, stop).
 
 %% @private
 -spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: pid(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').

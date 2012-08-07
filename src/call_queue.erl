@@ -355,7 +355,7 @@ find_by_pid_(_Needle, none) ->
 	none.
 
 %% @private
--spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{}, Skills :: [atom()]) -> [atom()]).
+-spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{} | #call{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, QCall, Skills) when is_record(QCall, queued_call) ->
 	Call = gen_media:get_call(QCall#queued_call.media),
 	expand_magic_skills(State, Call, Skills);
@@ -704,7 +704,7 @@ set_cpx_mon(State) ->
 	set_cpx_mon(State, ignore).
 
 %% @private
--spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').
+-spec(set_cpx_mon/2 :: (State :: #state{}, pid() | atom() | ignore) -> 'ok').
 set_cpx_mon(State, delete) ->
 	cpx_monitor:drop({queue, State#state.name});
 set_cpx_mon(State, Watch) ->

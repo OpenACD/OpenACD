@@ -612,7 +612,7 @@ agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
 	end;
 agent_transfer(Genmedia, Agent, Timeout) ->
-	case agent:query_agent(Agent) of
+	case agent_manager:query_agent(Agent) of
 		false ->
 			invalid;
 		{true, Apid} ->

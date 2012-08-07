@@ -2,7 +2,7 @@
 
 -record(inqueue_state, {
 	queue_mon :: 'undefined' | reference(),
-	queue_pid :: {string(), pid()},
+	queue_pid :: {string(), 'undefined' | pid()},
 	cook :: 'undefined' | reference(),
 	cook_mon :: reference(),
 	outband_ring_pid :: 'undefined' | pid()
@@ -10,11 +10,11 @@
 
 -record(inqueue_ringing_state, {
 	queue_mon :: 'undefined' | reference(),
-	queue_pid :: {string(), pid()},
+	queue_pid :: {string(), 'undefined' | pid()},
 	cook :: 'undefined' | reference(),
 	cook_mon :: reference(),
 	ring_mon :: 'undefined' | reference(),
-	ring_pid :: {string, pid()},
+	ring_pid :: {string(), pid()},
 	ringout :: reference(),
 	outband_ring_pid :: 'undefined' | pid()
 }).
@@ -29,7 +29,7 @@
 	oncall_pid :: {string(), pid()},
 	ring_mon :: reference(),
 	ring_pid :: {string(), pid()},
-	ringout :: reference,
+	ringout :: reference(),
 	outband_ring_pid :: 'undefined' | pid()
 }).
 

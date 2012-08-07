@@ -34,7 +34,7 @@
 -ifdef(GEN_SERVER).
 
 -spec(init/1 :: (Args :: [any()]) -> {'ok', state()} | {'ok', state(), gen_timeout()} | {'stop', any()} | 'ignore').
--spec(handle_call/3 :: (Event :: any(), From :: pid(), State :: state()) -> 
+-spec(handle_call/3 :: (Event :: any(), From :: {pid(), Tag :: term()}, State :: state()) ->
 	{'reply', any(), state()} | 
 	{'reply', any(), state(), gen_timeout()} | 
 	{'noreply', state()} | 
@@ -64,7 +64,7 @@
 	{'next_state', statename(), state()} | 
 	{'next_state', statename(), state(), gen_timeout()} | 
 	{'stop', any(), state()}).
--spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: state()) -> 
+-spec(handle_sync_event/4 :: (Event :: any(), From :: {pid(), Tag :: term()}, StateName :: statename(), State :: state()) -> 
 	{'reply', any(), statename(), state()} | 
 	{'reply', any(), statename(), state(), gen_timeout()} | 
 	{'next_state', statename(), state()} | 

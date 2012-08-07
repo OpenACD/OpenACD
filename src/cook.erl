@@ -83,7 +83,7 @@
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
-		callid :: string,
+		callid :: string(),
 		queue :: string(),
 		qpid :: pid(),
 		key :: call_key(),
@@ -390,7 +390,8 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	agent_manager:sort_agents_by_elegibility(Agents2).
 
 %% @private
--spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
+-spec(offer_call/2 :: (Agents :: [{string(), {Pid :: pid(), Id :: string(),
+	Skills :: [atom()], Node :: atom()}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;

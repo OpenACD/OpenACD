@@ -2076,6 +2076,8 @@ correct_client_sub(undefined) ->
 			Whatever
 	catch
 		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
+			#client{};
+		error:badarg ->
 			#client{}
 	end,
 	Client;

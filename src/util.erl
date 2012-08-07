@@ -110,8 +110,10 @@ http_datetime() ->
 
 %% @doc Take an erlang:now() format and turn it into something suitable for
 %% http headers, eg:  "Sun, 06 Nov 1994 08:49:37 GMT"
--spec(http_datetime/1 :: (Now :: {pos_integer(), pos_integer(),
-	pos_integer()}) -> string()).
+-type now() :: {Mega :: pos_integer(), Sec :: pos_integer(), Micro :: pos_integer()} |
+	{{Year::pos_integer(), Month::pos_integer(), Day::pos_integer()},
+	{Hour::non_neg_integer(), Minute::non_neg_integer(), Second::non_neg_integer()}}.
+-spec(http_datetime/1 :: (Now :: now()) -> string()).
 http_datetime({_Mega, _Sec, _Micro} = Now) ->
 	Datetime = calendar:now_to_universal_time(Now),
 	http_datetime(Datetime);

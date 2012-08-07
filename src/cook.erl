@@ -120,7 +120,7 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 				?DEBUG("about to enter loop ~p, ~p", [get('$ancestors'), Call]),
 				put('$ancestors', [Call]), % we don't want to die with the queue
 				gen_server:enter_loop(?MODULE, [], State);
-			{error, Reason} ->
+			{stop, Reason} ->
 				{error, Reason}
 		end
 	end,
@@ -163,17 +163,19 @@ init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 			Recipe = case round(Now - (MSec * 1000000 + Sec)) of
 				Ticked when Ticked > 1 ->
 					?DEBUG("fast forwarding", []),
-					fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
+					fast_forward(OptRecipe, util:floor(Ticked / (?TICK_LENGTH / 1000)),
+						Qpid, Call);
 				_Else ->
 					do_recipe(OptRecipe, 0, Qpid, Call)
 			end,
-			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
+			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid,
+				tref=Tref, key = Key, callid = CallRec#call.id},
 			gen_media:set_cook(Call,self()),
 			{ok, State}
 	catch
 		Why:Reason ->
 			?ERROR("~p:~p", [Why, Reason]),
-			{error, Reason}
+			{stop, Reason}
 	end.
 
 %%--------------------------------------------------------------------

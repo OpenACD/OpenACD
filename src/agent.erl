@@ -199,14 +199,7 @@ blab(Pid, Text) ->
 %% @doc Get the endpoint for a given module from the agent record.
 -spec(get_endpoint/2 :: (Module :: atom(), Agent :: #agent{}) -> {'ok', any()} | 'inband' | {'error', any()}).
 get_endpoint(Module, Agent) when is_record(Agent, agent) ->
-	get_endpoint(Module, Agent#agent.endpoints);
-get_endpoint(Module, Ends) ->
-	case dict:find(Module, Ends) of
-		error -> {error, notfound};
-		{ok, {_, inband}} -> inband;
-		{ok, {_, {module, NewMod}}} -> get_endpoint(NewMod, Ends);
-		{ok, Data} -> {ok, Data}
-	end.
+	find_endpoint(Module, Agent#agent.endpoints).
 
 %% @doc Set the endpoint data for a specific module.  The calling process is
 %% forced to do much of the verification that the module mentioned exists
@@ -607,6 +600,14 @@ get_endpoint_by_pid(Pid, [_Head | Tail]) ->
 get_endpoint_by_pid(Pid, EndpointDict) ->
 	Ends = dict:to_list(EndpointDict),
 	get_endpoint_by_pid(Pid, Ends).
+
+find_endpoint(Module, Ends) ->
+	case dict:find(Module, Ends) of
+		error -> {error, notfound};
+		{ok, {_, inband}} -> inband;
+		{ok, {_, {module, NewMod}}} -> find_endpoint(NewMod, Ends);
+		{ok, Data} -> {ok, Data}
+	end.
 
 % ----------------------------------------------------------------------
 	

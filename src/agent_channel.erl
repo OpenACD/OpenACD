@@ -129,7 +129,7 @@ start(AgentRec, Options) ->
 	gen_fsm:start(?MODULE, [AgentRec, Options], []).
 
 start(AgentRec, CallRec, EndpointData, InitState) ->
-	gen_fsm:start(?MODULE, [AgentRec, CallRec, EndpointData, InitState]).
+	gen_fsm:start(?MODULE, [AgentRec, CallRec, EndpointData, InitState], []).
 
 %% @doc Start an fsm linked to the calling process.
 -spec(start_link/2 :: (AgentRec :: #agent{}, Options :: start_opts()) -> {'ok', pid()}).

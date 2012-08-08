@@ -53,7 +53,10 @@
 		source_module = ?MODULE :: atom(),
 		bound = [] :: [pid()],
 		% client record
-		client = undefined :: 'undefined' | #client{}, %#client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: ,
+		%% TODO cleanup too many client types
+		client = undefined :: 'undefined' | #client{} 
+			| {Id :: string(), Opts :: [{atom(), any()}]}
+			| (Id :: string()),
 		skills = [] :: [atom()],
 		cook :: pid() | 'undefined', % gen_media uses this
 		% ring_path really means if the agent fsm can send an answer

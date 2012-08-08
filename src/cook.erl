@@ -65,10 +65,12 @@
 -export([
 	start_link/5,
 	start/5,
+	start_at/6,
 	stop/1,
+	stop/2,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/6,
+	stop_ringing/1,
 	ring_to/3
 ]).
 
@@ -81,7 +83,7 @@
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
-		callid :: string,
+		callid :: string(),
 		queue :: string(),
 		qpid :: pid(),
 		key :: call_key(),
@@ -118,7 +120,7 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 				?DEBUG("about to enter loop ~p, ~p", [get('$ancestors'), Call]),
 				put('$ancestors', [Call]), % we don't want to die with the queue
 				gen_server:enter_loop(?MODULE, [], State);
-			{error, Reason} ->
+			{stop, Reason} ->
 				{error, Reason}
 		end
 	end,
@@ -128,6 +130,21 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 -spec(ring_to/3 :: (Cook :: pid(), Apid :: pid(), QCall :: #queued_call{}) -> 'ok' | 'invalid').
 ring_to(Cook, Apid, QCall) ->
 	gen_server:cast(Cook, {ring_to, Apid, QCall}).
+
+%% @doc stops the agent ring
+-spec(stop_ringing/1 :: (Cook :: pid()) -> 'ok' | 'invalid').
+stop_ringing(Cook) ->
+	gen_server:cast(Cook, stop_ringing).
+
+%% @doc Stop the cook with reason `normal'.
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
+stop(Pid) ->
+	gen_server:call(Pid, stop).
+
+%% @doc Stop the cook with reason.
+-spec(stop/2 :: (Pid :: pid(), Reason :: atom()) -> 'ok').
+stop(Pid, Reason) ->
+	gen_server:call(Pid, {stop, Reason}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -146,17 +163,19 @@ init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 			Recipe = case round(Now - (MSec * 1000000 + Sec)) of
 				Ticked when Ticked > 1 ->
 					?DEBUG("fast forwarding", []),
-					fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
+					fast_forward(OptRecipe, util:floor(Ticked / (?TICK_LENGTH / 1000)),
+						Qpid, Call);
 				_Else ->
 					do_recipe(OptRecipe, 0, Qpid, Call)
 			end,
-			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
+			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid,
+				tref=Tref, key = Key, callid = CallRec#call.id},
 			gen_media:set_cook(Call,self()),
 			{ok, State}
 	catch
 		Why:Reason ->
 			?ERROR("~p:~p", [Why, Reason]),
-			{error, Reason}
+			{stop, Reason}
 	end.
 
 %%--------------------------------------------------------------------
@@ -326,11 +345,6 @@ wait_for_queue(Qname) ->
 			Qpid
 	end.
 
-%% @doc Stop the cook with reason `normal'.
--spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) ->
-	gen_server:call(Pid, stop).
-
 %% @private
 -spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: pid(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').
 do_route(ringing, _Qpid, _Callpid) ->
@@ -376,7 +390,8 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	agent_manager:sort_agents_by_elegibility(Agents2).
 
 %% @private
--spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
+-spec(offer_call/2 :: (Agents :: [{string(), {Pid :: pid(), Id :: string(),
+	Skills :: [atom()], Node :: atom()}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;

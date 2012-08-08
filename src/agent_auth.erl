@@ -556,7 +556,7 @@ build_agent_record([{lastname, Name} | Tail], Rec) ->
 
 build_agent_record([{endpoints, Ends} | Tail], Rec) when is_list(Ends) ->
 	case Rec#agent_auth.endpoints of
-		undefined ->
+		[] ->
 			build_agent_record(Tail, Rec#agent_auth{endpoints = Ends});
 		OldEnds ->
 			NewEnds = proplist_overwrite(Ends, OldEnds),

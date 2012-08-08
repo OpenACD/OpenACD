@@ -612,7 +612,7 @@ agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 			agent_transfer(Genmedia, {Agent, Apid}, Timeout)
 	end;
 agent_transfer(Genmedia, Agent, Timeout) ->
-	case agent:query_agent(Agent) of
+	case agent_manager:query_agent(Agent) of
 		false ->
 			invalid;
 		{true, Apid} ->
@@ -1960,11 +1960,7 @@ set_agent_state(Apid, Args) ->
 
 stop_agent_channel(Apid) ->
 	try agent_channel:stop(Apid) of
-		ok ->
-			ok;
-		Res ->
-			?ERROR("Agent stop:  ~p", [Res]),
-			Res
+		_ -> ok
 	catch
 		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
 			?WARNING("Agent ~p is a dead pid", [Apid]),

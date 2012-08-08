@@ -2354,7 +2354,7 @@ url_pop_test_() ->
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = []}},
 			% if the mock (Conn) gets a cast, it'll error; that's the test.
-			% if it error's, it's a fail.
+			% if it errors, it's a fail.
 			url_pop(Call, Agent, [])
 		end},
 		{"url is an empty list",

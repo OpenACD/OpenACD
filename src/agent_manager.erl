@@ -55,6 +55,7 @@
 -type(skills() :: skill_list()).
 -type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills(),
 	channels(), endpoints()}).
+-type(agent_entry() :: {#agent_key{}, #agent_cache{}}).
 
 %-type(rotations() :: non_neg_integer()).
 %-type(all_skill_flag() :: 'a' | 'z'). % a < z, a meaning it has the all flag,
@@ -65,7 +66,7 @@
 
 -record(state, {
 	agents = dict:new() :: dict(),
-	route_list = gb_trees:empty() :: any(),
+	route_list = gb_trees:empty() :: gb_tree(),
 	lists_requested = 0 :: integer()
 }).
 
@@ -96,7 +97,7 @@
 	list/0,
 	notify/5,
 	set_avail/2,
-	set_ends/2
+	set_ends/2,route_list/0
 ]).
 
 % gen_leader callbacks
@@ -164,7 +165,7 @@ find_avail_agents_by_skill(Skills) ->
 %% makes sure the server knows it's for routing.  Depricated in favor of
 %% {@link filtered_route_list/3}
 -spec(filtered_route_list/1 :: (Skills :: [atom()]) -> 
-		{integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
+		[agent_entry()]).
 filtered_route_list(Skills) ->
 	Agents = route_list(),
 	filter_avail_agents_by_skill(Agents, Skills).
@@ -176,7 +177,7 @@ filtered_route_list(Skills) ->
 	Skills :: [atom()],
 	Chan :: atom(),
 	Endpoint :: atom()) -> 
-		{integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
+		[agent_entry()]).
 filtered_route_list(Skills, Chan, Endpoint) ->
 	Agents = route_list(),
 	[ O ||
@@ -190,17 +191,16 @@ filtered_route_list(Skills, Chan, Endpoint) ->
 	].
 
 %% @doc Filter the agents based on the skill list and availability.
--spec(filter_avail_agents_by_skill/2 :: (Agents :: [any()], Skills :: [atom()]) -> [any()]).
+-spec(filter_avail_agents_by_skill/2 :: (Agents :: [agent_entry()], Skills :: [atom()]) -> [agent_entry()]).
 filter_avail_agents_by_skill(Agents, Skills) ->
-	AvailSkilledAgents = [O || 
+	[O || 
 		{_K, #agent_cache{skills = AgSkills} = AgCache} = O <- Agents,
 		length(AgCache#agent_cache.channels) > 0,
 		( % check if either the call or the agent has the _all skill
 			lists:member('_all', AgSkills) orelse
 			lists:member('_all', Skills)
 			% if there's no _all skill, make sure the agent has all the required skills
-		) orelse util:list_contains_all(AgSkills, Skills)],
-	AvailSkilledAgents.
+		) orelse util:list_contains_all(AgSkills, Skills)].
 
 %% @doc Sorted by idle time, then the length of the list of skills the agent has;  this means idle time is less important.
 %% No un-idle agents should be in the list, otherwise it is fail.
@@ -239,12 +239,12 @@ find_by_pid(Apid) ->
 	gen_leader:leader_call(?MODULE, {get_login, Apid}).
 
 %% @doc Get a list of agents at the node this `agent_manager' is running on.
--spec(list/0 :: () -> [any()]).
+-spec(list/0 :: () -> [agent_entry()]).
 list() ->
 	gen_leader:call(?MODULE, list_agents).
 
 %% @doc List the available agents on this node.
--spec(list_avail/0 :: () -> [any()]).
+-spec(list_avail/0 :: () -> [agent_entry()]).
 list_avail() ->
 	List = gen_leader:call(?MODULE, list_avail_agents),
 	[X || {_, #agent_cache{channels = Chans}} = X <- List, length(Chans) > 0].
@@ -252,7 +252,7 @@ list_avail() ->
 %% @doc Get a list of agents, tagged for how many requests of this type
 %% have been made without the agent list changing in any way.  A change is
 %% either an agent added, dropped, or skill list change.
--spec(route_list/0 :: () -> {integer(), [any()]}).
+-spec(route_list/0 :: () -> [agent_entry()]).
 route_list() ->
 	gen_leader:call(?MODULE, route_list_agents).
 

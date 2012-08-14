@@ -260,7 +260,6 @@ precall_agent(Agent, Opts, Fails) when is_record(Agent, agent) ->
 %%====================================================================
 
 init([Props, Fails]) ->
-	?INFO("Entered dummy_media init", []),
 	process_flag(trap_exit, true),
 	%Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
 	Callrec = #call{

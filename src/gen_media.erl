@@ -688,11 +688,13 @@ init([Callback, Args]) ->
 	?INFO("gen_media init: ~p, ~p", [Callback, Args]),
 	case Callback:init(Args) of
 		{ok, {Substate, undefined}} ->
+			?INFO("Substate, undefined",[]),
 				BaseState = #base_state{
 					callback = Callback,
 					substate = Substate,
 					callrec = undefined
 				},
+				?INFO("Result: ~p ~p", [Substate, BaseState]),
 				{ok, inivr, {BaseState, #inivr_state{}}};
 		{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
@@ -2054,11 +2056,11 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 correct_client(#call{client = Client} = Callrec) ->
 	Newclient = case Client of
 		#client{id = Id} ->
-			correct_client_sub({Id,Client#client.options});
+			correct_client_sub({Id, Client#client.options});
 		undefined ->
 			correct_client_sub(undefined);
-		{Id,Opts} ->
-			correct_client_sub({Id,Opts});
+		{Id, Opts} ->
+			correct_client_sub({Id, Opts});
 		String ->
 			% if given the client id; so a media is not burndened with checking
 			% mnesia or the client itself.
@@ -2086,6 +2088,8 @@ correct_client_sub({Id,Opts}) ->
 			Else
 	catch
 		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
+			#client{};
+		error:badarg ->
 			#client{}
 	end,
 	Opts0 = lists:sort(Opts),
@@ -2377,7 +2381,7 @@ url_pop_test_() ->
 			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}]),
 			gen_server_mock:assert_expectations(Agent)
-		end},
+		end	},
 		{"url is set with some additional options, some of which are blank",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
@@ -2388,8 +2392,24 @@ url_pop_test_() ->
 	]
 	end}.
 
+simple_init_test_() ->
+	[{"call rec returned, but no queue", fun() ->
+	meck:new(dummy_media),
+	meck:expect(dummy_media, init, fun([Props, success]) ->
+				Self = self(),
+				{ok,{{state,{call,"dummy",voice,{"Unknown","Unknown"},[],Self,dummy_media,[],{client,undefined,undefined,[],undefined,1344960431},[],undefined,inband,inband,inbound,40,[]},undefined,undefined,{dict,13,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[[agent_transfer|success]],[],[[ring_agent|success],[call_end|success]],[[announce|success],[warm_transfer_complete|success]],[],[],[],[[spy|success]],[],[[start_cook|success],[stop_cook|success]],[[get_call|success],[voicemail|success],[oncall|success],[warm_transfer_cancel|success]],[],[[warm_transfer_begin|success]],[]}}},undefined},{call,"dummy",voice,{"Unknown","Unknown"},[],Self,dummy_media,[],{client,undefined,undefined,[],undefined,1344960431},[],undefined,inband,inband,inbound,40,[]}}}
+				end),
+
+			Args = [[{id, "dummy"}, {queues, none}], success],
+			Res = init([dummy_media, Args]),
+			?assertMatch({ok, inivr, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, {inivr_state}}}, Res),
+			?assert(meck:validate(dummy_media)),
+			meck:unload(dummy_media)
+	end}].
+
+
 %% TODO Fix tests.
-init_test_() ->
+init_test_d() ->
 	?INFO("Entered init_test", []),
 	util:start_testnode(),
 	N = util:start_testnode(gen_media_init_tests),

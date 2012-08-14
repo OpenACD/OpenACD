@@ -734,8 +734,8 @@ start_testnode(Name, Host) ->
 	case slave:start_link(Host, Name) of
 		{ok, N} -> 
 			rpc:call(N, util, add_paths, []),
-			Covered = [Mod || {Mod, cover_compiled} <- code:all_loaded()],
-			rpc:call(N, util, cover_mods, [Covered]),
+			%Covered = [Mod || {Mod, cover_compiled} <- code:all_loaded()],
+			%rpc:call(N, util, cover_mods, [Covered]),
 			N;
 		{error, {already_running, N}} -> N
 	end.
@@ -747,7 +747,7 @@ code_reload_test_() ->
 	{spawn, [{"Reloading everything", ?_assertEqual(ok, reload_all())}]}].
 
 now_test() ->
-	{Mega, Sec, _} = erlang:now(),
+	{Mega, Sec, _} = os:timestamp(),
 	Res = ?MODULE:now(),
 	?assertEqual(Mega * 1000000 + Sec, Res).
 

@@ -2394,17 +2394,10 @@ url_pop_test_() ->
 
 simple_init_test_() ->
 	[{"call rec returned, but no queue", fun() ->
-	meck:new(dummy_media),
-	meck:expect(dummy_media, init, fun([Props, success]) ->
-				Self = self(),
-				{ok,{{state,{call,"dummy",voice,{"Unknown","Unknown"},[],Self,dummy_media,[],{client,undefined,undefined,[],undefined,1344960431},[],undefined,inband,inband,inbound,40,[]},undefined,undefined,{dict,13,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[[agent_transfer|success]],[],[[ring_agent|success],[call_end|success]],[[announce|success],[warm_transfer_complete|success]],[],[],[],[[spy|success]],[],[[start_cook|success],[stop_cook|success]],[[get_call|success],[voicemail|success],[oncall|success],[warm_transfer_cancel|success]],[],[[warm_transfer_begin|success]],[]}}},undefined},{call,"dummy",voice,{"Unknown","Unknown"},[],Self,dummy_media,[],{client,undefined,undefined,[],undefined,1344960431},[],undefined,inband,inband,inbound,40,[]}}}
-				end),
-
-			Args = [[{id, "dummy"}, {queues, none}], success],
-			Res = init([dummy_media, Args]),
-			?assertMatch({ok, inivr, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, {inivr_state}}}, Res),
-			?assert(meck:validate(dummy_media)),
-			meck:unload(dummy_media)
+		code:load_abs("../include_apps/oacd_dummy/ebin/dummy_media"),
+		Args = [[{id, "dummy"}, {queues, none}], success],
+		Res = (catch init([dummy_media, Args])),
+		?assertMatch({ok, inivr, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, {inivr_state}}}, Res)
 	end}].
 
 

@@ -599,7 +599,7 @@ get_queue_transfer_options(State, Channel) ->
 			{error, <<"channel is not oncall">>, <<"INVALID_STATE_CHANGE">>}
 	end.
 
-%% @doc {@agent_api} Force the agent channgel to disconnect the media;
+%% doc {@agent_api} Force the agent channgel to disconnect the media;
 %% usually through a brutal kill of the media pid.  Best used as an
 %% emergency escape hatch, and not under normal call flow.  No result set
 %% as it's merely success or failure.

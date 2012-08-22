@@ -402,7 +402,7 @@ media_cast(Conn, Channel, Command) ->
 media_cast(Conn, Channel, Command, Args) ->
 	gen_server:call(Conn, {media_cast, Channel, Command, Args}).
 
-%% @doc {@web} Forward a command or request to the media associated with 
+%% doc {@web} Forward a command or request to the media associated with 
 %% an oncall agent.  `Command' is the name of the request to make.  `Mode' 
 %% is either `"call"' or `"cast"'.  `"call"' indicates an indepth reply is 
 %% expected from the media.  `"cast"' indicates no meaningful reply is 
@@ -420,7 +420,7 @@ media_cast(Conn, Channel, Command, Args) ->
 % 	],
 % 	gen_server:call(Conn, {media, Post}).
 
-%% @doc {@web} media_command with an empty argument list.
+%% doc {@web} media_command with an empty argument list.
 % -spec(media_command/3 :: (Conn :: pid(), Command :: bin_string(), Mode :: bin_string()) -> any()).
 % media_command(Conn, Command, Mode) ->
 % 	media_command(Conn, Command, Mode, []).

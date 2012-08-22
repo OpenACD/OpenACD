@@ -855,7 +855,7 @@ handle_sync_event_test_() ->
 			State = #state{agent_rec = Agent},
 			{Agent, State, Endpoints}
 		end,
-		fun({Agent, State, Endpoints}) -> [
+		fun({_Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
 				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
@@ -973,7 +973,7 @@ state_test_() ->
 		end,
 		{Setup, Validator, Teardown, Mecks, Zombie}
 	end,
-	fun({Setup, Validate, Teardown, Mecks, Zombie}) -> [
+	fun({Setup, Validate, Teardown, _Mecks, Zombie}) -> [
 		{"from release", {foreach, fun() ->
 			Setup()
 		end,
@@ -1104,7 +1104,7 @@ state_test_() ->
 						])},
 					Call = #call{id = "media", type = voice, source = self(),
 						source_module = dummy_media},
-					meck:expect(agent_channel, start_link, fun(InAgent, InCall, End, precall) ->
+					meck:expect(agent_channel, start_link, fun(InAgent, InCall, _End, precall) ->
 						?assertEqual(Agent, InAgent),
 						?assertEqual(Call, InCall),
 						{ok, Zombie}

@@ -139,6 +139,8 @@ stop(Pid) ->
 
 %% @doc Set the agent released or idle.
 -spec(set_release/2 :: (Pid :: pid(), Released :: 'none' | 'default' | release_code()) -> 'ok').
+set_release(Pid, default) ->
+	set_release(Pid, ?DEFAULT_RELEASE);
 set_release(Pid, Released) ->
 	gen_fsm:sync_send_event(Pid, {set_release, Released}).
 
@@ -277,10 +279,6 @@ init([Agent, _Options]) when is_record(Agent, agent) ->
 
 idle({set_release, none}, _From, State) ->
 	{reply, ok, idle, State};
-
-idle({set_release, default}, From, State) ->
-	idle({set_release, ?DEFAULT_RELEASE}, From, State);
-
 idle({set_release, {_Id, _Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
 	dispatch_manager:end_avail(self()),
 	agent_manager:set_avail(Agent#agent.login, []),
@@ -854,9 +852,14 @@ external_api_test_() ->
 			?assert(meck:validate(gen_fsm)),
 			?assert(meck:called(gen_fsm, send_all_state_event, [Pid, stop]))
 		end},
-		{"set_release/2", fun() ->
-			Release = default,
+		{"set_release/2 default", fun() ->
+			agent:set_release(Pid, default),
 
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_event, [Pid, {set_release, ?DEFAULT_RELEASE}]))
+		end},
+		{"set_release/2 other", fun() ->
+			Release = none,
 			agent:set_release(Pid, Release),
 
 			?assert(meck:validate(gen_fsm)),

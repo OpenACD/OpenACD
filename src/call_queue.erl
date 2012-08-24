@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -28,9 +28,9 @@
 %%
 
 %% @doc An inplementation of priority queues, with parallel call delivery.
-%% The calls in queue can be re-prioritized at any time and they can have 
+%% The calls in queue can be re-prioritized at any time and they can have
 %% skills added/removed to facilitate scripted/dynamic call delivery.
-%% Each call can be 'bound' to by a single dispatcher from each node in a 
+%% Each call can be 'bound' to by a single dispatcher from each node in a
 %% cluster.
 
 -module(call_queue).
@@ -61,8 +61,10 @@
 	add/2,
 	add_at/3,
 	ask/1,
-	get_call/2,
+	get_call/2, % should be changed to get_qcall_entry
 	get_calls/1,
+	get_qcall/2,
+	get_qcall_priority/2,
 	dump/1,
 	remove/2,
 	bgremove/2,
@@ -102,7 +104,7 @@
 -type(start_opt() :: {opt_name(), any()} | 'default_queue').
 -type(opts() :: [start_opt()]).
 
-%% @doc Start a queue named `Name' with no link to the current process.  
+%% @doc Start a queue named `Name' with no link to the current process.
 %% Passing in `default_queue' as a flag means the queue cannot exit when
 %% empty.
 -spec(start/2 :: (Name :: string(), Opts :: opts()) -> {ok, pid()}).
@@ -497,7 +499,10 @@ handle_call(grab, {From, _Tag}, State) ->
 			{reply, none, State};
 		{Key, Value} ->
 			link(From), % to catch exits from the dispatcher so we can clean out dead pids
-			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue), last_service=os:timestamp()},
+			State2 = State#state{queue=gb_trees:update(Key,
+				Value#queued_call{
+					dispatchers=lists:append(Value#queued_call.dispatchers, [From])},
+				State#state.queue), last_service=os:timestamp()},
 			Value#queued_call.cook ! grab, % notify the cook that we grabbed
 			{reply, {Key, Value}, State2}
 	end;
@@ -975,6 +980,19 @@ call_in_out_grab_test_() ->
 				?assert(meck:called(cook, stop, [CookPid(1)]))
 			end}
 		end, fun(Pid) ->
+			{"get calls", fun() ->
+				?assertMatch([_], call_queue:get_calls(Pid)),
+				call_queue:add(Pid, MediaPid(2)),
+				call_queue:add(Pid, MediaPid(3)),
+				call_queue:add(Pid, MediaPid(4)),
+
+				QCallEntries = call_queue:get_calls(Pid),
+				?assertEqual(4, length(QCallEntries)),
+
+				?assertEqual([MediaId(X) || X <- [1,2,3,4]],
+					lists:sort([Q#queued_call.id || {_, Q} <- QCallEntries]))
+			end}
+		end, fun(Pid) ->
 			{"bgremove by id", fun() ->
 				?assertMatch(#queued_call{}, call_queue:get_qcall(Pid, MediaId(1))),
 				call_queue:bgremove(Pid, MediaId(1)),
@@ -997,6 +1015,22 @@ call_in_out_grab_test_() ->
 			{"remove non-existing pid", fun() ->
 				?assertMatch(none, call_queue:get_qcall(Pid, MediaPid(8))),
 				?assertEqual(none, call_queue:remove(Pid, MediaPid(8)))
+			end}
+		end, fun(Pid) ->
+			{"grab binds once", fun() ->
+				{_Key, QCall} = call_queue:grab(Pid),
+
+				{links, Links} = erlang:process_info(self(), links),
+				?assert(lists:member(Pid, Links)),
+				unlink(Pid),
+
+				?assertEqual(MediaId(1), QCall#queued_call.id),
+				?assertEqual(none, call_queue:grab(Pid))
+			end}
+		end, fun(Pid) ->
+			{"grab from empty call queue", fun() ->
+				call_queue:remove(Pid, MediaPid(1)),
+				?assertEqual(none, call_queue:grab(Pid))
 			end}
 		end]}.
 

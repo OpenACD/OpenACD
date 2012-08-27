@@ -386,7 +386,7 @@ expand_magic_skills(State, Call, Skills) ->
 		'_queue' -> {Skill, State#state.name};
 		'_brand' -> case Call#call.client of
 			Name when is_record(Name, client) -> {Skill, Name#client.label};
-			_ -> {Skill, "Unknown"}
+			_ -> {Skill, undefined}
 		end;
 		_ -> Skill
 	end	|| Skill <- Skills],
@@ -805,7 +805,8 @@ call_update_test_() ->
 	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
 	CookPid = fun(X) -> lists:nth(X, CookPids) end,
 
-	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X), skills=[foo, bar, '_node']} end,
+	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X),
+		skills=[foo, bar, '_node'], client=#client{label="myclient"}} end,
 
 	IsCookStarted = fun(X) ->
 		lists:any(fun({_, {cook, start_at,
@@ -826,17 +827,14 @@ call_update_test_() ->
 		meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
 			{ok, CookPid(util:list_index(MPid, MediaPids))}
 		end),
-		meck:expect(cook, stop, fun(_MPid) -> ok end),
-
-		{ok, Pid} = call_queue:start("testqueue", []),
-		call_queue:add(Pid, 1, MediaPid(1))
+		meck:expect(cook, stop, fun(_MPid) -> ok end)
 	end,
 	fun(_) ->
 		meck:unload(gen_media),
 		meck:unload(cook)
 	end,
 	{foreach, fun() ->
-			{ok, Pid} = call_queue:start_link("testq", []),
+			{ok, Pid} = call_queue:start_link("testqueue", []),
 
 			Priority = 7,
 			call_queue:add(Pid, Priority, MediaPid(1), Call(1)),
@@ -963,6 +961,44 @@ call_update_test_() ->
 		end, fun(Pid) ->
 			{"remove skills to unkown call", fun() ->
 				?assertEqual(none, call_queue:remove_skills(Pid, "noexists", [baz, qux]))
+			end}
+		end, fun(Pid) ->
+			%% TODO magic skill expansion should be moved
+			{"_queue magic skill expanded", fun() ->
+				call_queue:add_skills(Pid, MediaPid(1), ['_queue']),
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member({'_queue', "testqueue"}, QCall#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"_brand magic skill expanded", fun() ->
+				call_queue:add_skills(Pid, MediaPid(1), ['_brand']),
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member({'_brand', "myclient"}, QCall#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"_brand magic skill to undefined if call doesn't have client", fun() ->
+				Call2 = #call{id=MediaId(2), source=MediaPid(2),
+					skills=['_brand'], client=undefined},
+				call_queue:add(Pid, 10, MediaPid(2), Call2),
+				QCall = call_queue:get_qcall(Pid, MediaPid(2)),
+				?assert(lists:member({'_brand', undefined}, QCall#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"_node magic skill expanded", fun() ->
+				call_queue:add_skills(Pid, MediaPid(1), ['_node']),
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member({'_node', node()}, QCall#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"remove magic skills", fun() ->
+				call_queue:add_skills(Pid, MediaPid(1), ['_node']),
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				IsNodeMagicSkill = fun({'_node', _}) -> true; (_) -> false end,
+				?assert(lists:any(IsNodeMagicSkill, QCall#queued_call.skills)),
+				?assertEqual(ok, call_queue:remove_skills(Pid, MediaPid(1), ['_node'])),
+
+				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(not lists:any(IsNodeMagicSkill, QCall2#queued_call.skills))
 			end}
 		end]
 	}}.

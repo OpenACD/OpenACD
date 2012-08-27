@@ -800,21 +800,36 @@ weight_test_() -> [{"default weight", fun() ->
 
 call_update_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
-	MediaPids = [util:zombie() || _X <- lists:seq(1, 10)],
+	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],
 	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
-	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X), skills=[a, b]} end,
+	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
+	CookPid = fun(X) -> lists:nth(X, CookPids) end,
+
+	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X), skills=[foo, bar, '_node']} end,
+
+	IsCookStarted = fun(X) ->
+		lists:any(fun({_, {cook, start_at,
+			[N, P, _, "testqueue", Pid, _]}, _}) ->
+				N =:= node() andalso
+				P =:= MediaPid(1);
+			(_) -> false end,
+		meck:history(cook))
+	end,
 
 	{setup, fun() ->
-		%% Mocks
-		meck:new(cook),
-		meck:expect(cook, start_at, fun(_Node, _Call, _Recipe, _Queue, _Qpid, _K) ->
-			{ok, util:zombie()}
+		meck:new(gen_media),
+		meck:expect(gen_media, get_call, fun(MPid) ->
+			Call(util:list_index(MPid, MediaPids))
 		end),
 
-		meck:new(gen_media),
-		meck:expect(gen_media, get_call, fun(_MediaPid) ->
-			Call
-		end)
+		meck:new(cook),
+		meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
+			{ok, CookPid(util:list_index(MPid, MediaPids))}
+		end),
+		meck:expect(cook, stop, fun(_MPid) -> ok end),
+
+		{ok, Pid} = call_queue:start("testqueue", []),
+		call_queue:add(Pid, 1, MediaPid(1))
 	end,
 	fun(_) ->
 		meck:unload(gen_media),
@@ -832,69 +847,122 @@ call_update_test_() ->
 			call_queue:stop(Pid)
 		end,
 		[fun(Pid) ->
-			{"Get/Set priority", fun() ->
-				?assertMatch(7, call_queue:get_qcall_priority(Pid, MediaId(1))),
-
-				%% by id
-				call_queue:set_priority(Pid, MediaId(1), 9),
-				?assertMatch(9, call_queue:get_qcall_priority(Pid, MediaId(1))),
-
-				%% by pid
-				call_queue:set_priority(Pid, MediaPid(1), 7),
-				?assertMatch(7, call_queue:get_qcall_priority(Pid, MediaPid(1))),
-
-				%% non-existent by id
-				?assertEqual(none, call_queue:set_priority(Pid, "nothere", 9)),
-
-				%% non-existent by pid
-				?assertEqual(none, call_queue:set_priority(Pid, self(), 9))
+			{"set priority by id", fun() ->
+				?assertEqual(ok, call_queue:set_priority(Pid, MediaId(1), 2)),
+				{Key, QCall} = call_queue:get_call(Pid, MediaId(1)),
+				?assertEqual(MediaId(1), QCall#queued_call.id),
+				?assertMatch({2, {_MacroSec, _Sec, MicroSec}}, Key)
 			end}
-		end,
-
-		fun(Pid) ->
-			{"Reprioritize", fun() ->
-				%% Three calls with same priority
-				call_queue:add(Pid, 1, MediaPid(2), Call(2)),
-				call_queue:add(Pid, 1, MediaPid(3), Call(3)),
-				call_queue:add(Pid, 1, MediaPid(4), Call(4)),
-
-				%% Should be the first one added
-				{_, QCall1} = call_queue:ask(Pid),
-				?assertEqual(MediaId(2), QCall1#queued_call.id),
-
-				%% Setting priority of call 3 to 0 should make it top priority
-				call_queue:set_priority(Pid, MediaId(3), 0),
-				{_, QCall2} = call_queue:ask(Pid),
-				?assertEqual(MediaId(3), QCall2#queued_call.id),
-
-				%% Bumping down priority of calls 2 and 3 should make
-				%% call 4 the top priority
-				call_queue:set_priority(Pid, MediaId(2), 5),
-				call_queue:set_priority(Pid, MediaId(3), 5),
-				{_, QCall3} = call_queue:ask(Pid),
-				?assertEqual(MediaId(4), QCall3#queued_call.id)
+		end, fun(Pid) ->
+			{"set priority by pid", fun() ->
+				?assertEqual(ok, call_queue:set_priority(Pid, MediaPid(1), 2)),
+				{Key, QCall} = call_queue:get_call(Pid, MediaPid(1)),
+				?assertEqual(MediaPid(1), QCall#queued_call.media),
+				?assertMatch({2, {_MacroSec, _Sec, MicroSec}}, Key)
 			end}
-		end,
+		end, fun(Pid) ->
+			{"set priority of non-existant call by id", fun() ->
+				?assertEqual(none, call_queue:set_priority(Pid, "notexists", 5))
+			end}
+		end, fun(Pid) ->
+			{"set priority of non-existant call by pid", fun() ->
+				?assertEqual(none, call_queue:set_priority(Pid, MediaPid(6), 5))
+			end}
+		end, fun(Pid) ->
+			{"increase priority", fun() ->
+				%% Clear out
+				call_queue:remove(Pid, MediaPid(1)),
+				?assertEqual([], call_queue:get_calls(Pid)),
 
-		fun(Pid) ->
-			{"Add/Remove skills", fun() ->
-				QCall = call_queue:get_qcall(Pid, MediaId(1)),
-				?assert(not lists:member(foo, QCall#queued_call.skills)),
-				?assert(not lists:member(bar, QCall#queued_call.skills)),
+				call_queue:add(Pid, 1, MediaPid(1)),
+				call_queue:add(Pid, 1, MediaPid(2)),
+				call_queue:add(Pid, 1, MediaPid(3)),
 
-				%% add
-				call_queue:add_skills(Pid, MediaId(1), [foo, bar]),
+				{{1, _}, QCall1} = call_queue:ask(Pid),
+				?assertEqual(MediaId(1), QCall1#queued_call.id),
+
+				call_queue:set_priority(Pid, MediaPid(2), 0),
+				{{0, _}, QCall2} = call_queue:ask(Pid),
+				?assertEqual(MediaId(2), QCall2#queued_call.id)
+			end}
+		end, fun(Pid) ->
+			{"decrease priority", fun() ->
+			%% Clear out
+				call_queue:remove(Pid, MediaPid(1)),
+				?assertEqual([], call_queue:get_calls(Pid)),
+
+				call_queue:add(Pid, 1, MediaPid(1)),
+				call_queue:add(Pid, 1, MediaPid(2)),
+				call_queue:add(Pid, 1, MediaPid(3)),
+
+				{{1, _}, QCall1} = call_queue:ask(Pid),
+				?assertEqual(MediaId(1), QCall1#queued_call.id),
+
+				call_queue:set_priority(Pid, MediaPid(1), 2),
+				{{1, _}, QCall2} = call_queue:ask(Pid),
+				?assertEqual(MediaId(2), QCall2#queued_call.id)
+			end}
+		end, fun(Pid) ->
+			{"skills from call", fun() ->
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				Skills = QCall#queued_call.skills,
+				?assert(lists:member(foo, Skills)),
+				?assert(not lists:member(baz, Skills)),
+				?assertEqual(3, length(Skills))
+			end}
+		end, fun(Pid) ->
+			{"add skills by id", fun() ->
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(not lists:member(baz, QCall#queued_call.skills)),
+				?assert(not lists:member(qux, QCall#queued_call.skills)),
+
+				?assertEqual(ok, call_queue:add_skills(Pid, MediaId(1), [baz, qux])),
+
+				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member(baz, QCall2#queued_call.skills)),
+				?assert(lists:member(qux, QCall2#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"add skills by pid", fun() ->
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(not lists:member(baz, QCall#queued_call.skills)),
+				?assert(not lists:member(qux, QCall#queued_call.skills)),
+
+				?assertEqual(ok, call_queue:add_skills(Pid, MediaPid(1), [baz, qux])),
+
+				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member(baz, QCall2#queued_call.skills)),
+				?assert(lists:member(qux, QCall2#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"add skills to unkown call", fun() ->
+				?assertEqual(none, call_queue:add_skills(Pid, "noexists", [baz, qux]))
+			end}
+		end, fun(Pid) ->
+			{"remove skills by id", fun() ->
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member(foo, QCall#queued_call.skills)),
+				?assert(lists:member(bar, QCall#queued_call.skills)),
+				?assertEqual(ok, call_queue:remove_skills(Pid, MediaId(1), [foo, bar])),
+
 				QCall2 = call_queue:get_qcall(Pid, MediaId(1)),
-				?assert(lists:member(foo, QCall2#queued_call.skills)),
-				?assert(lists:member(bar, QCall2#queued_call.skills)),
+				?assert(not lists:member(foo, QCall2#queued_call.skills)),
+				?assert(not lists:member(bar, QCall2#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"remove skills by pid", fun() ->
+				QCall = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(lists:member(foo, QCall#queued_call.skills)),
+				?assert(lists:member(bar, QCall#queued_call.skills)),
+				?assertEqual(ok, call_queue:remove_skills(Pid, MediaId(1), [foo, bar])),
 
-				%% TODO test expansion of skills
-
-				%% remove
-				call_queue:remove_skills(Pid, MediaId(1), [foo, a]),
-				QCall3 = call_queue:get_qcall(Pid, MediaId(1)),
-				?assert(not lists:member(foo, QCall3#queued_call.skills)),
-				?assert(not lists:member(a, QCall3#queued_call.skills))
+				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
+				?assert(not lists:member(foo, QCall2#queued_call.skills)),
+				?assert(not lists:member(bar, QCall2#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"remove skills to unkown call", fun() ->
+				?assertEqual(none, call_queue:remove_skills(Pid, "noexists", [baz, qux]))
 			end}
 		end]
 	}}.
@@ -1032,6 +1100,33 @@ call_in_out_grab_test_() ->
 			{"grab from empty call queue", fun() ->
 				call_queue:remove(Pid, MediaPid(1)),
 				?assertEqual(none, call_queue:grab(Pid))
+			end}
+		end, fun(Pid) ->
+			{"grab priority testing", fun() ->
+				call_queue:add(Pid, 0, MediaPid(2)),
+				call_queue:add(Pid, 1, MediaPid(3)),
+
+				{_Key2, QCall2} = call_queue:grab(Pid),
+				?assertEqual(MediaId(2), QCall2#queued_call.id),
+
+				{_Key1, QCall1} = call_queue:grab(Pid),
+				{_Key3, QCall3} = call_queue:grab(Pid),
+				?assertEqual(MediaId(1), QCall1#queued_call.id),
+				?assertEqual(MediaId(3), QCall3#queued_call.id),
+				?assertEqual(none, call_queue:grab(Pid)),
+				unlink(Pid)
+			end}
+		end, fun(Pid) ->
+			{"ungrabbing", fun() ->
+				{_Key1, QCall1} = call_queue:grab(Pid),
+				call_queue:ungrab(Pid, QCall1#queued_call.media),
+				{_Key2, QCall2} = call_queue:grab(Pid),
+				?assertEqual(QCall1#queued_call.media, QCall2#queued_call.media),
+				unlink(Pid)
+			end}
+		end, fun(Pid) ->
+			{"ungrab non-existent call", fun() ->
+				?assertEqual(ok, call_queue:ungrab(Pid, "foo"))
 			end}
 		end]}.
 

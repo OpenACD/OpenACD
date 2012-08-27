@@ -909,10 +909,11 @@ call_in_out_grab_test_() ->
 	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X), skills=[a, b]} end,
 
 	IsCookStarted = fun(X) ->
-		Node = node(),
-		MediaPid1 = MediaPid(X),
 		lists:any(fun({_, {cook, start_at,
-		[Node, MediaPid1, _, "testqueue", Pid, _]}, _}) -> true;(_) -> false end,
+			[N, P, _, "testqueue", Pid, _]}, _}) ->
+				N =:= node() andalso
+				P =:= MediaPid(1);
+			(_) -> false end,
 		meck:history(cook))
 	end,
 

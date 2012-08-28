@@ -1271,6 +1271,77 @@ queue_update_and_info_test_() ->
 			end}
 		end]}}.
 
+queue_manager_and_cook_test_() ->
+	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
+	MediaPids = [util:zombie() || _ <- lists:seq(1, 10)],
+	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
+	Call = fun(X) -> #call{id=MediaId(X), source = MediaPid(X), skills=[a, b]} end,
+
+	{foreach,
+	fun() ->
+		meck:new(gen_media),
+		meck:expect(gen_media, get_call, fun(MPid) ->
+			Call(util:list_index(MPid, MediaPids))
+		end),
+
+		meck:new(cook),
+		meck:expect(cook, stop, fun(_MPid) -> ok end),
+
+		Home = self(),
+		P = spawn(fun() ->
+			{ok, CQPid} = call_queue:start("testqueue", []),
+			link(CQPid),
+			Home ! CQPid,
+			receive
+				headshot -> exit(headshot)
+			end
+		end),
+		erlang:register(queue_manager, P),
+
+		receive
+			Pid -> Pid
+		end
+	end,
+	fun(Pid) ->
+		catch call_queue:stop(Pid),
+
+		catch erlang:whereis(queue_manager) ! headshot,
+		catch erlang:unregister(queue_manager),
+
+		meck:unload(gen_media),
+		meck:unload(cook)
+	end,
+	[fun(Pid) ->
+		{"cook resurrects", fun() ->
+			Cook1 = util:zombie(),
+			Cook2 = util:zombie(),
+			meck:sequence(cook, start_at, 6, [{ok, Cook1}, {ok, Cook2}]),
+			meck:expect(gen_media, set_cook, 2, ok),
+			call_queue:add(Pid, 1, MediaPid(1)),
+
+			QCall = call_queue:get_qcall(Pid, MediaId(1)),
+			?assertEqual(Cook1, QCall#queued_call.cook),
+
+			Cook1 ! headshot,
+			timer:sleep(10),
+			?assert(meck:called(gen_media, set_cook, [MediaPid(1), Cook2])),
+			QCall2 = call_queue:get_qcall(Pid, MediaId(1)),
+			?assertEqual(Cook2, QCall2#queued_call.cook)
+		end}
+	end, fun(Pid) ->
+		{"queue_manager died", fun() ->
+			monitor(process, Pid),
+			erlang:whereis(queue_manager) ! headshot,
+			Exited = receive
+				{'DOWN', _, process, Pid, {queue_manager, headshot}} ->
+					true
+			after 10 ->
+				false
+			end,
+			?assert(Exited)
+		end}
+	end]}.
+
 % init_test_() ->
 % 	[{"setting default queue on start", fun() ->
 % 		{ok, TestState} = init(["QueueNom", [default_queue]]),

@@ -825,7 +825,11 @@ call_update_test_() ->
 
 		meck:new(cook),
 		meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
-			{ok, CookPid(util:list_index(MPid, MediaPids))}
+			N = case util:list_index(MPid, MediaPids) of
+				X when X > 0 -> X;
+				_ -> 1
+			end,
+			{ok, CookPid(N)}
 		end),
 		meck:expect(cook, stop, fun(_MPid) -> ok end)
 	end,
@@ -999,6 +1003,28 @@ call_update_test_() ->
 
 				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
 				?assert(not lists:any(IsNodeMagicSkill, QCall2#queued_call.skills))
+			end}
+		end, fun(Pid) ->
+			{"call, queue skills merge", fun() ->
+				{ok, P} = call_queue:start_link("mergetest", [{skills, [english, '_node']}]),
+				call_queue:add(P, MediaPid(2)),
+				QCall = call_queue:get_qcall(P, MediaPid(2)),
+				Skills = QCall#queued_call.skills,
+				?assert(lists:member(english, Skills)),
+				?assert(lists:member(foo, Skills)),
+				IsNodeMagicSkill = fun({'_node', _}) -> true; (_) -> false end,
+				?assert(lists:any(IsNodeMagicSkill, Skills)),
+
+				call_queue:stop(P)
+			end}
+		end, fun(Pid) ->
+			{"media death", fun() ->
+				TMediaPid = util:zombie(),
+				TCall = #call{id="temp", source = TMediaPid},
+				call_queue:add(Pid, TMediaPid, TCall),
+				TMediaPid ! headshot,
+				timer:sleep(100),
+				?assertMatch(none, call_queue:get_call(Pid, "temp"))
 			end}
 		end]
 	}}.

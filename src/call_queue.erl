@@ -54,6 +54,7 @@
 	start/2,
 	start_link/2,
 	set_recipe/2,
+	get_recipe/1,
 	set_weight/2,
 	get_weight/1,
 	add/4,
@@ -121,6 +122,12 @@ start_link(Name, Opts) -> % Start linked queue with custom recipe and weight
 -spec(set_recipe/2 :: (Pid :: pid(), Recipe :: recipe()) -> 'ok' | 'error').
 set_recipe(Pid, Recipe) ->
 	gen_server:call(Pid, {set_recipe, Recipe}).
+
+%% @doc Return the recipe for the queue at `pid()' `Pid'
+-spec(get_recipe/1 :: (Pid :: pid()) -> Recipe :: recipe()).
+get_recipe(Pid) ->
+	State = gen_server:call(Pid, dump),
+	State#state.recipe.
 
 %% @doc Set the queue at pid() `Pid''s weight to `pos_integer()' `Weight'.
 -spec(set_weight/2 :: (Pid :: pid(), Weight :: pos_integer()) -> 'ok' | 'error').
@@ -204,7 +211,6 @@ get_qcall(Pid, QCallid) when is_pid(Pid) ->
 		none -> none;
 		{_, QCall} -> QCall
 	end.
-
 
 %% @doc Return the first `{call_key(), #queued_call{}} call in the queue at
 %% `pid()' `Pid' that doesn't have a dispatcher from this node already
@@ -1232,16 +1238,19 @@ queue_update_and_info_test_() ->
 				?assertEqual(?DEFAULT_WEIGHT, call_queue:get_weight(Pid)),
 				?assertEqual(ok, call_queue:set_weight(Pid, 2)),
 				?assertEqual(2, call_queue:get_weight(Pid))
-			end},
+			end}
+		end, fun(Pid) ->
 			{"invalid change weight", fun() ->
 				?assertEqual(error, call_queue:set_weight(Pid, -1)),
 				?assertEqual(?DEFAULT_WEIGHT, call_queue:get_weight(Pid))
-			end},
+			end}
+		end, fun(Pid) ->
 			{"call count", fun() ->
 				?assertEqual(1, call_queue:call_count(Pid)),
 				call_queue:remove(Pid, MediaId(1)),
 				?assertEqual(0, call_queue:call_count(Pid))
-			end},
+			end}
+		end, fun(Pid) ->
 			{"queue to list", fun() ->
 				GetId = fun(X) -> X#queued_call.id end,
 				?assertEqual([MediaId(1)], lists:map(GetId,
@@ -1252,6 +1261,13 @@ queue_update_and_info_test_() ->
 				call_queue:add(Pid, MediaPid(3)),
 				?assertEqual([MediaId(2), MediaId(3)],
 					lists:map(GetId, call_queue:to_list(Pid)))
+			end}
+		end, fun(Pid) ->
+			{"change recipe", fun() ->
+				?assertEqual(?DEFAULT_RECIPE, call_queue:get_recipe(Pid)),
+				NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
+				?assertEqual(ok, call_queue:set_recipe(Pid, NewRecipe)),
+				?assertMatch(NewRecipe, call_queue:get_recipe(Pid))
 			end}
 		end]}}.
 

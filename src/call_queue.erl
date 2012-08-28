@@ -1177,6 +1177,84 @@ call_in_out_grab_test_() ->
 			end}
 		end]}.
 
+queue_update_and_info_test_() ->
+	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
+	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],
+	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
+	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
+	CookPid = fun(X) -> lists:nth(X, CookPids) end,
+
+	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X),
+		skills=[foo, bar, '_node'], client=#client{label="myclient"}} end,
+
+	IsCookStarted = fun(X) ->
+		lists:any(fun({_, {cook, start_at,
+			[N, P, _, "testqueue", Pid, _]}, _}) ->
+				N =:= node() andalso
+				P =:= MediaPid(1);
+			(_) -> false end,
+		meck:history(cook))
+	end,
+
+	{setup, fun() ->
+		meck:new(gen_media),
+		meck:expect(gen_media, get_call, fun(MPid) ->
+			Call(util:list_index(MPid, MediaPids))
+		end),
+
+		meck:new(cook),
+		meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
+			N = case util:list_index(MPid, MediaPids) of
+				X when X > 0 -> X;
+				_ -> 1
+			end,
+			{ok, CookPid(N)}
+		end),
+		meck:expect(cook, stop, fun(_MPid) -> ok end)
+	end,
+	fun(_) ->
+		meck:unload(gen_media),
+		meck:unload(cook)
+	end,
+	{foreach, fun() ->
+			{ok, Pid} = call_queue:start_link("testqueue", []),
+
+			Priority = 7,
+			call_queue:add(Pid, Priority, MediaPid(1), Call(1)),
+
+			Pid
+		end,
+		fun(Pid) ->
+			call_queue:stop(Pid)
+		end,
+		[fun(Pid) ->
+			{"change weight", fun() ->
+				?assertEqual(?DEFAULT_WEIGHT, call_queue:get_weight(Pid)),
+				?assertEqual(ok, call_queue:set_weight(Pid, 2)),
+				?assertEqual(2, call_queue:get_weight(Pid))
+			end},
+			{"invalid change weight", fun() ->
+				?assertEqual(error, call_queue:set_weight(Pid, -1)),
+				?assertEqual(?DEFAULT_WEIGHT, call_queue:get_weight(Pid))
+			end},
+			{"call count", fun() ->
+				?assertEqual(1, call_queue:call_count(Pid)),
+				call_queue:remove(Pid, MediaId(1)),
+				?assertEqual(0, call_queue:call_count(Pid))
+			end},
+			{"queue to list", fun() ->
+				GetId = fun(X) -> X#queued_call.id end,
+				?assertEqual([MediaId(1)], lists:map(GetId,
+					call_queue:to_list(Pid))),
+				call_queue:remove(Pid, MediaPid(1)),
+				?assertEqual([], call_queue:to_list(Pid)),
+				call_queue:add(Pid, MediaPid(2)),
+				call_queue:add(Pid, MediaPid(3)),
+				?assertEqual([MediaId(2), MediaId(3)],
+					lists:map(GetId, call_queue:to_list(Pid)))
+			end}
+		end]}}.
+
 % init_test_() ->
 % 	[{"setting default queue on start", fun() ->
 % 		{ok, TestState} = init(["QueueNom", [default_queue]]),

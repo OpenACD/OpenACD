@@ -783,21 +783,6 @@ test_primer() ->
 	mnesia:create_schema([node()]),
 	mnesia:start().
 
-weight_test_() -> [{"default weight", fun() ->
-		{ok, Pid} = call_queue:start_link("testq", []),
-		?assertEqual(?DEFAULT_WEIGHT, call_queue:get_weight(Pid)),
-		call_queue:stop(Pid)
-	end}, {"initial weight", fun() ->
-		{ok, Pid} = call_queue:start_link("testq", [{weight, 10}]),
-		?assertEqual(10, call_queue:get_weight(Pid)),
-		call_queue:stop(Pid)
-	end}, {"set weight", fun() ->
-		{ok, Pid} = call_queue:start_link("testq", []),
-		call_queue:set_weight(Pid, 20),
-		?assertEqual(20, call_queue:get_weight(Pid)),
-		call_queue:stop(Pid)
-	end}].
-
 call_update_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
 	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],

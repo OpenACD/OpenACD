@@ -334,7 +334,7 @@ monitor_test_() ->
 			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
 			{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
 			{noreply, S3} = handle_cast({now_avail, FakeAgent, []}, S2),
-			{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
+			{noreply, _S4} = handle_cast({end_avail, FakeAgent}, S3),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(0, Count)
@@ -342,7 +342,7 @@ monitor_test_() ->
 
 		{"An agent gets monitored, period", fun() ->
 			FakeAgent = spawn(fun zombie/0),
-			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			{noreply, _S1} = handle_cast({now_avail, FakeAgent, []}, State0),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(1, Count)
@@ -351,7 +351,7 @@ monitor_test_() ->
 		{"An agent gets monitored once, channel difference", fun() ->
 			FakeAgent = spawn(fun zombie/0),
 			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
-			{noreply, S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
+			{noreply, _S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(1, Count)

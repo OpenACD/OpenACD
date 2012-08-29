@@ -39,7 +39,7 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
--export([fake_dispatcher/0]).
+% -export([fake_dispatcher/0]).
 -endif.
 
 -behaviour(gen_server).
@@ -782,31 +782,16 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 % begin the defintions of the tests.
 
 -ifdef(TEST).
-test_primer() ->
-	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start().
 
 call_update_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
-	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],
+	MediaPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
-	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
+	CookPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	CookPid = fun(X) -> lists:nth(X, CookPids) end,
 
-	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X),
+	Call = fun(X) -> #call{id=MediaId(X), source = MediaPid(X),
 		skills=[foo, bar, '_node'], client=#client{label="myclient"}} end,
-
-	IsCookStarted = fun(X) ->
-		lists:any(fun({_, {cook, start_at,
-			[N, P, _, "testqueue", Pid, _]}, _}) ->
-				N =:= node() andalso
-				P =:= MediaPid(1);
-			(_) -> false end,
-		meck:history(cook))
-	end,
 
 	{setup, fun() ->
 		meck:new(gen_media),
@@ -844,14 +829,14 @@ call_update_test_() ->
 				?assertEqual(ok, call_queue:set_priority(Pid, MediaId(1), 2)),
 				{Key, QCall} = call_queue:get_call(Pid, MediaId(1)),
 				?assertEqual(MediaId(1), QCall#queued_call.id),
-				?assertMatch({2, {_MacroSec, _Sec, MicroSec}}, Key)
+				?assertMatch({2, {_MacroSec, _Sec, _MicroSec}}, Key)
 			end}
 		end, fun(Pid) ->
 			{"set priority by pid", fun() ->
 				?assertEqual(ok, call_queue:set_priority(Pid, MediaPid(1), 2)),
 				{Key, QCall} = call_queue:get_call(Pid, MediaPid(1)),
 				?assertEqual(MediaPid(1), QCall#queued_call.media),
-				?assertMatch({2, {_MacroSec, _Sec, MicroSec}}, Key)
+				?assertMatch({2, {_MacroSec, _Sec, _MicroSec}}, Key)
 			end}
 		end, fun(Pid) ->
 			{"set priority of non-existant call by id", fun() ->
@@ -995,7 +980,7 @@ call_update_test_() ->
 				QCall2 = call_queue:get_qcall(Pid, MediaPid(1)),
 				?assert(not lists:any(IsNodeMagicSkill, QCall2#queued_call.skills))
 			end}
-		end, fun(Pid) ->
+		end, fun(_Pid) ->
 			{"call, queue skills merge", fun() ->
 				{ok, P} = call_queue:start_link("mergetest", [{skills, [english, '_node']}]),
 				call_queue:add(P, MediaPid(2)),
@@ -1022,18 +1007,19 @@ call_update_test_() ->
 
 call_in_out_grab_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
-	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],
+	MediaPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
-	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
+	CookPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	CookPid = fun(X) -> lists:nth(X, CookPids) end,
 
-	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X), skills=[a, b]} end,
+	Call = fun(X) -> #call{id=MediaId(X), source = MediaPid(X), skills=[a, b]} end,
 
-	IsCookStarted = fun(X) ->
+	IsCookStarted = fun(Pid, X) ->
 		lists:any(fun({_, {cook, start_at,
-			[N, P, _, "testqueue", Pid, _]}, _}) ->
+			[N, P, _, "testqueue", QPid, _]}, _}) ->
+				QPid =:= Pid andalso
 				N =:= node() andalso
-				P =:= MediaPid(1);
+				P =:= MediaPid(X);
 			(_) -> false end,
 		meck:history(cook))
 	end,
@@ -1066,7 +1052,7 @@ call_in_out_grab_test_() ->
 				call_queue:add(Pid, MediaPid(2)),
 				{{Priority, _Time}, QCall} = call_queue:get_call(Pid, MediaId(2)),
 				?assertEqual(MediaPid(2), QCall#queued_call.media),
-				?assert(IsCookStarted(2)),
+				?assert(IsCookStarted(Pid, 2)),
 				?assertEqual(1, Priority)
 			end}
 		end, fun(Pid) ->
@@ -1074,7 +1060,7 @@ call_in_out_grab_test_() ->
 				call_queue:add(Pid, MediaPid(2), Call(2)),
 				{{Priority, _Time}, QCall} = call_queue:get_call(Pid, MediaId(2)),
 				?assertEqual(MediaPid(2), QCall#queued_call.media),
-				?assert(IsCookStarted(2)),
+				?assert(IsCookStarted(Pid, 2)),
 
 				Call2 = Call(2),
 				?assertEqual(Call2#call.priority, Priority)
@@ -1084,7 +1070,7 @@ call_in_out_grab_test_() ->
 				call_queue:add(Pid, 100, MediaPid(2)),
 				{{Priority, _Time}, QCall} = call_queue:get_call(Pid, MediaId(2)),
 				?assertEqual(MediaPid(2), QCall#queued_call.media),
-				?assert(IsCookStarted(2)),
+				?assert(IsCookStarted(Pid, 2)),
 				?assertEqual(100, Priority)
 			end}
 		end, fun(Pid) ->
@@ -1185,22 +1171,13 @@ call_in_out_grab_test_() ->
 
 queue_update_and_info_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
-	MediaPids = [util:zombie() || X <- lists:seq(1, 10)],
+	MediaPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	MediaPid = fun(X) -> lists:nth(X, MediaPids) end,
-	CookPids = [util:zombie() || X <- lists:seq(1, 10)],
+	CookPids = [util:zombie() || _ <- lists:seq(1, 10)],
 	CookPid = fun(X) -> lists:nth(X, CookPids) end,
 
-	Call = fun(X) -> Call = #call{id=MediaId(X), source = MediaPid(X),
+	Call = fun(X) -> #call{id=MediaId(X), source = MediaPid(X),
 		skills=[foo, bar, '_node'], client=#client{label="myclient"}} end,
-
-	IsCookStarted = fun(X) ->
-		lists:any(fun({_, {cook, start_at,
-			[N, P, _, "testqueue", Pid, _]}, _}) ->
-				N =:= node() andalso
-				P =:= MediaPid(1);
-			(_) -> false end,
-		meck:history(cook))
-	end,
 
 	{setup, fun() ->
 		meck:new(gen_media),
@@ -1947,164 +1924,164 @@ queue_manager_and_cook_test_() ->
 % 	}.
 
 
-get_nodes() ->
-	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
-	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
+% get_nodes() ->
+% 	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+% 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
 % TODO disabled until such time that either:
 % a) rewrtten to not require actual nodes to be running or
 % b) rebar will run eunit tests on an actual node.
-multi_node_test_d() ->
-	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{Master, Slave} = get_nodes(),
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+% multi_node_test_d() ->
+% 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+% 	{Master, Slave} = get_nodes(),
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			mnesia:stop(),
+% 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+% 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 
-			mnesia:change_config(extra_db_nodes, [Master, Slave]),
-			mnesia:delete_schema([node(), Master, Slave]),
-			mnesia:create_schema([node(), Master, Slave]),
+% 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+% 			mnesia:delete_schema([node(), Master, Slave]),
+% 			mnesia:create_schema([node(), Master, Slave]),
 
-			cover:start([Master, Slave]),
+% 			cover:start([Master, Slave]),
 
-			rpc:call(Master, mnesia, start, []),
-			rpc:call(Slave, mnesia, start, []),
-			mnesia:start(),
+% 			rpc:call(Master, mnesia, start, []),
+% 			rpc:call(Slave, mnesia, start, []),
+% 			mnesia:start(),
 
-			mnesia:change_table_copy_type(schema, Master, disc_copies),
-			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Master, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
 
-			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
-			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
+% 			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
+% 			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
 
-			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
-			Pid
-		end,
-		fun(Pid) ->
+% 			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
+% 			Pid
+% 		end,
+% 		fun(Pid) ->
 
-			rpc:call(Slave, call_queue, stop, [Pid]),
-			cover:stop([Master, Slave]),
+% 			rpc:call(Slave, call_queue, stop, [Pid]),
+% 			cover:stop([Master, Slave]),
 
-			%rpc:call(Master, mnesia, stop, []),
-			%rpc:call(Slave, mnesia, stop, []),
-			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
-			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+% 			%rpc:call(Master, mnesia, stop, []),
+% 			%rpc:call(Slave, mnesia, stop, []),
+% 			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+% 			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 
-			slave:stop(Master),
-			slave:stop(Slave),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
+% 			slave:stop(Master),
+% 			slave:stop(Slave),
+% 			mnesia:stop(),
+% 			mnesia:delete_schema([node()]),
 
-			ok
-		end,
-		[
-			{ "multi node grab test", fun() ->
-					% only one dispatcher per node is allowed to bind, thus we'll
-					% be faking a dispatcher.
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					?DEBUG("queue: ~p", [Queue]),
+% 			ok
+% 		end,
+% 		[
+% 			{ "multi node grab test", fun() ->
+% 					% only one dispatcher per node is allowed to bind, thus we'll
+% 					% be faking a dispatcher.
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					?DEBUG("queue: ~p", [Queue]),
 
-					% ensure an empty queue says that it is indeed empty.
-					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
-					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
+% 					% ensure an empty queue says that it is indeed empty.
+% 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
+% 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
 
-					% so adding the call to teh queue on one node gets the same
-					% results no matter where the ask came from.
-					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]]),
-					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
-					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
-					?assertEqual("testcall", Callrec#queued_call.id),
-					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual("testcall", Callrec2#queued_call.id),
-					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
-					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
-					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
-						{ok, {0, []}, State}
-					end,
-					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents),
-					Faked1 = spawn(Slave, ?MODULE, fake_dispatcher, []),
-					Faked1 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(none);
-						Else ->
-							?assert(true)
-					after 10 ->
-						?assert("faked1 timeout")
-					end,
-					Faked1 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(true);
-						Else2 ->
-							?assert(Else2)
-					after 10 ->
-						?assert("faked1 try 2 timeout")
-					end,
-					Faked2 = spawn(Master, ?MODULE, fake_dispatcher, []),
-					Faked2 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(none);
-						Else3 ->
-							?assert(true)
-					after 10 ->
-						?assert("faked2 timeout")
-					end,
-					Faked2 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(true);
-						Else4 ->
-							?assert(Else4)
-					after 10 ->
-						?assert("faked2 try 2 timeout")
-					end
-				end
-			}, { "ensure cook is started on same node as call", fun() ->
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook))
-				end
-			}, { "a respawned cook should be on the same node as its call", fun() ->
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook1)),
-					exit(Cook1, kill),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook2)),
-					?assertNot(Cook1 =:= Cook2)
-				end
-			}
-		]
-	}.
+% 					% so adding the call to teh queue on one node gets the same
+% 					% results no matter where the ask came from.
+% 					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]]),
+% 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+% 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
+% 					?assertEqual("testcall", Callrec#queued_call.id),
+% 					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual("testcall", Callrec2#queued_call.id),
+% 					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
+% 					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
+% 					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
+% 						{ok, {0, []}, State}
+% 					end,
+% 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents),
+% 					Faked1 = spawn(Slave, ?MODULE, fake_dispatcher, []),
+% 					Faked1 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(none);
+% 						Else ->
+% 							?assert(true)
+% 					after 10 ->
+% 						?assert("faked1 timeout")
+% 					end,
+% 					Faked1 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(true);
+% 						Else2 ->
+% 							?assert(Else2)
+% 					after 10 ->
+% 						?assert("faked1 try 2 timeout")
+% 					end,
+% 					Faked2 = spawn(Master, ?MODULE, fake_dispatcher, []),
+% 					Faked2 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(none);
+% 						Else3 ->
+% 							?assert(true)
+% 					after 10 ->
+% 						?assert("faked2 timeout")
+% 					end,
+% 					Faked2 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(true);
+% 						Else4 ->
+% 							?assert(Else4)
+% 					after 10 ->
+% 						?assert("faked2 try 2 timeout")
+% 					end
+% 				end
+% 			}, { "ensure cook is started on same node as call", fun() ->
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook))
+% 				end
+% 			}, { "a respawned cook should be on the same node as its call", fun() ->
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook1)),
+% 					exit(Cook1, kill),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook2)),
+% 					?assertNot(Cook1 =:= Cook2)
+% 				end
+% 			}
+% 		]
+% 	}.
 
-fake_dispatcher() ->
-	receive
-		{grabit, Q, From} ->
-			Out = rpc:call(node(), call_queue, grab, [Q]),
-			From ! Out,
-			fake_dispatcher();
-		_ ->
-			fake_dispatcher()
-	end.
+% fake_dispatcher() ->
+% 	receive
+% 		{grabit, Q, From} ->
+% 			Out = rpc:call(node(), call_queue, grab, [Q]),
+% 			From ! Out,
+% 			fake_dispatcher();
+% 		_ ->
+% 			fake_dispatcher()
+% 	end.
 
 % -define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testq", []), {Pid, fun() -> stop(Pid) end} end).
 

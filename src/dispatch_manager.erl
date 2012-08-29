@@ -180,9 +180,10 @@ handle_cast({end_avail, AgentPid}, State) ->
 	{noreply, balance(State2)};
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
 	Fun = fun(Pid) ->
-		{ok, Dispstate} = gen_server:call(Pid, dump_state),
-		Queued = element(2, Dispstate),
-		QueueRef = element(4, Dispstate),
+		% {ok, Dispstate} = gen_server:call(Pid, dump_state),
+		% Queued = element(2, Dispstate),
+		% QueueRef = element(4, Dispstate),
+		{ok, #queue_info{call = Queued, qpid = QueueRef}} = dispatcher:get_queue_info(Pid),
 		[Pid, Queued, QueueRef]
 	end,
 	Mapped = lists:map(Fun, Disps),

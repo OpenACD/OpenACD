@@ -387,14 +387,16 @@ balance_test_() ->
 			Zombie = spawn(fun zombie/0),
 			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),
 			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
-			?assertEqual(1, length(State1#state.dispatchers))
+			?assertEqual(1, length(State1#state.dispatchers)),
+			?assertEqual({reply, 1, State1}, handle_call(count_dispatchers, self(), State1))
 		end},
 
 		{"New agent multiple channels, dispatchers start", fun() ->
 			Zombie = spawn(fun zombie/0),
 			{noreply, State1} = handle_cast({now_avail, Zombie, [voice, dummy]}, State0),
 			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
-			?assertEqual(2, length(State1#state.dispatchers))
+			?assertEqual(2, length(State1#state.dispatchers)),
+			?assertEqual({reply, 2, State1}, handle_call(count_dispatchers, self(), State1))
 		end},
 
 		{"agent dies, but dispatchers don't die with it", fun() ->
@@ -406,7 +408,8 @@ balance_test_() ->
 			after 10 -> ?assert(nodown) end,
 			{noreply, State2} = handle_info(Down, State1),
 			?assertEqual(dict:new(), State2#state.agents),
-			?assertEqual(1, length(State2#state.dispatchers))
+			?assertEqual(1, length(State2#state.dispatchers)),
+			?assertEqual({reply, 1, State2}, handle_call(count_dispatchers, self(), State2))
 		end},
 
 		{"unexpected dispatcher death", fun() ->
@@ -415,7 +418,8 @@ balance_test_() ->
 			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),			[Dispatcher] = State1#state.dispatchers,
 			Exit = {'EXIT', Dispatcher, headshot},
 			{noreply, State2} = handle_info(Exit, State1),
-			?assertEqual(1, length(State2#state.dispatchers))
+			?assertEqual(1, length(State2#state.dispatchers)),
+			?assertEqual({reply, 1, State2}, handle_call(count_dispatchers, self(), State2))
 		end}
 
 	] end}.

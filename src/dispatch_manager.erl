@@ -425,4 +425,36 @@ balance_test_() ->
 
 	] end}.
 
+external_api_test_() ->
+	{foreach, fun() ->
+			FakeDispatcher = util:zombie(),
+			FakeAgent = util:zombie(),
+			
+			meck:new(dispatcher),
+			meck:expect(dispatcher, start_link, fun() -> {ok, FakeDispatcher} end),
+			meck:expect(dispatcher, get_queue_info, fun(_) -> {ok, #queue_info{}} end),
+			
+			dispatch_manager:start(),
+			dispatch_manager:now_avail(FakeAgent, [skill]),
+
+			FakeAgent
+		end,
+		fun(_) ->
+			meck:unload(dispatcher),
+			dispatch_manager:stop()
+		end,
+		[fun(_) ->
+			{"count_dispatchers/0", fun() ->
+				?assertEqual(1, dispatch_manager:count_dispatchers())
+			end}
+		end, fun(_) ->
+			{"deep_inspect/2", fun() ->
+				?assertEqual(ok, dispatch_manager:deep_inspect())
+			end}
+		end, fun(FakeAgent) ->
+			{"end_avail/2", fun() ->
+				?assertEqual(ok, dispatch_manager:end_avail(FakeAgent))
+			end}
+		end]}.
+
 -endif.

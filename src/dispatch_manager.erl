@@ -121,9 +121,9 @@ init([]) ->
 				?DEBUG("Spawn waking up with agents ~p", [Agents]),
 				[case A#agent_cache.channels of
 					[] ->
-						gen_server:cast(dispatch_manager, {end_avail, A#agent_cache.pid});
+						dispatch_manager:end_avail(A#agent_cache.pid);
 					_ ->
-						gen_server:cast(dispatch_manager, {now_avail, A#agent_cache.pid, A#agent_cache.channels})
+						dispatch_manager:now_avail(A#agent_cache.pid, A#agent_cache.channels)
 				end || {_Id, A} <- Agents],
 				?DEBUG("Spawn done.", [])
 			end),

@@ -1673,70 +1673,70 @@ internal_state_test_() -> [
 
 	].
 
--record(multi_node_test_state, {
-	master_node,
-	slave_node,
-	master_am,
-	slave_am
-}).
+% -record(multi_node_test_state, {
+% 	master_node,
+% 	slave_node,
+% 	master_am,
+% 	slave_am
+% }).
 
-multi_node_test_() ->
-	util:start_testnode(),
-	Master = util:start_testnode(agent_manager_master),
-	Slave = util:start_testnode(agent_manager_slave),
-	mnesia:change_config(extra_db_nodes, [Master, Slave]),
-	cover:start([Master, Slave]),
-	{inorder, {foreach, fun() ->
-		rpc:call(Master, mnesia, stop, []),
-		rpc:call(Slave, mnesia, stop, []),
-		mnesia:delete_schema([Master, Slave]),
-		mnesia:create_schema([Master, Slave]),
-		rpc:call(Master, mnesia, start, []),
-		rpc:call(Slave, mnesia, start, []),
-		mnesia:change_table_copy_type(schema, Master, disc_copies),
-		mnesia:change_table_copy_type(schema, Slave, disc_copies),
-		{ok, AMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
-		{ok, AMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
-		#multi_node_test_state{
-			master_node = Master,
-			slave_node = Slave,
-			master_am = AMMaster,
-			slave_am = AMSlave
-		}
-	end,
-	fun(_) ->
-		rpc:call(Master, ?MODULE, stop, []),
-		rpc:call(Slave, ?MODULE, stop, []),
-		rpc:call(Master, mnesia, stop, []),
-		rpc:call(Slave, mnesia, stop, [])
-	end,
-	[fun(_TestState) -> {"Slave skips added agent", fun() ->
-		% only the leader knows about every agent, it seems
-		% the reason not every manager needs to know about every 
-		% agent is the cook will ask each dispatcher, which will ask 
-		% the local manager.  The resulting lists are combined.
-		Agent = #agent{id = "agent", login = "agent"},
-		{ok, _Apid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-		List = rpc:call(Slave, ?MODULE, list, []),
-		?assertEqual([], List)
-	end} end,
-	fun(_TestState) -> {"Master is informed of agent on slave", fun() ->
-		Agent = #agent{id = "agent", login = "agent", skills = []},
-		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
-		receive after 100 -> ok end,
-		List = rpc:call(Master, ?MODULE, list, []),
-		?assertMatch([{"agent", #agent_cache{pid = Apid, id="agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List)
-	end} end,
-	fun(TestState) -> {"Master removes agents from dead node", fun() ->
-		Agent = #agent{id = "agent", login = "agent", skills = []},
-		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
-		List = rpc:call(Master, ?MODULE, list, []),
-		?assertMatch([{"agent", #agent_cache{pid = Apid, id = "agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List),
-		rpc:call(Slave, erlang, exit, [TestState#multi_node_test_state.slave_am, kill]),
-		receive after 100 -> ok end
-		% TODO enable this at some point.
-		%?assertEqual([], rpc:call(Master, ?MODULE, list, []))
-	end} end]}}.
+% multi_node_test_() ->
+% 	util:start_testnode(),
+% 	Master = util:start_testnode(agent_manager_master),
+% 	Slave = util:start_testnode(agent_manager_slave),
+% 	mnesia:change_config(extra_db_nodes, [Master, Slave]),
+% 	cover:start([Master, Slave]),
+% 	{inorder, {foreach, fun() ->
+% 		rpc:call(Master, mnesia, stop, []),
+% 		rpc:call(Slave, mnesia, stop, []),
+% 		mnesia:delete_schema([Master, Slave]),
+% 		mnesia:create_schema([Master, Slave]),
+% 		rpc:call(Master, mnesia, start, []),
+% 		rpc:call(Slave, mnesia, start, []),
+% 		mnesia:change_table_copy_type(schema, Master, disc_copies),
+% 		mnesia:change_table_copy_type(schema, Slave, disc_copies),
+% 		{ok, AMMaster} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+% 		{ok, AMSlave} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+% 		#multi_node_test_state{
+% 			master_node = Master,
+% 			slave_node = Slave,
+% 			master_am = AMMaster,
+% 			slave_am = AMSlave
+% 		}
+% 	end,
+% 	fun(_) ->
+% 		rpc:call(Master, ?MODULE, stop, []),
+% 		rpc:call(Slave, ?MODULE, stop, []),
+% 		rpc:call(Master, mnesia, stop, []),
+% 		rpc:call(Slave, mnesia, stop, [])
+% 	end,
+% 	[fun(_TestState) -> {"Slave skips added agent", fun() ->
+% 		% only the leader knows about every agent, it seems
+% 		% the reason not every manager needs to know about every 
+% 		% agent is the cook will ask each dispatcher, which will ask 
+% 		% the local manager.  The resulting lists are combined.
+% 		Agent = #agent{id = "agent", login = "agent"},
+% 		{ok, _Apid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+% 		List = rpc:call(Slave, ?MODULE, list, []),
+% 		?assertEqual([], List)
+% 	end} end,
+% 	fun(_TestState) -> {"Master is informed of agent on slave", fun() ->
+% 		Agent = #agent{id = "agent", login = "agent", skills = []},
+% 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+% 		receive after 100 -> ok end,
+% 		List = rpc:call(Master, ?MODULE, list, []),
+% 		?assertMatch([{"agent", #agent_cache{pid = Apid, id="agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List)
+% 	end} end,
+% 	fun(TestState) -> {"Master removes agents from dead node", fun() ->
+% 		Agent = #agent{id = "agent", login = "agent", skills = []},
+% 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+% 		List = rpc:call(Master, ?MODULE, list, []),
+% 		?assertMatch([{"agent", #agent_cache{pid = Apid, id = "agent", time_avail = {_T1, _T2, _T3}, skills = [], channels = _ChanList, endpoints = []}}], List),
+% 		rpc:call(Slave, erlang, exit, [TestState#multi_node_test_state.slave_am, kill]),
+% 		receive after 100 -> ok end
+% 		% TODO enable this at some point.
+% 		%?assertEqual([], rpc:call(Master, ?MODULE, list, []))
+% 	end} end]}}.
 
 
 %		[

@@ -1401,7 +1401,7 @@ internal_state_test_() -> [
 				{#agent_key{rotations = 1, has_all = z, skill_count = 0, idle_time = 1}, "agent1"}
 			]),
 			State = #state{route_list = Route1},
-			ExpectedState = #state{route_list = Route2, lists_requested = 1},
+			% ExpectedState = #state{route_list = Route2, lists_requested = 1},
 			{reply, OotList, OotState} = handle_call(route_list_agents, "from", State, "election"),
 			?assertEqual(InitList, OotList),
 			?assertEqual(gb_trees:to_list(Route2), gb_trees:to_list(OotState#state.route_list))
@@ -1427,7 +1427,7 @@ internal_state_test_() -> [
 			end),
 			InAgent = #agent{id = "agent1", login = "testagent"},
 			State = #state{},
-			{reply, Preply, State0} = handle_call({start_agent, InAgent}, "from", State, "election"),
+			{reply, _Preply, State0} = handle_call({start_agent, InAgent}, "from", State, "election"),
 			?assertEqual(1, gb_trees:size(State0#state.route_list)),
 			?assertEqual(1, dict:size(State0#state.agents)),
 			[begin
@@ -1449,7 +1449,6 @@ internal_state_test_() -> [
 		end},
 
 		{"{exists, Login}, not found", fun() ->
-			Zombie = util:zombie(),
 			meck:new(gen_leader),
 			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
 			meck:expect(gen_leader, leader_call, fun(?MODULE, {full_data, "testagent"}) ->
@@ -1603,7 +1602,7 @@ internal_state_test_() -> [
 			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
 			meck:new(gen_leader),
 			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
-			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, _Nom, Out}) ->
 				?assertNotEqual(OldCache, Out)
 			end),
 			{noreply, TestState} = handle_cast({set_ends, "testagent", [new_endpoint]}, State, "election"),
@@ -1635,7 +1634,7 @@ internal_state_test_() -> [
 			State = #state{agents = dict:from_list([{"testagent", OldCache}])},
 			meck:new(gen_leader),
 			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
-			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, Nom, Out}) ->
+			meck:expect(gen_leader, leader_cast, fun(?MODULE, {update_notify, _Nom, Out}) ->
 				?assertNotEqual(OldCache, Out)
 			end),
 			{noreply, TestState} = handle_cast({update_skill_list, "testagent", [new_skill]}, State, "election"),
@@ -1705,23 +1704,23 @@ multi_node_test_() ->
 			slave_am = AMSlave
 		}
 	end,
-	fun(MultinodeState) ->
+	fun(_) ->
 		rpc:call(Master, ?MODULE, stop, []),
 		rpc:call(Slave, ?MODULE, stop, []),
 		rpc:call(Master, mnesia, stop, []),
 		rpc:call(Slave, mnesia, stop, [])
 	end,
-	[fun(TestState) -> {"Slave skips added agent", fun() ->
+	[fun(_TestState) -> {"Slave skips added agent", fun() ->
 		% only the leader knows about every agent, it seems
 		% the reason not every manager needs to know about every 
 		% agent is the cook will ask each dispatcher, which will ask 
 		% the local manager.  The resulting lists are combined.
 		Agent = #agent{id = "agent", login = "agent"},
-		{ok, Apid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+		{ok, _Apid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
 		List = rpc:call(Slave, ?MODULE, list, []),
 		?assertEqual([], List)
 	end} end,
-	fun(TestState) -> {"Master is informed of agent on slave", fun() ->
+	fun(_TestState) -> {"Master is informed of agent on slave", fun() ->
 		Agent = #agent{id = "agent", login = "agent", skills = []},
 		{ok, Apid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
 		receive after 100 -> ok end,

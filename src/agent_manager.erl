@@ -1070,6 +1070,22 @@ external_api_test_() ->
 				ok
 			end),
 			?assertEqual(ok, set_ends("testagent", [dummy_media]))
+		end},
+
+		{"route_list/0", fun() ->
+			AgentList = [
+				{"key1", #agent_cache{skills = [], channels = [], endpoints = [], id = "skip1"}},
+				{"key2", #agent_cache{skills = ['_all'], channels = [], endpoints = [], id = "skip2"}},
+				{"key3", #agent_cache{skills = [english], channels = [], endpoints = [], id = "skip3"}},
+				{"key4", #agent_cache{skills = [], channels = [voice], endpoints = [], id = "skip4"}},
+				{"key5", #agent_cache{skills = [], channels = [], endpoints = [dummy_media], id = "skip5"}},
+				{"key6", #agent_cache{time_avail = 1, skills = ['_all'], channels = [voice], endpoints = [dummy_media], id = "take6"}},
+				{"key7", #agent_cache{time_avail = 1, skills = [english], channels = [voice], endpoints = [dummy_media], id = "take7"}}
+			],
+			meck:expect(gen_leader, call, fun(?MODULE, route_list_agents) ->
+				AgentList
+			end),
+			?assertEqual(AgentList, route_list())
 		end}
 
 	] end}.

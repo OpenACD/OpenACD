@@ -1024,28 +1024,30 @@ call_in_out_grab_test_() ->
 		meck:history(cook))
 	end,
 
+	{setup, fun() ->
+		meck:new(gen_media),
+		meck:expect(gen_media, get_call, fun(MPid) ->
+			Call(util:list_index(MPid, MediaPids))
+		end),
+
+		meck:new(cook),
+		meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
+			{ok, CookPid(util:list_index(MPid, MediaPids))}
+		end),
+		meck:expect(cook, stop, fun(_MPid) -> ok end)
+	end,
+	fun(_) ->
+		meck:unload(gen_media),
+		meck:unload(cook)
+	end,
 	{foreach, fun() ->
-			meck:new(gen_media),
-			meck:expect(gen_media, get_call, fun(MPid) ->
-				Call(util:list_index(MPid, MediaPids))
-			end),
-
-			meck:new(cook),
-			meck:expect(cook, start_at, fun(_Node, MPid, _Recipe, _Queue, _Qpid, _K) ->
-				{ok, CookPid(util:list_index(MPid, MediaPids))}
-			end),
-			meck:expect(cook, stop, fun(_MPid) -> ok end),
-
 			{ok, Pid} = call_queue:start("testqueue", []),
 			call_queue:add(Pid, 1, MediaPid(1)),
 
 			Pid
 		end,
 		fun(Pid) ->
-			call_queue:stop(Pid),
-
-			meck:unload(cook),
-			meck:unload(gen_media)
+			call_queue:stop(Pid)
 		end,
 		[fun(Pid) ->
 			{"add/2", fun() ->
@@ -1078,14 +1080,14 @@ call_in_out_grab_test_() ->
 				?assertMatch(#queued_call{}, call_queue:get_qcall(Pid, MediaId(1))),
 				?assertEqual(ok, call_queue:remove(Pid, MediaId(1))),
 				?assertEqual(none, call_queue:get_qcall(Pid, MediaId(1))),
-				?assert(meck:called(cook, stop, [CookPid(1)]))
+				?assert(meck:called(cook, stop, [CookPid(1)], Pid))
 			end}
 		end, fun(Pid) ->
 			{"remove by pid", fun() ->
 				?assertMatch(#queued_call{}, call_queue:get_qcall(Pid, MediaPid(1))),
 				?assertEqual(ok, call_queue:remove(Pid, MediaPid(1))),
 				?assertEqual(none, call_queue:get_qcall(Pid, MediaPid(1))),
-				?assert(meck:called(cook, stop, [CookPid(1)]))
+				?assert(meck:called(cook, stop, [CookPid(1)], Pid))
 			end}
 		end, fun(Pid) ->
 			{"get calls", fun() ->
@@ -1105,14 +1107,14 @@ call_in_out_grab_test_() ->
 				?assertMatch(#queued_call{}, call_queue:get_qcall(Pid, MediaId(1))),
 				call_queue:bgremove(Pid, MediaId(1)),
 				?assertEqual(none, call_queue:get_qcall(Pid, MediaId(1))),
-				?assert(meck:called(cook, stop, [CookPid(1)]))
+				?assert(meck:called(cook, stop, [CookPid(1)], Pid))
 			end}
 		end, fun(Pid) ->
 			{"bgremove by pid", fun() ->
 				?assertMatch(#queued_call{}, call_queue:get_qcall(Pid, MediaPid(1))),
 				call_queue:bgremove(Pid, MediaPid(1)),
 				?assertEqual(none, call_queue:get_qcall(Pid, MediaPid(1))),
-				?assert(meck:called(cook, stop, [CookPid(1)]))
+				?assert(meck:called(cook, stop, [CookPid(1)], Pid))
 			end}
 		end, fun(Pid) ->
 			{"remove non-existing id", fun() ->
@@ -1167,7 +1169,7 @@ call_in_out_grab_test_() ->
 			{"ungrab non-existent call", fun() ->
 				?assertEqual(ok, call_queue:ungrab(Pid, "foo"))
 			end}
-		end]}.
+		end]}}.
 
 queue_update_and_info_test_() ->
 	MediaId = fun(X) -> "testcall" ++ integer_to_list(X) end,
@@ -1301,7 +1303,7 @@ queue_manager_and_cook_test_() ->
 
 			Cook1 ! headshot,
 			timer:sleep(10),
-			?assert(meck:called(gen_media, set_cook, [MediaPid(1), Cook2])),
+			?assert(meck:called(gen_media, set_cook, [MediaPid(1), Cook2], Pid)),
 			QCall2 = call_queue:get_qcall(Pid, MediaId(1)),
 			?assertEqual(Cook2, QCall2#queued_call.cook)
 		end}

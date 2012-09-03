@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -33,10 +33,10 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
--record(test_table, 
-	{name :: any(), 
+-record(test_table,
+	{name :: any(),
 	data :: any()}).
--define(TEST_TABLE, 
+-define(TEST_TABLE,
 	[
 		{attributes, record_info(fields, test_table)},
 		{ram_copies, lists:append([nodes(), [node()]])}
@@ -236,7 +236,7 @@ list_map_with_index(_Fun, [], _Counter, Acc) ->
 list_map_with_index(Fun, [H|T], Counter, Acc) ->
 	list_map_with_index(Fun, T, Counter + 1, [Fun(Counter, H) | Acc]).
 
-%% @doc Find the key(s) in the dictory by it's value.  Return's `error' if 
+%% @doc Find the key(s) in the dictory by it's value.  Return's `error' if
 %% the value is not in the dictionary.
 -spec(dict_find_by_value/2 :: (Value :: any(), Dict :: dict()) -> 'error' | {'ok', [any()]}).
 dict_find_by_value(InValue, Dict) ->
@@ -319,15 +319,15 @@ merge_skill_lists(List1, List2, Whitelist) ->
 				erlang:error(badarg)
 		end
 	end,
-	
+
 	FilterFun = fun(X) ->
 		is_tuple(X)
 	end,
-	
+
 	GroupBy = fun({Key, _}) ->
 		Key
 	end,
-	
+
 	lists:foreach(Dupscan, group_by_with_key(GroupBy, lists:filter(FilterFun, List1))),
 	lists:foreach(Dupscan, group_by_with_key(GroupBy, lists:filter(FilterFun, List2))),
 
@@ -340,7 +340,7 @@ merge_skill_lists(List1, List2, Whitelist) ->
 %				erlang:error(badarg)
 %		end
 %	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
-%	
+%
 %	lists:foreach(fun({_Key, Value}) ->
 %		case length(Value) of
 %			1 ->
@@ -354,7 +354,7 @@ merge_skill_lists(List1, List2, Whitelist) ->
 	MagicSkills = lists:filter(fun(X) -> is_tuple(X) end, NewList),
 
 	Grouped = group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, MagicSkills),
-	
+
 	lists:filter(fun({SkillAtom, _SkillString} = Val) ->
 				case length(proplists:get_value(SkillAtom, Grouped)) of
 					1 ->
@@ -391,7 +391,7 @@ subtract_skill_lists(List1, List2) ->
 	lists:filter(Filter, List1).
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
-%% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
+%% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.
 %% If you trying to create the same table twice, it returns `exists'.  If the table was copied from another node,
 %% it returns `copied'.  Otherwise returns the raw mnesia create_table result, usually `{atomic, ok}'.
 %% Takes the same parameters as mnesia:create_table.
@@ -411,7 +411,7 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 			ok
 	end,
 	case lists:member(Tablename, mnesia:system_info(local_tables)) of
-		true -> 
+		true ->
 			mnesia:wait_for_tables([Tablename], 5000),
 			exists;
 		false ->
@@ -494,7 +494,7 @@ reload_all() ->
 -define(BEAM_DIR, "OpenACD/ebin").
 -endif.
 
-%% @doc Reloads code for all modules using either the hard or soft method for 
+%% @doc Reloads code for all modules using either the hard or soft method for
 %% purge, whichever `Mode' happens to be.
 -spec(reload_all/1 :: (Mode :: 'hard' | 'soft') -> 'ok' | {'error', any()}).
 reload_all(Mode) ->
@@ -509,8 +509,8 @@ reload_all(Mode) ->
 	end.
 
 %% @doc Not useful in a production enviroment, but for a dev enviroment.
-%% this will call do `util:c("rebar compile")' on the os command line, and 
-%% output the results.  Why?  Because I'm lazy and don't want to have to 
+%% this will call do `util:c("rebar compile")' on the os command line, and
+%% output the results.  Why?  Because I'm lazy and don't want to have to
 %% swap screens just to recompile.
 -spec(c/0 :: () -> 'ok').
 c() ->
@@ -559,10 +559,10 @@ find_first_arc(Base, Ext, Count) ->
 -spec(floor/1 :: (X :: integer() | float()) -> integer()).
 floor(X) ->
 	T = trunc(X),
-	if 
+	if
 		X < T ->
 			T - 1;
-		true  -> 
+		true  ->
 			T
 	end.
 
@@ -732,7 +732,7 @@ start_testnode(Name) ->
 start_testnode(Name, Host) ->
 	start_testnode(),
 	case slave:start_link(Host, Name) of
-		{ok, N} -> 
+		{ok, N} ->
 			rpc:call(N, util, add_paths, []),
 			Covered = [Mod || {Mod, cover_compiled} <- code:all_loaded()],
 			rpc:call(N, util, cover_mods, [Covered]),
@@ -777,7 +777,7 @@ split_test_() ->
 		?assertEqual([], string_split("", " ", 3))
 	end},
 	{"splitting by a string that's not in the string to be split",
-	fun() ->	
+	fun() ->
 		?assertEqual(["Hello world"], string_split("Hello world", "batman"))
 	end},
 	{"splitting by a string that's not in the string to be split with a limit",
@@ -795,9 +795,9 @@ chomp_test() ->
 string_interpolate_test_() ->
 	[{"interpolate nominal", ?_assertEqual("word:  goober", string_interpolate("word:  #{word}", [{"word", "goober"}]))},
 	{"interpolate missing", ?_assertEqual("word:  ", string_interpolate("word:  #{word}", []))},
-	{"grab bag", ?_assertEqual("1:uno;  none:; under:untder", string_interpolate("1:#{one};  none:#{none}; under:#{un_der}", 
+	{"grab bag", ?_assertEqual("1:uno;  none:; under:untder", string_interpolate("1:#{one};  none:#{none}; under:#{un_der}",
 		[{"one", "uno"}, {"un_der", "untder"}]))},
-	{"replacemnet no looping", ?_assertEqual("1:#{one}, 2:duo", string_interpolate("1:#{one}, 2:#{two}", 
+	{"replacemnet no looping", ?_assertEqual("1:#{one}, 2:duo", string_interpolate("1:#{one}, 2:#{two}",
 		[{"one", "#{one}"}, {"two", "duo"}]))},
 	{"Previous long replacements don't cause skips", ?_assertEqual("1:1234; 2:dot", string_interpolate("1:#{verylong}; 2:#{d}", [{"verylong", "1234"}, {"d", "dot"}]))}].
 
@@ -810,8 +810,8 @@ list_contains_all_test() ->
 	?assertEqual(true, list_contains_all([foo, bar, baz], [])),
 	?assertEqual(true, list_contains_all([], [])),
 	?assertEqual(false, list_contains_all([], [bar])).
-	
-list_map_with_index_test() -> 
+
+list_map_with_index_test() ->
 	L = [1, 2, 3, 4, 5],
 	L2 = list_map_with_index(fun(C, Elem) -> C + Elem end, L),
 	?assertEqual([2, 4, 6, 8, 10], L2).
@@ -822,21 +822,21 @@ hex_bin_conversion_test_() ->
 	[
 		{
 			"To Hex from Bin",
-			fun() -> 
+			fun() ->
 				Bin = erlang:md5("teststring"),
 				?assertMatch("d67c5cbf5b01c9f91932e3b8def5e5f8", bin_to_hexstr(Bin))
 			end
 		},
 		{
 			"To Bin from lowercase Hex",
-			fun() -> 
+			fun() ->
 				Bin = erlang:md5("teststring"),
 				?assertMatch(Bin, hexstr_to_bin("d67c5cbf5b01c9f91932e3b8def5e5f8"))
 			end
 		},
 		{
 			"To Bin from uppercase Hex",
-			fun() -> 
+			fun() ->
 				Bin = erlang:md5("teststring"),
 				?assertMatch(Bin, hexstr_to_bin("D67C5CBF5B01C9F91932E3B8DEF5E5F8"))
 			end
@@ -850,14 +850,14 @@ hex_bin_conversion_test_() ->
 		}
 	].
 
-build_table_test_() -> 
+build_table_test_() ->
 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
-			
+
 			ok
 		end,
 		fun(_Whatever) ->
@@ -867,7 +867,7 @@ build_table_test_() ->
 		[
 			{
 				"Everything is okay",
-				fun() -> 
+				fun() ->
 					mnesia:create_schema([node()]),
 					mnesia:start(),
 					?assertMatch({atomic, ok}, build_table(test_table, ?TEST_TABLE))
@@ -875,7 +875,7 @@ build_table_test_() ->
 			},
 			{
 				"Mnesia not started",
-				fun() -> 
+				fun() ->
 					?assertExit(mnesia_stopped, build_table(test_table, ?TEST_TABLE))
 				end
 			},
@@ -938,7 +938,7 @@ merge_skill_lists_test_() ->
 		{
 			"Three expanded magic skills whitelisted",
 			fun() ->
-				List1 = [], 
+				List1 = [],
 				List2 = [{'_queue', "q1"}, {'_queue', "q2"}, {'_queue', "q3"}],
 				Expected = List2,
 				Out = util:merge_skill_lists(List1, List2, ['_queue']),

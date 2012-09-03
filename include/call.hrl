@@ -130,3 +130,8 @@
 	timestamp = util:now() :: cpx_time(),
 	nodes = [] :: [atom()]
 }).
+
+-record(queue_info, {
+	call :: #queued_call{} | 'undefined',
+	qpid :: pid()
+}).

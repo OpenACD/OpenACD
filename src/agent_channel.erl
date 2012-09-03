@@ -692,7 +692,7 @@ public_api_test_() ->
 
 	fun(_) -> {"start/4, simple_sucess", fun() ->
 		meck:expect(gen_fsm, start, fun(?MODULE, [agentrecord, callrecord,
-			endpointdata, initstate]) ->
+			endpointdata, initstate], []) ->
 			?assert(true)
 		end),
 
@@ -723,7 +723,7 @@ public_api_test_() ->
 	end} end,
 
 	fun(_) -> {"stop/1, simple_sucess", fun() ->
-		meck:expect(gen_fsm, send_all_state_event, fun(pid, stop) ->
+		meck:expect(gen_fsm, sync_send_event, fun(pid, stop) ->
 			?assert(true)
 		end),
 

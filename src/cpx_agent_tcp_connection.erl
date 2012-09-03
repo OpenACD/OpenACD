@@ -129,7 +129,7 @@ get_nonce(#state{version_check = undefined} = State) ->
 
 get_nonce(State) ->
 	[E, N] = util:get_pubkey(),
-	Salt = list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))),
+	Salt = util:generate_salt(),
 	Res = {struct, [{<<"nonce">>, Salt}, {<<"pubkey_e">>, E},
 		{<<"pubkey_n">>, N}]},
 	{ok, Res, State#state{nonce = Salt}}.
@@ -405,6 +405,179 @@ error(Id, Code, Msg) ->
 % ================================================================
 
 -ifdef(TEST).
+
+-spec t_send_req(Pid::pid(), Sock::any(), ReqId::integer(),
+	Fun::atom(), Args::[any()]) -> ok.
+t_send_req(Pid, Socket, ReqId, Fun, Args) ->
+	Bin = iolist_to_binary(
+		mochijson2:encode({struct, [
+		{request_id, ReqId},
+		{function, Fun},
+		{args, Args}]})),
+	Pid ! {tcp, Socket, netstring:encode(Bin)},
+	ok.
+
+t_is_success(Pid, Socket, ReqId) ->
+	t_is_success(Pid, Socket, ReqId, undefined).
+
+t_is_success(Pid, Socket, ReqId, Result) ->
+	t_resp_match(Pid, Socket, ReqId, true, Result, undefined, undefined).
+
+t_is_fail(Pid, Socket, ReqId, ErrCode, Message) ->
+	t_resp_match(Pid, Socket, ReqId, false, undefined, ErrCode, Message).
+
+t_resp_match(Pid, Socket, ReqId, Success, Result, ErrCode, Message) ->
+	{Sent, _} = netstring:decode(iolist_to_binary([X ||
+	{_, {gen_tcp, send, [Sock, X]}, _} <- meck:history(gen_tcp, Pid),
+		Sock =:= Socket])),
+
+	M = lists:foldl(fun(_, true) -> true; (_, false) -> false; (B, _) ->
+			{struct, Props} = mochijson2:decode(B),
+			case proplists:get_value(<<"request_id">>, Props) of
+				ReqId ->
+					lists:all(fun({_, undefined}) -> true;
+						({Key, Val}) -> proplists:get_value(Key, Props) =:= Val
+					end, [{<<"success">>, Success}, {<<"result">>, Result},
+					{<<"errcode">>, ErrCode}, {<<"message">>, Message}]);
+				_ ->
+					maybe
+			end
+		end, maybe, Sent),
+
+	case M of
+		true -> true;
+		_ -> false
+	end.
+
+login_test_() ->
+	Socket = erlang:make_ref(),
+
+	{setup,
+	fun() ->
+		meck:new(inet, [unstick]),
+		meck:expect(inet, setopts, 2, ok),
+
+		meck:new(gen_tcp, [unstick]),
+		meck:expect(gen_tcp, send, 2, ok),
+
+		meck:new(util),
+		meck:expect(util, get_pubkey, 0, [23, 989898]),
+		meck:expect(util, generate_salt, 0, "noncey"),
+		meck:expect(util, decrypt_password, fun(<<"encryptedpassword">>) -> {ok, "nonceypassword"};
+			(_) -> {error, decrypt_failed} end),
+		meck:expect(util, now, 0, 12345),
+
+		meck:new(agent_auth)
+	end,
+	fun(_) ->
+		meck:unload(agent_auth),
+		meck:unload(util),
+		meck:unload(gen_tcp),
+		meck:unload(inet)
+	end,
+	{foreach, fun() ->
+			{ok, Pid} = cpx_agent_tcp_connection:start(Socket, tcp, 10, none),
+			Pid
+		end,
+		fun(_) ->
+			%% TODO stop
+			ok
+		end,
+		[fun(Pid) ->
+			{"version match", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				timer:sleep(10),
+				?assert(t_is_success(Pid, Socket, 1))
+			end}
+		end, fun(Pid) ->
+			{"minor version mismatch", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor + 1]),
+				timer:sleep(10),
+				?assert(t_is_success(Pid, Socket, 1, <<"minor version mismatch">>))
+			end}
+		end, fun(Pid) ->
+			{"major version mismatch", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major + 1, ?Minor]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"VERSION_MISMATCH">>, <<"major version mismatch">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"get nonce before version check", fun() ->
+				t_send_req(Pid, Socket, 1, get_nonce, []),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"get nonce", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, get_nonce, []),
+				timer:sleep(10),
+				?assert(meck:called(util, get_pubkey, [])),
+				?assert(t_is_success(Pid, Socket, 2, {struct, [{<<"nonce">>, "noncey"},
+					{<<"pubkey_e">>, 23}, {<<"pubkey_n">>, 989898}]}))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to no version check", fun() ->
+				t_send_req(Pid, Socket, 1, login, [<<"username">>, <<"password">>]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to missing nonce", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, login, [<<"username">>, <<"password">>]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 2, <<"MISSING_NONCE">>, <<"get nonce comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to bad credentials", fun() ->
+				meck:expect(agent_auth, auth, 2, deny),
+
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, get_nonce, []),
+				t_send_req(Pid, Socket, 3, login, [<<"username">>, <<"encryptedpassword">>]),
+				timer:sleep(10),
+				?assert(meck:called(agent_auth, auth, ["username", "password"], Pid)),
+				?assert(t_is_fail(Pid, Socket, 3, <<"INVALID_CREDENTIALS">>, <<"username or password invalid">>))
+			end}
+		end, fun(Pid) ->
+			{"login success", {setup, fun() ->
+					meck:new(agent_manager),
+					meck:new(cpx_agent_connection),
+					meck:new(agent),
+					spawn(fun() -> receive _ -> ok end end)
+				end, fun(AgentPid) ->
+					catch AgentPid ! die,
+					meck:unload(agent),
+					meck:unload(cpx_agent_connection),
+					meck:unload(agent_manager)
+				end,
+				fun(AgentPid) -> [fun() ->
+					ExpectAgent = #agent{id = "agentId", login = "username", skills = [],
+						profile = "Default", security_level = agent},
+
+					meck:expect(agent_auth, auth, 2, {allow, "agentId", [], agent, "Default"}),
+					meck:expect(agent_manager, start_agent, 1, {ok, AgentPid}),
+					meck:expect(cpx_agent_connection, init, 1, {ok, conn}),
+					meck:expect(agent, set_connection, 2, ok),
+
+					t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+					t_send_req(Pid, Socket, 2, get_nonce, []),
+					t_send_req(Pid, Socket, 3, login, [<<"username">>, <<"encryptedpassword">>]),
+					timer:sleep(10),
+
+					?assert(meck:called(agent_auth, auth, ["username", "password"], Pid)),
+					?assert(meck:called(agent_manager, start_agent, [ExpectAgent])),
+					?assert(meck:called(cpx_agent_connection, init, [ExpectAgent#agent{source=AgentPid}])),
+					?assert(meck:called(agent, set_connection, [AgentPid, Pid])),
+					?assert(t_is_success(Pid, Socket, 3))
+				end] end}}
+		end]}}.
+
 
 % json_check(Props, {struct, CheckProps}) ->
 % 	json_check(Props, CheckProps);

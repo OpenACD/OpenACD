@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -377,7 +377,7 @@ service_json_local(_ReqId, Mod, _Func, _Args, _State) when Mod =/= undefined ->
 service_json_local(ReqId, _Mod, <<"check_version">>, [Major, Minor], State) ->
 	Out = check_version(State, Major, Minor),
 	wrap_api_return(ReqId, Out);
-	
+
 service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
 	Out = get_nonce(State),
 	wrap_api_return(ReqId, Out);
@@ -444,7 +444,7 @@ service_json_local_test_() ->
 			{<<"function">>, <<"check_version">>},
 			{<<"args">>, [?Major - 1,?Minor]}
 		]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false}, 
+		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
 			{<<"errcode">>, <<"VERSION_MISMATCH">>},
 			{<<"message">>, <<"major version mismatch">>}],
 		{E, GotJson, _State} = service_json_local(Req, #state{}),
@@ -559,7 +559,7 @@ service_json_local_test_() ->
 			{ok, Zombie}
 		end),
 		meck:expect(cpx_agent_connection, init, fun(Agent) ->
-			ExpectedAgent = ExpectAgent#agent{source = Zombie, last_change = 
+			ExpectedAgent = ExpectAgent#agent{source = Zombie, last_change =
 				Agent#agent.last_change},
 			?assertEqual(ExpectedAgent, Agent),
 			Self ! truth,

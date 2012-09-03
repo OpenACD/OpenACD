@@ -92,7 +92,8 @@
 	get_certfile/0,
 	decrypt_password/1,
 	http_datetime/0,
-	http_datetime/1
+	http_datetime/1,
+	generate_salt/0
 ]).
 %% time tracking util functions
 -export([
@@ -664,6 +665,10 @@ decrypt_password(Password) ->
 		error:decrypt_failed ->
 			{error, decrypt_failed}
 	end.
+
+-spec(generate_salt/0 :: () -> Salt :: binary()).
+generate_salt() ->
+	list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))).
 
 -ifdef(TEST).
 

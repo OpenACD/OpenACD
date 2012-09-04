@@ -989,3 +989,14 @@ OpenACD.Stopwatch.prototype.stop = function(){
 	}
 	this.tref = null;
 }
+
+/**
+Unload handling
+**/
+
+window.onbeforeunload = function() {
+	var agent = window.agentConnection;
+	if (agent.loggedIn) {
+		agent.logout();
+	}
+}

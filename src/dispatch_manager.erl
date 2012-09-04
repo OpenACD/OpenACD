@@ -121,9 +121,9 @@ init([]) ->
 				?DEBUG("Spawn waking up with agents ~p", [Agents]),
 				[case A#agent_cache.channels of
 					[] ->
-						gen_server:cast(dispatch_manager, {end_avail, A#agent_cache.pid});
+						dispatch_manager:end_avail(A#agent_cache.pid);
 					_ ->
-						gen_server:cast(dispatch_manager, {now_avail, A#agent_cache.pid, A#agent_cache.channels})
+						dispatch_manager:now_avail(A#agent_cache.pid, A#agent_cache.channels)
 				end || {_Id, A} <- Agents],
 				?DEBUG("Spawn done.", [])
 			end),
@@ -180,9 +180,10 @@ handle_cast({end_avail, AgentPid}, State) ->
 	{noreply, balance(State2)};
 handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
 	Fun = fun(Pid) ->
-		{ok, Dispstate} = gen_server:call(Pid, dump_state),
-		Queued = element(2, Dispstate),
-		QueueRef = element(4, Dispstate),
+		% {ok, Dispstate} = gen_server:call(Pid, dump_state),
+		% Queued = element(2, Dispstate),
+		% QueueRef = element(4, Dispstate),
+		{ok, #queue_info{call = Queued, qpid = QueueRef}} = dispatcher:get_queue_info(Pid),
 		[Pid, Queued, QueueRef]
 	end,
 	Mapped = lists:map(Fun, Disps),
@@ -334,7 +335,7 @@ monitor_test_() ->
 			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
 			{noreply, S2} = handle_cast({end_avail, FakeAgent}, S1),
 			{noreply, S3} = handle_cast({now_avail, FakeAgent, []}, S2),
-			{noreply, S4} = handle_cast({end_avail, FakeAgent}, S3),
+			{noreply, _S4} = handle_cast({end_avail, FakeAgent}, S3),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(0, Count)
@@ -342,7 +343,7 @@ monitor_test_() ->
 
 		{"An agent gets monitored, period", fun() ->
 			FakeAgent = spawn(fun zombie/0),
-			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
+			{noreply, _S1} = handle_cast({now_avail, FakeAgent, []}, State0),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(1, Count)
@@ -351,7 +352,7 @@ monitor_test_() ->
 		{"An agent gets monitored once, channel difference", fun() ->
 			FakeAgent = spawn(fun zombie/0),
 			{noreply, S1} = handle_cast({now_avail, FakeAgent, []}, State0),
-			{noreply, S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
+			{noreply, _S2} = handle_cast({now_avail, FakeAgent, [skill]}, S1),
 			FakeAgent ! headshot,
 			Count = count_downs(FakeAgent, 0),
 			?assertEqual(1, Count)
@@ -387,14 +388,16 @@ balance_test_() ->
 			Zombie = spawn(fun zombie/0),
 			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),
 			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
-			?assertEqual(1, length(State1#state.dispatchers))
+			?assertEqual(1, length(State1#state.dispatchers)),
+			?assertEqual({reply, 1, State1}, handle_call(count_dispatchers, self(), State1))
 		end},
 
 		{"New agent multiple channels, dispatchers start", fun() ->
 			Zombie = spawn(fun zombie/0),
 			{noreply, State1} = handle_cast({now_avail, Zombie, [voice, dummy]}, State0),
 			?assertMatch([{Zombie, _}], dict:to_list(State1#state.agents)),
-			?assertEqual(2, length(State1#state.dispatchers))
+			?assertEqual(2, length(State1#state.dispatchers)),
+			?assertEqual({reply, 2, State1}, handle_call(count_dispatchers, self(), State1))
 		end},
 
 		{"agent dies, but dispatchers don't die with it", fun() ->
@@ -406,7 +409,8 @@ balance_test_() ->
 			after 10 -> ?assert(nodown) end,
 			{noreply, State2} = handle_info(Down, State1),
 			?assertEqual(dict:new(), State2#state.agents),
-			?assertEqual(1, length(State2#state.dispatchers))
+			?assertEqual(1, length(State2#state.dispatchers)),
+			?assertEqual({reply, 1, State2}, handle_call(count_dispatchers, self(), State2))
 		end},
 
 		{"unexpected dispatcher death", fun() ->
@@ -415,9 +419,42 @@ balance_test_() ->
 			{noreply, State1} = handle_cast({now_avail, Zombie, [skill]}, State0),			[Dispatcher] = State1#state.dispatchers,
 			Exit = {'EXIT', Dispatcher, headshot},
 			{noreply, State2} = handle_info(Exit, State1),
-			?assertEqual(1, length(State2#state.dispatchers))
+			?assertEqual(1, length(State2#state.dispatchers)),
+			?assertEqual({reply, 1, State2}, handle_call(count_dispatchers, self(), State2))
 		end}
 
 	] end}.
+
+external_api_test_() ->
+	{foreach, fun() ->
+			FakeDispatcher = util:zombie(),
+			FakeAgent = util:zombie(),
+			
+			meck:new(dispatcher),
+			meck:expect(dispatcher, start_link, fun() -> {ok, FakeDispatcher} end),
+			meck:expect(dispatcher, get_queue_info, fun(_) -> {ok, #queue_info{}} end),
+			
+			dispatch_manager:start(),
+			dispatch_manager:now_avail(FakeAgent, [skill]),
+
+			FakeAgent
+		end,
+		fun(_) ->
+			meck:unload(dispatcher),
+			dispatch_manager:stop()
+		end,
+		[fun(_) ->
+			{"count_dispatchers/0", fun() ->
+				?assertEqual(1, dispatch_manager:count_dispatchers())
+			end}
+		end, fun(_) ->
+			{"deep_inspect/2", fun() ->
+				?assertEqual(ok, dispatch_manager:deep_inspect())
+			end}
+		end, fun(FakeAgent) ->
+			{"end_avail/2", fun() ->
+				?assertEqual(ok, dispatch_manager:end_avail(FakeAgent))
+			end}
+		end]}.
 
 -endif.

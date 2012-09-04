@@ -139,6 +139,8 @@ stop(Pid) ->
 
 %% @doc Set the agent released or idle.
 -spec(set_release/2 :: (Pid :: pid(), Released :: 'none' | 'default' | release_code()) -> 'ok').
+set_release(Pid, default) ->
+	set_release(Pid, ?DEFAULT_RELEASE);
 set_release(Pid, Released) ->
 	gen_fsm:sync_send_event(Pid, {set_release, Released}).
 
@@ -277,10 +279,6 @@ init([Agent, _Options]) when is_record(Agent, agent) ->
 
 idle({set_release, none}, _From, State) ->
 	{reply, ok, idle, State};
-
-idle({set_release, default}, From, State) ->
-	idle({set_release, ?DEFAULT_RELEASE}, From, State);
-
 idle({set_release, {_Id, _Reason, Bias} = Release}, _From, #state{agent_rec = Agent} = State) when Bias =< 1; Bias >= -1 ->
 	dispatch_manager:end_avail(self()),
 	agent_manager:set_avail(Agent#agent.login, []),
@@ -806,7 +804,135 @@ make_agent([{Key, Value} | Tail], Fields, Agent) when is_atom(Key) ->
 	make_agent(Tail, Fields, NewAgent);
 make_agent([_ | Tail], Fields, Agent) ->
 	make_agent(Tail, Fields, Agent).
+
+external_api_test_() ->
+	{setup, fun() ->
+		meck:new(gen_fsm, [unstick]),
+		Pid = util:zombie(),
+
+		meck:expect(gen_fsm, start, fun(agent, [_, _], []) -> {ok, Pid} end),
+		meck:expect(gen_fsm, start_link, fun(agent, [_, _], []) -> {ok, Pid} end),
+		meck:expect(gen_fsm, send_event, fun(_, _) -> ok end),
+		meck:expect(gen_fsm, sync_send_event, fun(_, _) -> ok end),
+		meck:expect(gen_fsm, send_all_state_event, fun(_, _) -> ok end),
+		meck:expect(gen_fsm, sync_send_all_state_event, fun(_, _) -> ok end),
+
+		Pid
+	end,
+	fun(_) ->
+		meck:unload()
+	end,
+	fun(Pid) -> [
+		{"start/1", fun() ->
+			Agent = make_agent([]),
+			
+			agent:start(Agent),
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, start, [agent, [Agent, []], []]))
+		end},
+		{"start/2", fun() ->
+			Agent = make_agent([]),
+			Options = [],
+			
+			agent:start(Agent, Options),
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, start, [agent, [Agent, Options], []]))
+		end},
+		{"start_link/2", fun() ->
+			Agent = make_agent([]),
+			Options = [],
+			
+			agent:start_link(Agent, Options),
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, start_link, [agent, [Agent, Options], []]))
+		end},
+		{"stop/1", fun() ->
+			agent:stop(Pid),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, send_all_state_event, [Pid, stop]))
+		end},
+		{"set_release/2 default", fun() ->
+			agent:set_release(Pid, default),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_event, [Pid, {set_release, ?DEFAULT_RELEASE}]))
+		end},
+		{"set_release/2 other", fun() ->
+			Release = none,
+			agent:set_release(Pid, Release),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_event, [Pid, {set_release, Release}]))
+		end},
+		{"set_connection/2", fun() ->
+			Connection = util:zombie(),
 	
+			agent:set_connection(Pid, Connection),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, {set_connection, Connection}]))
+		end},
+		{"register_rejected/1", fun() ->
+			agent:register_rejected(Pid),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, send_event, [Pid, register_rejected]))
+		end},
+		{"dump_state/1", fun() ->
+			agent:dump_state(Pid),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, dump_state]))
+		end},
+		{"add_skills/2", fun() ->
+			Skills = [tech, spanish],
+			agent:add_skills(Pid, Skills),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, {add_skills, Skills}]))
+		end},
+		{"remove_skills/2", fun() ->
+			Skills = [tech, spanish],
+			agent:remove_skills(Pid, Skills),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, {remove_skills, Skills}]))
+		end},
+		{"change_profile/2", fun() ->
+			Profile = "support",
+			agent:change_profile(Pid, Profile),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, {change_profile, Profile}]))
+		end},
+		{"query_state/1", fun() ->
+			agent:query_state(Pid),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, sync_send_all_state_event, [Pid, query_state]))
+		end},
+		{"blab/2", fun() ->
+			Text = "hello",
+			agent:blab(Pid, Text),
+
+			?assert(meck:validate(gen_fsm)),
+			?assert(meck:called(gen_fsm, send_all_state_event, [Pid, {blab, Text}]))
+		end},
+		{"set_endpoints/2", {setup, fun() -> meck:new(notgenmedia) end, fun(_) -> meck:unload(notgenmedia) end, fun() ->
+			%% TODO add true gen_media
+			agent:set_endpoints(Pid, [{notexistingmod, []}, {notgenmedia, []}]),
+			?assert(meck:called(gen_fsm, send_all_state_event, [Pid, {set_endpoints, []}]))
+		end}},
+		{"set_endpoint/3", [
+			{"notloaded",
+				?_assertEqual({error, nofile}, agent:set_endpoint(Pid, notexistingmod, []))},
+			{"notgenmedia", {setup, fun() -> meck:new(notgenmedia) end, fun(_) -> meck:unload(notgenmedia) end,
+				?_assertEqual({error, badmodule}, agent:set_endpoint(Pid, notgenmedia, []))}}
+			%% TODO add true gen_media
+		]}
+	] end}.
+
 expand_magic_skills_test_() ->
 	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english, {'_brand', "testbrand"}]},
 	Newskills = expand_magic_skills(Agent, Agent#agent.skills),
@@ -855,7 +981,7 @@ handle_sync_event_test_() ->
 			State = #state{agent_rec = Agent},
 			{Agent, State, Endpoints}
 		end,
-		fun({Agent, State, Endpoints}) -> [
+		fun({_Agent, State, Endpoints}) -> [
 			{"Adding new inband endpoint", fun() ->
 				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
 				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
@@ -973,7 +1099,7 @@ state_test_() ->
 		end,
 		{Setup, Validator, Teardown, Mecks, Zombie}
 	end,
-	fun({Setup, Validate, Teardown, Mecks, Zombie}) -> [
+	fun({Setup, Validate, Teardown, _Mecks, Zombie}) -> [
 		{"from release", {foreach, fun() ->
 			Setup()
 		end,
@@ -1104,7 +1230,7 @@ state_test_() ->
 						])},
 					Call = #call{id = "media", type = voice, source = self(),
 						source_module = dummy_media},
-					meck:expect(agent_channel, start_link, fun(InAgent, InCall, End, precall) ->
+					meck:expect(agent_channel, start_link, fun(InAgent, InCall, _End, precall) ->
 						?assertEqual(Agent, InAgent),
 						?assertEqual(Call, InCall),
 						{ok, Zombie}

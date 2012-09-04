@@ -45,7 +45,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, stop/2, get_agents/1, bound_call/1, regrab/1]).
+-export([start_link/0, start/0, stop/2, get_agents/1, bound_call/1, regrab/1, get_queue_info/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -76,6 +76,12 @@ start_link() ->
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	gen_server:start(?MODULE, [], []).
+
+%% @doc Gets the queued calls and queue pid from the dispatcher state
+-spec(get_queue_info/1 :: (Pid :: pid()) -> {ok, #queue_info{}}).
+get_queue_info(Pid) ->
+	State = gen_server:call(Pid, dump_state),
+	{ok, #queue_info{call = State#state.call, qpid = State#state.qpid}}.
 
 %%====================================================================
 %% gen_server callbacks

@@ -694,7 +694,6 @@ init([Callback, Args]) ->
 					substate = Substate,
 					callrec = undefined
 				},
-				?INFO("Result: ~p ~p", [Substate, BaseState]),
 				{ok, inivr, {BaseState, #inivr_state{}}};
 		{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
@@ -709,15 +708,17 @@ init([Callback, Args]) ->
 				{default, Pid} ->
 					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_pid = {"default_queue", Pid}}}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue"),
+					NewQueue = "default_queue",
 					{"default_queue", Pid};
 				Else when is_pid(Else) ->
 					cdr:inqueue(Callrec, Queue),
 					Qmon = erlang:monitor(process, Else),
 					set_cpx_mon({#base_state{callrec = Callrec}, #inqueue_state{queue_mon = Qmon, queue_pid = {Queue, Else}}}, [{queue, Queue}]),
+					NewQueue = Queue,
 					{Queue, Else}
 			end,
 			InqState = #inqueue_state{
-				queue_pid = {Queue, Qpid},
+				queue_pid = {NewQueue, Qpid},
 				queue_mon = erlang:monitor(process, Qpid)
 			},
 			{ok, inqueue, {BaseState, InqState}};
@@ -2392,7 +2393,7 @@ url_pop_test_() ->
 	]
 	end}.
 
-simple_init_test_() ->
+init_test_() ->
 	{setup, fun() ->
 		meck:new(queue_manager),
 		meck:new(call_queue),
@@ -2426,81 +2427,30 @@ simple_init_test_() ->
 			?assertMatch({ok, inqueue, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, #inqueue_state{ queue_pid = {"testqueue", Qpid}}}}, Res),
 			{ok, inqueue, {_, Inqueue}} = Res,
 			
-			% No longer part of base_state
 			?assertNot(undefined =:= Inqueue#inqueue_state.queue_mon),
 			?assertNot(undefined =:= Inqueue#inqueue_state.queue_pid),
+			Validator()
+		end},
+		{"call rec and queue name returned, but queue doesn't exist",
+		fun() ->
+			Qpid = dpid(),
+			meck:expect(queue_manager, get_queue, fun(Queue) -> 
+						case Queue of
+							"testqueue" ->
+								undefined;
+							"default_queue" ->
+								Qpid
+						end end),
+			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
+			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
+			Res = (catch init([dummy_media, Args])),
+			?assertMatch({ok, inqueue, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, #inqueue_state{queue_pid = {"default_queue", Qpid}}}}, Res),
 			Validator()
 		end}
 ]end}.
 
 
 %% TODO Fix tests.
-init_test_d() ->
-	?INFO("Entered init_test", []),
-	util:start_testnode(),
-	N = util:start_testnode(gen_media_init_tests),
-	?INFO("Started test node ~p", [N]),
-	{spawn, N, {foreach,
-	fun() ->
-		?INFO("Starting gen_leader_mock", []),
-		{ok, QMmock} = gen_leader_mock:start(queue_manager),
-		?INFO("Leader mock ready ~p", [QMmock]),
-		{ok, Qpid} = gen_server_mock:new(),
-		?INFO("Server mock ready ~p", [Qpid]),
-		Assertmocks = fun() ->
-			gen_server_mock:assert_expectations(Qpid),
-			gen_leader_mock:assert_expectations(QMmock)
-		end,
-		?INFO("Assertmocks ready", []),
-		{QMmock, Qpid, Assertmocks}
-	end,
-	fun({QMmock, Qpid, _Assertmocks}) ->
-		gen_leader_mock:stop(QMmock),
-		gen_server_mock:stop(Qpid),
-		timer:sleep(10)
-	end,
-	[
-fun({_, _, Assertmocks}) ->
-		{"call rec returned, but no queue",
-		fun() ->
-			Args = [[{id, "dummy"}, {queues, none}], success],
-			Res = init([dummy_media, Args]),
-			?assertMatch({ok, #base_state{callback = dummy_media, callrec = #call{id = "dummy"}}}, Res),
-			Assertmocks()
-		end}
-	end
-%	fun({QMmock, Qpid, Assertmocks}) ->
-%		{"call rec and queue name returned",
-%		fun() ->
-%			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
-%			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-%				{ok, Qpid, State}
-%			end),
-%			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
-%			Res = init([dummy_media, Args]),
-%			?assertMatch({ok, #base_state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"testqueue", Qpid}}}, Res),
-%			#base_state{monitors = Mons} = element(2, Res),
-%			?assertNot(undefined =:= Mons#monitors.queue_pid),
-%			Assertmocks()
-%		end}
-%	end,
-%	fun({QMmock, Qpid, Assertmocks}) ->
-%		{"call rec and queue name returned, but queue doesn't exist",
-%		fun() ->
-%			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
-%			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-%				{ok, undefined, State}
-%			end),
-%			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
-%				{ok, Qpid, State}
-%			end),
-%			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
-%			Res = init([dummy_media, Args]),
-%			?assertMatch({ok, #base_state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"default_queue", Qpid}}}, Res),
-%			Assertmocks()
-%		end}
-%	end
-]}}.
 
 -record(state_changes_mocks, {
 	queue_manager,

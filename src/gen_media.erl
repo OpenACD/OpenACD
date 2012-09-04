@@ -2393,12 +2393,45 @@ url_pop_test_() ->
 	end}.
 
 simple_init_test_() ->
-	[{"call rec returned, but no queue", fun() ->
-		code:load_abs("../include_apps/oacd_dummy/ebin/dummy_media"),
-		Args = [[{id, "dummy"}, {queues, none}], success],
-		Res = (catch init([dummy_media, Args])),
-		?assertMatch({ok, inivr, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, {inivr_state}}}, Res)
-	end}].
+	{setup, fun() ->
+		meck:new(queue_manager),
+		meck:new(call_queue),
+		Validator = fun() ->
+			?assert(meck:validate(queue_manager)),
+			?assert(meck:validate(call_queue))
+		end,
+		Validator
+	end,
+	fun(_) ->
+		meck:unload(queue_manager),
+		meck:unload(call_queue),
+		ok
+	end,
+	fun(Validator) -> 
+	[
+		{"call rec returned, but no queue", fun() ->
+			code:load_abs("../include_apps/oacd_dummy/ebin/dummy_media"),
+			Args = [[{id, "dummy"}, {queues, none}], success],
+			Res = (catch init([dummy_media, Args])),
+			?assertMatch({ok, inivr, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, {inivr_state}}}, Res),
+			Validator()
+		end},
+
+		{"call rec and queue name returned", fun() ->
+			Qpid = dpid(),
+			meck:expect(queue_manager, get_queue, fun(_) -> Qpid end),
+			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
+			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
+			Res = (catch init([dummy_media, Args])),
+			?assertMatch({ok, inqueue, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, #inqueue_state{ queue_pid = {"testqueue", Qpid}}}}, Res),
+			{ok, inqueue, {_, Inqueue}} = Res,
+			
+			% No longer part of base_state
+			?assertNot(undefined =:= Inqueue#inqueue_state.queue_mon),
+			?assertNot(undefined =:= Inqueue#inqueue_state.queue_pid),
+			Validator()
+		end}
+]end}.
 
 
 %% TODO Fix tests.

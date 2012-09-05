@@ -784,734 +784,734 @@ handle_call_test_() ->
 		{reply, ok, State2} = handle_call(stop_when_empty, "from", State1),
 		{reply, Out, _State3} = handle_call({add, 1, CallPid, CallRec}, "from", State2),
 		?assertEqual(invalid, Out)
-	end},
-	{"stop when empty: last call leaves queue exits queue pid", fun() ->
-		{ok, State0} = init(["QueueNom", []]),
-		CallPid = spawn(fun() -> ok end),
-		CallRec = #call{id = "call", source = CallPid},
-		{reply, ok, State1} = handle_call({add, 1, CallPid, CallRec}, "from", State0),
-		{reply, ok, State2} = handle_call(stop_when_empty, "from", State1),
-		Out = handle_call({remove, CallPid}, "from", State2),
-		?assertMatch({stop, normal, ok, _State3}, Out)
 	end}].
+	% {"stop when empty: last call leaves queue exits queue pid", fun() ->
+	% 	{ok, State0} = init(["QueueNom", []]),
+	% 	CallPid = spawn(fun() -> ok end),
+	% 	CallRec = #call{id = "call", source = CallPid},
+	% 	{reply, ok, State1} = handle_call({add, 1, CallPid, CallRec}, "from", State0),
+	% 	{reply, ok, State2} = handle_call(stop_when_empty, "from", State1),
+	% 	Out = handle_call({remove, CallPid}, "from", State2),
+	% 	?assertMatch({stop, normal, ok, _State3}, Out)
+	% end}].
 		
-call_in_out_grab_test_() ->
-	{
-		foreach,
-		fun() ->
-			test_primer(),
-			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue", []),
-			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
-			%dummy_media:set_skills(Dummy, [english, testskill]),
-			call_queue:add(Pid, 1, Dummy),
-			register(media_dummy, Dummy),
-			register(testqueue, Pid),
-			{Pid, Dummy}
-		end,
-		fun({Pid, Dummy}) ->
-			unregister(media_dummy),
-			exit(Dummy, normal),
-			?CONSOLE("Das pid:  ~p", [Pid]),
-			call_queue:stop(Pid),
-			queue_manager:stop()
-			%try call_queue:stop(Pid)
-			%catch
-				%What1:Why1 ->
-					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			%end,
-			%case whereis(queue_manager) of
-				%undefined ->
-					%?CONSOLE("queue_manager already dead.", []);
-				%_Else ->
-					%try queue_manager:stop()
-					%catch
-						%What2:Why2 ->
-							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					%end
-			%end
-		end,
-		[
-			{
-				"Simple add", fun() ->
-					Pid = whereis(testqueue),
-					%{ok, _Dummy1} = dummy_media:start(#call{id="C1"}),
-					%?assertMatch(ok, add(Pid, 1, Dummy1)),
-					%% was added in the set-up, just make sure the data's valid.
-					{{Priority, _Time}, Queuedcall} = ask(Pid),
-					?assertEqual(Queuedcall#queued_call.media, whereis(media_dummy)),
-					?assert(is_list(Queuedcall#queued_call.skills)),
-					?assert(is_process_alive(Queuedcall#queued_call.cook)),
-					?assertEqual(1, Priority)
-				end
-			}, {
-				"Remove by ID", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, remove(Pid, "testcall")),
-					?assertEqual(none, remove(Pid, "testcall"))
-				end
-			}, {
-				"Remove by Pid", fun() ->
-					Pid = whereis(testqueue),
-					Mediapid = whereis(media_dummy),
-					?assertEqual(ok, remove(Pid, Mediapid)),
-					?assertEqual(none, remove(Pid, Mediapid))
-				end
-			}, {
-				"Remove by casted ID", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, bgremove(Pid, "testcall")),
-					?assertEqual(none, remove(Pid, "testcall"))
-				end
-			}, {
-				"Remove by non-existant casted ID", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, bgremove(Pid, "foo"))
-				end
-			}, {
-				"Remove by casted pid", fun() ->
-					Pid = whereis(testqueue),
-					Mediapid = whereis(media_dummy),
-					?assertEqual(ok, bgremove(Pid, Mediapid)),
-					?assertEqual(none, remove(Pid, Mediapid))
-				end
-			}, {
-				"Remove by non-existant casted pid", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, bgremove(Pid, self()))
-				end
-			}, {
-				"Remove non-existant call by id", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(none, remove(Pid, "not_an_id_or_pid"))
-				end
-			}, {
-				"Remove non-existant call by pid", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(none, remove(Pid, self()))
-				end
-			}, {
-				"Find call by UID", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					add(Pid, 1, Dummy1),
-					{_Key1, Call1} = get_call(Pid, "testcall"),
-					?assert(Call1#queued_call.media =:= whereis(media_dummy)),
-					{_Key2, Call2} = get_call(Pid, "C1"),
-					?assert(Dummy1 =:= Call2#queued_call.media),
-					?assertEqual(none, get_call(Pid, "invalid_id")),
-					dummy_media:stop(Dummy1)
-				end
-			}, {
-				"Find call by pid", fun() ->
-					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
-					add(Pid, 1, Dummy2),
-					{_Key1, Call1} = get_call(Pid, Dummy1),
-					{_Key2, Call2} = get_call(Pid, Dummy2),
-					?assertEqual("testcall", Call1#queued_call.id),
-					?assertEqual("C2", Call2#queued_call.id),
-					?assertEqual(none, get_call(Pid, Dummy3)),
-					dummy_media:stop(Dummy2),
-					dummy_media:stop(Dummy3)
-				end
-			}, {
-				"Grab binds once", fun() ->
-					Pid = whereis(testqueue),
-					%Dummy1 = whereis(media_dummy),
-					{_Key, Call} = grab(Pid),
-					?assertEqual("testcall", Call#queued_call.id),
-					?assertEqual(none, grab(Pid))
-				end
-			}, {
-				"Grab from an emtpy call queue", fun() ->
-					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
-					remove(Pid, Dummy1),
-					?assertEqual(none, grab(Pid))
-				end
-			}, {
-				"Grab priority testing", fun() ->
-					Pid = whereis(testqueue),
-					%Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
-					add(Pid, 0, Dummy2),
-					add(Pid, 1, Dummy3),
-					{_Key2, Call2} = grab(Pid),
-					?assertEqual("C2", Call2#queued_call.id),
-					{_Key1, Call1} = grab(Pid),
-					{_Key3, Call3} = grab(Pid),
-					?assertEqual("testcall", Call1#queued_call.id),
-					?assertEqual("C3", Call3#queued_call.id),
-					?assertEqual(none, grab(Pid))
-				end
-			}, {
-				"Ungrabbing", fun() ->
-					Pid = whereis(testqueue),
-					{_Key1, Call1} = grab(Pid),
-					ungrab(Pid, whereis(media_dummy)),
-					{_Key2, Call2} = grab(Pid),
-					?assert(Call1#queued_call.media =:= Call2#queued_call.media)
-				end
-			}, {
-				"Ungrab nonexistant call", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, ungrab(Pid, "foo"))
-				end
-			}
-		]
-	}.
+% call_in_out_grab_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			test_primer(),
+% 			queue_manager:start([node()]),
+% 			{ok, Pid} = queue_manager:add_queue("testqueue", []),
+% 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
+% 			%dummy_media:set_skills(Dummy, [english, testskill]),
+% 			call_queue:add(Pid, 1, Dummy),
+% 			register(media_dummy, Dummy),
+% 			register(testqueue, Pid),
+% 			{Pid, Dummy}
+% 		end,
+% 		fun({Pid, Dummy}) ->
+% 			unregister(media_dummy),
+% 			exit(Dummy, normal),
+% 			?CONSOLE("Das pid:  ~p", [Pid]),
+% 			call_queue:stop(Pid),
+% 			queue_manager:stop()
+% 			%try call_queue:stop(Pid)
+% 			%catch
+% 				%What1:Why1 ->
+% 					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+% 			%end,
+% 			%case whereis(queue_manager) of
+% 				%undefined ->
+% 					%?CONSOLE("queue_manager already dead.", []);
+% 				%_Else ->
+% 					%try queue_manager:stop()
+% 					%catch
+% 						%What2:Why2 ->
+% 							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+% 					%end
+% 			%end
+% 		end,
+% 		[
+% 			{
+% 				"Simple add", fun() ->
+% 					Pid = whereis(testqueue),
+% 					%{ok, _Dummy1} = dummy_media:start(#call{id="C1"}),
+% 					%?assertMatch(ok, add(Pid, 1, Dummy1)),
+% 					%% was added in the set-up, just make sure the data's valid.
+% 					{{Priority, _Time}, Queuedcall} = ask(Pid),
+% 					?assertEqual(Queuedcall#queued_call.media, whereis(media_dummy)),
+% 					?assert(is_list(Queuedcall#queued_call.skills)),
+% 					?assert(is_process_alive(Queuedcall#queued_call.cook)),
+% 					?assertEqual(1, Priority)
+% 				end
+% 			}, {
+% 				"Remove by ID", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, remove(Pid, "testcall")),
+% 					?assertEqual(none, remove(Pid, "testcall"))
+% 				end
+% 			}, {
+% 				"Remove by Pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Mediapid = whereis(media_dummy),
+% 					?assertEqual(ok, remove(Pid, Mediapid)),
+% 					?assertEqual(none, remove(Pid, Mediapid))
+% 				end
+% 			}, {
+% 				"Remove by casted ID", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, bgremove(Pid, "testcall")),
+% 					?assertEqual(none, remove(Pid, "testcall"))
+% 				end
+% 			}, {
+% 				"Remove by non-existant casted ID", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, bgremove(Pid, "foo"))
+% 				end
+% 			}, {
+% 				"Remove by casted pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Mediapid = whereis(media_dummy),
+% 					?assertEqual(ok, bgremove(Pid, Mediapid)),
+% 					?assertEqual(none, remove(Pid, Mediapid))
+% 				end
+% 			}, {
+% 				"Remove by non-existant casted pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, bgremove(Pid, self()))
+% 				end
+% 			}, {
+% 				"Remove non-existant call by id", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(none, remove(Pid, "not_an_id_or_pid"))
+% 				end
+% 			}, {
+% 				"Remove non-existant call by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(none, remove(Pid, self()))
+% 				end
+% 			}, {
+% 				"Find call by UID", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					add(Pid, 1, Dummy1),
+% 					{_Key1, Call1} = get_call(Pid, "testcall"),
+% 					?assert(Call1#queued_call.media =:= whereis(media_dummy)),
+% 					{_Key2, Call2} = get_call(Pid, "C1"),
+% 					?assert(Dummy1 =:= Call2#queued_call.media),
+% 					?assertEqual(none, get_call(Pid, "invalid_id")),
+% 					dummy_media:stop(Dummy1)
+% 				end
+% 			}, {
+% 				"Find call by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Dummy1 = whereis(media_dummy),
+% 					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+% 					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+% 					add(Pid, 1, Dummy2),
+% 					{_Key1, Call1} = get_call(Pid, Dummy1),
+% 					{_Key2, Call2} = get_call(Pid, Dummy2),
+% 					?assertEqual("testcall", Call1#queued_call.id),
+% 					?assertEqual("C2", Call2#queued_call.id),
+% 					?assertEqual(none, get_call(Pid, Dummy3)),
+% 					dummy_media:stop(Dummy2),
+% 					dummy_media:stop(Dummy3)
+% 				end
+% 			}, {
+% 				"Grab binds once", fun() ->
+% 					Pid = whereis(testqueue),
+% 					%Dummy1 = whereis(media_dummy),
+% 					{_Key, Call} = grab(Pid),
+% 					?assertEqual("testcall", Call#queued_call.id),
+% 					?assertEqual(none, grab(Pid))
+% 				end
+% 			}, {
+% 				"Grab from an emtpy call queue", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Dummy1 = whereis(media_dummy),
+% 					remove(Pid, Dummy1),
+% 					?assertEqual(none, grab(Pid))
+% 				end
+% 			}, {
+% 				"Grab priority testing", fun() ->
+% 					Pid = whereis(testqueue),
+% 					%Dummy1 = whereis(media_dummy),
+% 					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+% 					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+% 					add(Pid, 0, Dummy2),
+% 					add(Pid, 1, Dummy3),
+% 					{_Key2, Call2} = grab(Pid),
+% 					?assertEqual("C2", Call2#queued_call.id),
+% 					{_Key1, Call1} = grab(Pid),
+% 					{_Key3, Call3} = grab(Pid),
+% 					?assertEqual("testcall", Call1#queued_call.id),
+% 					?assertEqual("C3", Call3#queued_call.id),
+% 					?assertEqual(none, grab(Pid))
+% 				end
+% 			}, {
+% 				"Ungrabbing", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{_Key1, Call1} = grab(Pid),
+% 					ungrab(Pid, whereis(media_dummy)),
+% 					{_Key2, Call2} = grab(Pid),
+% 					?assert(Call1#queued_call.media =:= Call2#queued_call.media)
+% 				end
+% 			}, {
+% 				"Ungrab nonexistant call", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, ungrab(Pid, "foo"))
+% 				end
+% 			}
+% 		]
+% 	}.
 
-call_update_test_() ->
-	{
-		foreach,
-		fun() ->
-			test_primer(),
-			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue", [{skills, [english, '_node']}]),
-			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
-			%dummy_media:set_skills(Dummy, [english, testskill]),
-			call_queue:add(Pid, 1, Dummy),
-			register(media_dummy, Dummy),
-			register(testqueue, Pid),
-			{Pid, Dummy}
-		end,
-		fun({Pid, Dummy}) ->
-			unregister(media_dummy),
-			exit(Dummy, normal),
-			?CONSOLE("Das pid:  ~p", [Pid]),
-			call_queue:stop(Pid),
-			queue_manager:stop()
-			%try call_queue:stop(Pid)
-			%catch
-				%What1:Why1 ->
-					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			%end,
-			%case whereis(queue_manager) of
-				%undefined ->
-					%?CONSOLE("queue_manager already dead.", []);
-				%_Else ->
-					%try queue_manager:stop()
-					%catch
-						%What2:Why2 ->
-							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					%end
-			%end
-		end,
-		[
-			{
-				"Set priority by id", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, set_priority(Pid, "testcall", 2)),
-					{Key, Call} = get_call(Pid, "testcall"),
-					?assertEqual("testcall", Call#queued_call.id),
-					?assertMatch({2, {_Macroseconds, _Seconds, _Microseconds}}, Key)
-				end
-			}, {
-				"Set priority by pid", fun() ->
-					Pid = whereis(testqueue),
-					Mediapid = whereis(media_dummy),
-					?assertEqual(ok, set_priority(Pid, Mediapid, 2)),
-					{Key, Call} = get_call(Pid, Mediapid),
-					?assertEqual(Mediapid, Call#queued_call.media),
-					?assertMatch({2, _Time}, Key)
-				end
-			}, {
-				"Set priority of non-existant call", fun() ->
-					Pid = whereis(testqueue),
-					?assertMatch(none, set_priority(Pid, "Not a valid id", 5))
-				end
-			}, {
-				"Set priority of non-existant call by pid", fun() ->
-					Pid = whereis(testqueue),
-					?assertMatch(none, set_priority(Pid, self(), 5))
-				end
-			}, {
-				"increase priority", fun() ->
-					Pid = whereis(testqueue),
-					Dummy = whereis(media_dummy),
-					remove(Pid, Dummy),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
-					add(Pid, 1, Dummy1),
-					add(Pid, 1, Dummy2),
-					add(Pid, 1, Dummy3),
-					{{1,_}, Call1} = ask(Pid),
-					?assertEqual("C1", Call1#queued_call.id),
-					set_priority(Pid, Dummy2, 0),
-					{{0,_}, Call2} = ask(Pid),
-					?assertEqual("C2", Call2#queued_call.id)
-				end
-			}, {
-				"decrease priority", fun() ->
-					Pid = whereis(testqueue),
-					Dummy = whereis(media_dummy),
-					remove(Pid, Dummy),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
-					add(Pid, 1, Dummy1),
-					add(Pid, 1, Dummy2),
-					add(Pid, 1, Dummy3),
-					{{1,_}, Call1} = ask(Pid),
-					?assertEqual("C1", Call1#queued_call.id),
-					set_priority(Pid, Dummy1, 2),
-					{{1,_}, Call2} = ask(Pid),
-					?assertEqual("C2", Call2#queued_call.id)
-				end
-			}, {
-				"Skill integrity test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [foo, bar, '_node']}, {queues, none}]),
-					%dummy_media:set_skills(Dummy1, [foo, bar, '_node']),
-					add(Pid, Dummy1),
-					{_Key, Call} = get_call(Pid, Dummy1),
-					?assertEqual(true, lists:member(foo, Call#queued_call.skills)),
-					?assertEqual(false, lists:member(baz, Call#queued_call.skills)),
-					?assertEqual(4, length(Call#queued_call.skills))
-				end
-			}, {
-				"Add skills test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
-					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
-					?assertEqual(ok, add_skills(Pid, "C1", [foo, bar])),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
-					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
-				end
-			}, {
-				"Add skills to unknown call test", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(none, add_skills(Pid, "C2", [foo, bar]))
-				end
-			}, {
-				"Add skills to call reference by pid", fun() ->
-					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
-					add(Pid, Dummy1),
-					{_Key, Call} = get_call(Pid, Dummy1),
-					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
-					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
-					?assertEqual(ok, add_skills(Pid, Dummy1, [foo, bar])),
-					{_Key, Call2} = get_call(Pid, Dummy1),
-					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
-					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
-				end
-			}, {
-				"Remove skills test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
-					?assertEqual(ok, remove_skills(Pid, "C1", [english])),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
-				end
-			}, {
-				"Remove skills from unknown call test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					?assertEqual(none, remove_skills(Pid, "C2", [english]))
-				end
-			}, {
-				"Remove skills from call referenced by pid", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					add(Pid, Dummy1),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
-					?assertEqual(ok, remove_skills(Pid, Dummy1, [english])),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
-				end
-			}, {
-				"Add magic skills test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(testq, Call#queued_call.skills)),
-					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member({'_queue', "testqueue"}, Call2#queued_call.skills))
-				end
-			}, {
-				"Test _brand skill expansion", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {client, #client{id="bid", label="Test Brand"}}, {queues, none}]),
-					%dummy_media:set_skills(Dummy1, ['_brand']),
-					%dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?DEBUG("de skillz:  ~p", [Call2#queued_call.skills]),
-					%% gen_media will swallow up clients it can't confirm are real.
-					?assertEqual(true, lists:member({'_brand', undefined}, Call2#queued_call.skills))
-				end
-			}, {
-				"_brand skill should expand to 'undefined' if the call doesn't have a brand tagged", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {queues, none}]),
-					%dummy_media:set_skills(Dummy1, ['_brand']),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?DEBUG("skills:  ~p", [Call2#queued_call.skills]),
-					?assertEqual(true, lists:member({'_brand', undefined}, Call2#queued_call.skills))
-				end
-			}, {
-				"Remove magic skills test", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_node']}, {queues, none}]),
-					%dummy_media:set_skills(Dummy1, ['_node']),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
-					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
-					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member({'_node', node()}, Call2#queued_call.skills))
-				end
-			}, {
-				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [madness]}, {queues, none}]),
-					%dummy_media:set_skills(Dummy1, [madness]),
-					?assertEqual(ok, add(Pid, Dummy1)),
-					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
-					?assertEqual(true, lists:member(english, Call#queued_call.skills))
-				end
-			}, {
-				"The Media dies during cook start", fun() ->
-					?CONSOLE("Media dies during cook start test begins", []),
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					add(Pid, Dummy1),
-					dummy_media:stop(Dummy1, testkill),
-					timer:sleep(10),
-					?assertMatch(none, get_call(Pid, "C1"))
-				end
-			}, {
-				"Media dies", fun() ->
-					?CONSOLE("Media dies", []),
-					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
-					add(Pid, Dummy1),
-					timer:sleep(100),
-					dummy_media:stop(Dummy1, testkill),
-					?assertMatch(none, get_call(Pid, "C1"))
-				end
-			}
-		]
-	}.
+% call_update_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			test_primer(),
+% 			queue_manager:start([node()]),
+% 			{ok, Pid} = queue_manager:add_queue("testqueue", [{skills, [english, '_node']}]),
+% 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
+% 			%dummy_media:set_skills(Dummy, [english, testskill]),
+% 			call_queue:add(Pid, 1, Dummy),
+% 			register(media_dummy, Dummy),
+% 			register(testqueue, Pid),
+% 			{Pid, Dummy}
+% 		end,
+% 		fun({Pid, Dummy}) ->
+% 			unregister(media_dummy),
+% 			exit(Dummy, normal),
+% 			?CONSOLE("Das pid:  ~p", [Pid]),
+% 			call_queue:stop(Pid),
+% 			queue_manager:stop()
+% 			%try call_queue:stop(Pid)
+% 			%catch
+% 				%What1:Why1 ->
+% 					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+% 			%end,
+% 			%case whereis(queue_manager) of
+% 				%undefined ->
+% 					%?CONSOLE("queue_manager already dead.", []);
+% 				%_Else ->
+% 					%try queue_manager:stop()
+% 					%catch
+% 						%What2:Why2 ->
+% 							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+% 					%end
+% 			%end
+% 		end,
+% 		[
+% 			{
+% 				"Set priority by id", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, set_priority(Pid, "testcall", 2)),
+% 					{Key, Call} = get_call(Pid, "testcall"),
+% 					?assertEqual("testcall", Call#queued_call.id),
+% 					?assertMatch({2, {_Macroseconds, _Seconds, _Microseconds}}, Key)
+% 				end
+% 			}, {
+% 				"Set priority by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Mediapid = whereis(media_dummy),
+% 					?assertEqual(ok, set_priority(Pid, Mediapid, 2)),
+% 					{Key, Call} = get_call(Pid, Mediapid),
+% 					?assertEqual(Mediapid, Call#queued_call.media),
+% 					?assertMatch({2, _Time}, Key)
+% 				end
+% 			}, {
+% 				"Set priority of non-existant call", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertMatch(none, set_priority(Pid, "Not a valid id", 5))
+% 				end
+% 			}, {
+% 				"Set priority of non-existant call by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertMatch(none, set_priority(Pid, self(), 5))
+% 				end
+% 			}, {
+% 				"increase priority", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Dummy = whereis(media_dummy),
+% 					remove(Pid, Dummy),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+% 					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+% 					add(Pid, 1, Dummy1),
+% 					add(Pid, 1, Dummy2),
+% 					add(Pid, 1, Dummy3),
+% 					{{1,_}, Call1} = ask(Pid),
+% 					?assertEqual("C1", Call1#queued_call.id),
+% 					set_priority(Pid, Dummy2, 0),
+% 					{{0,_}, Call2} = ask(Pid),
+% 					?assertEqual("C2", Call2#queued_call.id)
+% 				end
+% 			}, {
+% 				"decrease priority", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Dummy = whereis(media_dummy),
+% 					remove(Pid, Dummy),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+% 					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+% 					add(Pid, 1, Dummy1),
+% 					add(Pid, 1, Dummy2),
+% 					add(Pid, 1, Dummy3),
+% 					{{1,_}, Call1} = ask(Pid),
+% 					?assertEqual("C1", Call1#queued_call.id),
+% 					set_priority(Pid, Dummy1, 2),
+% 					{{1,_}, Call2} = ask(Pid),
+% 					?assertEqual("C2", Call2#queued_call.id)
+% 				end
+% 			}, {
+% 				"Skill integrity test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [foo, bar, '_node']}, {queues, none}]),
+% 					%dummy_media:set_skills(Dummy1, [foo, bar, '_node']),
+% 					add(Pid, Dummy1),
+% 					{_Key, Call} = get_call(Pid, Dummy1),
+% 					?assertEqual(true, lists:member(foo, Call#queued_call.skills)),
+% 					?assertEqual(false, lists:member(baz, Call#queued_call.skills)),
+% 					?assertEqual(4, length(Call#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Add skills test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
+% 					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
+% 					?assertEqual(ok, add_skills(Pid, "C1", [foo, bar])),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
+% 					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Add skills to unknown call test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(none, add_skills(Pid, "C2", [foo, bar]))
+% 				end
+% 			}, {
+% 				"Add skills to call reference by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					Dummy1 = whereis(media_dummy),
+% 					add(Pid, Dummy1),
+% 					{_Key, Call} = get_call(Pid, Dummy1),
+% 					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
+% 					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
+% 					?assertEqual(ok, add_skills(Pid, Dummy1, [foo, bar])),
+% 					{_Key, Call2} = get_call(Pid, Dummy1),
+% 					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
+% 					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Remove skills test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
+% 					?assertEqual(ok, remove_skills(Pid, "C1", [english])),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Remove skills from unknown call test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					?assertEqual(none, remove_skills(Pid, "C2", [english]))
+% 				end
+% 			}, {
+% 				"Remove skills from call referenced by pid", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					add(Pid, Dummy1),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
+% 					?assertEqual(ok, remove_skills(Pid, Dummy1, [english])),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Add magic skills test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(false, lists:member(testq, Call#queued_call.skills)),
+% 					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member({'_queue', "testqueue"}, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Test _brand skill expansion", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {client, #client{id="bid", label="Test Brand"}}, {queues, none}]),
+% 					%dummy_media:set_skills(Dummy1, ['_brand']),
+% 					%dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?DEBUG("de skillz:  ~p", [Call2#queued_call.skills]),
+% 					%% gen_media will swallow up clients it can't confirm are real.
+% 					?assertEqual(true, lists:member({'_brand', undefined}, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"_brand skill should expand to 'undefined' if the call doesn't have a brand tagged", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {queues, none}]),
+% 					%dummy_media:set_skills(Dummy1, ['_brand']),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?DEBUG("skills:  ~p", [Call2#queued_call.skills]),
+% 					?assertEqual(true, lists:member({'_brand', undefined}, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Remove magic skills test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_node']}, {queues, none}]),
+% 					%dummy_media:set_skills(Dummy1, ['_node']),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
+% 					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
+% 					{_Key, Call2} = get_call(Pid, "C1"),
+% 					?assertEqual(false, lists:member({'_node', node()}, Call2#queued_call.skills))
+% 				end
+% 			}, {
+% 				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [madness]}, {queues, none}]),
+% 					%dummy_media:set_skills(Dummy1, [madness]),
+% 					?assertEqual(ok, add(Pid, Dummy1)),
+% 					{_Key, Call} = get_call(Pid, "C1"),
+% 					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
+% 					?assertEqual(true, lists:member(english, Call#queued_call.skills))
+% 				end
+% 			}, {
+% 				"The Media dies during cook start", fun() ->
+% 					?CONSOLE("Media dies during cook start test begins", []),
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					add(Pid, Dummy1),
+% 					dummy_media:stop(Dummy1, testkill),
+% 					timer:sleep(10),
+% 					?assertMatch(none, get_call(Pid, "C1"))
+% 				end
+% 			}, {
+% 				"Media dies", fun() ->
+% 					?CONSOLE("Media dies", []),
+% 					Pid = whereis(testqueue),
+% 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+% 					add(Pid, Dummy1),
+% 					timer:sleep(100),
+% 					dummy_media:stop(Dummy1, testkill),
+% 					?assertMatch(none, get_call(Pid, "C1"))
+% 				end
+% 			}
+% 		]
+% 	}.
 
-queue_update_and_info_test_() ->
-	{
-		foreach,
-		fun() ->
-			test_primer(),
-			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue", []),
-			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
-			%dummy_media:set_skills(Dummy, [english, testskill]),
-			call_queue:add(Pid, 1, Dummy),
-			register(media_dummy, Dummy),
-			register(testqueue, Pid),
-			{Pid, Dummy}
-		end,
-		fun({Pid, Dummy}) ->
-			unregister(media_dummy),
-			exit(Dummy, normal),
-			?CONSOLE("Das pid:  ~p", [Pid]),
-			call_queue:stop(Pid),
-			queue_manager:stop()
-			%try call_queue:stop(Pid)
-			%catch
-				%What1:Why1 ->
-					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			%end,
-			%case whereis(queue_manager) of
-				%undefined ->
-					%?CONSOLE("queue_manager already dead.", []);
-				%_Else ->
-					%try queue_manager:stop()
-					%catch
-						%What2:Why2 ->
-							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					%end
-			%end
-		end,
-		[
-			{
-				"Change weight test", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(ok, set_weight(Pid, 2)),
-					?assertEqual(2, get_weight(Pid))
-				end
-			}, {
-				"Invalid weight change test", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(error, set_weight(Pid, -1)),
-					?assertEqual(?DEFAULT_WEIGHT, get_weight(Pid))
-				end
-			}, {
-				"Call Count Test", fun() ->
-					Pid = whereis(testqueue),
-					?assertEqual(1, call_count(Pid)),
-					?assertEqual(ok, remove(Pid, "testcall")),
-					?assertEqual(0, call_count(Pid)),
-					?assertEqual(none, remove(Pid, "testcall"))
-				end
-			}, {
-				"Dump queue data to a list", fun() ->
-					Pid = whereis(testqueue),
-					%Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
-					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
-					add(Pid, 1, Dummy2),
-					add(Pid, 1, Dummy3),
-					F = fun(X) ->
-						X#queued_call.id
-					end,
-					?assertMatch(["testcall", "C2", "C3"], lists:map(F, to_list(Pid)))
-				end
-			}, {
-				"Empty queue to list", fun() ->
-					Pid = whereis(testqueue),
-					remove(Pid, "testcall"),
-					?assertMatch([], to_list(Pid))
-				end
-			}, {
-				"Change recipe", fun() ->
-					Pid = whereis(testqueue),
-					#state{recipe = ?DEFAULT_RECIPE} = dump(Pid),
-					NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
-					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
-					?assertMatch(#state{recipe = NewRecipe}, dump(Pid))
-				end
-			}
-		]
-	}.
+% queue_update_and_info_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			test_primer(),
+% 			queue_manager:start([node()]),
+% 			{ok, Pid} = queue_manager:add_queue("testqueue", []),
+% 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
+% 			%dummy_media:set_skills(Dummy, [english, testskill]),
+% 			call_queue:add(Pid, 1, Dummy),
+% 			register(media_dummy, Dummy),
+% 			register(testqueue, Pid),
+% 			{Pid, Dummy}
+% 		end,
+% 		fun({Pid, Dummy}) ->
+% 			unregister(media_dummy),
+% 			exit(Dummy, normal),
+% 			?CONSOLE("Das pid:  ~p", [Pid]),
+% 			call_queue:stop(Pid),
+% 			queue_manager:stop()
+% 			%try call_queue:stop(Pid)
+% 			%catch
+% 				%What1:Why1 ->
+% 					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+% 			%end,
+% 			%case whereis(queue_manager) of
+% 				%undefined ->
+% 					%?CONSOLE("queue_manager already dead.", []);
+% 				%_Else ->
+% 					%try queue_manager:stop()
+% 					%catch
+% 						%What2:Why2 ->
+% 							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+% 					%end
+% 			%end
+% 		end,
+% 		[
+% 			{
+% 				"Change weight test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(ok, set_weight(Pid, 2)),
+% 					?assertEqual(2, get_weight(Pid))
+% 				end
+% 			}, {
+% 				"Invalid weight change test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(error, set_weight(Pid, -1)),
+% 					?assertEqual(?DEFAULT_WEIGHT, get_weight(Pid))
+% 				end
+% 			}, {
+% 				"Call Count Test", fun() ->
+% 					Pid = whereis(testqueue),
+% 					?assertEqual(1, call_count(Pid)),
+% 					?assertEqual(ok, remove(Pid, "testcall")),
+% 					?assertEqual(0, call_count(Pid)),
+% 					?assertEqual(none, remove(Pid, "testcall"))
+% 				end
+% 			}, {
+% 				"Dump queue data to a list", fun() ->
+% 					Pid = whereis(testqueue),
+% 					%Dummy1 = whereis(media_dummy),
+% 					{ok, Dummy2} = dummy_media:start([{id, "C2"}, {queues, none}]),
+% 					{ok, Dummy3} = dummy_media:start([{id, "C3"}, {queues, none}]),
+% 					add(Pid, 1, Dummy2),
+% 					add(Pid, 1, Dummy3),
+% 					F = fun(X) ->
+% 						X#queued_call.id
+% 					end,
+% 					?assertMatch(["testcall", "C2", "C3"], lists:map(F, to_list(Pid)))
+% 				end
+% 			}, {
+% 				"Empty queue to list", fun() ->
+% 					Pid = whereis(testqueue),
+% 					remove(Pid, "testcall"),
+% 					?assertMatch([], to_list(Pid))
+% 				end
+% 			}, {
+% 				"Change recipe", fun() ->
+% 					Pid = whereis(testqueue),
+% 					#state{recipe = ?DEFAULT_RECIPE} = dump(Pid),
+% 					NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
+% 					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
+% 					?assertMatch(#state{recipe = NewRecipe}, dump(Pid))
+% 				end
+% 			}
+% 		]
+% 	}.
 
-queue_manager_and_cook_test_() ->
-	{
-		timeout,
-		60,
-		{
-			foreach,
-			fun() ->
-				queue_manager:start([node()]),
-				{ok, Pid} = queue_manager:add_queue("testqueue", []),
-				{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
-				%dummy_media:set_skills(Dummy, [english, testskill]),
-				call_queue:add(Pid, 1, Dummy),
-				register(media_dummy, Dummy),
-				{Pid, Dummy}
-			end,
-			fun({Pid, Dummy}) ->
-				unregister(media_dummy),
-				exit(Dummy, normal),
-				?CONSOLE("Das pid:  ~p", [Pid]),
-				call_queue:stop(Pid),
-				queue_manager:stop()
-				%try call_queue:stop(Pid)
-				%catch
-					%What1:Why1 ->
-						%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-				%end,
-				%case whereis(queue_manager) of
-					%undefined ->
-						%?CONSOLE("queue_manager already dead.", []);
-					%_Else ->
-						%try queue_manager:stop()
-						%catch
-							%What2:Why2 ->
-								%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-						%end
-				%end
-			end,
-			[
-				{
-					"Slaughter the cook",
-					fun() ->
-						{exists, Pid} = queue_manager:add_queue("testqueue", []),
-						Dummy1 = whereis(media_dummy),
-						{_Key1, Call1} = get_call(Pid, Dummy1),
-						?assertEqual(Call1#queued_call.media, Dummy1),
-						?CONSOLE("Dummy1: ~p~nCall1:  ~p~nQPid:  ~p", [Dummy1, Call1, Pid]),
-						gen_server:stop(Call1#queued_call.cook, test_kill),
-						?assert(is_process_alive(Call1#queued_call.cook) =:= false),
-						receive
-						after 300 ->
-							ok
-						end,
-						{_Key2, Call2} = get_call(Pid, Dummy1),
-						?assert(is_process_alive(Call2#queued_call.cook)),
-						?assert(Call2#queued_call.cook =/= Call1#queued_call.cook),
-						?assert(Call1#queued_call.media =:= Call2#queued_call.media)
-					end
-				}
-			]
-		}
-	}.
+% queue_manager_and_cook_test_() ->
+% 	{
+% 		timeout,
+% 		60,
+% 		{
+% 			foreach,
+% 			fun() ->
+% 				queue_manager:start([node()]),
+% 				{ok, Pid} = queue_manager:add_queue("testqueue", []),
+% 				{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
+% 				%dummy_media:set_skills(Dummy, [english, testskill]),
+% 				call_queue:add(Pid, 1, Dummy),
+% 				register(media_dummy, Dummy),
+% 				{Pid, Dummy}
+% 			end,
+% 			fun({Pid, Dummy}) ->
+% 				unregister(media_dummy),
+% 				exit(Dummy, normal),
+% 				?CONSOLE("Das pid:  ~p", [Pid]),
+% 				call_queue:stop(Pid),
+% 				queue_manager:stop()
+% 				%try call_queue:stop(Pid)
+% 				%catch
+% 					%What1:Why1 ->
+% 						%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+% 				%end,
+% 				%case whereis(queue_manager) of
+% 					%undefined ->
+% 						%?CONSOLE("queue_manager already dead.", []);
+% 					%_Else ->
+% 						%try queue_manager:stop()
+% 						%catch
+% 							%What2:Why2 ->
+% 								%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+% 						%end
+% 				%end
+% 			end,
+% 			[
+% 				{
+% 					"Slaughter the cook",
+% 					fun() ->
+% 						{exists, Pid} = queue_manager:add_queue("testqueue", []),
+% 						Dummy1 = whereis(media_dummy),
+% 						{_Key1, Call1} = get_call(Pid, Dummy1),
+% 						?assertEqual(Call1#queued_call.media, Dummy1),
+% 						?CONSOLE("Dummy1: ~p~nCall1:  ~p~nQPid:  ~p", [Dummy1, Call1, Pid]),
+% 						gen_server:stop(Call1#queued_call.cook, test_kill),
+% 						?assert(is_process_alive(Call1#queued_call.cook) =:= false),
+% 						receive
+% 						after 300 ->
+% 							ok
+% 						end,
+% 						{_Key2, Call2} = get_call(Pid, Dummy1),
+% 						?assert(is_process_alive(Call2#queued_call.cook)),
+% 						?assert(Call2#queued_call.cook =/= Call1#queued_call.cook),
+% 						?assert(Call1#queued_call.media =:= Call2#queued_call.media)
+% 					end
+% 				}
+% 			]
+% 		}
+% 	}.
 
 
-get_nodes() ->
-	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
-	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
+% get_nodes() ->
+% 	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+% 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
-% TODO disabled until such time that either:
-% a) rewrtten to not require actual nodes to be running or 
-% b) rebar will run eunit tests on an actual node.
-multi_node_test_d() ->
-	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{Master, Slave} = get_nodes(),
-	{
-		foreach,
-		fun() ->
-			mnesia:stop(),
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+% % TODO disabled until such time that either:
+% % a) rewrtten to not require actual nodes to be running or 
+% % b) rebar will run eunit tests on an actual node.
+% multi_node_test_d() ->
+% 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+% 	{Master, Slave} = get_nodes(),
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			mnesia:stop(),
+% 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+% 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 
-			mnesia:change_config(extra_db_nodes, [Master, Slave]),
-			mnesia:delete_schema([node(), Master, Slave]),
-			mnesia:create_schema([node(), Master, Slave]),
+% 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+% 			mnesia:delete_schema([node(), Master, Slave]),
+% 			mnesia:create_schema([node(), Master, Slave]),
 
-			cover:start([Master, Slave]),
+% 			cover:start([Master, Slave]),
 
-			rpc:call(Master, mnesia, start, []),
-			rpc:call(Slave, mnesia, start, []),
-			mnesia:start(),
+% 			rpc:call(Master, mnesia, start, []),
+% 			rpc:call(Slave, mnesia, start, []),
+% 			mnesia:start(),
 
-			mnesia:change_table_copy_type(schema, Master, disc_copies),
-			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Master, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
 
-			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
-			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
+% 			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
+% 			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
 
-			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
-			Pid
-		end,
-		fun(Pid) ->
+% 			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
+% 			Pid
+% 		end,
+% 		fun(Pid) ->
 
-			rpc:call(Slave, call_queue, stop, [Pid]),
-			cover:stop([Master, Slave]),
+% 			rpc:call(Slave, call_queue, stop, [Pid]),
+% 			cover:stop([Master, Slave]),
 
-			%rpc:call(Master, mnesia, stop, []),
-			%rpc:call(Slave, mnesia, stop, []),
-			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
-			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+% 			%rpc:call(Master, mnesia, stop, []),
+% 			%rpc:call(Slave, mnesia, stop, []),
+% 			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+% 			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 
-			slave:stop(Master),
-			slave:stop(Slave),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
+% 			slave:stop(Master),
+% 			slave:stop(Slave),
+% 			mnesia:stop(),
+% 			mnesia:delete_schema([node()]),
 
-			ok
-		end,
-		[
-			{ "multi node grab test", fun() ->
-					% only one dispatcher per node is allowed to bind, thus we'll
-					% be faking a dispatcher.
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					?DEBUG("queue: ~p", [Queue]),
+% 			ok
+% 		end,
+% 		[
+% 			{ "multi node grab test", fun() ->
+% 					% only one dispatcher per node is allowed to bind, thus we'll
+% 					% be faking a dispatcher.
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					?DEBUG("queue: ~p", [Queue]),
 					
-					% ensure an empty queue says that it is indeed empty.
-					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
-					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
+% 					% ensure an empty queue says that it is indeed empty.
+% 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
+% 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
 					
-					% so adding the call to teh queue on one node gets the same
-					% results no matter where the ask came from.
-					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]]),
-					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
-					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
-					?assertEqual("testcall", Callrec#queued_call.id),
-					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual("testcall", Callrec2#queued_call.id),					
-					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
-					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
-					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
-						{ok, {0, []}, State}
-					end,
-					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
-					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
-					Faked1 = spawn(Slave, ?MODULE, fake_dispatcher, []),
-					Faked1 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(none);
-						Else ->
-							?assert(true)
-					after 10 ->
-						?assert("faked1 timeout")
-					end,
-					Faked1 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(true);
-						Else2 ->
-							?assert(Else2)
-					after 10 ->
-						?assert("faked1 try 2 timeout")
-					end,
-					Faked2 = spawn(Master, ?MODULE, fake_dispatcher, []),
-					Faked2 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(none);
-						Else3 ->
-							?assert(true)
-					after 10 ->
-						?assert("faked2 timeout")
-					end,
-					Faked2 ! {grabit, Queue, self()},
-					receive
-						none ->
-							?assert(true);
-						Else4 ->
-							?assert(Else4)
-					after 10 ->
-						?assert("faked2 try 2 timeout")
-					end
-				end
-			}, { "ensure cook is started on same node as call", fun() ->
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook))
-				end
-			}, { "a respawned cook should be on the same node as its call", fun() ->
-					timer:sleep(10),
-					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
-					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook1)),
-					exit(Cook1, kill),
-					receive after 300 -> ok end,
-					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Cook2)),
-					?assertNot(Cook1 =:= Cook2)
-				end
-			}
-		]
-	}.
+% 					% so adding the call to teh queue on one node gets the same
+% 					% results no matter where the ask came from.
+% 					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]]),
+% 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+% 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
+% 					?assertEqual("testcall", Callrec#queued_call.id),
+% 					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual("testcall", Callrec2#queued_call.id),					
+% 					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
+% 					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
+% 					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
+% 						{ok, {0, []}, State}
+% 					end,
+% 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+% 					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
+% 					Faked1 = spawn(Slave, ?MODULE, fake_dispatcher, []),
+% 					Faked1 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(none);
+% 						Else ->
+% 							?assert(true)
+% 					after 10 ->
+% 						?assert("faked1 timeout")
+% 					end,
+% 					Faked1 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(true);
+% 						Else2 ->
+% 							?assert(Else2)
+% 					after 10 ->
+% 						?assert("faked1 try 2 timeout")
+% 					end,
+% 					Faked2 = spawn(Master, ?MODULE, fake_dispatcher, []),
+% 					Faked2 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(none);
+% 						Else3 ->
+% 							?assert(true)
+% 					after 10 ->
+% 						?assert("faked2 timeout")
+% 					end,
+% 					Faked2 ! {grabit, Queue, self()},
+% 					receive
+% 						none ->
+% 							?assert(true);
+% 						Else4 ->
+% 							?assert(Else4)
+% 					after 10 ->
+% 						?assert("faked2 try 2 timeout")
+% 					end
+% 				end
+% 			}, { "ensure cook is started on same node as call", fun() ->
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook))
+% 				end
+% 			}, { "a respawned cook should be on the same node as its call", fun() ->
+% 					timer:sleep(10),
+% 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+% 					{ok, Dummy} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook1)),
+% 					exit(Cook1, kill),
+% 					receive after 300 -> ok end,
+% 					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
+% 					?assertEqual(Master, node(Cook2)),
+% 					?assertNot(Cook1 =:= Cook2)
+% 				end
+% 			}
+% 		]
+% 	}.
 
 fake_dispatcher() ->
 	receive

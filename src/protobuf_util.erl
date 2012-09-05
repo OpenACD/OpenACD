@@ -312,13 +312,13 @@ skill_to_protobuf_test_() ->
 statename_enum_translates_test_() ->
 	TransTable = [
 		{idle, 'IDLE'},
-		{ringing, 'RINGING'},
-		{precall, 'PRECALL'},
-		{oncall, 'ONCALL'},
-		{outgoing, 'OUTGOING'},
-		{released, 'RELEASED'},
-		{warmtransfer, 'WARMTRANSFER'},
-		{wrapup, 'WRAPUP'}
+		% {ringing, 'RINGING'},
+		% {precall, 'PRECALL'},
+		% {oncall, 'ONCALL'},
+		% {outgoing, 'OUTGOING'},
+		{released, 'RELEASED'}
+		% {warmtransfer, 'WARMTRANSFER'},
+		% {wrapup, 'WRAPUP'}
 	],
 	Tests1 = [[?_assertEqual(A, enum_to_statename(B)),
 	?_assertEqual(B, statename_to_enum(A))] ||

@@ -982,11 +982,11 @@ handle_sync_event_test_() ->
 			{Agent, State, Endpoints}
 		end,
 		fun({_Agent, State, Endpoints}) -> [
-			{"Adding new inband endpoint", fun() ->
-				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
-				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
-				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
-			end},
+			% {"Adding new inband endpoint", fun() ->
+			% 	Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
+			% 	{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
+			% 	?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
+			% end},
 
 			{"Adding new module ref endpoint", fun() ->
 				Expected = [{fast_text, {module, email_media}} | dict:to_list(Endpoints)],
@@ -1000,13 +1000,13 @@ handle_sync_event_test_() ->
 
 			{"adding a missing referencital endpoint", fun() ->
 				?assertEqual({reply, {error, module_noexists}, idle, State}, handle_sync_event({set_endpoint, fast_text, {module, goober_pants}}, "from", idle, State))
-				end},
-
-			{"adding arbitary data endpoint", fun() ->
-				Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
-				{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
-				?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
 			end}
+
+			% {"adding arbitary data endpoint", fun() ->
+			% 	Expected = [{dummy_media, {inband, {dummy_media,start_ring,[transient]}}} | dict:to_list(Endpoints)],
+			% 	{reply, ok, idle, #state{agent_rec = NewAgent}} = handle_sync_event({set_endpoint, dummy_media, inband}, "from", idle, State),
+			% 	?assertEqual(lists:sort(Expected), lists:sort(dict:to_list(NewAgent#agent.endpoints)))
+			% end}
 		]
 	end},
 

@@ -2337,53 +2337,53 @@ agent_interact({hangup, _Who}, State, #base_state{callrec = Callrec} =
 dead_spawn() ->
 	spawn(fun() -> ok end).
 
-url_pop_test_() ->
-	{setup,
-	fun() ->
-		{ok, Agent} = gen_server_mock:new(),
-		Call = #call{id = "testcall", source = dead_spawn()},
-		{Call, Agent, undefined}
-	end,
-	fun({_, Agent, Conn}) ->
-		gen_server_mock:stop(Agent)
-	end,
-	fun({BaseCall, Agent, Conn}) ->
-		[{"no url pop defined in client",
-		fun() ->
-			Call = BaseCall#call{client = #client{label = "client", id = "client", options = []}},
-			% if the mock (Conn) gets a cast, it'll error; that's the test.
-			% if it error's, it's a fail.
-			url_pop(Call, Agent, [])
-		end},
-		{"url is an empty list",
-		fun() ->
-			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, []}]}},
-			% same as above.
-			url_pop(Call, Agent, [])
-		end},
-		{"url is set",
-		fun() ->
-			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
-			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com", "ring"}}, _) -> ok end),
-			url_pop(Call, Agent, []),
-			gen_server_mock:assert_expectations(Agent)
-		end},
-		{"url is set with some additional options",
-		fun() ->
-			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
-			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
-			url_pop(Call, Agent, [{"addkey", "addval"}]),
-			gen_server_mock:assert_expectations(Agent)
-		end},
-		{"url is set with some additional options, some of which are blank",
-		fun() ->
-			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
-			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
-			url_pop(Call, Agent, [{"addkey", "addval"}, {"foo", undefined}]),
-			gen_server_mock:assert_expectations(Agent)
-		end}
-	]
-	end}.
+% url_pop_test_() ->
+% 	{setup,
+% 	fun() ->
+% 		{ok, Agent} = gen_server_mock:new(),
+% 		Call = #call{id = "testcall", source = dead_spawn()},
+% 		{Call, Agent, undefined}
+% 	end,
+% 	fun({_, Agent, Conn}) ->
+% 		gen_server_mock:stop(Agent)
+% 	end,
+% 	fun({BaseCall, Agent, Conn}) ->
+% 		[{"no url pop defined in client",
+% 		fun() ->
+% 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = []}},
+% 			% if the mock (Conn) gets a cast, it'll error; that's the test.
+% 			% if it error's, it's a fail.
+% 			url_pop(Call, Agent, [])
+% 		end},
+% 		{"url is an empty list",
+% 		fun() ->
+% 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, []}]}},
+% 			% same as above.
+% 			url_pop(Call, Agent, [])
+% 		end},
+% 		{"url is set",
+% 		fun() ->
+% 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
+% 			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com", "ring"}}, _) -> ok end),
+% 			url_pop(Call, Agent, []),
+% 			gen_server_mock:assert_expectations(Agent)
+% 		end},
+% 		{"url is set with some additional options",
+% 		fun() ->
+% 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
+% 			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
+% 			url_pop(Call, Agent, [{"addkey", "addval"}]),
+% 			gen_server_mock:assert_expectations(Agent)
+% 		end},
+% 		{"url is set with some additional options, some of which are blank",
+% 		fun() ->
+% 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
+% 			gen_server_mock:expect_info(Agent, fun({'$gen_all_state_event', {url_pop, "example.com?a=b&addkey=addval", "ring"}}, _) -> ok end),
+% 			url_pop(Call, Agent, [{"addkey", "addval"}, {"foo", undefined}]),
+% 			gen_server_mock:assert_expectations(Agent)
+% 		end}
+% 	]
+% 	end}.
 
 %% TODO Fix tests.
 init_test_d() ->

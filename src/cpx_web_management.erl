@@ -3218,23 +3218,23 @@ cookie_test_() ->
 		end}
 	]}}.
 
-recipe_encode_decode_test_() ->
-	[{"Simple encode",
-	?_assertEqual([{struct, [
-		{<<"conditions">>, [{struct, [
-			{<<"property">>, ticks},
-			{<<"comparison">>, '='},
-			{<<"value">>, 3}
-		]}]},
-		{<<"actions">>, [{struct, [
-			{<<"action">>, set_priority},
-			{<<"arguments">>, 5}
-		]}]},
-		{<<"runs">>, run_once},
-		{<<"comment">>, <<"commented">>}
-	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}]))},
-	{"Simple decode",
-	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
+% recipe_encode_decode_test_() ->
+% 	[{"Simple encode",
+% 	?_assertEqual([{struct, [
+% 		{<<"conditions">>, [{struct, [
+% 			{<<"property">>, ticks},
+% 			{<<"comparison">>, '='},
+% 			{<<"value">>, 3}
+% 		]}]},
+% 		{<<"actions">>, [{struct, [
+% 			{<<"action">>, set_priority},
+% 			{<<"arguments">>, 5}
+% 		]}]},
+% 		{<<"runs">>, run_once},
+% 		{<<"comment">>, <<"commented">>}
+% 	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}]))},
+% 	{"Simple decode",
+% 	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 decode_endpoints_test_() ->
 	[{"decode freeswitch_media endpoint type " ++ Str,
@@ -3404,15 +3404,15 @@ api_test_() ->
 				?assertMatch(#agent_profile{name = "Default", skills = [], id = "0"}, agent_auth:get_profile("Default"))
 			end}
 		end,
-		fun(Cookie) ->
-			{"/agents/profiles/someprofile/delete kills the profile",
-			fun() ->
-				?CONSOLE("~p", [agent_auth:new_profile(#agent_profile{name = "someprofile", skills = []})]),
-				?assertEqual(#agent_profile{name = "someprofile", skills = [], id = "1"}, agent_auth:get_profile("someprofile")),
-				{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
-				?assertEqual(undefined, agent_auth:get_profile("someprofile"))
-			end}
-		end,
+		% fun(Cookie) ->
+		% 	{"/agents/profiles/someprofile/delete kills the profile",
+		% 	fun() ->
+		% 		?CONSOLE("~p", [agent_auth:new_profile(#agent_profile{name = "someprofile", skills = []})]),
+		% 		?assertEqual(#agent_profile{name = "someprofile", skills = [], id = "1"}, agent_auth:get_profile("someprofile")),
+		% 		{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
+		% 		?assertEqual(undefined, agent_auth:get_profile("someprofile"))
+		% 	end}
+		% end,
 		fun(Cookie) ->
 			{"/agents/profiles/someprofile/update updates the profile, and corrects the agents",
 			fun() ->
@@ -3506,33 +3506,33 @@ api_test_() ->
 				agent_auth:destroy("renamed")
 			end}
 		end,
-		fun(Cookie) ->
-			{"/agents/agents/someagent/update updating an agent and password",
-			fun() ->
-				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
-				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
-				Post = [
-					{"skills", "{_brand,Somebrand}"},
-					{"skills", "english"},
-					{"password", "newpass"},
-					{"confirm", "newpass"},
-					{"security", "agent"},
-					{"profile", "Default"},
-					{"login", "renamed"},
-					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
-				],
-				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
-				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
-				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
-				?assertEqual(agent, Rec#agent_auth.securitylevel),
-				?assert(lists:member(english, Rec#agent_auth.skills)),
-				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
-				?assertNot(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
-				?assertEqual([{data,"1001"}, {persistant,true}, {type,sip}],
-				 	lists:sort(proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints))),
-				agent_auth:destroy("renamed")
-			end}
-		end,
+		% fun(Cookie) ->
+		% 	{"/agents/agents/someagent/update updating an agent and password",
+		% 	fun() ->
+		% 		agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+		% 		{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+		% 		Post = [
+		% 			{"skills", "{_brand,Somebrand}"},
+		% 			{"skills", "english"},
+		% 			{"password", "newpass"},
+		% 			{"confirm", "newpass"},
+		% 			{"security", "agent"},
+		% 			{"profile", "Default"},
+		% 			{"login", "renamed"},
+		% 			{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
+		% 		],
+		% 		api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
+		% 		?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+		% 		{atomic, [Rec]} = agent_auth:get_agent("renamed"),
+		% 		?assertEqual(agent, Rec#agent_auth.securitylevel),
+		% 		?assert(lists:member(english, Rec#agent_auth.skills)),
+		% 		?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+		% 		?assertNot(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+		% 		?assertEqual([{data,"1001"}, {persistant,true}, {type,sip}],
+		% 		 	lists:sort(proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints))),
+		% 		agent_auth:destroy("renamed")
+		% 	end}
+		% end,
 		fun(Cookie) ->
 			{"/agents/agents/someagent/update updating an agent fails w/ password mismtach",
 			fun() ->
@@ -3560,33 +3560,33 @@ api_test_() ->
 				agent_auth:destroy("someagent")
 			end}
 		end,
-		fun(Cookie) ->
-			{"/agents/agents/someagent/update updating an agent fails w/o password change",
-			fun() ->
-				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
-				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
-				Post = [
-					{"skills", "{_brand,Somebrand}"},
-					{"skills", "english"},
-					{"password", ""},
-					{"confirm", ""},
-					{"security", "agent"},
-					{"profile", "Default"},
-					{"login", "renamed"},
-					{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
-				],
-				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
-				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
-				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
-				?assertEqual(agent, Rec#agent_auth.securitylevel),
-				?assert(lists:member(english, Rec#agent_auth.skills)),
-				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
-				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
-				?assertEqual(undefined,
-				 	proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints)),
-				agent_auth:destroy("renamed")
-			end}
-		end,
+		% fun(Cookie) ->
+		% 	{"/agents/agents/someagent/update updating an agent fails w/o password change",
+		% 	fun() ->
+		% 		agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+		% 		{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+		% 		Post = [
+		% 			{"skills", "{_brand,Somebrand}"},
+		% 			{"skills", "english"},
+		% 			{"password", ""},
+		% 			{"confirm", ""},
+		% 			{"security", "agent"},
+		% 			{"profile", "Default"},
+		% 			{"login", "renamed"},
+		% 			{"endpoints", "{\"freeswitch_media\":{\"type\":\"sip\", \"data\":\"1001\", \"persistant\":true}}"}
+		% 		],
+		% 		api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
+		% 		?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+		% 		{atomic, [Rec]} = agent_auth:get_agent("renamed"),
+		% 		?assertEqual(agent, Rec#agent_auth.securitylevel),
+		% 		?assert(lists:member(english, Rec#agent_auth.skills)),
+		% 		?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+		% 		?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+		% 		?assertEqual(undefined,
+		% 		 	proplists:get_value(freeswitch_media, Rec#agent_auth.endpoints)),
+		% 		agent_auth:destroy("renamed")
+		% 	end}
+		% end,
 		fun(Cookie) ->
 			{"/skills/skill/new Creating a skill",
 			fun() ->
@@ -3710,25 +3710,25 @@ api_test_() ->
 				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group"))
 			end}
 		end,
-		fun(Cookie) ->
-			{"/queues/queue/new Add a queue",
-			fun() ->
-				Post = [
-					{"name", "test queue"},
-					{"recipe", "[]"},
-					{"weight", "1"},
-					{"group", "Default"}
-				],
-				Q = #call_queue{
-					name = "test queue",
-					skills = [], 
-					recipe = []
-				},
-				api({queues, "queue", "new"}, Cookie, Post),
-				?assert(rec_equals(Q, call_queue_config:get_queue("test queue"))),
-				call_queue_config:destroy_queue("test queue")
-			end}
-		end,
+		% fun(Cookie) ->
+		% 	{"/queues/queue/new Add a queue",
+		% 	fun() ->
+		% 		Post = [
+		% 			{"name", "test queue"},
+		% 			{"recipe", "[]"},
+		% 			{"weight", "1"},
+		% 			{"group", "Default"}
+		% 		],
+		% 		Q = #call_queue{
+		% 			name = "test queue",
+		% 			skills = [], 
+		% 			recipe = []
+		% 		},
+		% 		api({queues, "queue", "new"}, Cookie, Post),
+		% 		?assert(rec_equals(Q, call_queue_config:get_queue("test queue"))),
+		% 		call_queue_config:destroy_queue("test queue")
+		% 	end}
+		% end,
 		fun(Cookie) ->
 			{"/queues/queue/test queue/update Update an existing queue",
 			fun() ->

@@ -526,264 +526,264 @@ agent_channel_init(CpxMonPid, Agent, ChanId, Statename, Statedata) ->
 %% Tests for handling agent changes
 %% -----
 
-agent_test_() ->
-	Node = setup_node(agent_init_test_node),
-	{spawn, Node, {foreach,
-	fun() ->
-		setup_mnesia(),
-		case gen_leader_mock:start(cpx_monitor) of
-			{ok, O} -> O;
-			{error, {already_started, O}} -> O
-		end
-	end,
+% agent_test_() ->
+% 	Node = setup_node(agent_init_test_node),
+% 	{spawn, Node, {foreach,
+% 	fun() ->
+% 		setup_mnesia(),
+% 		case gen_leader_mock:start(cpx_monitor) of
+% 			{ok, O} -> O;
+% 			{error, {already_started, O}} -> O
+% 		end
+% 	end,
 
-%% -----
+% %% -----
 
-	[fun(CpxMonPid) ->
-		{"simple initialize", fun() ->
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				#agent_state{id = Id, oldstate = Old, state = Current,
-					profile = Profile, start = Start, ended = End} = Info,
-				?assertEqual("testagent", Id),
-				?assertEqual(login, Old),
-				?assertEqual(default, Current),
-				?assertEqual("testprofile", Profile),
-				?assertEqual(Start, End),
-				ok
-			end),
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				#agent_state{id = Id, oldstate = Old, state = Current,
-					profile = Profile, start = Start, ended = End} = Info,
-				?assertEqual("testagent", Id),
-				?assertEqual(default, Old),
-				?assertEqual(undefined, Current),
-				?assertEqual("testprofile", Profile),
-				?assertNot(undefined =:= Start),
-				?assertEqual(undefined, End),
-				ok
-			end),
-			Agent = #agent{login = "testagent", id="testagent",
-				profile = "testprofile", release_data = default},
-			Out = init(Agent),
-			?assertEqual({ok, Agent}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end,
+% 	[fun(CpxMonPid) ->
+% 		{"simple initialize", fun() ->
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				#agent_state{id = Id, oldstate = Old, state = Current,
+% 					profile = Profile, start = Start, ended = End} = Info,
+% 				?assertEqual("testagent", Id),
+% 				?assertEqual(login, Old),
+% 				?assertEqual(default, Current),
+% 				?assertEqual("testprofile", Profile),
+% 				?assertEqual(Start, End),
+% 				ok
+% 			end),
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				#agent_state{id = Id, oldstate = Old, state = Current,
+% 					profile = Profile, start = Start, ended = End} = Info,
+% 				?assertEqual("testagent", Id),
+% 				?assertEqual(default, Old),
+% 				?assertEqual(undefined, Current),
+% 				?assertEqual("testprofile", Profile),
+% 				?assertNot(undefined =:= Start),
+% 				?assertEqual(undefined, End),
+% 				ok
+% 			end),
+% 			Agent = #agent{login = "testagent", id="testagent",
+% 				profile = "testprofile", release_data = default},
+% 			Out = init(Agent),
+% 			?assertEqual({ok, Agent}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end,
 
-%% -----
+% %% -----
 
-	fun(CpxMonPid) ->
-		{"simple state change", fun() ->
-			StateAgent = #agent{login = "testagent", id = "testagent",
-				profile = "testprofile", release_data = default},
-			{ok, State} = agent_init(CpxMonPid, StateAgent),
-			OldAgent = StateAgent,
-			NewReleaseData = {"rid", "rlabel", 0},
-			NewAgent = OldAgent#agent{release_data = NewReleaseData},
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				?assert(is_record(Info, agent_state)),
-				#agent_state{state = NewRelease, oldstate = OldRelease,
-					ended = Ended} = Info,
-				?assertEqual(NewReleaseData, NewRelease),
-				?assertEqual(default, OldRelease),
-				?assertNot(Ended == undefined),
-				ok
-			end),
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				?assert(is_record(Info, agent_state)),
-				#agent_state{state = NewRelease, oldstate = OldRelease,
-					ended = Ended} = Info,
-				?assertEqual(undefined, NewRelease),
-				?assertEqual(undefined, Ended),
-				?assertEqual(NewReleaseData, OldRelease),
-				ok
-			end),
-			Out = handle_event({change_state, OldAgent, NewAgent}, State),
-			?assertEqual({ok, NewAgent}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end,
+% 	fun(CpxMonPid) ->
+% 		{"simple state change", fun() ->
+% 			StateAgent = #agent{login = "testagent", id = "testagent",
+% 				profile = "testprofile", release_data = default},
+% 			{ok, State} = agent_init(CpxMonPid, StateAgent),
+% 			OldAgent = StateAgent,
+% 			NewReleaseData = {"rid", "rlabel", 0},
+% 			NewAgent = OldAgent#agent{release_data = NewReleaseData},
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				?assert(is_record(Info, agent_state)),
+% 				#agent_state{state = NewRelease, oldstate = OldRelease,
+% 					ended = Ended} = Info,
+% 				?assertEqual(NewReleaseData, NewRelease),
+% 				?assertEqual(default, OldRelease),
+% 				?assertNot(Ended == undefined),
+% 				ok
+% 			end),
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				?assert(is_record(Info, agent_state)),
+% 				#agent_state{state = NewRelease, oldstate = OldRelease,
+% 					ended = Ended} = Info,
+% 				?assertEqual(undefined, NewRelease),
+% 				?assertEqual(undefined, Ended),
+% 				?assertEqual(NewReleaseData, OldRelease),
+% 				ok
+% 			end),
+% 			Out = handle_event({change_state, OldAgent, NewAgent}, State),
+% 			?assertEqual({ok, NewAgent}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end,
 
-%% -----
+% %% -----
 
-	fun(CpxMonPid) ->
-		{"simple profile change", fun() ->
-			OldSkills = ['english', 'myspace', 'yahoo', 'pub'],
-			NewSkills = ['english', 'facebook', 'google', 'bar'],
-			StateAgent = #agent{login = "testagent", id = "testagent",
-				profile = "testprofile", skills = OldSkills, release_data = default},
-			{ok, State} = agent_init(CpxMonPid, StateAgent),
-			OldAgent = StateAgent,
-			NewAgent = OldAgent#agent{skills = NewSkills, profile = "newprofile"},
-			ExpectDropped = ['myspace', 'yahoo', 'pub'],
-			ExpectGained = ['facebook', 'google', 'bar'],
-			ExpectSkills = ['english', 'facebook', 'google', 'bar'],
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_profile, ProfileChange}}, _State, _Elec) ->
-				#agent_profile_change{old_profile = OP, new_profile = NP,
-					skills = S, dropped_skills = DS, gained_skills = GS, id = Id} = 						ProfileChange,
-				?assertEqual("testprofile", OP),
-				?assertEqual("newprofile", NP),
-				?assertEqual(ExpectSkills, S),
-				?assertEqual(ExpectDropped, DS),
-				?assertEqual(ExpectGained, GS),
-				?assertEqual("testagent", Id),
-				ok
-			end),
-			Out = handle_event({change_profile, OldAgent, NewAgent}, State),
-			?assertEqual({ok, NewAgent}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end,
+% 	fun(CpxMonPid) ->
+% 		{"simple profile change", fun() ->
+% 			OldSkills = ['english', 'myspace', 'yahoo', 'pub'],
+% 			NewSkills = ['english', 'facebook', 'google', 'bar'],
+% 			StateAgent = #agent{login = "testagent", id = "testagent",
+% 				profile = "testprofile", skills = OldSkills, release_data = default},
+% 			{ok, State} = agent_init(CpxMonPid, StateAgent),
+% 			OldAgent = StateAgent,
+% 			NewAgent = OldAgent#agent{skills = NewSkills, profile = "newprofile"},
+% 			ExpectDropped = ['myspace', 'yahoo', 'pub'],
+% 			ExpectGained = ['facebook', 'google', 'bar'],
+% 			ExpectSkills = ['english', 'facebook', 'google', 'bar'],
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_profile, ProfileChange}}, _State, _Elec) ->
+% 				#agent_profile_change{old_profile = OP, new_profile = NP,
+% 					skills = S, dropped_skills = DS, gained_skills = GS, id = Id} = 						ProfileChange,
+% 				?assertEqual("testprofile", OP),
+% 				?assertEqual("newprofile", NP),
+% 				?assertEqual(ExpectSkills, S),
+% 				?assertEqual(ExpectDropped, DS),
+% 				?assertEqual(ExpectGained, GS),
+% 				?assertEqual("testagent", Id),
+% 				ok
+% 			end),
+% 			Out = handle_event({change_profile, OldAgent, NewAgent}, State),
+% 			?assertEqual({ok, NewAgent}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end,
 
-%% -----
+% %% -----
 
-	fun(CpxMonPid) ->
-		{"auto detect change: profile", fun() ->
-			OldSkills = ['english', 'myspace', 'yahoo', 'pub'],
-			NewSkills = ['english', 'facebook', 'google', 'bar'],
-			StateAgent = #agent{login = "testagent", id = "testagent",
-				profile = "testprofile", skills = OldSkills, release_data = default},
-			{ok, State} = agent_init(CpxMonPid, StateAgent),
-			OldAgent = StateAgent,
-			NewAgent = OldAgent#agent{skills = NewSkills, profile = "newprofile"},
-			ExpectDropped = ['myspace', 'yahoo', 'pub'],
-			ExpectGained = ['facebook', 'google', 'bar'],
-			ExpectSkills = ['english', 'facebook', 'google', 'bar'],
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_profile, ProfileChange}}, _State, _Elec) ->
-				#agent_profile_change{old_profile = OP, new_profile = NP,
-					skills = S, dropped_skills = DS, gained_skills = GS, id = Id} = 						ProfileChange,
-				?assertEqual("testprofile", OP),
-				?assertEqual("newprofile", NP),
-				?assertEqual(ExpectSkills, S),
-				?assertEqual(ExpectDropped, DS),
-				?assertEqual(ExpectGained, GS),
-				?assertEqual("testagent", Id),
-				ok
-			end),
-			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
-			?assertEqual({ok, NewAgent}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end,
+% 	fun(CpxMonPid) ->
+% 		{"auto detect change: profile", fun() ->
+% 			OldSkills = ['english', 'myspace', 'yahoo', 'pub'],
+% 			NewSkills = ['english', 'facebook', 'google', 'bar'],
+% 			StateAgent = #agent{login = "testagent", id = "testagent",
+% 				profile = "testprofile", skills = OldSkills, release_data = default},
+% 			{ok, State} = agent_init(CpxMonPid, StateAgent),
+% 			OldAgent = StateAgent,
+% 			NewAgent = OldAgent#agent{skills = NewSkills, profile = "newprofile"},
+% 			ExpectDropped = ['myspace', 'yahoo', 'pub'],
+% 			ExpectGained = ['facebook', 'google', 'bar'],
+% 			ExpectSkills = ['english', 'facebook', 'google', 'bar'],
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_profile, ProfileChange}}, _State, _Elec) ->
+% 				#agent_profile_change{old_profile = OP, new_profile = NP,
+% 					skills = S, dropped_skills = DS, gained_skills = GS, id = Id} = 						ProfileChange,
+% 				?assertEqual("testprofile", OP),
+% 				?assertEqual("newprofile", NP),
+% 				?assertEqual(ExpectSkills, S),
+% 				?assertEqual(ExpectDropped, DS),
+% 				?assertEqual(ExpectGained, GS),
+% 				?assertEqual("testagent", Id),
+% 				ok
+% 			end),
+% 			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
+% 			?assertEqual({ok, NewAgent}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end,
 
-%% -----
+% %% -----
 
-	fun(CpxMonPid) ->
-		{"auto detect change:  state", fun() ->
-			StateAgent = #agent{login = "testagent", id = "testagent",
-				profile = "testprofile", release_data = default},
-			{ok, State} = agent_init(CpxMonPid, StateAgent),
-			OldAgent = StateAgent,
-			NewReleaseData = {"rid", "rlabel", 0},
-			NewAgent = OldAgent#agent{release_data = NewReleaseData},
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				?assert(is_record(Info, agent_state)),
-				#agent_state{state = NewRelease, oldstate = OldRelease,
-					ended = Ended} = Info,
-				?assertEqual(NewReleaseData, NewRelease),
-				?assertEqual(default, OldRelease),
-				?assertNot(Ended == undefined),
-				ok
-			end),
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
-				?assert(is_record(Info, agent_state)),
-				#agent_state{state = NewRelease, oldstate = OldRelease,
-					ended = Ended} = Info,
-				?assertEqual(undefined, NewRelease),
-				?assertEqual(undefined, Ended),
-				?assertEqual(NewReleaseData, OldRelease),
-				ok
-			end),
-			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
-			?assertEqual({ok, NewAgent}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end]}}.
+% 	fun(CpxMonPid) ->
+% 		{"auto detect change:  state", fun() ->
+% 			StateAgent = #agent{login = "testagent", id = "testagent",
+% 				profile = "testprofile", release_data = default},
+% 			{ok, State} = agent_init(CpxMonPid, StateAgent),
+% 			OldAgent = StateAgent,
+% 			NewReleaseData = {"rid", "rlabel", 0},
+% 			NewAgent = OldAgent#agent{release_data = NewReleaseData},
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				?assert(is_record(Info, agent_state)),
+% 				#agent_state{state = NewRelease, oldstate = OldRelease,
+% 					ended = Ended} = Info,
+% 				?assertEqual(NewReleaseData, NewRelease),
+% 				?assertEqual(default, OldRelease),
+% 				?assertNot(Ended == undefined),
+% 				ok
+% 			end),
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_state, Info}}, _State, _Elect) ->
+% 				?assert(is_record(Info, agent_state)),
+% 				#agent_state{state = NewRelease, oldstate = OldRelease,
+% 					ended = Ended} = Info,
+% 				?assertEqual(undefined, NewRelease),
+% 				?assertEqual(undefined, Ended),
+% 				?assertEqual(NewReleaseData, OldRelease),
+% 				ok
+% 			end),
+% 			Out = handle_event({change_agent, OldAgent, NewAgent}, State),
+% 			?assertEqual({ok, NewAgent}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end]}}.
 
-%% -----
-%% agent channel state tests
-%% -----
+% %% -----
+% %% agent channel state tests
+% %% -----
 
-% agent channel tests:
-% agent channel init produces 1 event: current state
-% agent channel state change produces 2 events:  terminate of old and
-%		creation of new
-% agent channel state exit produces N events, where N is unterminated.
-%		state would be exit.
+% % agent channel tests:
+% % agent channel init produces 1 event: current state
+% % agent channel state change produces 2 events:  terminate of old and
+% %		creation of new
+% % agent channel state exit produces N events, where N is unterminated.
+% %		state would be exit.
 
-agent_channel_test_() ->
-	Node = setup_node(agent_channel_init_test_node),
-	{spawn, Node, {foreach,
-	fun() ->
-		setup_mnesia(),
-		case gen_leader_mock:start(cpx_monitor) of
-			{ok, O} -> O;
-			{error, {already_started, O}} -> O
-		end
-	end,
+% agent_channel_test_() ->
+% 	Node = setup_node(agent_channel_init_test_node),
+% 	{spawn, Node, {foreach,
+% 	fun() ->
+% 		setup_mnesia(),
+% 		case gen_leader_mock:start(cpx_monitor) of
+% 			{ok, O} -> O;
+% 			{error, {already_started, O}} -> O
+% 		end
+% 	end,
 
-%% -----
+% %% -----
 
-	[fun(CpxMonPid) ->
-		{"simple initialize", fun() ->
-			ChannelRef = spawn(fun() -> ok end),
-			Agent = #agent{login = "testagent", id = "testagent", source = "agent_pid"},
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
-				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
-					state = State, start = Started, ended = Ended} = Info,
-				?assertEqual("testagent", Aid),
-				?assertEqual(ChannelRef, Cid),
-				?assertEqual(init, OState),
-				?assertEqual(prering, State),
-				?assertNot(Started == undefined),
-				?assertEqual(undefined, Ended),
-				ok
-			end),
-			Out = init([Agent, ChannelRef, prering, call_rec]),
-			?assertMatch({ok, {"agent_pid", ChannelRef}}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end,
+% 	[fun(CpxMonPid) ->
+% 		{"simple initialize", fun() ->
+% 			ChannelRef = spawn(fun() -> ok end),
+% 			Agent = #agent{login = "testagent", id = "testagent", source = "agent_pid"},
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+% 				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+% 					state = State, start = Started, ended = Ended} = Info,
+% 				?assertEqual("testagent", Aid),
+% 				?assertEqual(ChannelRef, Cid),
+% 				?assertEqual(init, OState),
+% 				?assertEqual(prering, State),
+% 				?assertNot(Started == undefined),
+% 				?assertEqual(undefined, Ended),
+% 				ok
+% 			end),
+% 			Out = init([Agent, ChannelRef, prering, call_rec]),
+% 			?assertMatch({ok, {"agent_pid", ChannelRef}}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end,
 
-%% -----
+% %% -----
 
-	fun(CpxMonPid) ->
-		{"state change", fun() ->
-			ChannelRef = spawn(fun() -> ok end),
-			Agent = #agent{login = "testagent", id = "testid",
-				source = "agent_pid"},
-			{ok, State0} = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
-				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
-					state = NState, start = Started, ended = Ended,
-					statedata = Statedata} = Info,
-				?assertEqual("testid", Aid),
-				?assertEqual(ChannelRef, Cid),
-				?assertEqual(init, OState),
-				?assertEqual(prering, NState),
-				?assertEqual("call_data", Statedata),
-				?assertNot(Started == undefined),
-				?assertNot(Ended == undefined),
-				ok
-			end),
-			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
-				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
-					state = NState, start = Started, ended = Ended,
-					statedata = Statedata} = Info,
-				?assertEqual("testid", Aid),
-				?assertEqual(ChannelRef, Cid),
-				?assertEqual(prering, OState),
-				?assertEqual(ringing, NState),
-				?assertEqual("new_call_data", Statedata),
-				?assertNot(Started == undefined),
-				?assertEqual(undefined, Ended),
-				ok
-			end),
-			Out = handle_event({change_agent_channel, ChannelRef, ringing, "new_call_data"}, State0),
-			?assertEqual({ok, State0}, Out),
-			cpx_monitor:assert_mock()
-		end}
-	end
-	]}}.
+% 	fun(CpxMonPid) ->
+% 		{"state change", fun() ->
+% 			ChannelRef = spawn(fun() -> ok end),
+% 			Agent = #agent{login = "testagent", id = "testid",
+% 				source = "agent_pid"},
+% 			{ok, State0} = agent_channel_init(CpxMonPid, Agent, ChannelRef, prering, "call_data"),
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+% 				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+% 					state = NState, start = Started, ended = Ended,
+% 					statedata = Statedata} = Info,
+% 				?assertEqual("testid", Aid),
+% 				?assertEqual(ChannelRef, Cid),
+% 				?assertEqual(init, OState),
+% 				?assertEqual(prering, NState),
+% 				?assertEqual("call_data", Statedata),
+% 				?assertNot(Started == undefined),
+% 				?assertNot(Ended == undefined),
+% 				ok
+% 			end),
+% 			gen_leader_mock:expect_leader_cast(CpxMonPid, fun({info, _Ts, {agent_channel_state, Info}}, _State, _Elect) ->
+% 				#agent_channel_state{agent_id = Aid, id = Cid, oldstate = OState,
+% 					state = NState, start = Started, ended = Ended,
+% 					statedata = Statedata} = Info,
+% 				?assertEqual("testid", Aid),
+% 				?assertEqual(ChannelRef, Cid),
+% 				?assertEqual(prering, OState),
+% 				?assertEqual(ringing, NState),
+% 				?assertEqual("new_call_data", Statedata),
+% 				?assertNot(Started == undefined),
+% 				?assertEqual(undefined, Ended),
+% 				ok
+% 			end),
+% 			Out = handle_event({change_agent_channel, ChannelRef, ringing, "new_call_data"}, State0),
+% 			?assertEqual({ok, State0}, Out),
+% 			cpx_monitor:assert_mock()
+% 		end}
+% 	end
+% 	]}}.
 
 -endif.

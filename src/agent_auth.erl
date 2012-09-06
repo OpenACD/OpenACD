@@ -622,7 +622,8 @@ auth_test_() ->
 		meck:new(somestore)
 	end,
 	fun(_) ->
-		meck:unload(somestore)
+		meck:unload(somestore),
+		cpx_hooks:stop()
 	end,
 	[{"unhandled", fun() ->
 		meck:expect(somestore, auth_agent, 2, none),

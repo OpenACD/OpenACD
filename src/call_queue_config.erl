@@ -967,7 +967,8 @@ get_client_test_() ->
 
 		meck:new(somestore)
 	end, fun(_) ->
-		meck:unload(somestore)
+		meck:unload(somestore),
+		cpx_hooks:stop()
 	end,
 	[{"unhandled", fun() ->
 		meck:expect(somestore, get_client, fun(_, _) -> none end),

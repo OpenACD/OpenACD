@@ -742,8 +742,8 @@ start_testnode(Name, Host) ->
 
 code_reload_test_() ->
 	% Using dummy_media because using util kills coverage reporting.
-	[{spawn, [{"Standard reload", ?_assertEqual({ok, dummy_media}, reload(dummy_media))}]},
-	{spawn, [{"Hard reload", ?_assertEqual({error, {purging, false, dummy_media}}, reload(dummy_media, hard))}]},
+	% [{spawn, [{"Standard reload", ?_assertEqual({ok, dummy_media}, reload(dummy_media))}]},
+	[{spawn, [{"Hard reload", ?_assertEqual({error, {purging, false, dummy_media}}, reload(dummy_media, hard))}]},
 	{spawn, [{"Reloading everything", ?_assertEqual(ok, reload_all())}]}].
 
 now_test() ->

@@ -44,6 +44,8 @@
 		timestamp = util:now() :: pos_integer()
 }).
 
+-type(call_priority() :: non_neg_integer()).
+
 -record(call, {
 		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: channel_category(),
@@ -64,9 +66,11 @@
 		% media_path really means if the agent fsm can send a hangup
 		media_path = outband :: 'inband' | 'outband',
 		direction = inbound :: 'inbound' | 'outbound',
-		priority = 40 :: non_neg_integer(),
+		priority = 40 :: call_priority(),
 		arbitrary = [] :: [{string(), string()}]
 }).
+
+-type(call_key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
 
 -record(queued_call, {
 	media = erlang:error({undefined, media}) :: pid(),
@@ -76,7 +80,7 @@
 	module :: atom(),
 	dispatchers = [] :: [pid()],
 	cook :: pid()
-	}).
+}).
 
 -type(transaction_type() :: 
 	'cdrinit' | 

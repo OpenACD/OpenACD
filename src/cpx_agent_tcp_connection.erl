@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -129,7 +129,7 @@ get_nonce(#state{version_check = undefined} = State) ->
 
 get_nonce(State) ->
 	[E, N] = util:get_pubkey(),
-	Salt = list_to_binary(integer_to_list(crypto:rand_uniform(0, 4294967295))),
+	Salt = util:generate_salt(),
 	Res = {struct, [{<<"nonce">>, Salt}, {<<"pubkey_e">>, E},
 		{<<"pubkey_n">>, N}]},
 	{ok, Res, State#state{nonce = Salt}}.
@@ -377,7 +377,7 @@ service_json_local(_ReqId, Mod, _Func, _Args, _State) when Mod =/= undefined ->
 service_json_local(ReqId, _Mod, <<"check_version">>, [Major, Minor], State) ->
 	Out = check_version(State, Major, Minor),
 	wrap_api_return(ReqId, Out);
-	
+
 service_json_local(ReqId, _Mod, <<"get_nonce">>, [], State) ->
 	Out = get_nonce(State),
 	wrap_api_return(ReqId, Out);
@@ -406,406 +406,579 @@ error(Id, Code, Msg) ->
 
 -ifdef(TEST).
 
-json_check(Props, {struct, CheckProps}) ->
-	json_check(Props, CheckProps);
+-spec t_send_req(Pid::pid(), Sock::any(), ReqId::integer(),
+	Fun::atom(), Args::[any()]) -> ok.
+t_send_req(Pid, Socket, ReqId, Fun, Args) ->
+	Bin = iolist_to_binary(
+		mochijson2:encode({struct, [
+		{request_id, ReqId},
+		{function, Fun},
+		{args, Args}]})),
+	Pid ! {tcp, Socket, netstring:encode(Bin)},
+	ok.
 
-json_check(Props, CheckProps) ->
-	case lists:all(fun({_,_}) -> true; (_) -> false end, CheckProps) of
-		true -> json_check2(Props, CheckProps);
-		false -> {error, not_proplist}
+t_is_success(Pid, Socket, ReqId) ->
+	t_is_success(Pid, Socket, ReqId, undefined).
+
+t_is_success(Pid, Socket, ReqId, Result) ->
+	t_resp_match(Pid, Socket, ReqId, true, Result, undefined, undefined).
+
+t_is_fail(Pid, Socket, ReqId, ErrCode, Message) ->
+	t_resp_match(Pid, Socket, ReqId, false, undefined, ErrCode, Message).
+
+t_resp_match(Pid, Socket, ReqId, Success, Result, ErrCode, Message) ->
+	{Sent, _} = netstring:decode(iolist_to_binary([X ||
+	{_, {gen_tcp, send, [Sock, X]}, _} <- meck:history(gen_tcp, Pid),
+		Sock =:= Socket])),
+
+	M = lists:foldl(fun(_, true) -> true; (_, false) -> false; (B, _) ->
+			{struct, Props} = mochijson2:decode(B),
+			case proplists:get_value(<<"request_id">>, Props) of
+				ReqId ->
+					lists:all(fun({_, undefined}) -> true;
+						({Key, Val}) -> proplists:get_value(Key, Props) =:= Val
+					end, [{<<"success">>, Success}, {<<"result">>, Result},
+					{<<"errcode">>, ErrCode}, {<<"message">>, Message}]);
+				_ ->
+					maybe
+			end
+		end, maybe, Sent),
+
+	case M of
+		true -> true;
+		_ -> false
 	end.
 
-json_check2([], _) ->
-	true;
-json_check2([{Key, Value} | Tail], Check) ->
-	case proplists:get_value(Key, Check) of
-		Value -> json_check2(Tail, Check);
-		X -> {error, {not_expected, X, Value}}
-	end.
+login_test_() ->
+	Socket = erlang:make_ref(),
 
-service_json_local_test_() ->
-	ssl:start(), [
-	{"unusable json", fun() ->
-		Json = <<"not a struct">>,
-		?assertEqual({error, not_local}, service_json_local(Json, state))
-	end},
+	{setup,
+	fun() ->
+		meck:new(inet, [unstick]),
+		meck:expect(inet, setopts, 2, ok),
 
-	{"non-local function", fun() ->
-		Json = {struct, [
-			{<<"module">>, <<"plugin_land">>},
-			{<<"function">>, <<"do_stuff">>}
-		]},
-		?assertEqual({error, not_local}, service_json_local(Json, state))
-	end},
+		meck:new(gen_tcp, [unstick]),
+		meck:expect(gen_tcp, send, 2, ok),
 
-	{"major version mismatch", fun() ->
-		Req = {struct, [
-			{<<"request_id">>, 1},
-			{<<"function">>, <<"check_version">>},
-			{<<"args">>, [?Major - 1,?Minor]}
-		]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false}, 
-			{<<"errcode">>, <<"VERSION_MISMATCH">>},
-			{<<"message">>, <<"major version mismatch">>}],
-		{E, GotJson, _State} = service_json_local(Req, #state{}),
-		?assertEqual(exit, E),
-		?assert(json_check(Expected, GotJson))
-	end},
-
-	{"minor version mismatch", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major,?Minor + 1]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
-			{<<"result">>, <<"minor version mismatch">>}],
-		{E, Json, _State} = service_json_local(Req, #state{}),
-		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json))
-	end},
-
-	{"version match", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major, ?Minor]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
-		{E, Json, State} = service_json_local(Req, #state{}),
-		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json)),
-		?assertEqual(passed, State#state.version_check)
-	end},
-
-	{"get nonce before version check", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"function">>, <<"get_nonce">>}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
-			{<<"message">>, <<"version check comes first">>}
-		],
-		{E, Json, _State} = service_json_local(Req, #state{}),
-		?assertEqual(exit, E),
-		?assert(json_check(Expected, Json))
-	end},
-
-	{"get nonce", fun() ->
-		Req = {struct, [{<<"request_id">>, 1},
-			{<<"function">>, <<"get_nonce">>}]},
 		meck:new(util),
-		meck:expect(util, get_pubkey, fun() -> [23, 989898] end),
-		State = #state{version_check = passed},
-		{E, Json, State0} = service_json_local(Req, State),
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
-			{<<"result">>, {struct, [
-			{<<"nonce">>, State0#state.nonce}, {<<"pubkey_e">>, 23}, {<<"pubkey_n">>, 989898}]}}],
-		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json)),
-		?assertNotEqual(undefined, State0#state.nonce),
-		meck:unload(util)
-	end},
+		meck:expect(util, get_pubkey, 0, [23, 989898]),
+		meck:expect(util, generate_salt, 0, "noncey"),
+		meck:expect(util, decrypt_password, fun(<<"encryptedpassword">>) -> {ok, "nonceypassword"};
+			(_) -> {error, decrypt_failed} end),
+		meck:expect(util, now, 0, 12345),
 
-	{"login fail due to no version check pass", fun() ->
-		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
-			{<<"args">>, [<<"username">>, <<"password">>]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
-			{<<"message">>, <<"version check comes first">>}],
-		{E, Json, _State} = service_json_local(Req, #state{}),
-		?assertEqual(exit, E),
-		?assert(json_check(Expected, Json))
-	end},
-
-	{"login fail due to missing nonce", fun() ->
-		% this check only matters over raw tcp, not ssl
-		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
-			{<<"args">>, [<<"username">>, <<"password">>]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errcode">>, <<"MISSING_NONCE">>},
-			{<<"message">>, <<"get nonce comes first">>}],
-		State = #state{version_check = passed, socket_mod = gen_tcp},
-		{E, Json, State} = service_json_local(Req, State),
-		?assertEqual(exit, E),
-		?assert(json_check(Expected, Json))
-	end},
-
-	{"login fail due to bad un/pw (testing encrypted pw)", fun() ->
-		meck:new(agent_auth),
-		meck:expect(agent_auth, auth, fun("username", "password") ->
-			deny
-		end),
-		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
-		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
-			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
-			{<<"errcode">>, <<"INVALID_CREDENTIALS">>},
-			{<<"message">>, <<"username or password invalid">>}],
-		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
-		{E, Json, State} = service_json_local(Req, State),
-		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json)),
-		meck:unload(agent_auth)
-	end},
-
-	{"login success (testing encrypted pw)", fun() ->
-		Zombie = util:zombie(),
-		Self = self(),
-		ExpectAgent = #agent{id = "agentId", login = "username", skills = [],
-			profile = "Default", security_level = agent},
-		meck:new([agent, agent_auth, agent_manager, cpx_agent_connection]),
-		meck:expect(agent_auth, auth, fun("username", "password") ->
-			Self ! truth,
-			{allow, "agentId", [], agent, "Default"}
-		end),
-		meck:expect(agent_manager, start_agent, fun(Agent) ->
-			ExpectAgent0 = ExpectAgent#agent{last_change = Agent#agent.last_change},
-			?assertEqual(ExpectAgent0, Agent),
-			Self ! truth,
-			{ok, Zombie}
-		end),
-		meck:expect(cpx_agent_connection, init, fun(Agent) ->
-			ExpectedAgent = ExpectAgent#agent{source = Zombie, last_change = 
-				Agent#agent.last_change},
-			?assertEqual(ExpectedAgent, Agent),
-			Self ! truth,
-			{ok, cpx_agent_connection}
-		end),
-		meck:expect(agent, set_connection, fun(InAgentPid, InSelf) ->
-			?assertEqual(Self, InSelf),
-			?assertEqual(Zombie, InAgentPid),
-			Self ! truth
-		end),
-		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
-		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
-			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
-		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
-		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
-		{E, Json, State0} = service_json_local(Req, State),
-		?assertEqual(ok, E),
-		?assert(json_check(Expected, Json)),
-		?assertEqual(cpx_agent_connection, State0#state.agent_conn_state),
-		?assert(get_truths(4)),
-		[meck:unload(M) || M <- [agent, agent_auth, agent_manager, cpx_agent_connection]]
-	end}
-
-	].
-
-get_truths(0) ->
-	true;
-get_truths(X) when X > 0 ->
-	receive
-		truth -> get_truths(X - 1)
-	after 100 -> {truths_remaining, X}
-	end.
-
-get_pub_key() ->
-	[Exponent,Modulus] = util:get_pubkey(),
-	#'RSAPublicKey'{ modulus = Modulus, publicExponent = Exponent }.
-
-% ----------------------------------------------------------------
-
-input_output_test_() -> [
-
-		{"handle_cast", setup, fun() ->
-			meck:new(cpx_agent_connection),
-			meck:new(socket_mod),
-			InState = #state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock},
-			ExpectState = InState#state{agent_conn_state = 2},
-			{InState, ExpectState, 2}
-		end,
-		fun(_) ->
-			meck:unload(cpx_agent_connection),
-			meck:unload(socket_mod)
-		end,
-		fun({State, Expect, NewConnState}) -> [
-			{"no conn state, skipped", fun() ->
-				State0 = State#state{agent_conn_state = undefined},
-				?assertEqual({noreply, State0}, handle_cast(random_cast, State0))
-			end},
-
-			{"no json to return, carry on", fun() ->
-				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
-					{ok, undefined, NewConnState}
-				end),
-				Out = handle_cast(random_cast, State),
-				?assertEqual({noreply, Expect}, Out)
-			end},
-
-			{"no json to return, exit", fun() ->
-				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
-					{exit, undefined, NewConnState}
-				end),
-				Out = handle_cast(random_cast, State),
-				?assertEqual({stop, normal, Expect}, Out)
-			end},
-
-			{"json to return, carry on", fun() ->
-				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
-					{ok, <<"a json string">>, NewConnState}
-				end),
-				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
-					ok
-				end),
-				Out = handle_cast(random_cast, State),
-				?assertEqual({noreply, Expect}, Out)
-			end},
-
-			{"json to return, exit", fun() ->
-				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
-					{exit, <<"a json string">>, NewConnState}
-				end),
-				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
-					ok
-				end),
-				Out = handle_cast(random_cast, State),
-				?assertEqual({stop, normal, Expect}, Out)
-			end}
-
-		] end},
-
-		{"handle_info", setup, fun() ->
-			meck:new(cpx_agent_connection),
-			meck:new(socket_mod),
-			#state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock}
-		end,
-		fun(_) ->
-			meck:unload(cpx_agent_connection),
-			meck:unload(socket_mod)
-		end,
-		fun(State) -> [
-
-			{"too many client errors", fun() ->
-				Binaries = [<<"not a json string">>, <<"also fail">>, <<"yeah, big fail">>],
-				Netstring = netstring:encode(Binaries),
-				Out = handle_info({tcp, sock, Netstring}, State),
-				?assertMatch({stop, client_errors, _NewState}, Out)
-			end},
-
-			{"one of the jsons demand exit", fun() ->
-				Binaries = [<<"\"good\"">>, <<"\"evil\"">>],
-				Netstring = netstring:encode(Binaries),
-				meck:expect(cpx_agent_connection, handle_json, fun(1, <<"good">>) ->
-					{exit, undefined, 2}
-				end),
-				Out = handle_info({tcp, sock, Netstring}, State),
-				?assertMatch({stop, normal, _State}, Out)
-			end},
-
-			{"normal flow", fun() ->
-				Binaries = [<<"\"first\"">>, <<"\"second\"">>],
-				Netstring = netstring:encode(Binaries),
-				meck:expect(cpx_agent_connection, handle_json, fun
-					(1, <<"first">>) ->
-						{ok, <<"first good">>, 2};
-					(2, <<"second">>) ->
-						{ok, <<"second good">>, 3}
-				end),
-				meck:expect(socket_mod, send, fun
-					(sock, <<"12:\"first good\",">>) -> ok;
-					(sock, <<"13:\"second good\",">>) -> ok
-				end),
-				Out = handle_info({tcp, sock, Netstring}, State),
-				?assertMatch({noreply, _State}, Out)
-			end}
-
-		] end}
-	].
-
-% ----------------------------------------------------------------
-
-decode_bins_test_() ->
-	{setup, fun() ->
-		Jsons = [<<"string the first">>, {struct, [{<<"success">>, true}]}, 42],
-		Binaries = [iolist_to_binary(mochijson2:encode(X)) || X <- Jsons],
-		{Jsons, Binaries}
-	end,
-	fun({Jsons, Binaries}) -> [
-
-		{"no compressioned", fun() ->
-			?assertEqual({Jsons, 0}, decode_binaries(Binaries, none))
-		end},
-
-		{"zip", fun() ->
-			Compressed = [zlib:zip(B) || B <- Binaries],
-			?assertEqual({Jsons, 0}, decode_binaries(Compressed, zip))
-		end},
-
-		{"gzip", fun() ->
-			Compressed = [zlib:gzip(B) || B <- Binaries],
-			?assertEqual({Jsons, 0}, decode_binaries(Compressed, gzip))
-		end},
-
-		{"compression mismatch", fun() ->
-			?assertEqual({[], 3}, decode_binaries(Binaries, zip))
-		end},
-
-		{"json decode error", fun() ->
-			Binaries0 = [<<"not valid json">> | Binaries],
-			?assertEqual({Jsons, 1}, decode_binaries(Binaries0, none))
-		end}
-
-	] end}.
-
-% ----------------------------------------------------------------
-
-send_json_test_() ->
-	{setup, fun() ->
-		meck:new(socket_mod),
-		Json = {struct, [{<<"success">>, true}]},
-		State = #state{socket_mod = socket_mod, socket = sock},
-		{Json, State}
+		meck:new(agent_auth)
 	end,
 	fun(_) ->
-		meck:unload(socket_mod)
+		meck:unload(agent_auth),
+		meck:unload(util),
+		meck:unload(gen_tcp),
+		meck:unload(inet)
 	end,
-	fun({Json, State0}) -> [
+	{foreach, fun() ->
+			{ok, Pid} = cpx_agent_tcp_connection:start(Socket, tcp, 10, none),
+			Pid
+		end,
+		fun(_) ->
+			%% TODO stop
+			ok
+		end,
+		[fun(Pid) ->
+			{"version match", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				timer:sleep(10),
+				?assert(t_is_success(Pid, Socket, 1))
+			end}
+		end, fun(Pid) ->
+			{"minor version mismatch", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor + 1]),
+				timer:sleep(10),
+				?assert(t_is_success(Pid, Socket, 1, <<"minor version mismatch">>))
+			end}
+		end, fun(Pid) ->
+			{"major version mismatch", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major + 1, ?Minor]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"VERSION_MISMATCH">>, <<"major version mismatch">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"get nonce before version check", fun() ->
+				t_send_req(Pid, Socket, 1, get_nonce, []),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"get nonce", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, get_nonce, []),
+				timer:sleep(10),
+				?assert(meck:called(util, get_pubkey, [])),
+				?assert(t_is_success(Pid, Socket, 2, {struct, [{<<"nonce">>, "noncey"},
+					{<<"pubkey_e">>, 23}, {<<"pubkey_n">>, 989898}]}))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to no version check", fun() ->
+				t_send_req(Pid, Socket, 1, login, [<<"username">>, <<"password">>]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 1, <<"FAILED_VERSION_CHECK">>, <<"version check comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to missing nonce", fun() ->
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, login, [<<"username">>, <<"password">>]),
+				timer:sleep(10),
+				?assert(t_is_fail(Pid, Socket, 2, <<"MISSING_NONCE">>, <<"get nonce comes first">>)),
+				?assert(not erlang:is_process_alive(Pid))
+			end}
+		end, fun(Pid) ->
+			{"login fail due to bad credentials", fun() ->
+				meck:expect(agent_auth, auth, 2, deny),
 
-		{"no compression", fun() ->
-			State = State0#state{compression = none},
-			Expect = netstring:encode(iolist_to_binary(mochijson2:encode(Json))),
-			Self = self(),
-			meck:expect(socket_mod, send, fun(sock, Bin) ->
-				Self ! {ok, Bin},
-				ok
-			end),
-			send_json(Json, State),
-			AssertThis = receive
-				R -> R
-			after
-				100 -> timeout
-			end,
-			?assertEqual({ok, Expect}, AssertThis)
-		end},
+				t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+				t_send_req(Pid, Socket, 2, get_nonce, []),
+				t_send_req(Pid, Socket, 3, login, [<<"username">>, <<"encryptedpassword">>]),
+				timer:sleep(10),
+				?assert(meck:called(agent_auth, auth, ["username", "password"], Pid)),
+				?assert(t_is_fail(Pid, Socket, 3, <<"INVALID_CREDENTIALS">>, <<"username or password invalid">>))
+			end}
+		end, fun(Pid) ->
+			{"login success", {setup, fun() ->
+					meck:new(agent_manager),
+					meck:new(cpx_agent_connection),
+					meck:new(agent),
+					spawn(fun() -> receive _ -> ok end end)
+				end, fun(AgentPid) ->
+					catch AgentPid ! die,
+					meck:unload(agent),
+					meck:unload(cpx_agent_connection),
+					meck:unload(agent_manager)
+				end,
+				fun(AgentPid) -> [fun() ->
+					ExpectAgent = #agent{id = "agentId", login = "username", skills = [],
+						profile = "Default", security_level = agent},
 
-		{"ziping it up", fun() ->
-			State = State0#state{compression = zip},
-			Expect = netstring:encode(zlib:zip(iolist_to_binary(mochijson2:encode(Json)))),
-			Self = self(),
-			meck:expect(socket_mod, send, fun(sock, Bin) ->
-				Self ! {ok, Bin},
-				ok
-			end),
-			send_json(Json, State),
-			AssertThis = receive
-				R -> R
-			after
-				100 -> timeout
-			end,
-			?assertEqual({ok, Expect}, AssertThis)
-		end},
+					meck:expect(agent_auth, auth, 2, {allow, "agentId", [], agent, "Default"}),
+					meck:expect(agent_manager, start_agent, 1, {ok, AgentPid}),
+					meck:expect(cpx_agent_connection, init, 1, {ok, conn}),
+					meck:expect(agent, set_connection, 2, ok),
 
-		{"gzip", fun() ->
-			State = State0#state{compression = gzip},
-			Expect = netstring:encode(zlib:gzip(iolist_to_binary(mochijson2:encode(Json)))),
-			Self = self(),
-			meck:expect(socket_mod, send, fun(sock, Bin) ->
-				Self ! {ok, Bin}
-			end),
-			send_json(Json, State),
-			AssertThis = receive
-				R -> R
-			after
-				100 -> timeout
-			end,
-			?assertEqual({ok, Expect}, AssertThis)
-		end}
+					t_send_req(Pid, Socket, 1, check_version, [?Major, ?Minor]),
+					t_send_req(Pid, Socket, 2, get_nonce, []),
+					t_send_req(Pid, Socket, 3, login, [<<"username">>, <<"encryptedpassword">>]),
+					timer:sleep(10),
 
-	] end}.
+					?assert(meck:called(agent_auth, auth, ["username", "password"], Pid)),
+					?assert(meck:called(agent_manager, start_agent, [ExpectAgent])),
+					?assert(meck:called(cpx_agent_connection, init, [ExpectAgent#agent{source=AgentPid}])),
+					?assert(meck:called(agent, set_connection, [AgentPid, Pid])),
+					?assert(t_is_success(Pid, Socket, 3))
+				end] end}}
+		end]}}.
+
+
+% json_check(Props, {struct, CheckProps}) ->
+% 	json_check(Props, CheckProps);
+
+% json_check(Props, CheckProps) ->
+% 	case lists:all(fun({_,_}) -> true; (_) -> false end, CheckProps) of
+% 		true -> json_check2(Props, CheckProps);
+% 		false -> {error, not_proplist}
+% 	end.
+
+% json_check2([], _) ->
+% 	true;
+% json_check2([{Key, Value} | Tail], Check) ->
+% 	case proplists:get_value(Key, Check) of
+% 		Value -> json_check2(Tail, Check);
+% 		X -> {error, {not_expected, X, Value}}
+% 	end.
+
+% service_json_local_test_() ->
+% 	ssl:start(), [
+% 	{"unusable json", fun() ->
+% 		Json = <<"not a struct">>,
+% 		?assertEqual({error, not_local}, service_json_local(Json, state))
+% 	end},
+
+% 	{"non-local function", fun() ->
+% 		Json = {struct, [
+% 			{<<"module">>, <<"plugin_land">>},
+% 			{<<"function">>, <<"do_stuff">>}
+% 		]},
+% 		?assertEqual({error, not_local}, service_json_local(Json, state))
+% 	end},
+
+% 	{"major version mismatch", fun() ->
+% 		Req = {struct, [
+% 			{<<"request_id">>, 1},
+% 			{<<"function">>, <<"check_version">>},
+% 			{<<"args">>, [?Major - 1,?Minor]}
+% 		]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+% 			{<<"errcode">>, <<"VERSION_MISMATCH">>},
+% 			{<<"message">>, <<"major version mismatch">>}],
+% 		{E, GotJson, _State} = service_json_local(Req, #state{}),
+% 		?assertEqual(exit, E),
+% 		?assert(json_check(Expected, GotJson))
+% 	end},
+
+% 	{"minor version mismatch", fun() ->
+% 		Req = {struct, [{<<"request_id">>, 1},
+% 			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major,?Minor + 1]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
+% 			{<<"result">>, <<"minor version mismatch">>}],
+% 		{E, Json, _State} = service_json_local(Req, #state{}),
+% 		?assertEqual(ok, E),
+% 		?assert(json_check(Expected, Json))
+% 	end},
+
+% 	{"version match", fun() ->
+% 		Req = {struct, [{<<"request_id">>, 1},
+% 			{<<"function">>, <<"check_version">>}, {<<"args">>, [?Major, ?Minor]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
+% 		{E, Json, State} = service_json_local(Req, #state{}),
+% 		?assertEqual(ok, E),
+% 		?assert(json_check(Expected, Json)),
+% 		?assertEqual(passed, State#state.version_check)
+% 	end},
+
+% 	{"get nonce before version check", fun() ->
+% 		Req = {struct, [{<<"request_id">>, 1},
+% 			{<<"function">>, <<"get_nonce">>}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+% 			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
+% 			{<<"message">>, <<"version check comes first">>}
+% 		],
+% 		{E, Json, _State} = service_json_local(Req, #state{}),
+% 		?assertEqual(exit, E),
+% 		?assert(json_check(Expected, Json))
+% 	end},
+
+% 	{"get nonce", fun() ->
+% 		Req = {struct, [{<<"request_id">>, 1},
+% 			{<<"function">>, <<"get_nonce">>}]},
+% 		meck:new(util),
+% 		meck:expect(util, get_pubkey, fun() -> [23, 989898] end),
+% 		State = #state{version_check = passed},
+% 		{E, Json, State0} = service_json_local(Req, State),
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true},
+% 			{<<"result">>, {struct, [
+% 			{<<"nonce">>, State0#state.nonce}, {<<"pubkey_e">>, 23}, {<<"pubkey_n">>, 989898}]}}],
+% 		?assertEqual(ok, E),
+% 		?assert(json_check(Expected, Json)),
+% 		?assertNotEqual(undefined, State0#state.nonce),
+% 		meck:unload(util)
+% 	end},
+
+% 	{"login fail due to no version check pass", fun() ->
+% 		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+% 			{<<"args">>, [<<"username">>, <<"password">>]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+% 			{<<"errcode">>, <<"FAILED_VERSION_CHECK">>},
+% 			{<<"message">>, <<"version check comes first">>}],
+% 		{E, Json, _State} = service_json_local(Req, #state{}),
+% 		?assertEqual(exit, E),
+% 		?assert(json_check(Expected, Json))
+% 	end},
+
+% 	{"login fail due to missing nonce", fun() ->
+% 		% this check only matters over raw tcp, not ssl
+% 		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+% 			{<<"args">>, [<<"username">>, <<"password">>]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+% 			{<<"errcode">>, <<"MISSING_NONCE">>},
+% 			{<<"message">>, <<"get nonce comes first">>}],
+% 		State = #state{version_check = passed, socket_mod = gen_tcp},
+% 		{E, Json, State} = service_json_local(Req, State),
+% 		?assertEqual(exit, E),
+% 		?assert(json_check(Expected, Json))
+% 	end},
+
+% 	{"login fail due to bad un/pw (testing encrypted pw)", fun() ->
+% 		meck:new(agent_auth),
+% 		meck:expect(agent_auth, auth, fun("username", "password") ->
+% 			deny
+% 		end),
+% 		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
+% 		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+% 			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, false},
+% 			{<<"errcode">>, <<"INVALID_CREDENTIALS">>},
+% 			{<<"message">>, <<"username or password invalid">>}],
+% 		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
+% 		{E, Json, State} = service_json_local(Req, State),
+% 		?assertEqual(ok, E),
+% 		?assert(json_check(Expected, Json)),
+% 		meck:unload(agent_auth)
+% 	end},
+
+% 	{"login success (testing encrypted pw)", fun() ->
+% 		Zombie = util:zombie(),
+% 		Self = self(),
+% 		ExpectAgent = #agent{id = "agentId", login = "username", skills = [],
+% 			profile = "Default", security_level = agent},
+% 		meck:new([agent, agent_auth, agent_manager, cpx_agent_connection]),
+% 		meck:expect(agent_auth, auth, fun("username", "password") ->
+% 			Self ! truth,
+% 			{allow, "agentId", [], agent, "Default"}
+% 		end),
+% 		meck:expect(agent_manager, start_agent, fun(Agent) ->
+% 			ExpectAgent0 = ExpectAgent#agent{last_change = Agent#agent.last_change},
+% 			?assertEqual(ExpectAgent0, Agent),
+% 			Self ! truth,
+% 			{ok, Zombie}
+% 		end),
+% 		meck:expect(cpx_agent_connection, init, fun(Agent) ->
+% 			ExpectedAgent = ExpectAgent#agent{source = Zombie, last_change =
+% 				Agent#agent.last_change},
+% 			?assertEqual(ExpectedAgent, Agent),
+% 			Self ! truth,
+% 			{ok, cpx_agent_connection}
+% 		end),
+% 		meck:expect(agent, set_connection, fun(InAgentPid, InSelf) ->
+% 			?assertEqual(Self, InSelf),
+% 			?assertEqual(Zombie, InAgentPid),
+% 			Self ! truth
+% 		end),
+% 		Password = public_key:encrypt_public(<<"nonceypassword">>, get_pub_key()),
+% 		Req = {struct, [{<<"request_id">>, 1}, {<<"function">>, <<"login">>},
+% 			{<<"args">>, [<<"username">>, util:bin_to_hexstr(Password)]}]},
+% 		Expected = [{<<"request_id">>, 1}, {<<"success">>, true}],
+% 		State = #state{version_check = passed, nonce = "noncey", socket_mod = gen_tcp},
+% 		{E, Json, State0} = service_json_local(Req, State),
+% 		?assertEqual(ok, E),
+% 		?assert(json_check(Expected, Json)),
+% 		?assertEqual(cpx_agent_connection, State0#state.agent_conn_state),
+% 		?assert(get_truths(4)),
+% 		[meck:unload(M) || M <- [agent, agent_auth, agent_manager, cpx_agent_connection]]
+% 	end}
+
+% 	].
+
+% get_truths(0) ->
+% 	true;
+% get_truths(X) when X > 0 ->
+% 	receive
+% 		truth -> get_truths(X - 1)
+% 	after 100 -> {truths_remaining, X}
+% 	end.
+
+% get_pub_key() ->
+% 	[Exponent,Modulus] = util:get_pubkey(),
+% 	#'RSAPublicKey'{ modulus = Modulus, publicExponent = Exponent }.
+
+% % ----------------------------------------------------------------
+
+% input_output_test_() -> [
+
+% 		{"handle_cast", setup, fun() ->
+% 			meck:new(cpx_agent_connection),
+% 			meck:new(socket_mod),
+% 			InState = #state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock},
+% 			ExpectState = InState#state{agent_conn_state = 2},
+% 			{InState, ExpectState, 2}
+% 		end,
+% 		fun(_) ->
+% 			meck:unload(cpx_agent_connection),
+% 			meck:unload(socket_mod)
+% 		end,
+% 		fun({State, Expect, NewConnState}) -> [
+% 			{"no conn state, skipped", fun() ->
+% 				State0 = State#state{agent_conn_state = undefined},
+% 				?assertEqual({noreply, State0}, handle_cast(random_cast, State0))
+% 			end},
+
+% 			{"no json to return, carry on", fun() ->
+% 				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+% 					{ok, undefined, NewConnState}
+% 				end),
+% 				Out = handle_cast(random_cast, State),
+% 				?assertEqual({noreply, Expect}, Out)
+% 			end},
+
+% 			{"no json to return, exit", fun() ->
+% 				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+% 					{exit, undefined, NewConnState}
+% 				end),
+% 				Out = handle_cast(random_cast, State),
+% 				?assertEqual({stop, normal, Expect}, Out)
+% 			end},
+
+% 			{"json to return, carry on", fun() ->
+% 				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+% 					{ok, <<"a json string">>, NewConnState}
+% 				end),
+% 				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
+% 					ok
+% 				end),
+% 				Out = handle_cast(random_cast, State),
+% 				?assertEqual({noreply, Expect}, Out)
+% 			end},
+
+% 			{"json to return, exit", fun() ->
+% 				meck:expect(cpx_agent_connection, encode_cast, fun(1, random_cast) ->
+% 					{exit, <<"a json string">>, NewConnState}
+% 				end),
+% 				meck:expect(socket_mod, send, fun(sock, <<"15:\"a json string\",">>) ->
+% 					ok
+% 				end),
+% 				Out = handle_cast(random_cast, State),
+% 				?assertEqual({stop, normal, Expect}, Out)
+% 			end}
+
+% 		] end},
+
+% 		{"handle_info", setup, fun() ->
+% 			meck:new(cpx_agent_connection),
+% 			meck:new(socket_mod),
+% 			#state{agent_conn_state = 1, socket_mod = socket_mod, socket = sock}
+% 		end,
+% 		fun(_) ->
+% 			meck:unload(cpx_agent_connection),
+% 			meck:unload(socket_mod)
+% 		end,
+% 		fun(State) -> [
+
+% 			{"too many client errors", fun() ->
+% 				Binaries = [<<"not a json string">>, <<"also fail">>, <<"yeah, big fail">>],
+% 				Netstring = netstring:encode(Binaries),
+% 				Out = handle_info({tcp, sock, Netstring}, State),
+% 				?assertMatch({stop, client_errors, _NewState}, Out)
+% 			end},
+
+% 			{"one of the jsons demand exit", fun() ->
+% 				Binaries = [<<"\"good\"">>, <<"\"evil\"">>],
+% 				Netstring = netstring:encode(Binaries),
+% 				meck:expect(cpx_agent_connection, handle_json, fun(1, <<"good">>) ->
+% 					{exit, undefined, 2}
+% 				end),
+% 				Out = handle_info({tcp, sock, Netstring}, State),
+% 				?assertMatch({stop, normal, _State}, Out)
+% 			end},
+
+% 			{"normal flow", fun() ->
+% 				Binaries = [<<"\"first\"">>, <<"\"second\"">>],
+% 				Netstring = netstring:encode(Binaries),
+% 				meck:expect(cpx_agent_connection, handle_json, fun
+% 					(1, <<"first">>) ->
+% 						{ok, <<"first good">>, 2};
+% 					(2, <<"second">>) ->
+% 						{ok, <<"second good">>, 3}
+% 				end),
+% 				meck:expect(socket_mod, send, fun
+% 					(sock, <<"12:\"first good\",">>) -> ok;
+% 					(sock, <<"13:\"second good\",">>) -> ok
+% 				end),
+% 				Out = handle_info({tcp, sock, Netstring}, State),
+% 				?assertMatch({noreply, _State}, Out)
+% 			end}
+
+% 		] end}
+% 	].
+
+% % ----------------------------------------------------------------
+
+% decode_bins_test_() ->
+% 	{setup, fun() ->
+% 		Jsons = [<<"string the first">>, {struct, [{<<"success">>, true}]}, 42],
+% 		Binaries = [iolist_to_binary(mochijson2:encode(X)) || X <- Jsons],
+% 		{Jsons, Binaries}
+% 	end,
+% 	fun({Jsons, Binaries}) -> [
+
+% 		{"no compressioned", fun() ->
+% 			?assertEqual({Jsons, 0}, decode_binaries(Binaries, none))
+% 		end},
+
+% 		{"zip", fun() ->
+% 			Compressed = [zlib:zip(B) || B <- Binaries],
+% 			?assertEqual({Jsons, 0}, decode_binaries(Compressed, zip))
+% 		end},
+
+% 		{"gzip", fun() ->
+% 			Compressed = [zlib:gzip(B) || B <- Binaries],
+% 			?assertEqual({Jsons, 0}, decode_binaries(Compressed, gzip))
+% 		end},
+
+% 		{"compression mismatch", fun() ->
+% 			?assertEqual({[], 3}, decode_binaries(Binaries, zip))
+% 		end},
+
+% 		{"json decode error", fun() ->
+% 			Binaries0 = [<<"not valid json">> | Binaries],
+% 			?assertEqual({Jsons, 1}, decode_binaries(Binaries0, none))
+% 		end}
+
+% 	] end}.
+
+% % ----------------------------------------------------------------
+
+% send_json_test_() ->
+% 	{setup, fun() ->
+% 		meck:new(socket_mod),
+% 		Json = {struct, [{<<"success">>, true}]},
+% 		State = #state{socket_mod = socket_mod, socket = sock},
+% 		{Json, State}
+% 	end,
+% 	fun(_) ->
+% 		meck:unload(socket_mod)
+% 	end,
+% 	fun({Json, State0}) -> [
+
+% 		{"no compression", fun() ->
+% 			State = State0#state{compression = none},
+% 			Expect = netstring:encode(iolist_to_binary(mochijson2:encode(Json))),
+% 			Self = self(),
+% 			meck:expect(socket_mod, send, fun(sock, Bin) ->
+% 				Self ! {ok, Bin},
+% 				ok
+% 			end),
+% 			send_json(Json, State),
+% 			AssertThis = receive
+% 				R -> R
+% 			after
+% 				100 -> timeout
+% 			end,
+% 			?assertEqual({ok, Expect}, AssertThis)
+% 		end},
+
+% 		{"ziping it up", fun() ->
+% 			State = State0#state{compression = zip},
+% 			Expect = netstring:encode(zlib:zip(iolist_to_binary(mochijson2:encode(Json)))),
+% 			Self = self(),
+% 			meck:expect(socket_mod, send, fun(sock, Bin) ->
+% 				Self ! {ok, Bin},
+% 				ok
+% 			end),
+% 			send_json(Json, State),
+% 			AssertThis = receive
+% 				R -> R
+% 			after
+% 				100 -> timeout
+% 			end,
+% 			?assertEqual({ok, Expect}, AssertThis)
+% 		end},
+
+% 		{"gzip", fun() ->
+% 			State = State0#state{compression = gzip},
+% 			Expect = netstring:encode(zlib:gzip(iolist_to_binary(mochijson2:encode(Json)))),
+% 			Self = self(),
+% 			meck:expect(socket_mod, send, fun(sock, Bin) ->
+% 				Self ! {ok, Bin}
+% 			end),
+% 			send_json(Json, State),
+% 			AssertThis = receive
+% 				R -> R
+% 			after
+% 				100 -> timeout
+% 			end,
+% 			?assertEqual({ok, Expect}, AssertThis)
+% 		end}
+
+% 	] end}.
 
 %send_json(Json, State) ->
 %	#state{socket_mod = Mod, socket = Sock, compression = Zip} = State,

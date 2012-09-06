@@ -78,7 +78,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	terminate/2, code_change/3]).
 
--type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done

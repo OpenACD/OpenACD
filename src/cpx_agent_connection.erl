@@ -33,8 +33,8 @@
 %% Request_id is an opaque type sent by the client; it is sent back with
 %% the reply to enable asynchronous requests.
 %%
-%% A json response will have 3 major forms.  
-%% 
+%% A json response will have 3 major forms.
+%%
 %% A very simple success:
 %% <pre> {
 %%  "request_id": any(),
@@ -59,7 +59,7 @@
 %% A server event is a json object with at least a "command" property.  If
 %% the command references a specific agent channel, it will also have a
 %% "channel_id" property.  All other properties are specific to the server
-%% events.  
+%% events.
 %%
 %% == Erlang API ==
 %%
@@ -80,7 +80,7 @@
 %% to be sent.  Otherwise the json should be encoded using
 %% mochijson2:encode/1 and sent over the wire.</dd>
 %% <dt>`{exit, json(), state()}'</dt><dd>the connection should commit
-%% hari-kari.  If json() is undefined, that's all that needs to happen, 
+%% hari-kari.  If json() is undefined, that's all that needs to happen,
 %% otherwise json should be sent, then death.</dd>
 %% </dl>
 %%
@@ -255,7 +255,7 @@ get_agent(State) ->
 %% @doc When the connection gets a cast it cannot handle, this should be
 %% called.  It will either return an error, or json to pump out to the
 %% client.
--spec(encode_cast/2 :: (State :: #state{}, Cast :: any()) -> 
+-spec(encode_cast/2 :: (State :: #state{}, Cast :: any()) ->
 	{'error', any(), #state{}} | {'ok', json(), #state{}}).
 encode_cast(State, Cast) ->
 	handle_cast(Cast, State).
@@ -442,7 +442,7 @@ end_wrapup(State, ChanBin) ->
 			end
 	end.
 
-%% @doc {@agent_api} Get a list of the agents that are currently available. 
+%% @doc {@agent_api} Get a list of the agents that are currently available.
 %% Result is:
 %% <pre>[{
 %% 	"name":  string(),
@@ -585,7 +585,7 @@ get_queue_transfer_options(State, Channel) ->
 						Val
 				end,
 				{Newkey, Newval}
-			end || 
+			end ||
 			{Key, Val} <- Setvars],
 			Encodedprompts = [{struct, [{<<"name">>, Name}, {<<"label">>, Label}, {<<"regex">>, Regex}]} || {Name, Label, Regex} <- Prompts],
 			Encodedskills = cpx_web_management:encode_skills(Skills),
@@ -618,10 +618,10 @@ get_queue_transfer_options(State, Channel) ->
 % 	end.
 
 %% @doc {@agent_api} Transfer the channel's call into `Queue' with
-%% the given `Opts'.  The options is a json object with any number of 
-%% properties that are passed to the media.  If there is a property 
-%% `"skills"' with a list, the list is interpreted as a set of skills to 
-%% apply to the media.  No result is set as it is merely success or 
+%% the given `Opts'.  The options is a json object with any number of
+%% properties that are passed to the media.  If there is a property
+%% `"skills"' with a list, the list is interpreted as a set of skills to
+%% apply to the media.  No result is set as it is merely success or
 %% failure.
 -spec(queue_transfer/4 :: (State :: #state{}, QueueBin :: binary(),
 	Channel :: binary(), Opts :: json()) -> {'ok', json(), #state{}}).
@@ -700,7 +700,7 @@ endpoint_to_struct(dummy_media, Opt) ->
 
 %% @doc {@agent_api} Sets the agent's endpoint data to the given, well, data.
 %% Particularly useful if the flash phone is used, as all of the connection
-%% data will not be available for that until it is started on in the 
+%% data will not be available for that until it is started on in the
 %% browser.
 % TODO make this not media specific.
 -spec(set_endpoint/3 :: (State :: #state{}, Endpoint :: binary(),
@@ -721,9 +721,9 @@ set_endpoint(State, <<"freeswitch_media">>, Struct) ->
 			undefined ->
 				{error, unknown_fw_type};
 			_ ->
-				FwData = binary_to_list(proplists:get_value(<<"data">>, 
+				FwData = binary_to_list(proplists:get_value(<<"data">>,
 					Data, <<>>)),
-				Persistant = case proplists:get_value(<<"persistant">>, 
+				Persistant = case proplists:get_value(<<"persistant">>,
 					Data) of
 						true -> true;
 						_ -> undefined
@@ -978,7 +978,7 @@ spawn_get_tabs_menu(Conn, Apid) ->
 	gen_server:cast(Conn, {arbitrary_command, set_tabs_menu, [{<<"tabs">>, Tabs}]}).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
--spec(encode_statedata/1 :: 
+-spec(encode_statedata/1 ::
 	(Callrec :: #call{}) -> json();
 	(Clientrec :: #client{}) -> json();
 	({'onhold', Holdcall :: #call{}, 'calling', any()}) -> json();

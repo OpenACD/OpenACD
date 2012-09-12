@@ -154,6 +154,7 @@
 -include("log.hrl").
 -include("agent.hrl").
 -include("call.hrl").
+-include("queue.hrl").
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -209,7 +210,10 @@
 	set_endpoint/3,
 	set_release/2,
 	set_state/3,
-	set_state/4
+	set_state/4,
+	get_queue_list/1,
+	get_brand_list/1,
+	get_release_opts/1
 ]).
 
 %% An easier way to do a lookup for api functions.
@@ -232,7 +236,11 @@
 	{set_endpoint, 3},
 	{set_release, 2},
 	{set_state, 3},
-	{set_state, 4}
+	{set_state, 4},
+
+	{get_queue_list, 1},
+	{get_brand_list, 1},
+	{get_release_opts, 1}
 ]).
 
 %% =======================================================================
@@ -781,6 +789,54 @@ get_tabs_menu(State) ->
 % 	JsonProps :: [{binary() | atom(), any()}]) -> 'ok').
 % arbitrary_command(Conn, Command, JsonProps) ->
 % 	gen_server:cast(Conn, {arbitrary_command, Command, JsonProps}).
+
+%% @doc {@web} Returns a list of queues configured in the system.  Useful
+%% if you want agents to be able to place media into a queue.
+%% Result:
+%% `[{
+%% 	"name": string()
+%% }]'
+-spec(get_queue_list/1 :: (State :: #state{}) -> {ok, json()}).
+get_queue_list(_State) ->
+	Queues = call_queue_config:get_queues(),
+	QueuesEncoded = [{struct, [
+		{<<"name">>, list_to_binary(Q#call_queue.name)}
+	]} || Q <- Queues],
+	{ok, QueuesEncoded}.
+
+%% @doc {@web} Returns a list of clients confured in the system.  Useful
+%% to allow agents to make outbound media.
+%% Result:
+%% `[{
+%% 	"label":  string(),
+%% 	"id":     string()
+%% }]'
+-spec(get_brand_list/1 :: (State :: #state{}) -> {ok, json()}).
+get_brand_list(_State) ->
+	Brands = call_queue_config:get_clients(),
+	BrandsEncoded = [{struct, [
+		{<<"label">>, list_to_binary(C#client.label)},
+		{<<"id">>, list_to_binary(C#client.id)}
+	]} || C <- Brands, C#client.label =/= undefined],
+	{ok, BrandsEncoded}.
+
+%% @doc {@web} Returns a list of options for use when an agents wants to
+%% go released.
+%% Result:
+%% `[{
+%% 	"label":  string(),
+%% 	"id":     string(),
+%% 	"bias":   -1 | 0 | 1
+%% }]'
+-spec(get_release_opts/1 :: (State :: #state{}) -> {ok, json()}).
+get_release_opts(_State) ->
+	Opts = agent_auth:get_releases(),
+	Encoded = [{struct, [
+		{<<"label">>, list_to_binary(R#release_opt.label)},
+		{<<"id">>, R#release_opt.id},
+		{<<"bias">>, R#release_opt.bias}
+	]} || R <- Opts],
+	{ok, Encoded}.
 
 %% =======================================================================
 %% Internal Functions

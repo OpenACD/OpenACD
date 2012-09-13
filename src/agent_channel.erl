@@ -640,7 +640,7 @@ conn_cast(Agent, Msg) when is_record(Agent, agent) ->
 conn_cast(undefined, _Msg) ->
 	ok;
 conn_cast(Conn, Msg) when is_pid(Conn) ->
-	gen_server:cast(Conn, Msg).
+	Conn ! {agent_channel, self(), Msg}.
 
 start_endpoint(Pid, Agent, Call) when is_pid(Pid) ->
 	link(Pid),

@@ -1432,65 +1432,6 @@ handle_cast({mediapush, Chanpid, Call, {Command, Call, Data} = Fd}, State) ->
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 
-handle_cast({set_release, Release, Time}, State) ->
-	ReleaseData = case Release of
-		none ->
-			false;
-		{Id, Label, Bias} ->
-			{struct, [
-				{<<"id">>, list_to_binary(Id)},
-				{<<"label">>, if is_atom(Label) -> Label; true -> list_to_binary(Label) end},
-				{<<"bias">>, Bias}
-			]}
-	end,
-	Json = {struct, [
-		{<<"command">>, <<"arelease">>},
-		{<<"releaseData">>, ReleaseData},
-		{<<"changeTime">>, Time * 1000}
-	]},
-	NewState = push_event(Json, State),
-	{noreply, NewState};
-
-handle_cast({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AChannels} = State) ->
-	Headjson = {struct, [
-		{<<"command">>, <<"setchannel">>},
-		{<<"state">>, StateName},
-		{<<"statedata">>, encode_statedata(Statedata)},
-		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
-	]},
-	NewAChannels = case {Statedata, dict:find(Pid, AChannels)} of
-		{Call, error} when is_record(Call, call), StateName =:= wrapup ->
-			Store = #channel_state{mediaload = undefined, current_call = Call},
-			dict:store(Pid, Store, AChannels);
-		{Call, error} when is_record(Call, call) ->
-			Store = #channel_state{current_call = Call, mediaload = Call},
-			dict:store(Pid, Store, AChannels);
-		{Call, {ok, Cache}} when StateName =:= wrapup, is_record(Call, call) ->
-			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
-			dict:store(Pid, Store, AChannels);
-		{Call, {ok, Cache}} ->
-			Store = Cache#channel_state{current_call = Call},
-			dict:store(Pid, Store, AChannels);
-		{{Call, _Number}, error} ->
-			Store = #channel_state{mediaload = Call, current_call = Call},
-			dict:store(Pid, Store, AChannels);
-		{{Call, _Number}, {ok, Cache}} ->
-			Store = Cache#channel_state{mediaload = Call, current_call = Call},
-			dict:store(Pid, Store, AChannels)
-	end,
-	NewState = push_event(Headjson, State#state{agent_channels = NewAChannels}),
-	{noreply, NewState};
-
-handle_cast({channel_died, Pid, NewAvail}, #state{agent_channels = AChannels} = State) ->
-	Json = {struct, [
-		{<<"command">>, <<"endchannel">>},
-		{<<"channelid">>, list_to_binary(pid_to_list(Pid))},
-		{<<"availableChannels">>, NewAvail}
-	]},
-	NewDict = dict:erase(Pid, AChannels),
-	NewState = push_event(Json, State#state{agent_channels = NewDict}),
-	{noreply, NewState};
-
 %handle_cast({change_state, AgState, Data}, State) ->
 %	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 %	Headjson = {struct, [
@@ -1527,33 +1468,6 @@ handle_cast({channel_died, Pid, NewAvail}, #state{agent_channels = AChannels} = 
 %			Midstate
 %	end,
 %	{noreply, Newstate#state{current_call = undefined}};
-handle_cast({change_profile, Profile}, State) ->
-	Headjson = {struct, [
-			{<<"command">>, <<"aprofile">>},
-			{<<"profile">>, list_to_binary(Profile)}
-		]},
-	Newstate = push_event(Headjson, State),
-	{noreply, Newstate};
-handle_cast({url_pop, URL, Name}, State) ->
-	Headjson = {struct, [
-			{<<"command">>, <<"urlpop">>},
-			{<<"url">>, list_to_binary(URL)},
-			{<<"name">>, list_to_binary(Name)}
-		]},
-	Newstate = push_event(Headjson, State),
-	{noreply, Newstate};
-handle_cast({blab, Text}, State) when is_list(Text) ->
-	handle_cast({blab, list_to_binary(Text)}, State);
-handle_cast({blab, Text}, State) when is_binary(Text) ->
-	Headjson = {struct, [
-		{<<"command">>, <<"blab">>},
-		{<<"text">>, Text}
-	]},
-	Newstate = push_event(Headjson, State),
-	{noreply, Newstate};
-handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
-	%% TODO update media in poll
-	{noreply, State};
 handle_cast({arbitrary_command, Command, JsonProps}, State) ->
 	Headjson = {struct, [{<<"command">>, Command} | JsonProps]},
 	Newstate = push_event(Headjson, State),
@@ -1569,6 +1483,10 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+
+handle_info({agent, Msg}, State) ->
+	handle_agent(Msg, State);
+
 handle_info(poll_flush, State) ->
 	{SupPollQueue, NewSupState} = case State#state.supervisor_state of
 		undefined -> {[], undefined};
@@ -1644,6 +1562,94 @@ handle_info({'EXIT', Agent, Reason}, #state{agent_fsm = Agent} = State) ->
 	{stop, Reason, State};
 handle_info(Info, State) ->
 	?DEBUG("info I can't handle:  ~p", [Info]),
+	{noreply, State}.
+
+
+handle_agent({set_release, Release, Time}, State) ->
+	ReleaseData = case Release of
+		none ->
+			false;
+		{Id, Label, Bias} ->
+			{struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, if is_atom(Label) -> Label; true -> list_to_binary(Label) end},
+				{<<"bias">>, Bias}
+			]}
+	end,
+	Json = {struct, [
+		{<<"command">>, <<"arelease">>},
+		{<<"releaseData">>, ReleaseData},
+		{<<"changeTime">>, Time * 1000}
+	]},
+	NewState = push_event(Json, State),
+	{noreply, NewState};
+handle_agent({change_profile, Profile}, State) ->
+	Headjson = {struct, [
+			{<<"command">>, <<"aprofile">>},
+			{<<"profile">>, list_to_binary(Profile)}
+		]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
+handle_agent({set_channel, Pid, StateName, Statedata}, #state{agent_channels = AChannels} = State) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"setchannel">>},
+		{<<"state">>, StateName},
+		{<<"statedata">>, encode_statedata(Statedata)},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))}
+	]},
+	NewAChannels = case {Statedata, dict:find(Pid, AChannels)} of
+		{Call, error} when is_record(Call, call), StateName =:= wrapup ->
+			Store = #channel_state{mediaload = undefined, current_call = Call},
+			dict:store(Pid, Store, AChannels);
+		{Call, error} when is_record(Call, call) ->
+			Store = #channel_state{current_call = Call, mediaload = Call},
+			dict:store(Pid, Store, AChannels);
+		{Call, {ok, Cache}} when StateName =:= wrapup, is_record(Call, call) ->
+			Store = Cache#channel_state{mediaload = undefined, current_call = Call},
+			dict:store(Pid, Store, AChannels);
+		{Call, {ok, Cache}} ->
+			Store = Cache#channel_state{current_call = Call},
+			dict:store(Pid, Store, AChannels);
+		{{Call, _Number}, error} ->
+			Store = #channel_state{mediaload = Call, current_call = Call},
+			dict:store(Pid, Store, AChannels);
+		{{Call, _Number}, {ok, Cache}} ->
+			Store = Cache#channel_state{mediaload = Call, current_call = Call},
+			dict:store(Pid, Store, AChannels)
+	end,
+	NewState = push_event(Headjson, State#state{agent_channels = NewAChannels}),
+	{noreply, NewState};
+handle_agent({url_pop, URL, Name}, State) ->
+	Headjson = {struct, [
+			{<<"command">>, <<"urlpop">>},
+			{<<"url">>, list_to_binary(URL)},
+			{<<"name">>, list_to_binary(Name)}
+		]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
+handle_agent({blab, Text}, State) when is_list(Text) ->
+	handle_cast({blab, list_to_binary(Text)}, State);
+handle_agent({blab, Text}, State) when is_binary(Text) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"blab">>},
+		{<<"text">>, Text}
+	]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
+handle_agent({new_endpoint, _Module, _Endpoint}, State) ->
+	%% TODO update media in poll
+	{noreply, State};
+handle_agent({channel_died, Pid, NewAvail}, #state{agent_channels = AChannels} = State) ->
+	Json = {struct, [
+		{<<"command">>, <<"endchannel">>},
+		{<<"channelid">>, list_to_binary(pid_to_list(Pid))},
+		{<<"availableChannels">>, NewAvail}
+	]},
+	NewDict = dict:erase(Pid, AChannels),
+	NewState = push_event(Json, State#state{agent_channels = NewDict}),
+	{noreply, NewState};
+handle_agent(Msg, State) ->
+	?INFO("Unhandled agent event: ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

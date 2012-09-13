@@ -209,25 +209,8 @@ handle_cast(negotiate, State) ->
 			ok = inet:setopts(State#state.socket, [{packet, raw}, binary, {active, once}])
 	end,
 	{noreply, State};
-
-handle_cast(Msg, #state{agent_conn_state = undefined} = State) ->
-	?WARNING("passed over cast due to now agent conn state:  ~p", [Msg]),
-	{noreply, State};
-
-handle_cast(Msg, State) ->
-	#state{agent_conn_state = Conn} = State,
-	case cpx_agent_connection:encode_cast(Conn, Msg) of
-		{ok, undefined, Conn0} ->
-			{noreply, State#state{agent_conn_state = Conn0}};
-		{ok, Json, Conn0} ->
-			send_json(Json, State),
-			{noreply, State#state{agent_conn_state = Conn0}};
-		{exit, undefined, Conn0} ->
-			{stop, normal, State#state{agent_conn_state = Conn0}};
-		{exit, Json, Conn0} ->
-			send_json(Json, State),
-			{stop, normal, State#state{agent_conn_state = Conn0}}
-	end.
+handle_cast(_, State) ->
+	{noreply, State}.
 
 % ================================================================
 % handle_info
@@ -254,6 +237,25 @@ handle_info({_Type, Socket, Packet}, #state{socket = Socket} = State) ->
 				exit -> {stop, normal, State0};
 				_ -> {noreply, State0}
 			end
+	end;
+
+handle_info({agent, Msg}, #state{agent_conn_state = undefined} = State) ->
+	?WARNING("passed over cast due to now agent conn state:  ~p", [Msg]),
+	{noreply, State};
+
+handle_info({agent, Msg}, State) ->
+	#state{agent_conn_state = Conn} = State,
+	case cpx_agent_connection:encode_cast(Conn, Msg) of
+		{ok, undefined, Conn0} ->
+			{noreply, State#state{agent_conn_state = Conn0}};
+		{ok, Json, Conn0} ->
+			send_json(Json, State),
+			{noreply, State#state{agent_conn_state = Conn0}};
+		{exit, undefined, Conn0} ->
+			{stop, normal, State#state{agent_conn_state = Conn0}};
+		{exit, Json, Conn0} ->
+			send_json(Json, State),
+			{stop, normal, State#state{agent_conn_state = Conn0}}
 	end;
 
 handle_info({Type, Socket}, #state{socket = Socket} = State) ->

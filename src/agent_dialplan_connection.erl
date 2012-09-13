@@ -10,7 +10,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -115,7 +115,7 @@ handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
 	{reply, {unknown_call, Request}, State}.
 
-handle_cast({change_state, StateName, _}, State) -> 
+handle_cast({change_state, StateName, _}, State) ->
 	handle_cast({change_state, StateName}, State);
 
 handle_cast({change_state, StateName}, State) when StateName =:= released; StateName =:= wrapup ->

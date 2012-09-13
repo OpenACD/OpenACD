@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -44,7 +44,7 @@
 -type(agent_opt() :: {'nodes', [atom()]} | 'logging').
 -type(agent_opts() :: [agent_opt()]).
 
-%% slow text is textual medias that do not requrie a particually fast 
+%% slow text is textual medias that do not requrie a particually fast
 %% response, such as email.  Fast_text is textual medias that require rapid
 %% replies, such as chat.
 %-type(channel_category() :: 'dummy' | 'voice' | 'visual' | 'slow_text' | 'fast_text').
@@ -96,8 +96,8 @@
 	add_skills/2,
 	remove_skills/2,
 	change_profile/2,
-	query_state/1, 
-	dump_state/1, 
+	query_state/1,
+	dump_state/1,
 	register_rejected/1,
 	set_connection/2,
 	set_endpoint/3,
@@ -134,7 +134,7 @@ start(Agent) -> start(Agent, []).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) -> 
+stop(Pid) ->
 	gen_fsm:send_all_state_event(Pid, stop).
 
 %% @doc Set the agent released or idle.
@@ -170,7 +170,7 @@ expand_magic_skills(State, Skills) ->
 dump_state(Pid) ->
 	gen_fsm:sync_send_all_state_event(Pid, dump_state).
 
-%% @doc Returns the #call{} of the current state if there is on, otherwise 
+%% @doc Returns the #call{} of the current state if there is on, otherwise
 %% returns `invalid'.
 %-spec(get_media/1 :: (Apid :: pid()) -> {ok, #call{}} | 'invalid').
 %get_media(Apid) ->
@@ -190,7 +190,7 @@ change_profile(Apid, Profile) ->
 
 %% @doc Returns `{ok, Statename :: atom()}', where `Statename' is the current state of the agent at `Pid'.
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
-query_state(Pid) -> 
+query_state(Pid) ->
 	gen_fsm:sync_send_all_state_event(Pid, query_state).
 
 %% @doc Send a message to the human agent.  If there's no connection, it black-holes.
@@ -205,7 +205,7 @@ get_endpoint(Module, Agent) when is_record(Agent, agent) ->
 
 %% @doc Set the endpoint data for a specific module.  The calling process is
 %% forced to do much of the verification that the module mentioned exists
-%% and implements the gen_media behaviour.  Data can be 'inband', 
+%% and implements the gen_media behaviour.  Data can be 'inband',
 %% {'module', atom()}, or arbitary data.
 -spec(set_endpoint/3 :: (Agent :: pid(), Module :: atom(), Data :: any()) ->
 'ok' | {'error', any()}).
@@ -356,7 +356,7 @@ released(Msg, _From, State) ->
 released(Msg, State) ->
 	?INFO("unhandled while released: ~p", [Msg]),
 	{next_state, released, State}.
-	
+
 % ======================================================================
 % HANDLE_SYNC_EVENT
 % ======================================================================
@@ -403,8 +403,8 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(Agent#agent{profile = Profile}, Skills2), ['_queue', '_brand']),
 			Newagent = Agent#agent{skills = NewAgentSkills2, profile = Profile},
 			Deatils = [
-				{profile, Newagent#agent.profile}, 
-				{login, Newagent#agent.login}, 
+				{profile, Newagent#agent.profile},
+				{login, Newagent#agent.login},
 				{skills, Newagent#agent.skills}
 			],
 			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
@@ -438,7 +438,7 @@ handle_sync_event({set_endpoint, Module, Data}, _From, StateName, #state{agent_r
 		{error, _Err} = Error ->
 			{reply, Error, StateName, State}
 	end;
-	
+
 handle_sync_event(Msg, _From, StateName, State) ->
 	{reply, {error, Msg}, StateName, State}.
 
@@ -451,7 +451,7 @@ handle_event({blab, Text}, Statename, #state{agent_rec = Agent} = State) ->
 	inform_connection(Agent, {blab, Text}),
 	{next_state, Statename, State};
 
-handle_event(stop, _StateName, State) -> 
+handle_event(stop, _StateName, State) ->
 	{stop, normal, State};
 
 handle_event({add_skills, Skills}, StateName, #state{agent_rec = Agent} = State) ->
@@ -608,7 +608,7 @@ find_endpoint(Module, Ends) ->
 	end.
 
 % ----------------------------------------------------------------------
-	
+
 priv_set_endpoint(_Agent, Module, {module, Module}) ->
 	?DEBUG("endpoint ~s is a circular reference", [Module]),
 	{error, self_reference};
@@ -681,13 +681,13 @@ sort_endpoint_pred(_) ->
 inform_connection(#agent{connection = undefined}, _Msg) ->
 	ok;
 inform_connection(#agent{connection = Conn}, Msg) ->
-	gen_server:cast(Conn, Msg).
+	Conn ! {agent, Msg}.
 
 start_channel(Agent, Call, StateName) ->
 	ChanAvail = lists:member(Call#call.type, Agent#agent.available_channels),
 	EndPoint = get_endpoint(Call#call.source_module, Agent),
 	case {ChanAvail, EndPoint} of
-		{false, _} -> 
+		{false, _} ->
 			{error, nochannel};
 		{true, {error, notfound}} ->
 			{error, noendpoint};
@@ -731,7 +731,7 @@ block_channels([Chan | Tail], InBlockables, BlocklistDefs) ->
 			NewBlockables = [B || B <- Blockables, not lists:member(B, List)],
 			block_channels(Tail, NewBlockables, BlocklistDefs)
 	end.
-		
+
 %% @private
 -spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 agent_manager_exit(Reason, StateName, State) ->
@@ -776,9 +776,9 @@ set_cpx_monitor(State, Otherdeatils)->
 
 set_cpx_monitor(State, Otherdeatils, Watch) ->
 	Deatils = lists:append([
-		{profile, State#agent.profile}, 
-		{login, State#agent.login}, 
-		{skills, State#agent.skills}], 
+		{profile, State#agent.profile},
+		{login, State#agent.login},
+		{skills, State#agent.skills}],
 	Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Deatils, Watch).
 
@@ -825,7 +825,7 @@ external_api_test_() ->
 	fun(Pid) -> [
 		{"start/1", fun() ->
 			Agent = make_agent([]),
-			
+
 			agent:start(Agent),
 			?assert(meck:validate(gen_fsm)),
 			?assert(meck:called(gen_fsm, start, [agent, [Agent, []], []]))
@@ -833,7 +833,7 @@ external_api_test_() ->
 		{"start/2", fun() ->
 			Agent = make_agent([]),
 			Options = [],
-			
+
 			agent:start(Agent, Options),
 			?assert(meck:validate(gen_fsm)),
 			?assert(meck:called(gen_fsm, start, [agent, [Agent, Options], []]))
@@ -841,7 +841,7 @@ external_api_test_() ->
 		{"start_link/2", fun() ->
 			Agent = make_agent([]),
 			Options = [],
-			
+
 			agent:start_link(Agent, Options),
 			?assert(meck:validate(gen_fsm)),
 			?assert(meck:called(gen_fsm, start_link, [agent, [Agent, Options], []]))
@@ -867,7 +867,7 @@ external_api_test_() ->
 		end},
 		{"set_connection/2", fun() ->
 			Connection = util:zombie(),
-	
+
 			agent:set_connection(Pid, Connection),
 
 			?assert(meck:validate(gen_fsm)),
@@ -952,7 +952,7 @@ block_channel_test_() ->
 		{"blocks self", slow_text, ?default_category_blocks, [dummy,
 			dummy, voice, voice, visual, visual, fast_text, fast_text]},
 		{"blocks others", fast_text, ?default_category_blocks, [fast_text]},
-		{"blocks specific", channel, [{channel, [visual, slow_text]}], 
+		{"blocks specific", channel, [{channel, [visual, slow_text]}],
 			[dummy, dummy, voice, voice, fast_text, fast_text]}
 	],
 	block_channel_test_gen(TestData).
@@ -1429,7 +1429,7 @@ handle_info_test_() ->
 			?assertEqual(1, length(meck:history(dummy_media))),
 			meck:unload(dummy_media)
 		end}
-		
+
 	] end}.
 
 

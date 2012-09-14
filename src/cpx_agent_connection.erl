@@ -182,6 +182,7 @@
 
 %% public api
 -export([
+	login/2,
 	init/1,
 	encode_cast/2,
 	handle_json/2,
@@ -246,6 +247,32 @@
 %% =======================================================================
 %% Public api
 %% =======================================================================
+
+
+%% @doc Attempt a log-in and initialize the state if successful
+-spec(login/2 :: (Username :: string(), Password :: string()) ->
+	{ok, #agent{}, #state{}} | {error, deny} | {error, duplicate}).
+login(Username, Password) ->
+	case agent_auth:auth(Username, Password) of
+		{allow, Id, Skills, Security, Profile} ->
+			{atomic, [AgentAuth]} = agent_auth:get_agent(id, Id),
+			Agent = #agent{id = Id, login = Username,
+				skills = Skills, profile = Profile,
+				security_level = Security},
+			{_, APid} = agent_manager:start_agent(Agent),
+			Agent0 = Agent#agent{source = APid},
+			case agent:set_connection(APid, self()) of
+				ok ->
+					agent:set_endpoints(APid, AgentAuth#agent_auth.endpoints),
+					{ok, St} = init(Agent0),
+					{ok, Agent0, St};
+				error ->
+					{error, duplicate}
+			end;
+		deny ->
+			{error, deny}
+	end.
+
 
 %% @doc After the connection has been started, this should be called to
 %% seed the state.

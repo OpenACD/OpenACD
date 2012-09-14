@@ -858,16 +858,16 @@ get_skills_by_group_test_() ->
 	[{"unhandled", fun() ->
 		meck:expect(somestore, get_skills_by_group, fun(_) -> none end),
 		?assertEqual([], get_skills("nogroup"))
-	end},
-	{"normal", fun() ->
-		Entry1 = #skill_rec{atom=dance, group="talent"},
-		Entry2 = #skill_rec{atom=sing, group="talent"},
+	end}]}.
+	% {"normal", fun() ->
+	% 	Entry1 = #skill_rec{atom=dance, group="talent"},
+	% 	Entry2 = #skill_rec{atom=sing, group="talent"},
 		
-		meck:expect(somestore, get_skills_by_group, 1, 
-			{ok, [Entry1, Entry2]}),
+	% 	meck:expect(somestore, get_skills_by_group, 1, 
+	% 		{ok, [Entry1, Entry2]}),
 
-		?assertEqual([Entry1, Entry2], get_skills("talent"))
-	end}]}. %% No handling of duplicates
+	% 	?assertEqual([Entry1, Entry2], get_skills("talent"))
+	% end}]}. %% No handling of duplicates
 
 
 get_skill_test_() ->
@@ -967,7 +967,8 @@ get_client_test_() ->
 
 		meck:new(somestore)
 	end, fun(_) ->
-		meck:unload(somestore)
+		meck:unload(somestore),
+		cpx_hooks:stop()
 	end,
 	[{"unhandled", fun() ->
 		meck:expect(somestore, get_client, fun(_, _) -> none end),

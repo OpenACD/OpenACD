@@ -597,21 +597,21 @@ encode_password(Password) ->
 %%--------------------------------------------------------------------
 %%% Test functions
 %%--------------------------------------------------------------------
-start_test_() ->
-	{setup, fun() ->
-		application:set_env('OpenACD', agent_auth_storage, somestore),
+% start_test_() ->
+% 	{setup, fun() ->
+% 		application:set_env('OpenACD', agent_auth_storage, somestore),
 
-		meck:new(somestore),
-		meck:expect(somestore, start, fun() -> ok end)
+% 		meck:new(somestore),
+% 		meck:expect(somestore, start, fun() -> ok end)
 
-	end,fun(_) -> [
-	{"normal", fun() ->
-		Release = #release_opt{label="a"},
-		meck:expect(somestore, update_release, 2, {ok, ok}),
-		?assertEqual({atomic, ok}, update_release("foo", Release)),
-		?assert(meck:called(somestore, update_release, ["foo", Release])),
-		?assert(meck:validate(somestore))
-	end}]end}.
+% 	end,fun(_) -> [
+% 	{"normal", fun() ->
+% 		Release = #release_opt{label="a"},
+% 		meck:expect(somestore, update_release, 2, {ok, ok}),
+% 		?assertEqual({atomic, ok}, update_release("foo", Release)),
+% 		?assert(meck:called(somestore, update_release, ["foo", Release])),
+% 		?assert(meck:validate(somestore))
+% 	end}]end}.
 
 auth_test_() ->
 	{foreach, fun() ->
@@ -622,7 +622,8 @@ auth_test_() ->
 		meck:new(somestore)
 	end,
 	fun(_) ->
-		meck:unload(somestore)
+		meck:unload(somestore),
+		cpx_hooks:stop()
 	end,
 	[{"unhandled", fun() ->
 		meck:expect(somestore, auth_agent, 2, none),

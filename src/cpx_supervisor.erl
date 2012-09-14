@@ -588,170 +588,170 @@ submit_bug_report(Options) when is_list(Options) ->
 
 -ifdef(TEST).
 
-config_test_() -> 
-	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{
-		foreach,
-		fun() -> 
-			?CONSOLE("f1 ~p", [mnesia:stop()]),
-			?CONSOLE("f2 ~p", [mnesia:delete_schema([node()])]),
-			?CONSOLE("f3 ~p", [mnesia:create_schema([node()])]),
-			?CONSOLE("F4 ~p", [mnesia:start()]),
-			?CONSOLE("findme ~p", [cpx_supervisor:start([node()])])
-		end,
-		fun(_Whatever) -> 
-			cpx_supervisor:stop(),
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			ok
-		end,
-		[
-			{
-				"Adding a Valid Config gets it to start",
-				fun() -> 
-					Valid = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
-					Out = update_conf(gen_server_mock, Valid),
-					?CONSOLE("Out:  ~p", [Out]),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() -> 
-						qlc:e(QH)
-					end,
-					?CONSOLE("~p", [mnesia:transaction(F)]),
-					?assertMatch({atomic, [#cpx_conf{}]}, mnesia:transaction(F)),
-					?assert(is_pid(whereis(dummy_media_manager)))
-				end
-			},
-			{
-				"Destroy a Config by full spec, ensure it also kills what was running.",
-				fun() -> 
-					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
-					update_conf(gen_server_mock, Spec),
-					?assert(is_pid(whereis(dummy_media_manager))),
-					destroy(Spec),
-					?assertEqual(undefined, whereis(dummy_media_manager)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() -> 
-						qlc:e(QH)
-					end,
-					?assertMatch({atomic, []}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Destroy a Config by id only",
-				fun() -> 
-					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
-					update_conf(gen_server_mock, Spec),
-					?assert(is_pid(whereis(dummy_media_manager))),
-					destroy(gen_server_mock),
-					?CONSOLE("~p", [whereis(dummy_media_manager)]),
-					?assertEqual(undefined, whereis(dummy_media_manager)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() -> 
-						qlc:e(QH)
-					end,
-					?assertMatch({atomic, []}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Update a Config",
-				fun() -> 
-					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-					Oldrec = #cpx_conf{
-						id = gen_server_mock,
-						module_name = gen_server_mock,
-						start_function = named,
-						start_args = [{local, dummy_media_manager}],
-						supervisor = management_sup
-					},
-					update_conf(gen_server_mock, Oldrec),
-					Oldpid = whereis(dummy_media_manager),
-					Newrec = #cpx_conf{
-						id=gen_server_mock,
-						module_name = gen_server_mock,
-						start_function = named,
-						start_args = [{local, gen_server_mock}],
-						supervisor = management_sup
-					},
-					Out = update_conf(gen_server_mock, Newrec),
-					?assertMatch({atomic, {ok, _}}, Out),
-					Newpid = whereis(gen_server_mock),
-					?assertNot(Oldpid =:= Newpid),
-					?assert(is_pid(Newpid)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() ->
-						qlc:e(QH)
-					end,
-					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual([{local, gen_server_mock}], Rec#cpx_conf.start_args),
-					destroy(gen_server_mock)
-				end
-			},
-			{
-				"Updating a config fails, so the old config is started",
-				fun() ->
-					Oldrec = #cpx_conf{
-						id = gen_server_mock,
-						module_name = gen_server_mock,
-						start_function = named,
-						start_args = [{local, dummy_media_manager}],
-						supervisor = management_sup
-					},
-					update_conf(gen_server_mock, Oldrec),
-					Oldpid = whereis(dummy_media_manager),
-					Newrec = #cpx_conf{
-						id=gen_server_mock,
-						module_name = fake_module,
-						start_function = bad_start,
-						start_args = [],
-						supervisor = management_sup
-					},
-					Out = update_conf(gen_server_mock, Newrec),
-					?assertMatch({aborted, {{start_fail, _}, _}}, Out),
-					Newpid = whereis(dummy_media_manager),
-					?assertNot(Oldpid =:= Newpid),
-					?DEBUG("new pid:  ~p", [Newpid]),
-					?assert(is_pid(Newpid)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() ->
-						qlc:e(QH)
-					end,
-					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
-					destroy(gen_server_mock)
-				end
-			},
-			{
-				"Updating a config adds when there is no old config",
-				fun() ->
-					undefined = whereis(dummy_media_manager),
-					Rec = #cpx_conf{
-						id = gen_server_mock,
-						module_name = gen_server_mock,
-						start_function = named,
-						start_args = [{local, dummy_media_manager}],
-						supervisor = management_sup
-					},
-					Out = update_conf(gen_server_mock, Rec),
-					?assertMatch({atomic, {ok, _}}, Out),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-					F = fun() ->
-						qlc:e(QH)
-					end,
-					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
-					?assert(is_pid(whereis(dummy_media_manager))),
-					destroy(gen_server_mock)
-				end
-			},
-			{
-				"Build a Spec from Record",
-				fun() -> 
-					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = []},
-					?assertMatch({dummy_id, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
-				end
-			}
-		]
-	}.
+% config_test_() -> 
+% 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+% 	{
+% 		foreach,
+% 		fun() -> 
+% 			?CONSOLE("f1 ~p", [mnesia:stop()]),
+% 			?CONSOLE("f2 ~p", [mnesia:delete_schema([node()])]),
+% 			?CONSOLE("f3 ~p", [mnesia:create_schema([node()])]),
+% 			?CONSOLE("F4 ~p", [mnesia:start()]),
+% 			?CONSOLE("findme ~p", [cpx_supervisor:start([node()])])
+% 		end,
+% 		fun(_Whatever) -> 
+% 			cpx_supervisor:stop(),
+% 			mnesia:stop(),
+% 			mnesia:delete_schema([node()]),
+% 			ok
+% 		end,
+% 		[
+% 			{
+% 				"Adding a Valid Config gets it to start",
+% 				fun() -> 
+% 					Valid = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+% 					Out = update_conf(gen_server_mock, Valid),
+% 					?CONSOLE("Out:  ~p", [Out]),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() -> 
+% 						qlc:e(QH)
+% 					end,
+% 					?CONSOLE("~p", [mnesia:transaction(F)]),
+% 					?assertMatch({atomic, [#cpx_conf{}]}, mnesia:transaction(F)),
+% 					?assert(is_pid(whereis(dummy_media_manager)))
+% 				end
+% 			},
+% 			{
+% 				"Destroy a Config by full spec, ensure it also kills what was running.",
+% 				fun() -> 
+% 					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+% 					update_conf(gen_server_mock, Spec),
+% 					?assert(is_pid(whereis(dummy_media_manager))),
+% 					destroy(Spec),
+% 					?assertEqual(undefined, whereis(dummy_media_manager)),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() -> 
+% 						qlc:e(QH)
+% 					end,
+% 					?assertMatch({atomic, []}, mnesia:transaction(F))
+% 				end
+% 			},
+% 			{
+% 				"Destroy a Config by id only",
+% 				fun() -> 
+% 					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+% 					update_conf(gen_server_mock, Spec),
+% 					?assert(is_pid(whereis(dummy_media_manager))),
+% 					destroy(gen_server_mock),
+% 					?CONSOLE("~p", [whereis(dummy_media_manager)]),
+% 					?assertEqual(undefined, whereis(dummy_media_manager)),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() -> 
+% 						qlc:e(QH)
+% 					end,
+% 					?assertMatch({atomic, []}, mnesia:transaction(F))
+% 				end
+% 			},
+% 			{
+% 				"Update a Config",
+% 				fun() -> 
+% 					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+% 					Oldrec = #cpx_conf{
+% 						id = gen_server_mock,
+% 						module_name = gen_server_mock,
+% 						start_function = named,
+% 						start_args = [{local, dummy_media_manager}],
+% 						supervisor = management_sup
+% 					},
+% 					update_conf(gen_server_mock, Oldrec),
+% 					Oldpid = whereis(dummy_media_manager),
+% 					Newrec = #cpx_conf{
+% 						id=gen_server_mock,
+% 						module_name = gen_server_mock,
+% 						start_function = named,
+% 						start_args = [{local, gen_server_mock}],
+% 						supervisor = management_sup
+% 					},
+% 					Out = update_conf(gen_server_mock, Newrec),
+% 					?assertMatch({atomic, {ok, _}}, Out),
+% 					Newpid = whereis(gen_server_mock),
+% 					?assertNot(Oldpid =:= Newpid),
+% 					?assert(is_pid(Newpid)),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() ->
+% 						qlc:e(QH)
+% 					end,
+% 					{atomic, [Rec]} = mnesia:transaction(F),
+% 					?assertEqual([{local, gen_server_mock}], Rec#cpx_conf.start_args),
+% 					destroy(gen_server_mock)
+% 				end
+% 			},
+% 			{
+% 				"Updating a config fails, so the old config is started",
+% 				fun() ->
+% 					Oldrec = #cpx_conf{
+% 						id = gen_server_mock,
+% 						module_name = gen_server_mock,
+% 						start_function = named,
+% 						start_args = [{local, dummy_media_manager}],
+% 						supervisor = management_sup
+% 					},
+% 					update_conf(gen_server_mock, Oldrec),
+% 					Oldpid = whereis(dummy_media_manager),
+% 					Newrec = #cpx_conf{
+% 						id=gen_server_mock,
+% 						module_name = fake_module,
+% 						start_function = bad_start,
+% 						start_args = [],
+% 						supervisor = management_sup
+% 					},
+% 					Out = update_conf(gen_server_mock, Newrec),
+% 					?assertMatch({aborted, {{start_fail, _}, _}}, Out),
+% 					Newpid = whereis(dummy_media_manager),
+% 					?assertNot(Oldpid =:= Newpid),
+% 					?DEBUG("new pid:  ~p", [Newpid]),
+% 					?assert(is_pid(Newpid)),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() ->
+% 						qlc:e(QH)
+% 					end,
+% 					{atomic, [Rec]} = mnesia:transaction(F),
+% 					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
+% 					destroy(gen_server_mock)
+% 				end
+% 			},
+% 			{
+% 				"Updating a config adds when there is no old config",
+% 				fun() ->
+% 					undefined = whereis(dummy_media_manager),
+% 					Rec = #cpx_conf{
+% 						id = gen_server_mock,
+% 						module_name = gen_server_mock,
+% 						start_function = named,
+% 						start_args = [{local, dummy_media_manager}],
+% 						supervisor = management_sup
+% 					},
+% 					Out = update_conf(gen_server_mock, Rec),
+% 					?assertMatch({atomic, {ok, _}}, Out),
+% 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+% 					F = fun() ->
+% 						qlc:e(QH)
+% 					end,
+% 					{atomic, [Rec]} = mnesia:transaction(F),
+% 					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
+% 					?assert(is_pid(whereis(dummy_media_manager))),
+% 					destroy(gen_server_mock)
+% 				end
+% 			},
+% 			{
+% 				"Build a Spec from Record",
+% 				fun() -> 
+% 					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = []},
+% 					?assertMatch({dummy_id, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
+% 				end
+% 			}
+% 		]
+% 	}.
 
 murder_test_() ->
 	{foreach,
@@ -790,30 +790,30 @@ murder_test_() ->
 		Newwhere = whereis(agent_connection_sup),
 		?assertNot(Where =:= Newwhere)
 	end},
-	{"Killing the agent branch (and bringing it back)",
-	fun() ->
-		Where = whereis(agent_sup),
-		?assertNot(Where =:= undefined),
-		exit(Where, kill),
-		timer:sleep(5),
-		restart(agent_sup, [node()]),
-		Newwhere = whereis(agent_sup),
-		?assertNot(Where =:= Newwhere),
-		?assertNot(whereis(agent_connection_sup) =:= undefined),
-		?assertNot(whereis(agent_manager) =:= undefined)
-	end},
-	{"Killing the routing branch (and bringing it back)",
-	fun() ->
-		Where = whereis(routing_sup),
-		?assertNot(Where =:= undefined),
-		exit(Where, kill),
-		timer:sleep(5),
-		restart(routing_sup, [node()]),
-		Newwhere = whereis(routing_sup),
-		?assertNot(Where =:= Newwhere),
-		?assertNot(whereis(dispatch_manager) =:= undefined),
-		?assertNot(whereis(queue_manager) =:= undefined)
-	end},
+	% {"Killing the agent branch (and bringing it back)",
+	% fun() ->
+	% 	Where = whereis(agent_sup),
+	% 	?assertNot(Where =:= undefined),
+	% 	exit(Where, kill),
+	% 	timer:sleep(5),
+	% 	restart(agent_sup, [node()]),
+	% 	Newwhere = whereis(agent_sup),
+	% 	?assertNot(Where =:= Newwhere),
+	% 	?assertNot(whereis(agent_connection_sup) =:= undefined),
+	% 	?assertNot(whereis(agent_manager) =:= undefined)
+	% end},
+	% {"Killing the routing branch (and bringing it back)",
+	% fun() ->
+	% 	Where = whereis(routing_sup),
+	% 	?assertNot(Where =:= undefined),
+	% 	exit(Where, kill),
+	% 	timer:sleep(5),
+	% 	restart(routing_sup, [node()]),
+	% 	Newwhere = whereis(routing_sup),
+	% 	?assertNot(Where =:= Newwhere),
+	% 	?assertNot(whereis(dispatch_manager) =:= undefined),
+	% 	?assertNot(whereis(queue_manager) =:= undefined)
+	% end},
 	{"Killing the media manager's branch (and bringin it back)",
 	fun() ->
 		Where = whereis(mediamanager_sup),

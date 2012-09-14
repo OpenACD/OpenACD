@@ -2043,228 +2043,228 @@ set_endpoint_int(Conn, Type, {struct, Data}, DataToOptsFun) ->
 
 -ifdef(TEST).
 
-poll_flushing_test_() ->
-	{foreach,
-	fun() ->
-		Agent = #agent{login = "testagent"},
-		{ok, Apid} = agent:start(Agent),
-		{ok, WebListener} = gen_server_mock:named({local, agent_web_listener}),
-		{ok, AgentManMock} = gen_leader_mock:start(agent_manager),
-		?DEBUG("query agent", []),
-		gen_leader_mock:expect_leader_call(AgentManMock, fun(_, _, State, _) ->
-			{ok, false, State}
-		end),
-		?DEBUG("start agent", []),
-		gen_leader_mock:expect_call(AgentManMock, fun(_, _, State, _) ->
-			%{ok, Apid} = Out = agent:start(Agent),
-			{ok, {ok, Apid}, State}
-		end),
-%		?DEBUG("update skill list", []),
-%		gen_leader_mock:expect_cast(AgentManMock, fun(_, State, _) ->
-%			ok
-%		end),
-		gen_server_mock:expect_cast(WebListener, fun({linkto, _P}, _) ->
-			ok
-		end),
-		{ok, Seedstate} = init([Agent]),
-		AssertMocks = fun() ->
-			gen_server_mock:assert_expectations(WebListener),
-			gen_leader_mock:assert_expectations(AgentManMock)
-		end,
-		{Agent, Apid, WebListener, AgentManMock, Seedstate, AssertMocks}
-	end,
-	fun({_Agent, Apid, WebListener, AgentManMock, _Seedstate, _AssertMocks}) ->
-		agent:stop(Apid),
-		gen_server_mock:stop(WebListener),
-		gen_leader_mock:stop(AgentManMock),
-		timer:sleep(100) % giving the named mocks time to dereg names
-	end,
-	[fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
-		{"A single item shoved into queue",
-		fun() ->
-			State = push_event(<<"string">>, Seedstate),
-			Res = receive
-				Any ->
-					 Any
-			after 550 ->
-				timeout
-			end,
-			?assertEqual(poll_flush, Res),
-			AssertMocks()
-		end}
-	end,
-	fun({_Agent, _Apid, _WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
-		{"Two items shoved in quickly",
-		fun() ->
-			State = push_event(<<"string">>, Seedstate),
-			State2 = push_event(<<"string2">>, State),
-			{{noreply, State3}, Res1} = receive
-				Any ->
-					?assertEqual(poll_flush, Any),
-					{handle_info(Any, State2), Any}
-			after 550 ->
-				{{noreply, State2}, timeout}
-			end,
-			Res2 = receive
-				Any2 ->
-					 Any2
-			after 550 ->
-				timeout
-			end,
-			?assertEqual({poll_flush, timeout}, {Res1, Res2}),
-			AssertMocks()
-		end}
-	end,
-	fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
-		{"Two fast, one slow, then 2 more fast",
-		fun() ->
-			State1 = push_event(<<"string1">>, Seedstate),
-			State2 = push_event(<<"string2">>, State1),
-			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
-				ok
-			end),
-			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
-				ok
-			end),
-			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
-				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
-				ok
-			end),
-			HandleInfoState1 = State2#state{poll_pid = WebListener},
-			{{noreply, State3}, Res1} = receive
-				Any ->
-					?assertEqual(poll_flush, Any),
-					{handle_info(Any, HandleInfoState1), Any}
-			after 550 ->
-				{{noreply, State2}, timeout}
-			end,
-			?DEBUG("first fast pair complete", []),
-			?assertEqual(poll_flush, Res1),
-			?assertEqual([], State3#state.poll_queue),
-			State4 = push_event(<<"string3">>, State3),
-			HandleInfoState2 = State4#state{poll_pid = WebListener},
-			{{noreply, State5}, Res2} = receive
-				Any2 ->
-					?assertEqual(poll_flush, Any2),
-					{handle_info(Any2, HandleInfoState2), Any2}
-			after 550 ->
-				{{noreply, State4}, timeout}
-			end,
-			?DEBUG("single pass", []),
-			?assertEqual(poll_flush, Res2),
-			?assertEqual([], State5#state.poll_queue),
-			State6 = push_event(<<"string4">>, State5),
-			State7 = push_event(<<"string5">>, State6),
-			HandleInfoState3 = State7#state{poll_pid = WebListener},
-			{{noreply, State8}, Res3} = receive
-				Any3 ->
-					?assertEqual(poll_flush, Any3),
-					{handle_info(Any3, HandleInfoState3), Any3}
-			after 550 ->
-				{{noreply, State7}, timeout}
-			end,
-			?DEBUG("2nd pair complete", []),
-			?assertEqual(poll_flush, Res3),
-			?assertEqual([], State8#state.poll_queue),
-			AssertMocks()
-		end}
-	end]}.
+% poll_flushing_test_() ->
+% 	{foreach,
+% 	fun() ->
+% 		Agent = #agent{login = "testagent"},
+% 		{ok, Apid} = agent:start(Agent),
+% 		{ok, WebListener} = gen_server_mock:named({local, agent_web_listener}),
+% 		{ok, AgentManMock} = gen_leader_mock:start(agent_manager),
+% 		?DEBUG("query agent", []),
+% 		gen_leader_mock:expect_leader_call(AgentManMock, fun(_, _, State, _) ->
+% 			{ok, false, State}
+% 		end),
+% 		?DEBUG("start agent", []),
+% 		gen_leader_mock:expect_call(AgentManMock, fun(_, _, State, _) ->
+% 			%{ok, Apid} = Out = agent:start(Agent),
+% 			{ok, {ok, Apid}, State}
+% 		end),
+% %		?DEBUG("update skill list", []),
+% %		gen_leader_mock:expect_cast(AgentManMock, fun(_, State, _) ->
+% %			ok
+% %		end),
+% 		gen_server_mock:expect_cast(WebListener, fun({linkto, _P}, _) ->
+% 			ok
+% 		end),
+% 		{ok, Seedstate} = init([Agent]),
+% 		AssertMocks = fun() ->
+% 			gen_server_mock:assert_expectations(WebListener),
+% 			gen_leader_mock:assert_expectations(AgentManMock)
+% 		end,
+% 		{Agent, Apid, WebListener, AgentManMock, Seedstate, AssertMocks}
+% 	end,
+% 	fun({_Agent, Apid, WebListener, AgentManMock, _Seedstate, _AssertMocks}) ->
+% 		agent:stop(Apid),
+% 		gen_server_mock:stop(WebListener),
+% 		gen_leader_mock:stop(AgentManMock),
+% 		timer:sleep(100) % giving the named mocks time to dereg names
+% 	end,
+% 	[fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+% 		{"A single item shoved into queue",
+% 		fun() ->
+% 			State = push_event(<<"string">>, Seedstate),
+% 			Res = receive
+% 				Any ->
+% 					 Any
+% 			after 550 ->
+% 				timeout
+% 			end,
+% 			?assertEqual(poll_flush, Res),
+% 			AssertMocks()
+% 		end}
+% 	end,
+% 	fun({_Agent, _Apid, _WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+% 		{"Two items shoved in quickly",
+% 		fun() ->
+% 			State = push_event(<<"string">>, Seedstate),
+% 			State2 = push_event(<<"string2">>, State),
+% 			{{noreply, State3}, Res1} = receive
+% 				Any ->
+% 					?assertEqual(poll_flush, Any),
+% 					{handle_info(Any, State2), Any}
+% 			after 550 ->
+% 				{{noreply, State2}, timeout}
+% 			end,
+% 			Res2 = receive
+% 				Any2 ->
+% 					 Any2
+% 			after 550 ->
+% 				timeout
+% 			end,
+% 			?assertEqual({poll_flush, timeout}, {Res1, Res2}),
+% 			AssertMocks()
+% 		end}
+% 	end,
+% 	fun({_Agent, _Apid, WebListener, _AgentManMock, Seedstate, AssertMocks}) ->
+% 		{"Two fast, one slow, then 2 more fast",
+% 		fun() ->
+% 			State1 = push_event(<<"string1">>, Seedstate),
+% 			State2 = push_event(<<"string2">>, State1),
+% 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+% 				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string1">>, <<"string2">>]}]} = mochijson2:decode(Json),
+% 				ok
+% 			end),
+% 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+% 				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string3">>]}]} = mochijson2:decode(Json),
+% 				ok
+% 			end),
+% 			gen_server_mock:expect_info(WebListener, fun({poll, {200, [], Json}}, _) ->
+% 				{struct, [{<<"success">>, true}, {<<"result">>, [<<"string4">>, <<"string5">>]}]} = mochijson2:decode(Json),
+% 				ok
+% 			end),
+% 			HandleInfoState1 = State2#state{poll_pid = WebListener},
+% 			{{noreply, State3}, Res1} = receive
+% 				Any ->
+% 					?assertEqual(poll_flush, Any),
+% 					{handle_info(Any, HandleInfoState1), Any}
+% 			after 550 ->
+% 				{{noreply, State2}, timeout}
+% 			end,
+% 			?DEBUG("first fast pair complete", []),
+% 			?assertEqual(poll_flush, Res1),
+% 			?assertEqual([], State3#state.poll_queue),
+% 			State4 = push_event(<<"string3">>, State3),
+% 			HandleInfoState2 = State4#state{poll_pid = WebListener},
+% 			{{noreply, State5}, Res2} = receive
+% 				Any2 ->
+% 					?assertEqual(poll_flush, Any2),
+% 					{handle_info(Any2, HandleInfoState2), Any2}
+% 			after 550 ->
+% 				{{noreply, State4}, timeout}
+% 			end,
+% 			?DEBUG("single pass", []),
+% 			?assertEqual(poll_flush, Res2),
+% 			?assertEqual([], State5#state.poll_queue),
+% 			State6 = push_event(<<"string4">>, State5),
+% 			State7 = push_event(<<"string5">>, State6),
+% 			HandleInfoState3 = State7#state{poll_pid = WebListener},
+% 			{{noreply, State8}, Res3} = receive
+% 				Any3 ->
+% 					?assertEqual(poll_flush, Any3),
+% 					{handle_info(Any3, HandleInfoState3), Any3}
+% 			after 550 ->
+% 				{{noreply, State7}, timeout}
+% 			end,
+% 			?DEBUG("2nd pair complete", []),
+% 			?assertEqual(poll_flush, Res3),
+% 			?assertEqual([], State8#state.poll_queue),
+% 			AssertMocks()
+% 		end}
+% 	end]}.
 
 
 
 
-check_live_poll_test_() ->
-	{timeout, ?TICK_LENGTH * 5, fun() -> [
-	{"When poll pid is undefined, and less than 10 seconds have passed",
-	fun() ->
-		?DEBUG("timeout:  ~p", [?TICK_LENGTH * 5]),
-		State = #state{poll_pid_established = util:now(), poll_pid = undefined},
-		?assertMatch({noreply, NewState}, handle_info(check_live_poll, State)),
-		?DEBUG("Starting recieve", []),
-		Ok = receive
-			check_live_poll ->
-				true
-		after ?TICK_LENGTH + 1 ->
-			false
-		end,
-		?assert(Ok)
-	end},
-	{"When poll pid is undefined, and more than 10 seconds have passed",
-	fun() ->
-		State = #state{poll_pid_established = util:now() - 12, poll_pid = undefined},
-		?assertEqual({stop, normal, State}, handle_info(check_live_poll, State)),
-		Ok = receive
-			check_live_poll	->
-				 false
-		after ?TICK_LENGTH + 1 ->
-			true
-		end,
-		?assert(Ok)
-	end},
-	{"When poll pid exists, and less than 20 seconds have passed",
-	fun() ->
-		State = #state{poll_pid_established = util:now() - 5, poll_pid = self()},
-		{noreply, Newstate} = handle_info(check_live_poll, State),
-		?assertEqual([], Newstate#state.poll_queue),
-		Ok = receive
-			check_live_poll ->
-				 true
-		after ?TICK_LENGTH + 1 ->
-			false
-		end,
-		?assert(Ok)
-	end},
-	{"When poll pid exists, and more than 20 seconds have passed",
-	fun() ->
-		State = #state{poll_pid_established = util:now() - 25, poll_pid = self()},
-		{noreply, Newstate} = handle_info(check_live_poll, State),
-		?assertEqual([], Newstate#state.poll_queue),
-		Ok = receive
-			check_live_poll	->
-				 true
-		after ?TICK_LENGTH + 1 ->
-			false
-		end,
-		?assert(Ok)
-	end}] end}.
+% check_live_poll_test_() ->
+% 	{timeout, ?TICK_LENGTH * 5, fun() -> [
+% 	{"When poll pid is undefined, and less than 10 seconds have passed",
+% 	fun() ->
+% 		?DEBUG("timeout:  ~p", [?TICK_LENGTH * 5]),
+% 		State = #state{poll_pid_established = util:now(), poll_pid = undefined},
+% 		?assertMatch({noreply, NewState}, handle_info(check_live_poll, State)),
+% 		?DEBUG("Starting recieve", []),
+% 		Ok = receive
+% 			check_live_poll ->
+% 				true
+% 		after ?TICK_LENGTH + 1 ->
+% 			false
+% 		end,
+% 		?assert(Ok)
+% 	end},
+% 	{"When poll pid is undefined, and more than 10 seconds have passed",
+% 	fun() ->
+% 		State = #state{poll_pid_established = util:now() - 12, poll_pid = undefined},
+% 		?assertEqual({stop, normal, State}, handle_info(check_live_poll, State)),
+% 		Ok = receive
+% 			check_live_poll	->
+% 				 false
+% 		after ?TICK_LENGTH + 1 ->
+% 			true
+% 		end,
+% 		?assert(Ok)
+% 	end},
+% 	{"When poll pid exists, and less than 20 seconds have passed",
+% 	fun() ->
+% 		State = #state{poll_pid_established = util:now() - 5, poll_pid = self()},
+% 		{noreply, Newstate} = handle_info(check_live_poll, State),
+% 		?assertEqual([], Newstate#state.poll_queue),
+% 		Ok = receive
+% 			check_live_poll ->
+% 				 true
+% 		after ?TICK_LENGTH + 1 ->
+% 			false
+% 		end,
+% 		?assert(Ok)
+% 	end},
+% 	{"When poll pid exists, and more than 20 seconds have passed",
+% 	fun() ->
+% 		State = #state{poll_pid_established = util:now() - 25, poll_pid = self()},
+% 		{noreply, Newstate} = handle_info(check_live_poll, State),
+% 		?assertEqual([], Newstate#state.poll_queue),
+% 		Ok = receive
+% 			check_live_poll	->
+% 				 true
+% 		after ?TICK_LENGTH + 1 ->
+% 			false
+% 		end,
+% 		?assert(Ok)
+% 	end}] end}.
 
-set_state_test_() ->
-	{
-		foreach,
-		fun() ->
-			%agent_manager:start([node()]),
-			gen_event:start({local, cpx_agent_event}),
-			gen_leader_mock:start(agent_manager),
-			gen_leader_mock:expect_leader_call(agent_manager,
-				fun({exists, "testagent"}, _From, State, _Elec) ->
-					{ok, Apid} = agent:start(#agent{login = "testagent"}),
-					{ok, {true, Apid}, State}
-				end),
-			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
-			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
-			{Connpid}
-		end,
-		fun({Connpid}) ->
-			stop(Connpid)
-			%agent_auth:stop(),
-			%agent_manager:stop()
-		end,
-		[
-			fun({Connpid}) ->
-				{"Set state valid",
-				fun() ->
-					gen_leader_mock:expect_cast(agent_manager, fun(_, _, _) -> ok end),
-					{200, [], Reply} = gen_server:call(Connpid, {set_release, <<"none">>}),
-					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply)),
-					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
-					{200, [], Reply2} = gen_server:call(Connpid, {set_release, <<"default">>}),
-					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply2))
-				end}
-			end
-		]
-	}.
+% set_state_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			%agent_manager:start([node()]),
+% 			gen_event:start({local, cpx_agent_event}),
+% 			gen_leader_mock:start(agent_manager),
+% 			gen_leader_mock:expect_leader_call(agent_manager,
+% 				fun({exists, "testagent"}, _From, State, _Elec) ->
+% 					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+% 					{ok, {true, Apid}, State}
+% 				end),
+% 			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+% 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
+% 			{Connpid}
+% 		end,
+% 		fun({Connpid}) ->
+% 			stop(Connpid)
+% 			%agent_auth:stop(),
+% 			%agent_manager:stop()
+% 		end,
+% 		[
+% 			fun({Connpid}) ->
+% 				{"Set state valid",
+% 				fun() ->
+% 					gen_leader_mock:expect_cast(agent_manager, fun(_, _, _) -> ok end),
+% 					{200, [], Reply} = gen_server:call(Connpid, {set_release, <<"none">>}),
+% 					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply)),
+% 					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+% 					{200, [], Reply2} = gen_server:call(Connpid, {set_release, <<"default">>}),
+% 					?assertEqual({struct, [{<<"success">>, true}]}, mochijson2:decode(Reply2))
+% 				end}
+% 			end
+% 		]
+% 	}.
 
 dummy_plugin(_AgentPid, _ReplyBase, <<"success">>) ->
 	{ok, <<"success">>};
@@ -2335,153 +2335,153 @@ plugin_call_test_() ->
 		end}
 	] end}.
 
-get_endpoint_test_() ->
-	{
-		foreach,
-		fun() ->
-			gen_event:start({local, cpx_agent_event}),
-			gen_server_mock:named({local, freeswitch_media_manager}),
+% get_endpoint_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			gen_event:start({local, cpx_agent_event}),
+% 			gen_server_mock:named({local, freeswitch_media_manager}),
 
-			gen_leader_mock:start(agent_manager),
-			gen_leader_mock:expect_leader_call(agent_manager,
-				fun({exists, "testagent"}, _From, State, _Elec) ->
-					{ok, Apid} = agent:start(#agent{login = "testagent"}),
-					{ok, {true, Apid}, State}
-				end),
-			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+% 			gen_leader_mock:start(agent_manager),
+% 			gen_leader_mock:expect_leader_call(agent_manager,
+% 				fun({exists, "testagent"}, _From, State, _Elec) ->
+% 					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+% 					{ok, {true, Apid}, State}
+% 				end),
+% 			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
 
-			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
-
-
-			Connpid
-		end,
-		fun(Connpid) ->
-			%stop(Connpid),
-			%gen_server_mock:stop(FMMPid)
-			ok
-		end,
-		[
-			fun(Connpid) ->
-				{"Get freeswitch endpoint",
-
-				fun() ->
-					meck:new(freeswitch_ring),
-					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
-
-					gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _From, State) -> {ok,
-						{'freeswitch@127.0.0.1', "dialstring", "dest"}, State} end),
-
-					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
-
-					AgentPid = (dump_state(Connpid))#state.agent_fsm,
-					agent:set_endpoint(AgentPid, freeswitch_media, [{type, sip}, {data, "foobar"}, {persistant, true}]),
-
-					{ok, {struct, Props}} = simplify_web_response(get_endpoint(Connpid, <<"freeswitch_media">>)),
-
-					?debugVal(Props),
-
-					?assertEqual(<<"sip">>, proplists:get_value(<<"type">>, Props)),
-					?assertEqual(<<"foobar">>, proplists:get_value(<<"data">>, Props)),
-					?assertEqual(true, proplists:get_value(<<"persistant">>, Props)),
-
-					?assert(meck:validate(freeswitch_ring)),
-					meck:unload(freeswitch_ring)
-				end}
-			end,
-			fun(Connpid) ->
-				{"Get email endpoint",
-				fun() ->
-					AgentPid = (dump_state(Connpid))#state.agent_fsm,
-					agent:set_endpoint(AgentPid, email_media, null),
-					?assertEqual({ok, null}, simplify_web_response(
-						get_endpoint(Connpid, <<"email_media">>)))
-				end}
-			end
-		]
-	}.
-
-set_endpoint_test_() ->
-	{
-		foreach,
-		fun() ->
-			gen_event:start({local, cpx_agent_event}),
-			gen_server_mock:named({local, freeswitch_media_manager}),
-
-			gen_leader_mock:start(agent_manager),
-			gen_leader_mock:expect_leader_call(agent_manager,
-				fun({exists, "testagent"}, _From, State, _Elec) ->
-					{ok, Apid} = agent:start(#agent{login = "testagent"}),
-					{ok, {true, Apid}, State}
-				end),
-			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
-
-			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
+% 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
 
 
-			Connpid
-		end,
-		fun(Connpid) ->
-			%stop(Connpid),
-			%gen_server_mock:stop(FMMPid)
-			ok
-		end,
-		[
-			fun(Connpid) ->
-				{"Set unknown endpoint",
-				fun() ->
-					?assertEqual(
-						{error,{<<"INVALID_ENDPOINT">>,
-                                    <<"unknwon endpoint">>}},
-						simplify_web_response(
-						set_endpoint(Connpid, <<"blabla">>, {struct, []})))
-				end}
-			end,
-			fun(Connpid) ->
-				{"Set freeswitch endpoint",
-				fun() ->
-					meck:new(freeswitch_ring),
-					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
+% 			Connpid
+% 		end,
+% 		fun(Connpid) ->
+% 			%stop(Connpid),
+% 			%gen_server_mock:stop(FMMPid)
+% 			ok
+% 		end,
+% 		[
+% 			fun(Connpid) ->
+% 				{"Get freeswitch endpoint",
 
-					[test_valid_set_fw_endpoint(Connpid, TypeIn, <<"somedata">>, PersistantIn, Type, "somedata", Persistant) ||
-						{TypeIn, Type} <-
-							[{<<"sip_registration">>, sip_registration},
-							{<<"sip">>, sip},
-							{<<"iax">>, iax},
-							{<<"h323">>, h323},
-							{<<"pstn">>, pstn}],
-						{PersistantIn, Persistant} <-
-							[{true, true}, {false, undefined}, {undefined, undefined}]],
+% 				fun() ->
+% 					meck:new(freeswitch_ring),
+% 					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
 
-					?assert(meck:validate(freeswitch_ring)),
-					meck:unload(freeswitch_ring)
-				end}
-			end,
-			fun(Connpid) ->
-				{"Set email endpoint",
-				fun() ->
-					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+% 					gen_server_mock:expect_call(freeswitch_media_manager, fun(_, _From, State) -> {ok,
+% 						{'freeswitch@127.0.0.1', "dialstring", "dest"}, State} end),
 
-					?assertEqual(
-						{ok, undefined},
-						simplify_web_response(
-						set_endpoint(Connpid, <<"email_media">>, null))),
-					?assertNotMatch({error, _}, agent:get_endpoint(
-						email_media, dump_agent(Connpid)))
-				end}
-			end,
-			fun(Connpid) ->
-				{"Set dummy endpoint",
-				fun() ->
-					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+% 					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
 
-					?assertEqual(
-						{ok, undefined},
-						simplify_web_response(
-						set_endpoint(Connpid, <<"email_media">>, null)))
-				end}
-			end
-		]
-	}.
+% 					AgentPid = (dump_state(Connpid))#state.agent_fsm,
+% 					agent:set_endpoint(AgentPid, freeswitch_media, [{type, sip}, {data, "foobar"}, {persistant, true}]),
+
+% 					{ok, {struct, Props}} = simplify_web_response(get_endpoint(Connpid, <<"freeswitch_media">>)),
+
+% 					?debugVal(Props),
+
+% 					?assertEqual(<<"sip">>, proplists:get_value(<<"type">>, Props)),
+% 					?assertEqual(<<"foobar">>, proplists:get_value(<<"data">>, Props)),
+% 					?assertEqual(true, proplists:get_value(<<"persistant">>, Props)),
+
+% 					?assert(meck:validate(freeswitch_ring)),
+% 					meck:unload(freeswitch_ring)
+% 				end}
+% 			end,
+% 			fun(Connpid) ->
+% 				{"Get email endpoint",
+% 				fun() ->
+% 					AgentPid = (dump_state(Connpid))#state.agent_fsm,
+% 					agent:set_endpoint(AgentPid, email_media, null),
+% 					?assertEqual({ok, null}, simplify_web_response(
+% 						get_endpoint(Connpid, <<"email_media">>)))
+% 				end}
+% 			end
+% 		]
+% 	}.
+
+% set_endpoint_test_() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			gen_event:start({local, cpx_agent_event}),
+% 			gen_server_mock:named({local, freeswitch_media_manager}),
+
+% 			gen_leader_mock:start(agent_manager),
+% 			gen_leader_mock:expect_leader_call(agent_manager,
+% 				fun({exists, "testagent"}, _From, State, _Elec) ->
+% 					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+% 					{ok, {true, Apid}, State}
+% 				end),
+% 			gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+% 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}),
+
+
+% 			Connpid
+% 		end,
+% 		fun(Connpid) ->
+% 			%stop(Connpid),
+% 			%gen_server_mock:stop(FMMPid)
+% 			ok
+% 		end,
+% 		[
+% 			fun(Connpid) ->
+% 				{"Set unknown endpoint",
+% 				fun() ->
+% 					?assertEqual(
+% 						{error,{<<"INVALID_ENDPOINT">>,
+%                                     <<"unknwon endpoint">>}},
+% 						simplify_web_response(
+% 						set_endpoint(Connpid, <<"blabla">>, {struct, []})))
+% 				end}
+% 			end,
+% 			fun(Connpid) ->
+% 				{"Set freeswitch endpoint",
+% 				fun() ->
+% 					meck:new(freeswitch_ring),
+% 					meck:expect(freeswitch_ring, start, fun(_Node, _, _) -> {ok, zoo} end),
+
+% 					[test_valid_set_fw_endpoint(Connpid, TypeIn, <<"somedata">>, PersistantIn, Type, "somedata", Persistant) ||
+% 						{TypeIn, Type} <-
+% 							[{<<"sip_registration">>, sip_registration},
+% 							{<<"sip">>, sip},
+% 							{<<"iax">>, iax},
+% 							{<<"h323">>, h323},
+% 							{<<"pstn">>, pstn}],
+% 						{PersistantIn, Persistant} <-
+% 							[{true, true}, {false, undefined}, {undefined, undefined}]],
+
+% 					?assert(meck:validate(freeswitch_ring)),
+% 					meck:unload(freeswitch_ring)
+% 				end}
+% 			end,
+% 			fun(Connpid) ->
+% 				{"Set email endpoint",
+% 				fun() ->
+% 					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+% 					?assertEqual(
+% 						{ok, undefined},
+% 						simplify_web_response(
+% 						set_endpoint(Connpid, <<"email_media">>, null))),
+% 					?assertNotMatch({error, _}, agent:get_endpoint(
+% 						email_media, dump_agent(Connpid)))
+% 				end}
+% 			end,
+% 			fun(Connpid) ->
+% 				{"Set dummy endpoint",
+% 				fun() ->
+% 					gen_leader_mock:expect_cast(agent_manager, fun(_,_,_) -> ok end),
+
+% 					?assertEqual(
+% 						{ok, undefined},
+% 						simplify_web_response(
+% 						set_endpoint(Connpid, <<"email_media">>, null)))
+% 				end}
+% 			end
+% 		]
+% 	}.
 
 
 

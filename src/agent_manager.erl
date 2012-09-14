@@ -1427,30 +1427,30 @@ internal_state_test_() -> [
 			?assertEqual({stop, normal, ok, state}, handle_call(stop, "from", state, "election"))
 		end},
 
-		{"{start_agent, InAgent}", fun() ->
-			Mecks = [agent, gen_leader, dispatch_manager],
-			[meck:new(X) || X <- Mecks],
-			Zombie = util:zombie(),
-			meck:expect(agent, start, fun(_Rec, _Opts) ->
-				{ok, Zombie}
-			end),
-			meck:expect(gen_leader, candidates, fun(_) ->
-				[node()]
-			end),
-			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
-			meck:expect(dispatch_manager, end_avail, fun(APid) ->
-				?assertEqual(Zombie, APid)
-			end),
-			InAgent = #agent{id = "agent1", login = "testagent"},
-			State = #state{},
-			{reply, _Preply, State0} = handle_call({start_agent, InAgent}, "from", State, "election"),
-			?assertEqual(1, gb_trees:size(State0#state.route_list)),
-			?assertEqual(1, dict:size(State0#state.agents)),
-			[begin
-				?assert(meck:validate(X)),
-				meck:unload(X)
-			end || X <- Mecks]
-		end},
+		% {"{start_agent, InAgent}", fun() ->
+		% 	Mecks = [agent, gen_leader, dispatch_manager],
+		% 	[meck:new(X) || X <- Mecks],
+		% 	Zombie = util:zombie(),
+		% 	meck:expect(agent, start, fun(_Rec, _Opts) ->
+		% 		{ok, Zombie}
+		% 	end),
+		% 	meck:expect(gen_leader, candidates, fun(_) ->
+		% 		[node()]
+		% 	end),
+		% 	meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+		% 	meck:expect(dispatch_manager, end_avail, fun(APid) ->
+		% 		?assertEqual(Zombie, APid)
+		% 	end),
+		% 	InAgent = #agent{id = "agent1", login = "testagent"},
+		% 	State = #state{},
+		% 	{reply, _Preply, State0} = handle_call({start_agent, InAgent}, "from", State, "election"),
+		% 	?assertEqual(1, gb_trees:size(State0#state.route_list)),
+		% 	?assertEqual(1, dict:size(State0#state.agents)),
+		% 	[begin
+		% 		?assert(meck:validate(X)),
+		% 		meck:unload(X)
+		% 	end || X <- Mecks]
+		% end},
 			
 		{"{exists, Login}, found local", fun() ->
 			meck:new(gen_leader),
@@ -1505,49 +1505,49 @@ internal_state_test_() -> [
 			meck:unload(gen_leader)
 		end},
 
-		{"{notify, Login, AgentCache}, not found, not leader", fun() ->
-			Zombie = util:zombie(),
-			AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
-			meck:new(gen_leader),
-			meck:expect(gen_leader, leader_node, fun(_) -> notus end),
-			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
-				?assertEqual(AgentCache, InAgentCache)
-			end),
-			ExpectedState = #state{
-				agents = dict:from_list([
-					{"testagent", AgentCache}
-				]),
-				route_list = gb_trees:from_orddict([
-					{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
-				])
-			},
-			?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
-			?assert(meck:validate(gen_leader)),
-			?assertEqual(2, length(meck:history(gen_leader))),
-			meck:unload(gen_leader)
-		end},
+		% {"{notify, Login, AgentCache}, not found, not leader", fun() ->
+		% 	Zombie = util:zombie(),
+		% 	AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
+		% 	meck:new(gen_leader),
+		% 	meck:expect(gen_leader, leader_node, fun(_) -> notus end),
+		% 	meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
+		% 		?assertEqual(AgentCache, InAgentCache)
+		% 	end),
+		% 	ExpectedState = #state{
+		% 		agents = dict:from_list([
+		% 			{"testagent", AgentCache}
+		% 		]),
+		% 		route_list = gb_trees:from_orddict([
+		% 			{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
+		% 		])
+		% 	},
+		% 	?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
+		% 	?assert(meck:validate(gen_leader)),
+		% 	?assertEqual(2, length(meck:history(gen_leader))),
+		% 	meck:unload(gen_leader)
+		% end},
 
-		{"{notify, Login, AgentCache}, not found, leader", fun() ->
-			Zombie = util:zombie(),
-			AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
-			meck:new(gen_leader),
-			meck:expect(gen_leader, leader_node, fun(_) -> node() end),
-			meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
-				?assertEqual(AgentCache, InAgentCache)
-			end),
-			ExpectedState = #state{
-				agents = dict:from_list([
-					{"testagent", AgentCache}
-				]),
-				route_list = gb_trees:from_orddict([
-					{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
-				])
-			},
-			?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
-			?assert(meck:validate(gen_leader)),
-			?assertEqual(1, length(meck:history(gen_leader))),
-			meck:unload(gen_leader)
-		end},
+		% {"{notify, Login, AgentCache}, not found, leader", fun() ->
+		% 	Zombie = util:zombie(),
+		% 	AgentCache = #agent_cache{pid = Zombie, time_avail = 1, skills = []},
+		% 	meck:new(gen_leader),
+		% 	meck:expect(gen_leader, leader_node, fun(_) -> node() end),
+		% 	meck:expect(gen_leader, leader_cast, fun(?MODULE, {notify, "testagent", InAgentCache}) ->
+		% 		?assertEqual(AgentCache, InAgentCache)
+		% 	end),
+		% 	ExpectedState = #state{
+		% 		agents = dict:from_list([
+		% 			{"testagent", AgentCache}
+		% 		]),
+		% 		route_list = gb_trees:from_orddict([
+		% 			{#agent_key{rotations = 0, has_all = z, skill_count = 0, idle_time = 1}, AgentCache}
+		% 		])
+		% 	},
+		% 	?assertEqual({reply, ok, ExpectedState}, handle_call({notify, "testagent", AgentCache}, "from", #state{}, "election")),
+		% 	?assert(meck:validate(gen_leader)),
+		% 	?assertEqual(1, length(meck:history(gen_leader))),
+		% 	meck:unload(gen_leader)
+		% end},
 
 		% TODO look into what notify is actually for
 		{"{notify, Login, AgentCache}, found, pid match", ?_assert(true)}

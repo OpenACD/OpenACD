@@ -1285,27 +1285,27 @@ web_connection_login_tests() ->
 
 -define(PATH_TEST_SET, [
 		{"/", {file, {"index.html", util:priv_dir("www/agent") ++ "/"}}},
-		{"/poll", {api, poll}},
+		% {"/poll", {api, poll}},
 		{"/logout", {api, logout}},
-		{"/login", {api, login}},
-		{"/getsalt", {api, getsalt}},
-		{"/state/teststate", {api, {set_state, "teststate"}}},
-		{"/state/teststate/statedata", {api, {set_state, "teststate", "statedata"}}},
-		{"/ack/7", {api, {ack, "7"}}},
-		{"/err/89", {api, {err, "89"}}},
-		{"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
+		% {"/login", {api, login}},
+		% {"/getsalt", {api, getsalt}},
+		% {"/state/teststate", {api, {set_state, "teststate"}}},
+		% {"/state/teststate/statedata", {api, {set_state, "teststate", "statedata"}}},
+		% {"/ack/7", {api, {ack, "7"}}},
+		% {"/err/89", {api, {err, "89"}}},
+		% {"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
 		{"/index.html", {file, {"index.html", util:priv_dir("www/agent/") ++ "/"}}},
 		{"/otherfile.ext", {api, {undefined, "/otherfile.ext"}}},
 		{"/other/path", {api, {undefined, "/other/path"}}},
-		{"/releaseopts", {api, releaseopts}},
-		{"/brandlist", {api, brandlist}},
-		{"/queuelist", {api, queuelist}},
-		{"/checkcookie", {api, checkcookie}},
-		{"/dial/12345", {api, {dial, "12345"}}},
-		{"/get_avail_agents", {api, get_avail_agents}},
-		{"/agent_transfer/agent@domain", {api, {agent_transfer, "agent@domain"}}},
-		{"/agent_transfer/agent@domain/1234", {api, {agent_transfer, "agent@domain", "1234"}}},
-		{"/mediapush", {api, mediapush}},
+		% {"/releaseopts", {api, releaseopts}},
+		% {"/brandlist", {api, brandlist}},
+		% {"/queuelist", {api, queuelist}},
+		% {"/checkcookie", {api, checkcookie}},
+		% {"/dial/12345", {api, {dial, "12345"}}},
+		% {"/get_avail_agents", {api, get_avail_agents}},
+		% {"/agent_transfer/agent@domain", {api, {agent_transfer, "agent@domain"}}},
+		% {"/agent_transfer/agent@domain/1234", {api, {agent_transfer, "agent@domain", "1234"}}},
+		% {"/mediapush", {api, mediapush}},
 		{"/dynamic/test.html", {file, {"test.html", util:priv_dir("www/dynamic") ++ "/"}}}
 	]
 ).
@@ -1344,9 +1344,9 @@ cookie_good_test_() ->
 
 all_test_() ->
 	{inorder, [
-	cookie_file_tests(),
-	get_salt_tests(),
-	web_connection_login_tests()
+	cookie_file_tests()
+	% get_salt_tests(),
+	% web_connection_login_tests()
 	]}.
 
 -endif.

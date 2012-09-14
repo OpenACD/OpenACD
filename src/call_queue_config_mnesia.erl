@@ -1193,32 +1193,32 @@ call_queue_test_() ->
 					?assertEqual({atomic, [Queue]}, mnesia:transaction(F))
 				end
 			},
-			{
-				"New Queue with active Queue Manager",
-				fun() ->
-					queue_manager:start([node()]),
-					_Queue = new_queue(#call_queue{name = "test queue"}),
-					?assertMatch(true, queue_manager:query_queue("test queue")),
-					queue_manager:stop()
-				end
-			},
-			{
-				"Set queue",
-				fun() ->
-					Queue = test_queue(),
-					new_queue(Queue),
-					Newqueue = #call_queue{
-						name = "new name",
-						skills = [],
-						recipe = [],
-						group = "New Group"
-					},
-					set_queue("test queue", Newqueue),
-					?assertEqual(noexists, get_queue("test queue")),
-					?assertEqual(Newqueue, get_queue("new name"))
-				end
+			% {
+			% 	"New Queue with active Queue Manager",
+			% 	fun() ->
+			% 		queue_manager:start([node()]),
+			% 		_Queue = new_queue(#call_queue{name = "test queue"}),
+			% 		?assertMatch(true, queue_manager:query_queue("test queue")),
+			% 		queue_manager:stop()
+			% 	end
+			% },
+			% {
+			% 	"Set queue",
+			% 	fun() ->
+			% 		Queue = test_queue(),
+			% 		new_queue(Queue),
+			% 		Newqueue = #call_queue{
+			% 			name = "new name",
+			% 			skills = [],
+			% 			recipe = [],
+			% 			group = "New Group"
+			% 		},
+			% 		set_queue("test queue", Newqueue),
+			% 		?assertEqual(noexists, get_queue("test queue")),
+			% 		?assertEqual(Newqueue, get_queue("new name"))
+			% 	end
 
-			},
+			% },
 			{
 				"Destroy",
 				fun() -> 
@@ -1232,31 +1232,31 @@ call_queue_test_() ->
 					?assertEqual({atomic, []}, mnesia:transaction(F))
 				end
 			},
-			{
-				"Get All",
-				fun() -> 
-					Queue = test_queue(),
-					Queue2 = Queue#call_queue{name="test queue 2"},
-					new_queue(Queue),
-					new_queue(Queue2),
-					?assertEqual([Queue, Queue2], get_queues()),
-					destroy_queue(Queue),
-					destroy_queue(Queue2)
-				end
-			},
-			{
-				"Get One Queue",
-				fun() -> 
-					Queue = test_queue(),
-					Queue2 = Queue#call_queue{name="test queue 2"},
-					new_queue(Queue),
-					new_queue(Queue2),
-					?assertEqual(Queue, get_queue(Queue#call_queue.name)),
-					?assertEqual(Queue2, get_queue(Queue2#call_queue.name)),
-					destroy_queue(Queue),
-					destroy_queue(Queue2)
-				end
-			},
+			% {
+			% 	"Get All",
+			% 	fun() -> 
+			% 		Queue = test_queue(),
+			% 		Queue2 = Queue#call_queue{name="test queue 2"},
+			% 		new_queue(Queue),
+			% 		new_queue(Queue2),
+			% 		?assertEqual([Queue, Queue2], get_queues()),
+			% 		destroy_queue(Queue),
+			% 		destroy_queue(Queue2)
+			% 	end
+			% },
+			% {
+			% 	"Get One Queue",
+			% 	fun() -> 
+			% 		Queue = test_queue(),
+			% 		Queue2 = Queue#call_queue{name="test queue 2"},
+			% 		new_queue(Queue),
+			% 		new_queue(Queue2),
+			% 		?assertEqual(Queue, get_queue(Queue#call_queue.name)),
+			% 		?assertEqual(Queue2, get_queue(Queue2#call_queue.name)),
+			% 		destroy_queue(Queue),
+			% 		destroy_queue(Queue2)
+			% 	end
+			% },
 			{
 				"Get All of None",
 				fun() -> 
@@ -1265,21 +1265,21 @@ call_queue_test_() ->
 					?assertMatch(noexists, get_queue(Queue#call_queue.name))
 				end
 			},
-			{
-				"Get queue with old style recipe",
-				fun() ->
-					BaseQueue = test_queue(),
-					Queue = BaseQueue#call_queue{recipe = [{[{ticks, 3}], add_skills, [true], run_once}]},
-					new_queue(Queue),
-					?assertMatch(#call_queue{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}, get_queue("test queue")),
-					F = fun() ->
-						QH = qlc:q([ X#call_queue.recipe || X <- mnesia:table(call_queue), X#call_queue.name == "test queue"]),
-						qlc:e(QH)
-					end,
-					{atomic, [Out | _]} = mnesia:transaction(F),
-					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], Out)
-				end
-			},
+			% {
+			% 	"Get queue with old style recipe",
+			% 	fun() ->
+			% 		BaseQueue = test_queue(),
+			% 		Queue = BaseQueue#call_queue{recipe = [{[{ticks, 3}], add_skills, [true], run_once}]},
+			% 		new_queue(Queue),
+			% 		?assertMatch(#call_queue{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}, get_queue("test queue")),
+			% 		F = fun() ->
+			% 			QH = qlc:q([ X#call_queue.recipe || X <- mnesia:table(call_queue), X#call_queue.name == "test queue"]),
+			% 			qlc:e(QH)
+			% 		end,
+			% 		{atomic, [Out | _]} = mnesia:transaction(F),
+			% 		?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], Out)
+			% 	end
+			% },
 			{
 				"Get a queue merged with it's group settings",
 				fun() ->
@@ -1327,41 +1327,41 @@ call_queue_integration_test_() ->
 			ok
 		end,
 		[
-			fun(Mock) ->
-				{"Get existing queue from integration",
-				fun() ->
-					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
-					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue"))
-				end}
-			end,
+			% fun(Mock) ->
+			% 	{"Get existing queue from integration",
+			% 	fun() ->
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
+			% 		?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue"))
+			% 	end}
+			% end,
 			fun(Mock) ->
 				{"Get non-existing queue from integration",
 				fun() ->
 					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, none, State} end),
 					?assertEqual(noexists, get_queue("queue"))
 				end}
-			end,
-			fun(Mock) ->
-				{"Get previously existing queue from integration",
-				fun() ->
-					Q = test_queue(),
-					Name = Q#call_queue.name,
-
-					gen_server_mock:expect_call(Mock, fun({get_queue, Name}, _, State) -> {ok, none, State} end),
-					?assertEqual(noexists, get_queue(Name)),
-					?assertEqual([], [X || X = #call_queue{name = Name} <- get_queues()])
-				end}
-			end,
-			fun(Mock) ->
-				{"Get updated queue",
-				fun() ->
-					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
-					gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "newgroup"}, State} end),
-
-					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue")),
-					?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="newgroup", timestamp=_}, get_queue("queue"))
-				end}
 			end
+			% fun(Mock) ->
+			% 	{"Get previously existing queue from integration",
+			% 	fun() ->
+			% 		Q = test_queue(),
+			% 		Name = Q#call_queue.name,
+
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue, Name}, _, State) -> {ok, none, State} end),
+			% 		?assertEqual(noexists, get_queue(Name)),
+			% 		?assertEqual([], [X || X = #call_queue{name = Name} <- get_queues()])
+			% 	end}
+			% end,
+			% fun(Mock) ->
+			% 	{"Get updated queue",
+			% 	fun() ->
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "group"}, State} end),
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue, "queue"}, _, State) -> {ok, {ok, "queue", 10, [], [], "music", "newgroup"}, State} end),
+
+			% 		?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="group", timestamp=_}, get_queue("queue")),
+			% 		?assertMatch(#call_queue{name="queue", weight=10, skills=[], recipe=[], hold_music="music", group="newgroup", timestamp=_}, get_queue("queue"))
+			% 	end}
+			% end
 		]
 	}.
 
@@ -1428,80 +1428,80 @@ queue_group_test_() ->
 					?assertEqual("Default", Res#queue_group.name)
 				end
 			},
-			{
-				"get a call group",
-				fun() ->
-					Default = ?DEFAULT_QUEUE_GROUP,
-					{atomic, [Res]} = get_queue_group("Default"),
-					?assertEqual(Default#queue_group.name, Res#queue_group.name),
-					?assertEqual(Default#queue_group.sort, Res#queue_group.sort),
-					?assertEqual(Default#queue_group.recipe, Res#queue_group.recipe),
-					?assertEqual(Default#queue_group.protected, Res#queue_group.protected)
-				end
-			},
-			{
-				"get all call groups (order matters)",
-				fun() ->
-					Sort10 = #queue_group{name = "Added 1st", sort = 10},
-					Sort5 = #queue_group{name = "Added 2nd", sort = 5},
-					Sort7 = #queue_group{name = "Added 3rd", sort = 7},
-					new_queue_group(Sort10),
-					new_queue_group(Sort5),
-					new_queue_group(Sort7),
-					Test = [#queue_group{name = "Default", sort = 0, protected = true}, Sort5, Sort7, Sort10],
-					[G1, G2, G3, G4] = Gotten = get_queue_groups(),
-					?assertEqual(length(Test), length(Gotten)),
-					?assertMatch(#queue_group{name = "Default", sort = 0, protected = true}, G1),
-					?assertMatch(#queue_group{name = "Added 2nd", sort = 5, protected = false}, G2),
-					?assertMatch(#queue_group{name = "Added 3rd", sort = 7, protected = false}, G3),
-					?assertMatch(#queue_group{name = "Added 1st", sort = 10, protected = false}, G4)
-				end
-			},
-			{
-				"update a protected call group by record",
-				fun() ->
-					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
-					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
-					Default = ?DEFAULT_QUEUE_GROUP,
-					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
-					Setres = set_queue_group(Default#queue_group.name, Updateto),
-					?CONSOLE("res:  ~p", [Setres]),
-					?assertEqual({atomic, ok}, Setres),
-					Got = get_queue_group("newname"),
-					?CONSOLE("also res:  ~p", [Got]),
-					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
-				end
-			},
-			{
-				"update a protected call group explicitly",
-				fun() ->
-					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
-					Default = ?DEFAULT_QUEUE_GROUP,
-					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
-					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
-					Got = get_queue_group("newname"),
-					?CONSOLE("Got:  ~p", [Got]),
-					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
-				end
-			},
+			% {
+			% 	"get a call group",
+			% 	fun() ->
+			% 		Default = ?DEFAULT_QUEUE_GROUP,
+			% 		{atomic, [Res]} = get_queue_group("Default"),
+			% 		?assertEqual(Default#queue_group.name, Res#queue_group.name),
+			% 		?assertEqual(Default#queue_group.sort, Res#queue_group.sort),
+			% 		?assertEqual(Default#queue_group.recipe, Res#queue_group.recipe),
+			% 		?assertEqual(Default#queue_group.protected, Res#queue_group.protected)
+			% 	end
+			% },
+			% {
+			% 	"get all call groups (order matters)",
+			% 	fun() ->
+			% 		Sort10 = #queue_group{name = "Added 1st", sort = 10},
+			% 		Sort5 = #queue_group{name = "Added 2nd", sort = 5},
+			% 		Sort7 = #queue_group{name = "Added 3rd", sort = 7},
+			% 		new_queue_group(Sort10),
+			% 		new_queue_group(Sort5),
+			% 		new_queue_group(Sort7),
+			% 		Test = [#queue_group{name = "Default", sort = 0, protected = true}, Sort5, Sort7, Sort10],
+			% 		[G1, G2, G3, G4] = Gotten = get_queue_groups(),
+			% 		?assertEqual(length(Test), length(Gotten)),
+			% 		?assertMatch(#queue_group{name = "Default", sort = 0, protected = true}, G1),
+			% 		?assertMatch(#queue_group{name = "Added 2nd", sort = 5, protected = false}, G2),
+			% 		?assertMatch(#queue_group{name = "Added 3rd", sort = 7, protected = false}, G3),
+			% 		?assertMatch(#queue_group{name = "Added 1st", sort = 10, protected = false}, G4)
+			% 	end
+			% },
+			% {
+			% 	"update a protected call group by record",
+			% 	fun() ->
+			% 		Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
+			% 		Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
+			% 		Default = ?DEFAULT_QUEUE_GROUP,
+			% 		Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+			% 		Setres = set_queue_group(Default#queue_group.name, Updateto),
+			% 		?CONSOLE("res:  ~p", [Setres]),
+			% 		?assertEqual({atomic, ok}, Setres),
+			% 		Got = get_queue_group("newname"),
+			% 		?CONSOLE("also res:  ~p", [Got]),
+			% 		?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
+			% 	end
+			% },
+			% {
+			% 	"update a protected call group explicitly",
+			% 	fun() ->
+			% 		Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
+			% 		Default = ?DEFAULT_QUEUE_GROUP,
+			% 		Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+			% 		set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
+			% 		Got = get_queue_group("newname"),
+			% 		?CONSOLE("Got:  ~p", [Got]),
+			% 		?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
+			% 	end
+			% },
 			{
 				"update a group that doesn't exist",
 				fun() ->
 					?assertEqual({atomic, {error, {noexists, "testname"}}}, set_queue_group("testname", ?DEFAULT_QUEUE_GROUP))
 				end
-			},
-			{
-				"Get a queue group with old style recipe",
-				fun() ->
-					new_queue_group("name", 5, [{[{ticks, 3}], add_skills, [true], run_once}]),
-					?assertMatch({atomic, [#queue_group{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}]}, get_queue_group("name")),
-					F = fun() ->
-						qlc:e(qlc:q([ X#queue_group.recipe || X <- mnesia:table(queue_group), X#queue_group.name == "name"]))
-					end,
-					{atomic, [R | _]} = mnesia:transaction(F),
-					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], R)
-				end
 			}
+			% {
+			% 	"Get a queue group with old style recipe",
+			% 	fun() ->
+			% 		new_queue_group("name", 5, [{[{ticks, 3}], add_skills, [true], run_once}]),
+			% 		?assertMatch({atomic, [#queue_group{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}]}, get_queue_group("name")),
+			% 		F = fun() ->
+			% 			qlc:e(qlc:q([ X#queue_group.recipe || X <- mnesia:table(queue_group), X#queue_group.name == "name"]))
+			% 		end,
+			% 		{atomic, [R | _]} = mnesia:transaction(F),
+			% 		?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], R)
+			% 	end
+			% }
 		]
 	}.
 
@@ -1527,40 +1527,40 @@ queue_group_integration_test_() ->
 			ok
 		end,
 		[
-			fun(Mock) ->
-				{"Get existing queue group from integration",
-				fun() ->
-					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
-					gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, {ok, "queuegroup", Recipe, [newskill], 10, false}, State} end),
-					?assertMatch(
-						{atomic, [#queue_group{name="queuegroup",
-							recipe=Recipe,
-							skills=[newskill],
-							sort = 10,
-							protected = false,
-							timestamp = _ }]}, get_queue_group("queuegroup"))
-				end}
-			end,
+			% fun(Mock) ->
+			% 	{"Get existing queue group from integration",
+			% 	fun() ->
+			% 		Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, {ok, "queuegroup", Recipe, [newskill], 10, false}, State} end),
+			% 		?assertMatch(
+			% 			{atomic, [#queue_group{name="queuegroup",
+			% 				recipe=Recipe,
+			% 				skills=[newskill],
+			% 				sort = 10,
+			% 				protected = false,
+			% 				timestamp = _ }]}, get_queue_group("queuegroup"))
+			% 	end}
+			% end,
 			fun(Mock) ->
 				{"Get non-existing queue group from integration",
 				fun() ->
 					gen_server_mock:expect_call(Mock, fun({get_queue_group, "queuegroup"}, _, State) -> {ok, none, State} end),
 					?assertEqual({atomic, []}, get_queue_group("queuegroup"))
 				end}
-			end,
-			fun(Mock) ->
-				{"Get previously existing queue group from integration",
-				fun() ->
-					Qgroup = #queue_group{name = "test group"},
-					
-					new_queue_group(Qgroup),
-
-					gen_server_mock:expect_call(Mock, fun({get_queue_group, "test group"}, _, State) -> {ok, none, State} end),
-
-					?assertEqual({atomic, []}, get_queue_group("test group")),
-					?assertEqual([], [X || X = #queue_group{name = "test group"} <- get_queue_groups()])
-				end}
 			end
+			% fun(Mock) ->
+			% 	{"Get previously existing queue group from integration",
+			% 	fun() ->
+			% 		Qgroup = #queue_group{name = "test group"},
+					
+			% 		new_queue_group(Qgroup),
+
+			% 		gen_server_mock:expect_call(Mock, fun({get_queue_group, "test group"}, _, State) -> {ok, none, State} end),
+
+			% 		?assertEqual({atomic, []}, get_queue_group("test group")),
+			% 		?assertEqual([], [X || X = #queue_group{name = "test group"} <- get_queue_groups()])
+			% 	end}
+			% end
 
 		]
 	}.
@@ -1635,41 +1635,41 @@ skill_rec_test_() ->
 					end
 				}
 			end,
-			fun(Testfun) ->
-				{
-					"get all skills",
-					fun() ->
-						Skills = lists:sort([
-							#skill_rec{name="English", atom=english, description="English", group = "Language"},
-							#skill_rec{name="German", atom=german, description="German", group = "Language"},
-							#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true},
-							#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true},
-							#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true},
-							#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true},
-							#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true},
-							#skill_rec{name="Agent Profile", atom='_profile', description="Magic skill that is replaced by the agent's profile name", group = "Magic", protected = true}
-						]),
-						{ok, Gotten} = lists:sort(get_skills()),
-						lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),
-						?assertEqual(length(Skills), length(Gotten)),
-						Testfun(Testfun, Skills, Gotten)
-					end
-				}
-			end,
-			fun(Testfun) ->
-				{
-					"get all skills in a group",
-					fun() ->
-						Skills = lists:sort([
-							#skill_rec{name="English", atom=english, description="English", group = "Language"},
-							#skill_rec{name="German", atom=german, description="German", group = "Language"}
-						]),
-						{ok, Gotten} = lists:sort(get_skills("Language")),
-						?assertEqual(length(Skills), length(Gotten)),
-						Testfun(Testfun, Skills, Gotten)
-					end
-				}
-			end,
+			% fun(Testfun) ->
+			% 	{
+			% 		"get all skills",
+			% 		fun() ->
+			% 			Skills = lists:sort([
+			% 				#skill_rec{name="English", atom=english, description="English", group = "Language"},
+			% 				#skill_rec{name="German", atom=german, description="German", group = "Language"},
+			% 				#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true},
+			% 				#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true},
+			% 				#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true},
+			% 				#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true},
+			% 				#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true},
+			% 				#skill_rec{name="Agent Profile", atom='_profile', description="Magic skill that is replaced by the agent's profile name", group = "Magic", protected = true}
+			% 			]),
+			% 			{ok, Gotten} = lists:sort(get_skills()),
+			% 			lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),
+			% 			?assertEqual(length(Skills), length(Gotten)),
+			% 			Testfun(Testfun, Skills, Gotten)
+			% 		end
+			% 	}
+			% end,
+			% fun(Testfun) ->
+			% 	{
+			% 		"get all skills in a group",
+			% 		fun() ->
+			% 			Skills = lists:sort([
+			% 				#skill_rec{name="English", atom=english, description="English", group = "Language"},
+			% 				#skill_rec{name="German", atom=german, description="German", group = "Language"}
+			% 			]),
+			% 			{ok, Gotten} = lists:sort(get_skills("Language")),
+			% 			?assertEqual(length(Skills), length(Gotten)),
+			% 			Testfun(Testfun, Skills, Gotten)
+			% 		end
+			% 	}
+			% end,
 			{
 				"destroy a non-protected skill",
 				fun() ->
@@ -1712,28 +1712,28 @@ skill_rec_test_() ->
 				fun() ->
 					?assertEqual({error, {exists, "Magic"}}, rename_skill_group("Language", "Magic"))
 				end
-			},
-			fun(Testfun) ->
-				{
-					"get a single skill",
-					fun() ->
-						Test = #skill_rec{name="English", atom=english, description="English", group = "Language"},
-						Testfun(Testfun, {ok, [Test]}, [get_skill(english)])
-					end
-				}
-			end,
-			fun(Test) ->
-				{
-					"update a skill",
-					fun() ->
-						New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
-						Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
-						?assertEqual({atomic, ok}, set_skill(english, New)),
-						Test(Test, {ok, [Result]}, [get_skill(english)]),
-						?assertEqual(undefined, get_skill(testskill))
-					end
-				}
-			end
+			}
+			% fun(Testfun) ->
+			% 	{
+			% 		"get a single skill",
+			% 		fun() ->
+			% 			Test = #skill_rec{name="English", atom=english, description="English", group = "Language"},
+			% 			Testfun(Testfun, {ok, [Test]}, [get_skill(english)])
+			% 		end
+			% 	}
+			% end,
+			% fun(Test) ->
+			% 	{
+			% 		"update a skill",
+			% 		fun() ->
+			% 			New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
+			% 			Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
+			% 			?assertEqual({atomic, ok}, set_skill(english, New)),
+			% 			Test(Test, {ok, [Result]}, [get_skill(english)]),
+			% 			?assertEqual(undefined, get_skill(testskill))
+			% 		end
+			% 	}
+			% end
 		]
 	}.
 
@@ -1779,19 +1779,19 @@ skill_rec_integration_test_() ->
 					gen_server_mock:expect_call(Mock, fun({get_skill, noskill}, _, State) -> {ok, none, State} end),
 					?assertEqual(undefined, get_skill(noskill))
 				end}
-			end,
-			fun(Mock) ->
-				{"Get previously existing skill from integration",
-				fun() ->
-					S = #skill_rec{name="Skill", atom=skill, protected=false, description="New Skill", group = "Misc"},
-					new_skill(S),
-
-					gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, none, State} end),
-					?assertEqual(undefined, get_skill(skill)),
-					GotSkills = get_skills(),
-					?assertEqual([], [X || X = #skill_rec{atom=skill} <- GotSkills])
-				end}
 			end
+			% fun(Mock) ->
+			% 	{"Get previously existing skill from integration",
+			% 	fun() ->
+			% 		S = #skill_rec{name="Skill", atom=skill, protected=false, description="New Skill", group = "Misc"},
+			% 		new_skill(S),
+
+			% 		gen_server_mock:expect_call(Mock, fun({get_skill, skill}, _, State) -> {ok, none, State} end),
+			% 		?assertEqual(undefined, get_skill(skill)),
+			% 		GotSkills = get_skills(),
+			% 		?assertEqual([], [X || X = #skill_rec{atom=skill} <- GotSkills])
+			% 	end}
+			% end
 		]
 	}.
 
@@ -1894,24 +1894,24 @@ client_rec_test_() ->
 		?assertEqual({atomic, []}, mnesia:transaction(Findold)),
 		?assertMatch({atomic, [#client{label = "Client2"}]}, mnesia:transaction(Findnew))
 	end},
-	{"Get a client list",
-	fun() ->
-		Client1 = #client{label = "Client1", id = "00230001"},
-		Client2 = #client{label = "Client2", id = "00470002"},
-		Client3 = #client{label = "Aclient", id = "00560001"},
-		DemoClient = #client{label="Demo Client", id = "00990099"},
-		new_client(Client1),
-		new_client(Client2),
-		new_client(Client3),
-		Expected = lists:sort([
-			#client{label = undefined}, 
-			#client{label = "Aclient", id = "00560001"}, 
-			#client{label = "Client1", id = "00230001"}, 
-			#client{label = "Client2", id = "00470002"}, 
-			#client{label = "Demo Client", id = "00990099"}]),
-		{ok, Got} = lists:sort(get_clients()),
-		?assertEqual(Expected, Got)
-	end},
+	% {"Get a client list",
+	% fun() ->
+	% 	Client1 = #client{label = "Client1", id = "00230001"},
+	% 	Client2 = #client{label = "Client2", id = "00470002"},
+	% 	Client3 = #client{label = "Aclient", id = "00560001"},
+	% 	DemoClient = #client{label="Demo Client", id = "00990099"},
+	% 	new_client(Client1),
+	% 	new_client(Client2),
+	% 	new_client(Client3),
+	% 	Expected = lists:sort([
+	% 		#client{label = undefined}, 
+	% 		#client{label = "Aclient", id = "00560001"}, 
+	% 		#client{label = "Client1", id = "00230001"}, 
+	% 		#client{label = "Client2", id = "00470002"}, 
+	% 		#client{label = "Demo Client", id = "00990099"}]),
+	% 	{ok, Got} = lists:sort(get_clients()),
+	% 	?assertEqual(Expected, Got)
+	% end},
 	{"Get a single client without integration",
 	fun() ->
 		Client1 = #client{label = "Client1", id = "00230001"},

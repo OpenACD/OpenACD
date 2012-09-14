@@ -348,95 +348,95 @@ acceptor(#state{socket_type = ssl} = State) ->
 
 -ifdef(TEST).
 
-client_connect_test_() ->
-	{setup, fun() ->
-		{ok, Host} = inet:gethostname(),
-		Zombie = util:zombie(),
-		Ets = ets:new(cpx_agent_tcp_listener_ets, [public]),
-		{Host, Zombie, Ets}
-	end,
-	fun({Host, Zombie, Ets}) -> 
-		{foreach, fun() ->
-			meck:new(?con_module),
-			ets:delete_all_objects(Ets)
-		end,
-		fun(_) ->
-			meck:unload(?con_module)
-		end, [
+% client_connect_test_() ->
+% 	{setup, fun() ->
+% 		{ok, Host} = inet:gethostname(),
+% 		Zombie = util:zombie(),
+% 		Ets = ets:new(cpx_agent_tcp_listener_ets, [public]),
+% 		{Host, Zombie, Ets}
+% 	end,
+% 	fun({Host, Zombie, Ets}) -> 
+% 		{foreach, fun() ->
+% 			meck:new(?con_module),
+% 			ets:delete_all_objects(Ets)
+% 		end,
+% 		fun(_) ->
+% 			meck:unload(?con_module)
+% 		end, [
 		
-		fun(_) ->
-			{"tcp only", fun() ->
-				meck:expect(?con_module, start, fun(Sock, tcp, 10, none) ->
-					ets:insert(Ets, {sock, Sock}),
-					{ok, self()}
-				end),
-				meck:expect(?con_module, negotiate, fun(InZombie) ->
-					?assertEqual(self(), InZombie),
-					[{sock, Sock}] = ets:lookup(Ets, sock),
-					gen_tcp:send(Sock, <<"yo">>)
-				end),
-				{ok, Server} = start([{socket_type, tcp}, {poolsize, 1}]),
-				{ok, CliSocket} = gen_tcp:connect(Host, ?PORT, [binary,
-					{active, false}]),
-				Bin = gen_tcp:recv(CliSocket, 0, 1000),
-				?assertEqual({ok, <<"yo">>}, Bin),
-				?assert(meck:validate(?con_module)),
-				gen_server:call(Server, stop)
-			end}
-		end,
+% 		fun(_) ->
+% 			{"tcp only", fun() ->
+% 				meck:expect(?con_module, start, fun(Sock, tcp, 10, none) ->
+% 					ets:insert(Ets, {sock, Sock}),
+% 					{ok, self()}
+% 				end),
+% 				meck:expect(?con_module, negotiate, fun(InZombie) ->
+% 					?assertEqual(self(), InZombie),
+% 					[{sock, Sock}] = ets:lookup(Ets, sock),
+% 					gen_tcp:send(Sock, <<"yo">>)
+% 				end),
+% 				{ok, Server} = start([{socket_type, tcp}, {poolsize, 1}]),
+% 				{ok, CliSocket} = gen_tcp:connect(Host, ?PORT, [binary,
+% 					{active, false}]),
+% 				Bin = gen_tcp:recv(CliSocket, 0, 1000),
+% 				?assertEqual({ok, <<"yo">>}, Bin),
+% 				?assert(meck:validate(?con_module)),
+% 				gen_server:call(Server, stop)
+% 			end}
+% 		end]}
 
-		fun(_) ->
-			{"ssl only", fun() ->
-				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
-					ets:insert(Ets, {sock, Sock}),
-					{ok, self()}
-				end),
-				meck:expect(?con_module, negotiate, fun(InZombie) ->
-					?assertEqual(self(), InZombie),
-					[{sock, Sock}] = ets:lookup(Ets, sock),
-					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
-				end),
-				{ok, Server} = start([{socket_type, ssl}, {poolsize, 1}]),
-				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
-				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
-				{ok, CliSocket} = ssl:connect(Host, ?PORT, [binary, {active, false},
-					{certfile, CertFile}, {keyfile, Keyfile}]),
-				%Bin = ssl:recv(CliSocket, 0, 1000),
-				Bin = ssl_nommer(CliSocket),
-				?assertEqual(<<"yo">>, Bin),
-				?assert(meck:validate(?con_module)),
-				gen_server:call(Server, stop)
-			end}
-		end,
+% 		fun(_) ->
+% 			{"ssl only", fun() ->
+% 				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
+% 					ets:insert(Ets, {sock, Sock}),
+% 					{ok, self()}
+% 				end),
+% 				meck:expect(?con_module, negotiate, fun(InZombie) ->
+% 					?assertEqual(self(), InZombie),
+% 					[{sock, Sock}] = ets:lookup(Ets, sock),
+% 					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
+% 				end),
+% 				{ok, Server} = start([{socket_type, ssl}, {poolsize, 1}]),
+% 				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
+% 				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+% 				{ok, CliSocket} = ssl:connect(Host, ?PORT, [binary, {active, false},
+% 					{certfile, CertFile}, {keyfile, Keyfile}]),
+% 				%Bin = ssl:recv(CliSocket, 0, 1000),
+% 				Bin = ssl_nommer(CliSocket),
+% 				?assertEqual(<<"yo">>, Bin),
+% 				?assert(meck:validate(?con_module)),
+% 				gen_server:call(Server, stop)
+% 			end}
+% 		end,
 
-		fun(_) ->
-			{"ssl upgrade", fun() ->
-				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
-					ets:insert(Ets, {sock, Sock}),
-					{ok, self()}
-				end),
-				meck:expect(?con_module, negotiate, fun(InZombie) ->
-					?assertEqual(self(), InZombie),
-					[{sock, Sock}] = ets:lookup(Ets, sock),
-					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
-				end),
-				{ok, Server} = start([{socket_type, ssl_upgrade}, {poolsize, 1}]),
-				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
-				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
-				{ok, CliTcpSocket} = gen_tcp:connect(Host, ?PORT, [binary,
-					{active, false}]),
-				Bin = tcp_nommer(CliTcpSocket),
-				Expected = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
-				ExpectedBin = netstring:encode(iolist_to_binary(Expected)),
-				?assertEqual(ExpectedBin, Bin),
-				{ok, CliSSLSocket} = ssl:connect(CliTcpSocket, [{certfile, CertFile}, {keyfile, Keyfile}]),
-				SslBin = ssl_nommer(CliSSLSocket),
-				?assertEqual(<<"yo">>, SslBin),
-				?assert(meck:validate(?con_module)),
-				gen_server:call(Server, stop)
-			end}
-		end ]}
-	end}.
+% 		fun(_) ->
+% 			{"ssl upgrade", fun() ->
+% 				meck:expect(?con_module, start, fun(Sock, ssl, 10, none) ->
+% 					ets:insert(Ets, {sock, Sock}),
+% 					{ok, self()}
+% 				end),
+% 				meck:expect(?con_module, negotiate, fun(InZombie) ->
+% 					?assertEqual(self(), InZombie),
+% 					[{sock, Sock}] = ets:lookup(Ets, sock),
+% 					?assertEqual(ok, ssl:send(Sock, <<"yo">>))
+% 				end),
+% 				{ok, Server} = start([{socket_type, ssl_upgrade}, {poolsize, 1}]),
+% 				{ok, CertFile} = cpx:get_env(certfile, util:get_certfile()),
+% 				{ok, Keyfile} = cpx:get_env(keyfile, util:get_keyfile()),
+% 				{ok, CliTcpSocket} = gen_tcp:connect(Host, ?PORT, [binary,
+% 					{active, false}]),
+% 				Bin = tcp_nommer(CliTcpSocket),
+% 				Expected = mochijson2:encode({struct, [{<<"command">>, <<"ssl_upgrade">>}]}),
+% 				ExpectedBin = netstring:encode(iolist_to_binary(Expected)),
+% 				?assertEqual(ExpectedBin, Bin),
+% 				{ok, CliSSLSocket} = ssl:connect(CliTcpSocket, [{certfile, CertFile}, {keyfile, Keyfile}]),
+% 				SslBin = ssl_nommer(CliSSLSocket),
+% 				?assertEqual(<<"yo">>, SslBin),
+% 				?assert(meck:validate(?con_module)),
+% 				gen_server:call(Server, stop)
+% 			end}
+% 		end ]}
+% 	end}.
 
 ssl_nommer(Socket) ->
 	nommer(Socket, ssl, []).

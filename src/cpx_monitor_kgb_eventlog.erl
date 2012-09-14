@@ -482,119 +482,119 @@ send_media_set(Pid, InProps) ->
 
 -define(test_fileb, "eventb.test.log").
 
-formatting_test_() ->
-	util:start_testnode(),
-	N = util:start_testnode(cpx_monitor_kgb_eventlog_formatting_tests),
-	{spawn, N, {foreach,
-	fun() ->
-		file:delete(?test_fileb),
-		Ets = ets:new(cpx_monitor, [named_table]),
-		{ok, Qm} = gen_leader_mock:start(queue_manager),
-		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
-			{ok, [], State}
-		end),
-		{ok, EventLog} = start([{filename, ?test_fileb}]),
-		Localhost = list_to_binary(net_adm:localhost()),
-		LocalhostSize = size(Localhost),
-		Node = list_to_binary(atom_to_list(node())),
-		NodeSize = size(Node),
-		#write_test_rec{
-			logpid = EventLog,
-			ets = Ets,
-			localhost = {Localhost, LocalhostSize},
-			node = {Node, NodeSize}
-		}
-	end,
-	fun(#write_test_rec{logpid = EventLog, ets = Ets} = _) ->
-		exit(EventLog, kill),
-		gen_leader_mock:stop(whereis(queue_manager)),
-		%file:delete(?test_file),
-		ets:delete(Ets),
-		timer:sleep(10) % letting everything die...
-	end,
-	[fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent logs in", fun() ->
-		send_agent_set(EventLog, released),
-		timer:sleep(100),
-		{ok, Bin} = file:read_file(?test_fileb),
-		?DEBUG("Got bin:  ~p", [Bin]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
-		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
-		" : agentName", _:1/binary, _/binary>>, Bin),
-		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
-		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
-		" : agentName", _:1/binary, Rest/binary>> = Bin,
-		?DEBUG("Rest:  ~p", [Rest]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_login : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary>>, Rest)
-	end} end,
-	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent goes available", fun() ->
-		send_agent_set(EventLog, released),
-		timer:sleep(5),
-		file:delete(?test_fileb),
-		send_agent_set(EventLog, idle),
-		timer:sleep(5),
-		{ok, Bin} = file:read_file(?test_fileb),
-		?DEBUG("Got bin:  ~p", [Bin]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_available : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary, _/binary>>, Bin),
-<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_available : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary, Rest/binary>> = Bin,
-		?assertEqual(<<>>, Rest)
-	end} end,
-	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent goes unavailable", fun() ->
-		send_agent_set(EventLog, released),
-		send_agent_set(EventLog, idle),
-		timer:sleep(5),
-		file:delete(?test_fileb),
-		send_agent_set(EventLog, released),
-		timer:sleep(5),
-		{ok, Bin} = file:read_file(?test_fileb),
-		?DEBUG("Got bin:  ~p", [Bin]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_unavailable : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary, _/binary>>, Bin),
-		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_unavailable : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary, Rest/binary>> = Bin,
-		?assertEqual(<<>>, Rest)
-	end} end,
-	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent logs out", fun() ->
-		send_agent_set(EventLog, released),
-		send_agent_set(EventLog, idle),
-		timer:sleep(100),
-		file:delete(?test_fileb),
-		send_agent_set(EventLog, drop),
-		timer:sleep(100),
-		{ok, Bin} = file:read_file(?test_fileb),
-		?DEBUG("Got bin:  ~p", [Bin]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_stop : ", Node:NodeSize/binary,
-		" : agentName", _:1/binary, _/binary>>, Bin),
-		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_stop : ", Node:NodeSize/binary,
-		" : agentName", _:1/binary, Rest/binary>> = Bin,
-		?DEBUG("Got rest:  ~p", [Rest]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : agent_logout : ", Node:NodeSize/binary,
-		" : agentName : Queue", _:1/binary>>, Rest)
-	end} end,
-	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"a call enters queue", fun() ->
-		send_media_set(EventLog, [{queue, "Queue"}]),
-		timer:sleep(100),
-		{ok, Bin} = file:read_file(?test_fileb),
-		?DEBUG("Got bin:  ~p", [Bin]),
-		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-		_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
-		" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
-		_:1/binary, _/binary>>, Bin),
-		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
-			_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
-			" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
-			_:1/binary, Rest/binary>> = Bin,
-		?assertEqual(<<>>, Rest)
-	end} end]}}.
+% formatting_test_() ->
+% 	util:start_testnode(),
+% 	N = util:start_testnode(cpx_monitor_kgb_eventlog_formatting_tests),
+% 	{spawn, N, {foreach,
+% 	fun() ->
+% 		file:delete(?test_fileb),
+% 		Ets = ets:new(cpx_monitor, [named_table]),
+% 		{ok, Qm} = gen_leader_mock:start(queue_manager),
+% 		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+% 			{ok, [], State}
+% 		end),
+% 		{ok, EventLog} = start([{filename, ?test_fileb}]),
+% 		Localhost = list_to_binary(net_adm:localhost()),
+% 		LocalhostSize = size(Localhost),
+% 		Node = list_to_binary(atom_to_list(node())),
+% 		NodeSize = size(Node),
+% 		#write_test_rec{
+% 			logpid = EventLog,
+% 			ets = Ets,
+% 			localhost = {Localhost, LocalhostSize},
+% 			node = {Node, NodeSize}
+% 		}
+% 	end,
+% 	fun(#write_test_rec{logpid = EventLog, ets = Ets} = _) ->
+% 		exit(EventLog, kill),
+% 		gen_leader_mock:stop(whereis(queue_manager)),
+% 		%file:delete(?test_file),
+% 		ets:delete(Ets),
+% 		timer:sleep(10) % letting everything die...
+% 	end,
+% 	[fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent logs in", fun() ->
+% 		send_agent_set(EventLog, released),
+% 		timer:sleep(100),
+% 		{ok, Bin} = file:read_file(?test_fileb),
+% 		?DEBUG("Got bin:  ~p", [Bin]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
+% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
+% 		" : agentName", _:1/binary, _/binary>>, Bin),
+% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
+% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
+% 		" : agentName", _:1/binary, Rest/binary>> = Bin,
+% 		?DEBUG("Rest:  ~p", [Rest]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_login : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary>>, Rest)
+% 	end} end,
+% 	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent goes available", fun() ->
+% 		send_agent_set(EventLog, released),
+% 		timer:sleep(5),
+% 		file:delete(?test_fileb),
+% 		send_agent_set(EventLog, idle),
+% 		timer:sleep(5),
+% 		{ok, Bin} = file:read_file(?test_fileb),
+% 		?DEBUG("Got bin:  ~p", [Bin]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_available : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary, _/binary>>, Bin),
+% <<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_available : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary, Rest/binary>> = Bin,
+% 		?assertEqual(<<>>, Rest)
+% 	end} end,
+% 	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent goes unavailable", fun() ->
+% 		send_agent_set(EventLog, released),
+% 		send_agent_set(EventLog, idle),
+% 		timer:sleep(5),
+% 		file:delete(?test_fileb),
+% 		send_agent_set(EventLog, released),
+% 		timer:sleep(5),
+% 		{ok, Bin} = file:read_file(?test_fileb),
+% 		?DEBUG("Got bin:  ~p", [Bin]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_unavailable : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary, _/binary>>, Bin),
+% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_unavailable : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary, Rest/binary>> = Bin,
+% 		?assertEqual(<<>>, Rest)
+% 	end} end,
+% 	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"An agent logs out", fun() ->
+% 		send_agent_set(EventLog, released),
+% 		send_agent_set(EventLog, idle),
+% 		timer:sleep(100),
+% 		file:delete(?test_fileb),
+% 		send_agent_set(EventLog, drop),
+% 		timer:sleep(100),
+% 		{ok, Bin} = file:read_file(?test_fileb),
+% 		?DEBUG("Got bin:  ~p", [Bin]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_stop : ", Node:NodeSize/binary,
+% 		" : agentName", _:1/binary, _/binary>>, Bin),
+% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_stop : ", Node:NodeSize/binary,
+% 		" : agentName", _:1/binary, Rest/binary>> = Bin,
+% 		?DEBUG("Got rest:  ~p", [Rest]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_logout : ", Node:NodeSize/binary,
+% 		" : agentName : Queue", _:1/binary>>, Rest)
+% 	end} end,
+% 	fun(#write_test_rec{logpid = EventLog, localhost = {Lhost, LhSize}, node = {Node, NodeSize}} = _) -> {"a call enters queue", fun() ->
+% 		send_media_set(EventLog, [{queue, "Queue"}]),
+% 		timer:sleep(100),
+% 		{ok, Bin} = file:read_file(?test_fileb),
+% 		?DEBUG("Got bin:  ~p", [Bin]),
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
+% 		" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
+% 		_:1/binary, _/binary>>, Bin),
+% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 			_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
+% 			" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
+% 			_:1/binary, Rest/binary>> = Bin,
+% 		?assertEqual(<<>>, Rest)
+% 	end} end]}}.
 		
 -endif.

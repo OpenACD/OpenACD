@@ -790,109 +790,109 @@ getmail(File) ->
 	%Email = binary_to_list(Bin),
 	mimemail:decode(Bin).
 	
-skeletonize_test_() ->
-	[{"Simple plain text mail",
-	fun() ->
-		Decoded = getmail("Plain-text-only.eml"),
-		{Skel, []} = skeletonize(Decoded),
-		?assertMatch({<<"text">>, <<"plain">>, _, _}, Skel)
-	end},
-	{"html text mail",
-	fun() ->
-		Decoded = getmail("html.eml"),
-		{Skel, []} = skeletonize(Decoded),
-		?DEBUG("Skel:  ~p", [Skel]),
-		?assertMatch({<<"multipart">>, <<"alternative">>, _Head, _Props, [{<<"text">>, <<"plain">>, _H2, _P2}, {<<"text">>, <<"html">>, _H3, P3}]}, Skel)
-	end},
-	{"email with image",
-	fun() ->
-		Decoded = getmail("image-attachment-only.eml"),
-		{Skel, Files} = skeletonize(Decoded),
-		?assertMatch({<<"multipart">>, <<"mixed">>, _, _, [{<<"image">>, <<"jpeg">>, _, _}]}, Skel),
-		?assertEqual([{<<"chili-pepper.jpg">>, [1]}], Files)
-	end},
-	{"the gamut",
-	fun() ->
-		% multipart/alternative
-		%	text/plain
-		%	multipart/mixed
-		%		text/html
-		%		message/rf822
-		%			multipart/mixed
-		%				message/rfc822
-		%					text/plain
-		%		text/html
-		%		message/rtc822
-		%			text/plain
-		%		text/html
-		%		image/jpeg
-		%		text/html
-		%		text/rtf
-		%		text/html
-		Decoded = getmail("the-gamut.eml"),
-		{Skel, Files} = skeletonize(Decoded),
-		%{"multipart", "alternative", [
-%			{"text", "plain"},
-%			{"multipart", "mixed", [
-%				{"text", "html"},
-%				{"message", "rfc822", [
-%					{"multipart", "mixed", [
-%						{"message", "rfc822", [
-%							{"text", "plain"}
-%						]}
-%					]}
-%				]},
-%				{"text", "html"},
-%				{"message", "rfc822", [
-%					{"text", "plain"}
-%				]},
-%				{"text", "html"},
-%				{"image", "jpeg"},
-%				{"text", "html"},
-%				{"text", "rtf"},
-%				{"text", "html"}
-%			]}
-%		]},
-		?DEBUG("Skel:  ~p", [Skel]),
-		?DEBUG("Files:  ~p", [Files]),
-		?assertMatch(
-		{<<"multipart">>, <<"alternative">>, _, _, [
-			{<<"text">>, <<"plain">>, _, _},
-			{<<"multipart">>, <<"mixed">>, _, _, [
-				{<<"text">>, <<"html">>, _, _},
-				{<<"message">>, <<"rfc822">>, _, _, [
-					{<<"multipart">>, <<"mixed">>, _, _, [
-						{<<"message">>, <<"rfc822">>, _, _, [
-							{<<"text">>, <<"plain">>, _, _}
-						]}
-					]}
-				]},
-				{<<"text">>, <<"html">>, _, _},
-				{<<"message">>, <<"rfc822">>, _, _, [
-					{<<"text">>, <<"plain">>, _, _}
-				]},
-				{<<"text">>, <<"html">>, _, _},
-				{<<"image">>, <<"jpeg">>, _, _},
-				{<<"text">>, <<"html">>, _, _},
-				{<<"text">>, <<"rtf">>, _, _},
-				{<<"text">>, <<"html">>, _, _}
-			]}
-		]}, Skel),
-		?assertEqual(5, length(Files)),
-		?assertEqual([2, 2, 1, 1], proplists:get_value(<<"Plain text only">>, Files)),
-		?assertEqual([2, 4], proplists:get_value(<<"Plain text only.eml">>, Files)),
-		?assertEqual([2, 6], proplists:get_value(<<"chili-pepper.jpg">>, Files)),
-		?assertEqual([2, 8], proplists:get_value(<<"test.rtf">>, Files)),
-		?assertEqual([2, 2], proplists:get_value(<<"message as attachment.eml">>, Files))
-	end},
-	{"Files with id's logged (testcase1)",
-	fun() ->
-		Decoded = getmail("testcase1"),
-		{_Skel, Files} = skeletonize(Decoded),
-		?DEBUG("Files:  ~p", [Files]),
-		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
-		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
-	end}].
+% skeletonize_test_() ->
+% 	[{"Simple plain text mail",
+% 	fun() ->
+% 		Decoded = getmail("Plain-text-only.eml"),
+% 		{Skel, []} = skeletonize(Decoded),
+% 		?assertMatch({<<"text">>, <<"plain">>, _, _}, Skel)
+% 	end},
+% 	{"html text mail",
+% 	fun() ->
+% 		Decoded = getmail("html.eml"),
+% 		{Skel, []} = skeletonize(Decoded),
+% 		?DEBUG("Skel:  ~p", [Skel]),
+% 		?assertMatch({<<"multipart">>, <<"alternative">>, _Head, _Props, [{<<"text">>, <<"plain">>, _H2, _P2}, {<<"text">>, <<"html">>, _H3, P3}]}, Skel)
+% 	end},
+% 	{"email with image",
+% 	fun() ->
+% 		Decoded = getmail("image-attachment-only.eml"),
+% 		{Skel, Files} = skeletonize(Decoded),
+% 		?assertMatch({<<"multipart">>, <<"mixed">>, _, _, [{<<"image">>, <<"jpeg">>, _, _}]}, Skel),
+% 		?assertEqual([{<<"chili-pepper.jpg">>, [1]}], Files)
+% 	end},
+% 	{"the gamut",
+% 	fun() ->
+% 		% multipart/alternative
+% 		%	text/plain
+% 		%	multipart/mixed
+% 		%		text/html
+% 		%		message/rf822
+% 		%			multipart/mixed
+% 		%				message/rfc822
+% 		%					text/plain
+% 		%		text/html
+% 		%		message/rtc822
+% 		%			text/plain
+% 		%		text/html
+% 		%		image/jpeg
+% 		%		text/html
+% 		%		text/rtf
+% 		%		text/html
+% 		Decoded = getmail("the-gamut.eml"),
+% 		{Skel, Files} = skeletonize(Decoded),
+% 		%{"multipart", "alternative", [
+% %			{"text", "plain"},
+% %			{"multipart", "mixed", [
+% %				{"text", "html"},
+% %				{"message", "rfc822", [
+% %					{"multipart", "mixed", [
+% %						{"message", "rfc822", [
+% %							{"text", "plain"}
+% %						]}
+% %					]}
+% %				]},
+% %				{"text", "html"},
+% %				{"message", "rfc822", [
+% %					{"text", "plain"}
+% %				]},
+% %				{"text", "html"},
+% %				{"image", "jpeg"},
+% %				{"text", "html"},
+% %				{"text", "rtf"},
+% %				{"text", "html"}
+% %			]}
+% %		]},
+% 		?DEBUG("Skel:  ~p", [Skel]),
+% 		?DEBUG("Files:  ~p", [Files]),
+% 		?assertMatch(
+% 		{<<"multipart">>, <<"alternative">>, _, _, [
+% 			{<<"text">>, <<"plain">>, _, _},
+% 			{<<"multipart">>, <<"mixed">>, _, _, [
+% 				{<<"text">>, <<"html">>, _, _},
+% 				{<<"message">>, <<"rfc822">>, _, _, [
+% 					{<<"multipart">>, <<"mixed">>, _, _, [
+% 						{<<"message">>, <<"rfc822">>, _, _, [
+% 							{<<"text">>, <<"plain">>, _, _}
+% 						]}
+% 					]}
+% 				]},
+% 				{<<"text">>, <<"html">>, _, _},
+% 				{<<"message">>, <<"rfc822">>, _, _, [
+% 					{<<"text">>, <<"plain">>, _, _}
+% 				]},
+% 				{<<"text">>, <<"html">>, _, _},
+% 				{<<"image">>, <<"jpeg">>, _, _},
+% 				{<<"text">>, <<"html">>, _, _},
+% 				{<<"text">>, <<"rtf">>, _, _},
+% 				{<<"text">>, <<"html">>, _, _}
+% 			]}
+% 		]}, Skel),
+% 		?assertEqual(5, length(Files)),
+% 		?assertEqual([2, 2, 1, 1], proplists:get_value(<<"Plain text only">>, Files)),
+% 		?assertEqual([2, 4], proplists:get_value(<<"Plain text only.eml">>, Files)),
+% 		?assertEqual([2, 6], proplists:get_value(<<"chili-pepper.jpg">>, Files)),
+% 		?assertEqual([2, 8], proplists:get_value(<<"test.rtf">>, Files)),
+% 		?assertEqual([2, 2], proplists:get_value(<<"message as attachment.eml">>, Files))
+% 	end},
+% 	{"Files with id's logged (testcase1)",
+% 	fun() ->
+% 		Decoded = getmail("testcase1"),
+% 		{_Skel, Files} = skeletonize(Decoded),
+% 		?DEBUG("Files:  ~p", [Files]),
+% 		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
+% 		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
+% 	end}].
 	
 
 % multipart/alternative []
@@ -911,58 +911,58 @@ skeletonize_test_() ->
 %		text/html [2, 7]
 %		text/rtf [2, 8]
 %		text/html [2, 9]
-get_part_test_() ->
-	{setup,
-	fun() ->
-		getmail("the-gamut.eml")
-	end,
-	fun(Gamut) ->
-		[{"A simple path",
-		fun() ->
-			Path = [1],
-			?assertMatch({ok, {<<"text">>, <<"plain">>, _Head, _Prop, _Body}}, get_part(Path, Gamut))
-		end},
-		{"Getting the base", 
-		fun() ->
-			Path = [],
-			?assertMatch({multipart, [Tuple1, Tuple2]}, get_part(Path, Gamut))
-		end},
-		{"Getting a multipart",
-		fun() ->
-			Path = [2],
-			?assertMatch({multipart, List}, get_part(Path, Gamut))
-		end},
-		{"Getting a message",
-		fun() ->
-			Path = [2, 2],
-			?assertMatch({message, {<<"multipart">>, <<"mixed">>, _Headers, _Properties, _List}}, get_part(Path, Gamut))
-		end},
-		{"Getting below a message",
-		fun() ->
-			Path = [2, 2, 1],
-			?assertMatch({multipart, [{<<"message">>, <<"rfc822">>, _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
-		end},
-		{"Getting a deep text",
-		fun() ->
-			Path = [2, 2, 1, 1, 1],
-			?assertMatch({ok, {<<"text">>, <<"plain">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
-		end},
-		{"getting a far away text",
-		fun() ->
-			Path = [2, 9],
-			?assertMatch({ok, {<<"text">>, <<"html">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
-		end},
-		{"getting a path that doesn't exist",
-		fun() ->
-			Path = [299, 768, 124],
-			?assertMatch(none, get_part(Path, Gamut))
-		end},
-		{"trying with testcase1",
-		fun() ->
-			Testcase1 = getmail("testcase1"),
-			Path = [2, 1 , 2, 2],
-			?assertMatch({ok, {<<"image">>, <<"jpeg">>, _Head, _Prop, _Body}}, get_part(Path, Testcase1))
-		end}]
-	end}.
+% get_part_test_() ->
+% 	{setup,
+% 	fun() ->
+% 		getmail("the-gamut.eml")
+% 	end,
+% 	fun(Gamut) ->
+% 		[{"A simple path",
+% 		fun() ->
+% 			Path = [1],
+% 			?assertMatch({ok, {<<"text">>, <<"plain">>, _Head, _Prop, _Body}}, get_part(Path, Gamut))
+% 		end},
+% 		{"Getting the base", 
+% 		fun() ->
+% 			Path = [],
+% 			?assertMatch({multipart, [Tuple1, Tuple2]}, get_part(Path, Gamut))
+% 		end},
+% 		{"Getting a multipart",
+% 		fun() ->
+% 			Path = [2],
+% 			?assertMatch({multipart, List}, get_part(Path, Gamut))
+% 		end},
+% 		{"Getting a message",
+% 		fun() ->
+% 			Path = [2, 2],
+% 			?assertMatch({message, {<<"multipart">>, <<"mixed">>, _Headers, _Properties, _List}}, get_part(Path, Gamut))
+% 		end},
+% 		{"Getting below a message",
+% 		fun() ->
+% 			Path = [2, 2, 1],
+% 			?assertMatch({multipart, [{<<"message">>, <<"rfc822">>, _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
+% 		end},
+% 		{"Getting a deep text",
+% 		fun() ->
+% 			Path = [2, 2, 1, 1, 1],
+% 			?assertMatch({ok, {<<"text">>, <<"plain">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+% 		end},
+% 		{"getting a far away text",
+% 		fun() ->
+% 			Path = [2, 9],
+% 			?assertMatch({ok, {<<"text">>, <<"html">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+% 		end},
+% 		{"getting a path that doesn't exist",
+% 		fun() ->
+% 			Path = [299, 768, 124],
+% 			?assertMatch(none, get_part(Path, Gamut))
+% 		end},
+% 		{"trying with testcase1",
+% 		fun() ->
+% 			Testcase1 = getmail("testcase1"),
+% 			Path = [2, 1 , 2, 2],
+% 			?assertMatch({ok, {<<"image">>, <<"jpeg">>, _Head, _Prop, _Body}}, get_part(Path, Testcase1))
+% 		end}]
+% 	end}.
 		
 -endif.

@@ -96,6 +96,7 @@ install: compile
 	sed \
 	-e 's|%LOG_DIR%|$(OALOGDIR)|g' \
 	-e 's|%PLUGIN_DIR%|$(PREFIX)$(OAPLUGINDIR)|g' \
+	-e 's|%KEY_DIR%|$(PREFIX)$(OACONFIGDIR)|g' \
 	./config/app.config > $(DESTDIR)$(PREFIX)$(OACONFIGDIR)/app.config
 	sed \
 	-e 's|%DB_DIR%|$(PREFIX)$(OADBDIR)|g' \

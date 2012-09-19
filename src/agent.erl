@@ -379,7 +379,11 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 		false ->
 			ok
 	end,
-	inform_connection(NewAgent, {set_release, Agent#agent.release_data}),
+	R = case Agent#agent.release_data of
+		undefined -> none;
+		O -> O
+	end,
+	inform_connection(NewAgent, {set_release, R}),
 	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
 
 handle_sync_event(dump_state, _From, StateName, #state{agent_rec = Agent} = State) ->

@@ -217,6 +217,7 @@
 	get_release_opts/1
 ]).
 
+%% Supervisor API
 -export([
 	release_agent/3,
 	get_acd_status/1,
@@ -248,9 +249,10 @@
 
 	{get_queue_list, 1},
 	{get_brand_list, 1},
-	{get_release_opts, 1},
+	{get_release_opts, 1}
+]).
 
-	%% SUPERVISOR!!!
+-supervisor_api_functions([
 	{release_agent, 3},
 	{get_acd_status, 1},
 	{kick_agent, 2},
@@ -321,6 +323,8 @@ encode_cast(State, Cast) ->
 	{'ok', json(), #state{}} | {'error', any(), #state{}} |
 	{'exit', json(), #state{}}).
 handle_json(State, {struct, Json}) ->
+	Agent = State#state.agent,
+	SecurityLevel = Agent#agent.security_level,
 	ThisModBin = list_to_binary(atom_to_list(?MODULE)),
 	ModBin = proplists:get_value(<<"module">>, Json, ThisModBin),
 	ReqId = proplists:get_value(<<"request_id">>, Json),
@@ -351,8 +355,12 @@ handle_json(State, {struct, Json}) ->
 		{{ok, Mod}, {ok, Func}} ->
 			Attrs = Mod:module_info(attributes),
 			AgentApiFuncs = proplists:get_value(agent_api_functions, Attrs, []),
+			SupApiFuncs = proplists:get_value(supervisor_api_functions, Attrs, []),
 			Arity = length(Args) + 1,
-			case lists:member({Func, Arity}, AgentApiFuncs) of
+			InAgentApi = lists:member({Func, Arity}, AgentApiFuncs),
+			InSupApi = lists:member({Func, Arity}, SupApiFuncs),
+			HasSupPriv = lists:member(SecurityLevel, [supervisor, admin]),
+			case InAgentApi or (HasSupPriv and InSupApi) of
 				false ->
 					case cpx_hooks:trigger_hooks(agent_api_call, [State, Mod, Func, Args]) of
 						{error, unhandled} ->

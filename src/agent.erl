@@ -407,7 +407,6 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 				{login, Newagent#agent.login},
 				{skills, Newagent#agent.skills}
 			],
-			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			cpx_agent_event:change_agent(Agent, Newagent),
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			inform_connection(Agent, {change_profile, Profile}),

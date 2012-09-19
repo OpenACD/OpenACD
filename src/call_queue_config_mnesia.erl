@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -31,21 +31,21 @@
 %% queue groups.
 %%
 %% <h3>Call Queue</h3>
-%% A Call Queue has a name, weight, skills, hold_music, group, and recipe. 
-%% The name is a unique identifier of the queue.  There can be only one 
+%% A Call Queue has a name, weight, skills, hold_music, group, and recipe.
+%% The name is a unique identifier of the queue.  There can be only one
 %% queue with a given name in a cluster.
 %%
-%% The wieght is how important media in the queue are relative to other 
+%% The wieght is how important media in the queue are relative to other
 %% queues.  A higher wieght indicates more importance.
 %%
 %% Skills is a list of skills to add to media that is placed in the queue.
-%% Note that media automatically get the magic '_node' skill assigned to 
+%% Note that media automatically get the magic '_node' skill assigned to
 %% them.
 %%
-%% Hold music really only matters to freeswitch or voice media.  It is a 
+%% Hold music really only matters to freeswitch or voice media.  It is a
 %% string that defines the file the hold music is located in.
 %%
-%% Group is which Queue Group the queue is a member of.  The skills and 
+%% Group is which Queue Group the queue is a member of.  The skills and
 %% recipe of a queue is combined with it's group on start up.
 %%
 %% Finally, there is the recipe.  A reciepe is a list of recipe steps.
@@ -76,46 +76,46 @@
 %%	recipe_comment() :: binary()
 %%
 %%	recipe_step() ::
-%%		{[recipe_condition(), ...], [recipe_operation(), ...], 
+%%		{[recipe_condition(), ...], [recipe_operation(), ...],
 %%			recipe_runs(), recipe_comment()}
 %%
 %%	recipe() :: [recipe_step()]
 %%
 %% <h3>Skills</h3>
 %%
-%% A skill configuration has an atom, name, protected, description, and 
+%% A skill configuration has an atom, name, protected, description, and
 %% group.
 %%
-%% The atom is the key, and is used when routing.  Certain skills are 
+%% The atom is the key, and is used when routing.  Certain skills are
 %% 'magic' in that they expand to {atom(), string()} values under the
 %% correct conditions.  A magic skill is denoted by an atom starting with
 %% an underscore by convetion, such as '_queue'.  It is an error to assign
-%% an unexpanded magic skill under conditions when it cannot expand.  The 
+%% an unexpanded magic skill under conditions when it cannot expand.  The
 %% magic skills are:
 %% <table style="border:black solid 1px">
 %% <tr><th>Atom</th><th>Expands When</th><th>Other Notes</th></tr>
 %% <tr><td>_agent</td><td>Assigned to an agent</td>
 %% 	<td>Expands to the agent's login</td></tr>
-%% <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the 
+%% <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the
 %% 	name of the agent's profile.</td></tr>
 %% <tr><td>_queue></td><td>Assigned to a media that is in a queue</td>
 %% 	<td>Expands to the name of the queue media is in</td></tr>
-%% <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the 
+%% <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the
 %% 	client's label.</td></tr>
-%% <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to 
+%% <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to
 %% 	the node the agent fsm or gen_media process is running on.</td></tr>
-%% <tr><td>_all</td><td>Always</td><td>Does not actually expand, but 
+%% <tr><td>_all</td><td>Always</td><td>Does not actually expand, but
 %% 	overrides other skills, making that agent able to take any media, or
 %% 	the media answerable by any agent.</td></tr>
 %% </table>
 %%
 %% The remaining configuration options only matter to the configuration for
-%% human's sake.  The only one that's not obvious is protected.  If 
+%% human's sake.  The only one that's not obvious is protected.  If
 %% protected is set to true, the skill cannot be edited or deleted.  The
 %% magic skills are protected.
 %%
 %% <h3>Queue Group</h3>
-%% 
+%%
 %% A queue group is a recipe and list of skills that each queue in the
 %% group shares.
 %%
@@ -130,13 +130,13 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
--define(QUEUE_TABLE(Nodes), 
+-define(QUEUE_TABLE(Nodes),
 	[
 		{attributes, record_info(fields, call_queue)},
 		{disc_copies, Nodes}
 	]
 ).
--define(SKILL_TABLE(Nodes), 
+-define(SKILL_TABLE(Nodes),
 	[
 		{attributes, record_info(fields, skill_rec)},
 		{disc_copies, Nodes}
@@ -172,7 +172,7 @@
 	merge/3
 ]).
 -export([
-	new_queue/1, 
+	new_queue/1,
 	new_queue/5,
 	destroy_queue/1,
 	get_queue/1,
@@ -235,18 +235,18 @@ start() ->
 	ok.
 
 
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on 
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on
 %% the local node if it does not exist.
 -spec(build_tables/0 :: () ->'ok').
-build_tables() -> 
+build_tables() ->
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of
-		{atomic, ok} -> 
+		{atomic, ok} ->
 			% since the table didn't already exist, build up the default queue
 			new_queue(#call_queue{name = "default_queue"}),
 			ok;
-		Ok when Ok == exists; Ok == copied -> 
+		Ok when Ok == exists; Ok == copied ->
 			ok;
 		Else ->
 			?ERROR("Could not set up call_queue table:  ~p", [Else]),
@@ -256,7 +256,7 @@ build_tables() ->
 	case B of
 		{atomic, ok} ->
 			% since the table didn't already exist, build up some default skills
-			F = fun() -> 
+			F = fun() ->
 				mnesia:write(#skill_rec{name="English", atom=english, description="English", group = "Language"}),
 				mnesia:write(#skill_rec{name="German", atom=german, description="German", group = "Language"}),
 				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true}),
@@ -267,14 +267,14 @@ build_tables() ->
 				mnesia:write(#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true})
 			end,
 			case mnesia:transaction(F) of
-				{atomic, ok} -> 
+				{atomic, ok} ->
 					ok;
-				Otherwise -> 
+				Otherwise ->
 					Otherwise
 			end;
 		Or when Or == exists; Or == copied ->
 			ok;
-		Or -> 
+		Or ->
 			?ERROR("Could not set up skill_rec table:  ~p", [Or]),
 			ok
 	end,
@@ -306,9 +306,9 @@ build_tables() ->
 			ok
 	end.
 
-%% @doc utiltiy function to help recover from a netsplit.  Since a merge can 
+%% @doc utiltiy function to help recover from a netsplit.  Since a merge can
 %% take a while, it is recommended to put this in a spawn.  When the merge is
-%% complete, the resulting merged records are sent to `pid Replyto'.  
+%% complete, the resulting merged records are sent to `pid Replyto'.
 -spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok').
 merge(Nodes, Time, Replyto) ->
 	Queues = merge_queues(Nodes, Time),
@@ -326,15 +326,15 @@ merge(Nodes, Time, Replyto) ->
 %% @doc Attempt to remove the queue `#call_queue{}' or `string()' `Queue' from the configuration database.
 -spec(destroy_queue/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
 					(Queue :: string()) -> {atom(), any()}).
-destroy_queue(Queue) when is_record(Queue, call_queue) -> 
+destroy_queue(Queue) when is_record(Queue, call_queue) ->
 	destroy_queue(Queue#call_queue.name);
-destroy_queue(Queue) -> 
-	F = fun() -> 
+destroy_queue(Queue) ->
+	F = fun() ->
 		mnesia:delete({call_queue, Queue})
 	end,
 	mnesia:transaction(F).
 
-%% @doc Get the configuration for the passed `string()' `Queue' name.	
+%% @doc Get the configuration for the passed `string()' `Queue' name.
 -spec(get_queue/1 :: (Queue :: string()) -> {ok, #call_queue{}} | {'noexists', any()} | 'noexists').
 get_queue(Name) ->
 	try integration:get_queue(Name) of
@@ -352,7 +352,7 @@ get_queue(Name) ->
 				recipe = Recipe,
 				hold_music = HoldMusic,
 				group = Group,
-				timestamp = util:now()	
+				timestamp = util:now()
 			},
 
 			new_queue(CallQueue),
@@ -370,11 +370,11 @@ get_queue(Name) ->
 %% @doc Skips integration, goes right for the local cache using key as id.
 -spec(local_get_queue/1 :: (Queue :: string()) -> {ok, #call_queue{}} | {'noexists', any()} | 'noexists').
 local_get_queue(Queue) ->
-	F = fun() -> 
+	F = fun() ->
 		mnesia:read({call_queue, Queue})
 	end,
 	case mnesia:transaction(F) of
-		{atomic, []} -> 
+		{atomic, []} ->
 			noexists;
 		{atomic, [Rec]} when is_record(Rec, call_queue) ->
 			Oldrecipe = Rec#call_queue.recipe,
@@ -386,7 +386,7 @@ local_get_queue(Queue) ->
 					set_queue(Queue, Outrec),
 					{ok, Outrec}
 			end;
-		Else -> 
+		Else ->
 			{noexists, Else}
 	end.
 
@@ -417,7 +417,7 @@ get_queues(Group) ->
 		qlc:e(QH)
 	end,
 	{atomic, MidQueues} = mnesia:transaction(F),
-	Queues = [begin 
+	Queues = [begin
 		Oldrecipe = Rec#call_queue.recipe,
 		case correct_recipe(Rec#call_queue.recipe) of
 		Oldrecipe ->
@@ -429,16 +429,16 @@ get_queues(Group) ->
 		end
 	end || Rec <- MidQueues ],
 	lists:sort(fun(Qreca, Qrecb) -> Qreca#call_queue.name =< Qrecb#call_queue.name end, Queues).
-	
+
 %% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_queues/0 :: () -> {ok, [#call_queue{}]}).
-get_queues() -> 
-	QH = qlc:q([{X, G#queue_group.recipe, G#queue_group.skills} || 
-		X <- mnesia:table(call_queue), 
-		G <- mnesia:table(queue_group), 
+get_queues() ->
+	QH = qlc:q([{X, G#queue_group.recipe, G#queue_group.skills} ||
+		X <- mnesia:table(call_queue),
+		G <- mnesia:table(queue_group),
 		G#queue_group.name =:= X#call_queue.group
 	]),
-	F = fun() -> 
+	F = fun() ->
 		qlc:e(QH)
 	end,
 	{atomic, Reply} = mnesia:transaction(F),
@@ -464,7 +464,7 @@ new_queue(Queue) when is_record(Queue, call_queue) ->
 			Trans;
 		Qmpid when is_pid(Qmpid) ->
 			queue_manager:add_queue(Queue#call_queue.name, [
-				{recipe, Queue#call_queue.recipe}, 
+				{recipe, Queue#call_queue.recipe},
 				{weight, Queue#call_queue.weight},
 				{skills, Queue#call_queue.skills}
 			]),
@@ -503,7 +503,7 @@ set_queue(Queue, Rec) ->
 		end
 	end,
 	mnesia:transaction(F).
-	
+
 %% @hidden
 -spec(merge_queues/2 :: (Nodes :: [atom()], Time :: pos_integer()) -> [#call_queue{}]).
 merge_queues(Nodes, Time) ->
@@ -512,7 +512,7 @@ merge_queues(Nodes, Time) ->
 		qlc:e(QH)
 	end,
 	merge_results(query_nodes(Nodes, F)).
-		
+
 %% =====
 %% call queue groups Configs
 %% =====
@@ -665,7 +665,7 @@ merge_queue_groups(Nodes, Time) ->
 %% Skill Configs
 %% =====
 
-%% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname', 
+%% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname',
 %% `string()' `Skilldesc', `string()' `Creator'.
 %% @see new_skill
 -spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
@@ -676,18 +676,18 @@ new_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_li
 %% @doc Add `#skill_rec{}' `Rec' to the configuration database.
 -spec(new_skill/1 :: (Rec :: #skill_rec{}) -> {'atomic', 'ok'}).
 new_skill(Rec) when is_record(Rec, skill_rec) ->
-	F = fun() -> 
+	F = fun() ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
-	
+
 %% @doc Check if the given `string()' `Skillname' exists.
 %% Returns the `atom()' of `Skillname' or `undefined'
 -spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
 skill_exists(Skillname) when is_list(Skillname) ->
 	try list_to_existing_atom(Skillname) of
-		Anything -> 
-			F = fun() -> 
+		Anything ->
+			F = fun() ->
 				mnesia:read({skill_rec, Anything})
 			end,
 			case mnesia:transaction(F) of
@@ -697,7 +697,7 @@ skill_exists(Skillname) when is_list(Skillname) ->
 					undefined
 			end
 	catch
-		error:_Anyerror -> 
+		error:_Anyerror ->
 			undefined
 	end.
 
@@ -792,7 +792,7 @@ get_skills(Group) when is_list(Group) ->
 	end,
 	{ok, lists:sort(Compare, Skills)}.
 
-%% @doc Removes the skill named `string()' `Skillname' from the database.  The 
+%% @doc Removes the skill named `string()' `Skillname' from the database.  The
 %% atom is still in the system, so this is just for looks.
 -spec(destroy_skill/1 :: (Skillname :: string()) -> {'atomic', 'ok'} | {'error', 'protected'}).
 destroy_skill(Skillname) ->
@@ -898,7 +898,7 @@ destroy_client(Id) ->
 destroy_client(_Key, undefined) ->
 	{aborted, protected};
 destroy_client(id, Id) ->
-	F = fun() -> 
+	F = fun() ->
 		mnesia:delete({client, Id})
 	end,
 	mnesia:transaction(F);
@@ -1068,7 +1068,7 @@ diff_recs_loop([Lhead | Ltail] = Left, [Rhead | Rtail] = Right, Acc) ->
 					diff_recs_loop(Left, Rtail, [Rhead | Acc])
 			end
 	end.
-	
+
 nom_equal(A, B) when is_record(A, call_queue) ->
 	A#call_queue.name =:= B#call_queue.name;
 nom_equal(A, B) when is_record(A, queue_group) ->
@@ -1111,7 +1111,7 @@ correct_recipe([H | T], Acc) ->
 
 -ifdef(TEST).
 
-test_queue() -> 
+test_queue() ->
 	Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
 	new_queue("test queue", 3, [testskill], Recipe, "Default"),
 	%Default = #call_queue{name = "goober"},
@@ -1120,13 +1120,13 @@ test_queue() ->
 call_queue_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			build_tables(),
-			F = fun() -> 
+			F = fun() ->
 				mnesia:delete({call_queue, "default_queue"})
 			end,
 			mnesia:transaction(F),
@@ -1135,7 +1135,7 @@ call_queue_test_() ->
 			end,
 			{Dumptestq}
 		end,
-		fun(_Whatever) -> 
+		fun(_Whatever) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			ok
@@ -1160,7 +1160,7 @@ call_queue_test_() ->
 			},
 			{
 				"New Queue with Invalid Weight",
-				fun() -> 
+				fun() ->
 					?assertError(function_clause, new_queue("name", "not a number", [], [], "Default")),
 					?assertError(function_clause, new_queue("name", -1, [], [], "Default")),
 					?assertError(function_clause, new_queue("name", 0, [], [], "Default"))
@@ -1181,7 +1181,7 @@ call_queue_test_() ->
 			},
 			{
 				"New Queue with Recipe",
-				fun() -> 
+				fun() ->
 					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once, <<"recipe">>}],
 					Queue = #call_queue{name="test queue", recipe=Recipe, skills = []},
 					?assertEqual({atomic, ok}, new_queue("test queue", 1, [], Recipe, "Default")),
@@ -1221,12 +1221,12 @@ call_queue_test_() ->
 			% },
 			{
 				"Destroy",
-				fun() -> 
+				fun() ->
 					Queue = test_queue(),
 					new_queue(Queue),
 					destroy_queue(Queue),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-					F = fun() -> 
+					F = fun() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(F))
@@ -1234,7 +1234,7 @@ call_queue_test_() ->
 			},
 			% {
 			% 	"Get All",
-			% 	fun() -> 
+			% 	fun() ->
 			% 		Queue = test_queue(),
 			% 		Queue2 = Queue#call_queue{name="test queue 2"},
 			% 		new_queue(Queue),
@@ -1246,7 +1246,7 @@ call_queue_test_() ->
 			% },
 			% {
 			% 	"Get One Queue",
-			% 	fun() -> 
+			% 	fun() ->
 			% 		Queue = test_queue(),
 			% 		Queue2 = Queue#call_queue{name="test queue 2"},
 			% 		new_queue(Queue),
@@ -1259,7 +1259,7 @@ call_queue_test_() ->
 			% },
 			{
 				"Get All of None",
-				fun() -> 
+				fun() ->
 					Queue = test_queue(),
 					destroy_queue(Queue),
 					?assertMatch(noexists, get_queue(Queue#call_queue.name))
@@ -1306,20 +1306,20 @@ call_queue_test_() ->
 call_queue_integration_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			build_tables(),
-			F = fun() -> 
+			F = fun() ->
 				mnesia:delete({call_queue, "default_queue"})
 			end,
 			mnesia:transaction(F),
 			{ok, Mock} = gen_server_mock:named({local, integration}),
 			Mock
 		end,
-		fun(Mock) -> 
+		fun(Mock) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			unregister(integration),
@@ -1368,14 +1368,14 @@ call_queue_integration_test_() ->
 queue_group_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			build_tables()
 		end,
-		fun(_Whatever) -> 
+		fun(_Whatever) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			ok
@@ -1509,7 +1509,7 @@ queue_group_test_() ->
 queue_group_integration_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
@@ -1519,7 +1519,7 @@ queue_group_integration_test_() ->
 			{ok, Mock} = gen_server_mock:named({local, integration}),
 			Mock
 		end,
-		fun(Mock) -> 
+		fun(Mock) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			unregister(integration),
@@ -1552,7 +1552,7 @@ queue_group_integration_test_() ->
 			% 	{"Get previously existing queue group from integration",
 			% 	fun() ->
 			% 		Qgroup = #queue_group{name = "test group"},
-					
+
 			% 		new_queue_group(Qgroup),
 
 			% 		gen_server_mock:expect_call(Mock, fun({get_queue_group, "test group"}, _, State) -> {ok, none, State} end),
@@ -1565,10 +1565,10 @@ queue_group_integration_test_() ->
 		]
 	}.
 
-skill_rec_test_() -> 
+skill_rec_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
@@ -1585,7 +1585,7 @@ skill_rec_test_() ->
 			end,
 			Test
 		end,
-		fun(_Whatever) -> 
+		fun(_Whatever) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			ok
@@ -1593,19 +1593,19 @@ skill_rec_test_() ->
 		[
 			{
 				"Test for a known skill atom",
-				fun() -> 
+				fun() ->
 					Skillrec = skill_exists("_node"),
 					?assertMatch('_node', Skillrec)
 				end
 			},
 			{
 				"Test for an unknown skill atom",
-				fun() -> 
+				fun() ->
 					Skillrec = skill_exists("Not a valid skill"),
 					?assertMatch(undefined, Skillrec)
 				end
 			},
-			fun(Test) -> 
+			fun(Test) ->
 				{
 					"Set a skill by record",
 					fun() ->
@@ -1740,7 +1740,7 @@ skill_rec_test_() ->
 skill_rec_integration_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
@@ -1750,7 +1750,7 @@ skill_rec_integration_test_() ->
 			{ok, Mock} = gen_server_mock:named({local, integration}),
 			Mock
 		end,
-		fun(Mock) -> 
+		fun(Mock) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			unregister(integration),
@@ -1821,14 +1821,14 @@ merge_client_options_test_() ->
 
 client_rec_test_() ->
 	{foreach,
-	fun() -> 
+	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		build_tables()
 	end,
-	fun(_Whatever) -> 
+	fun(_Whatever) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		ok
@@ -1904,10 +1904,10 @@ client_rec_test_() ->
 	% 	new_client(Client2),
 	% 	new_client(Client3),
 	% 	Expected = lists:sort([
-	% 		#client{label = undefined}, 
-	% 		#client{label = "Aclient", id = "00560001"}, 
-	% 		#client{label = "Client1", id = "00230001"}, 
-	% 		#client{label = "Client2", id = "00470002"}, 
+	% 		#client{label = undefined},
+	% 		#client{label = "Aclient", id = "00560001"},
+	% 		#client{label = "Client1", id = "00230001"},
+	% 		#client{label = "Client2", id = "00470002"},
 	% 		#client{label = "Demo Client", id = "00990099"}]),
 	% 	{ok, Got} = lists:sort(get_clients()),
 	% 	?assertEqual(Expected, Got)
@@ -1986,19 +1986,19 @@ client_rec_test_() ->
 timestamp_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			build_tables()
 		end,
-		fun(_Whatever) -> 
+		fun(_Whatever) ->
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			ok
 		end,
-		[%"Adding" Tests defunct because just creating the recored creates a valid timestamp; 
+		[%"Adding" Tests defunct because just creating the recored creates a valid timestamp;
 		%there is no need to initialize the timestamp field.
 %		{"Adding a queue updates timestamp",
 %		fun() ->
@@ -2043,7 +2043,7 @@ timestamp_test_() ->
 				qlc:e(QH)
 			end,
 			{atomic, [#queue_group{timestamp = Oldt}]} = mnesia:transaction(F),
-			timer:sleep(2000),	
+			timer:sleep(2000),
 			set_queue_group("test", #queue_group{name = "test", timestamp = 1}),
 			{atomic, [#queue_group{timestamp = Newt}]} = mnesia:transaction(F),
 			?assert(Oldt < Newt)
@@ -2103,5 +2103,5 @@ merge_util_test_() ->
 	?_assertEqual(false, nom_comp(#call_queue{name = "b", timestamp = 1}, #call_queue{name = "a", timestamp = 2})),
 	?_assertEqual(true, timestamp_comp(#call_queue{name = "a", timestamp = 1}, #call_queue{name = "a", timestamp = 2})),
 	?_assertEqual(false, timestamp_comp(#call_queue{name = "a", timestamp = 2}, #call_queue{name = "a", timestamp = 1}))].
-	
+
 -endif.

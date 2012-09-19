@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -71,7 +71,7 @@
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
-	
+
 %% @doc Starts not linked to a process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
@@ -104,7 +104,7 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
+handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) ->
 	#queued_call{skills = Skills, channel = Chan, module = Mod} = State#state.call,
 	case agent_manager:filtered_route_list(Skills, Chan, Mod) of
 		[] ->
@@ -147,7 +147,7 @@ handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
-		none -> 
+		none ->
 			%?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
@@ -211,7 +211,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @doc queries the agent_manager for available agents with an appropriate skill-list.
 %% @see agent_manager:find_avail_agents_by_skill/1
 -spec(get_agents/1 :: (Pid :: pid()) -> {non_neg_integer(), [{string, pid(), #agent{}}]}).
-get_agents(Pid) -> 
+get_agents(Pid) ->
 	gen_server:call(Pid, get_agents).
 
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
@@ -225,7 +225,7 @@ loop_queues(Queues) ->
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
 	%?DEBUG("grabbing call", []),
 	case call_queue:grab(Qpid) of
-			none -> 
+			none ->
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
 			{_Key, Call2} ->
 				%?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
@@ -240,12 +240,12 @@ loop_queues(Queues) ->
 		{string(), pid(), {any(), #queued_call{}}, non_neg_integer()} | 'none').
 biased_to([], _Acc, _Random) ->
 	none;
-biased_to([Queue | Tail], Acc, Random) -> 
+biased_to([Queue | Tail], Acc, Random) ->
 	Acc2 = Acc + element(4, Queue),
 	case Random =< Acc2 of
 		true ->
 			Queue;
-		false -> 
+		false ->
 			biased_to(Tail, Acc2, Random)
 	end.
 
@@ -261,16 +261,16 @@ grab_best() ->
 
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> 'ok').
-regrab(Pid) -> 
+regrab(Pid) ->
 	%?DEBUG("dispatcher trying to regrab", []),
 	gen_server:cast(Pid, regrab),
 	ok.
 
 %% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.
 -spec(stop/2 :: (pid(),  boolean()) -> 'ok').
-stop(Pid, Force) -> 
+stop(Pid, Force) ->
 	gen_server:call(Pid, {stop, Force}, infinity).
-	
+
 -ifdef(TEST).
 
 -define(MAX_RANDOM_TEST, 100000).
@@ -288,7 +288,7 @@ stop(Pid, Force) ->
 % 	{_, Pid4} = queue_manager:add_queue("queue4", [{weight, 3}]),
 % 	PCalls = [Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- ["C" ++ integer_to_list(N)]],
 % 	?debugFmt("PCalls:  ~p", [PCalls]),
-% 	F = fun(Callrec) -> 
+% 	F = fun(Callrec) ->
 % 		{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
 % 		Mpid
 % 	end,
@@ -339,13 +339,13 @@ stop(Pid, Force) ->
 % 	?assert(V4 =:= 0),
 % 	call_queue:stop(Pid1),
 % 	call_queue:stop(Pid2),
-% 	call_queue:stop(Pid3), 
+% 	call_queue:stop(Pid3),
 % 	call_queue:stop(Pid4),
 % 	queue_manager:stop(),
 % 	mnesia:stop(),
 % 	mnesia:delete_schema([node()]).
 
-% randomtest_loop(_Queues, _Total, Dict, ?MAX_RANDOM_TEST) -> 
+% randomtest_loop(_Queues, _Total, Dict, ?MAX_RANDOM_TEST) ->
 % 	Dict;
 % randomtest_loop(Queues, Total, Dict, Acc) ->
 % 	Rand = random:uniform(Total),
@@ -392,7 +392,7 @@ stop(Pid, Force) ->
 % 			?assertEqual(1, dict:size(DumpedA2#agent.used_channels))
 % 		end}
 % 	end]}.
-	
+
 % prevent_infinite_regrabbing_test_() ->
 % 	{timeout,
 % 	10,
@@ -427,7 +427,7 @@ stop(Pid, Force) ->
 % 		cpx_agent_event:stop(),
 % 		mnesia:stop()
 % 	end}.
-	
+
 % recloop(Regrabs, Grab_bests, _State) when (Regrabs > 2); Grab_bests >= 1 ->
 % 	{Regrabs, Grab_bests};
 % recloop(Regrabs, Grab_bests, State) ->
@@ -464,7 +464,7 @@ stop(Pid, Force) ->
 % 	after (?POLL_INTERVAL - 100) ->
 % 		recloop(Regrabs, Grab_bests, State)
 % 	end.
-	
+
 % grab_test_() ->
 % 	util:start_testnode(),
 % 	N = util:start_testnode(dispatcher_grab_tests),
@@ -481,22 +481,22 @@ stop(Pid, Force) ->
 % 		agent_manager:start([node()]),
 % 		[Pid1, Pid2, Pid3]
 % 	end,
-% 	fun(Pids) -> 
+% 	fun(Pids) ->
 % 		mnesia:stop(),
 % 		mnesia:delete_schema([node()]),
 % 		agent_manager:stop(),
 % 		lists:foreach(fun(P) -> call_queue:stop(P) end, Pids),
 % 		queue_manager:stop()
 % 	end,
-% 	[ fun([Pid1, Pid2, Pid3]) -> {"there is a call we want", fun() -> 
+% 	[ fun([Pid1, Pid2, Pid3]) -> {"there is a call we want", fun() ->
 % 		% circumventing usual start because the lack of agents will
 % 		% make the cook tell the dispatcher to continually regrab.
-% 		% I just want to make sure the dispatcher on it's very first 
+% 		% I just want to make sure the dispatcher on it's very first
 % 		% grab gets C3, the call in the highest weighted queue.
 % 		%{ok, Pid} = start(),
 % 		{ok, State} = init([]),
 % 		PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
-% 		F = fun(Callrec) -> 
+% 		F = fun(Callrec) ->
 % 			{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
 % 			Mpid
 % 		end,
@@ -511,7 +511,7 @@ stop(Pid, Force) ->
 % 		?assertEqual("C3", Call#queued_call.id)
 % 		%stop(Pid, true)
 % 	end} end,
-% 	fun(_Pids) -> {"There's no call.  At all.", fun() -> 
+% 	fun(_Pids) -> {"There's no call.  At all.", fun() ->
 % 		{ok, Pid} = start(),
 % 		 Call = bound_call(Pid),
 % 		 ?assertEqual(none, Call),

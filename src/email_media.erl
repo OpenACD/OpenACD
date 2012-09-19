@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Media process for handling email.  This parses and handles 
+%% @doc Media process for handling email.  This parses and handles
 %% web requests from the agent, as well as sending a reply.
 %% @see email_media_manager
 %% @see gen_media
@@ -67,13 +67,13 @@
 -export([
 	init/1,
 	prepare_endpoint/2,
-	handle_call/6, 
-	handle_cast/5, 
+	handle_call/6,
+	handle_cast/5,
 	handle_info/5,
-	terminate/5, 
+	terminate/5,
 	code_change/4,
-	handle_ring/4, 
-	handle_answer/5, 
+	handle_ring/4,
+	handle_answer/5,
 	handle_ring_stop/4,
 	handle_agent_transfer/4,
 	handle_queue_transfer/5,
@@ -199,7 +199,7 @@ init(Options) ->
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
 	Callerid = case mimemail:get_header_value(<<"From">>, Mheads) of
-		undefined -> 
+		undefined ->
 			{"Unknown", "Unknown"};
 		Else ->
 			case re:run(Else, "(?:\"*(.+?)\"* |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
@@ -312,7 +312,7 @@ handle_call({get_blind, Key}, _From, _Statename, Callrec, _GenMediaStaet, #state
 
 handle_call(dump, _From, _Statename, _Callrec, _GenMediaState, State) ->
 	{reply, State, State};
-	
+
 %% now the web calls.
 handle_call({agent_web_connection, Command, Args}, _From, _Statename, Callrec, _GenMediaState, State) ->
 	handle_web_call(Command, Args, Callrec, State);
@@ -320,7 +320,7 @@ handle_call({agent_web_connection, Command, Args}, _From, _Statename, Callrec, _
 handle_call({peek, PeekingApid}, _From, _Statename, Callrec, _GenMediaState, State) ->
 	agent:conn_cast(PeekingApid, {mediaload, Callrec}),
 	{reply, ok, State};
-	
+
 %% and anything else
 handle_call(Msg, _From, _Statename, Callrec, _GenMediaState, State) ->
 	?INFO("unhandled mesage ~p (~p)", [Msg, Callrec#call.id]),
@@ -364,9 +364,9 @@ handle_cast({<<"send">>, Post}, _Statename, Callrec, _Gmstate, #state{sending_pi
 			{<<"multipart">>, <<"alternative">>, FirstBody};
 		_Else ->
 			Attachments = lists:map(
-				fun({Name, Bin}) -> 
-					{<<"application">>, 
-					<<"octet-stram">>, 
+				fun({Name, Bin}) ->
+					{<<"application">>,
+					<<"octet-stram">>,
 					[
 						{<<"Content-Disposition">>, list_to_binary([<<"attachment; filename=\"">>, Name, "\""])},
 						{<<"Content-Type">>, list_to_binary([<<"application/octet-stream; name=\"">>, Name, "\""])},
@@ -507,7 +507,7 @@ handle_wrapup(_From, _Statename, _Callrec, _Gmstate, State) ->
 handle_spy({_Spy, _AgentRec}, _Callrec, State) ->
 	%agent:conn_cast(Spy, {mediaload, Callrec}),
 	{ok, State}.
-	
+
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
@@ -742,7 +742,7 @@ scrub_send_html_sub([{<<"br">>, _Props, Children} | Tail], Acc) ->
 scrub_send_html_sub([{_Tag, _Props, Children} | Tail], Acc) ->
 	Midacc = scrub_send_html(Children, Acc),
 	scrub_send_html(Tail, Midacc).
-	
+
 -ifdef(TEST).
 
 scrub_send_html_test_() ->
@@ -789,7 +789,7 @@ getmail(File) ->
 	{ok, Bin} = file:read_file(Pre ++ "deps/gen_smtp/testdata/" ++ File),
 	%Email = binary_to_list(Bin),
 	mimemail:decode(Bin).
-	
+
 % skeletonize_test_() ->
 % 	[{"Simple plain text mail",
 % 	fun() ->
@@ -893,7 +893,7 @@ getmail(File) ->
 % 		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
 % 		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
 % 	end}].
-	
+
 
 % multipart/alternative []
 %	text/plain [1]
@@ -922,7 +922,7 @@ getmail(File) ->
 % 			Path = [1],
 % 			?assertMatch({ok, {<<"text">>, <<"plain">>, _Head, _Prop, _Body}}, get_part(Path, Gamut))
 % 		end},
-% 		{"Getting the base", 
+% 		{"Getting the base",
 % 		fun() ->
 % 			Path = [],
 % 			?assertMatch({multipart, [Tuple1, Tuple2]}, get_part(Path, Gamut))
@@ -964,5 +964,5 @@ getmail(File) ->
 % 			?assertMatch({ok, {<<"image">>, <<"jpeg">>, _Head, _Prop, _Body}}, get_part(Path, Testcase1))
 % 		end}]
 % 	end}.
-		
+
 -endif.

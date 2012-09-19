@@ -28,9 +28,9 @@
 %%
 
 %% @doc The cook is a process that is spawned per call in queue, it
-%% executes the queue's 'recipe' on the call and kicks off call delivery 
-%% to agents. When it finds one or more dispatchers bound to its call it 
-%% requests that each dispatcher generate a list of local agents matching 
+%% executes the queue's 'recipe' on the call and kicks off call delivery
+%% to agents. When it finds one or more dispatchers bound to its call it
+%% requests that each dispatcher generate a list of local agents matching
 %% the call's criteria and selects the best one to offer it to.  It then
 %% has gen_media try to ring that agent.
 %% @see call_queue
@@ -620,7 +620,7 @@ fast_forward([{Conditions, Ops, Runs, _Comment} = OldAction | Recipe], ToTick, Q
 			fast_forward(Recipe, ToTick, Qpid, Call, Ticked, lists:append([OldAction], Acc))
 	end.
 
-fast_forward_check_conditions([], _Ticked, _Qpid, _Call) -> 
+fast_forward_check_conditions([], _Ticked, _Qpid, _Call) ->
 	true;
 fast_forward_check_conditions([Condition | Tail], Ticked, Qpid, Call) ->
 	AssumeFalse = [available_agents, eligible_agents, calls_queued, client_calls_queued, queue_position],
@@ -654,7 +654,7 @@ fast_forward_do_op([{Op, Args} | Tail], Qpid, Call, Acc) ->
 		_ ->
 			[Out | Acc]
 	end,
-	fast_forward_do_op(Tail, Qpid, Call, Newacc).	
+	fast_forward_do_op(Tail, Qpid, Call, Newacc).
 
 %% @private
 -spec(do_operation/3 :: (Operations :: [recipe_operation()], Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
@@ -778,7 +778,7 @@ sort_conditions_compare(CondA, CondB) ->
 % 	end}.
 
 fast_forward_test_() ->
-	% if an no_gen_server_mock_expectation occurs, it may be due to a 
+	% if an no_gen_server_mock_expectation occurs, it may be due to a
 	% recipe looping forward too many times.
 	{setup,
 	fun() ->
@@ -1855,7 +1855,7 @@ check_conditions_test_() ->
 % 	]
 % 	}.
 
-% % TODO re-enabled when rebar can handle running eunit with a node 
+% % TODO re-enabled when rebar can handle running eunit with a node
 % % (distrubutued).  Or these can be re-written to not require a live node.
 % multinode_test_d() ->
 % 	{

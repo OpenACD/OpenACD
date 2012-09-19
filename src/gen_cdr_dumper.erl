@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,8 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Behavior for cdr dumping modules.  A cdr dumper is a module that takes 
-%% the erlang record stored in mnesia and stores it in another place, be it a 
+%% @doc Behavior for cdr dumping modules.  A cdr dumper is a module that takes
+%% the erlang record stored in mnesia and stores it in another place, be it a
 %% flat file, database, or the great datastore in the sky.  This module handles
 %% the communication with mnesia, and merely passes the record to be written to
 %% any handlers.  If a handler errors or fails, it is uncerimoniously dropped.

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -70,7 +70,7 @@
 -export([
 	media_command/4
 ]).
-	
+
 
 % gen_server callbacks.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -121,7 +121,7 @@
 -type(username_option() :: {username, string()}).
 -type(password_option() :: {password, string()}).
 -type(silent_option() :: silent).
--type(voipendpoint() :: 
+-type(voipendpoint() ::
 	sip |
 	sip_registration |
 	h323 |
@@ -131,12 +131,12 @@
 -type(voipendpoint_option() :: {voipendpoint, voipendpoint()}).
 -type(voipendpoint_data_option() :: {voipendpoint_data, string()}).
 -type(persistent_ring_option() :: 'persistent_ring').
--type(start_option() :: 
+-type(start_option() ::
 	server_option() |
-	port_option() | 
-	username_option() | 
-	password_option() | 
-	voipendpoint_option() | 
+	port_option() |
+	username_option() |
+	password_option() |
+	voipendpoint_option() |
 	voipendpoint_data_option() |
 	silent_option() |
 	persistent_ring_option()
@@ -528,7 +528,7 @@ decode_bins([], Acc) ->
 	lists:reverse(Acc);
 decode_bins([Head | Tail], Acc) ->
 	decode_bins(Tail, [cpx_agent_pb:decode_servermessage(Head) | Acc]).
-	
+
 read_tcp_strings(Bin) ->
 	read_tcp_strings(Bin, []).
 

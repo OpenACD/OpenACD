@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -91,7 +91,7 @@
 	hangup = false :: 'false' | 'true',
 	mon_ref :: reference()
 }).
-	
+
 
 -type(state() :: #state{}).
 -define(GEN_EVENT, true).
@@ -155,7 +155,7 @@ cdrinit(Call) ->
 			?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
 			error
 	end.
-	
+
 %% @doc Notify cdr handler that `#call{} Call' is now in IVR for `string() DNIS'.
 -spec(inivr/2 :: (Call :: #call{}, DNIS :: string()) -> 'ok').
 inivr(Call, DNIS) ->
@@ -267,9 +267,9 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 	List = queue_manager:queues(),
 	Queue = case lists:keysearch(Qpid, 2, List) of
 		{value, {Qnom, Qpid}} ->
-			 Qnom; 
-		 false -> 
-			 undefined 
+			 Qnom;
+		 false ->
+			 undefined
 	end,
 	voicemail(Call, Queue);
 voicemail(Call, Queue) ->
@@ -283,8 +283,8 @@ media_custom(Call, Name, EndedBy, Data) when is_atom(Name), is_list(EndedBy) ->
 -spec(truncate/0 :: () -> ['none' | 'ok' | pid()]).
 truncate() ->
 	Now = util:now(),
-	{atomic, Deads} = mnesia:transaction(fun() -> 
-		qlc:e(qlc:q([M || 
+	{atomic, Deads} = mnesia:transaction(fun() ->
+		qlc:e(qlc:q([M ||
 			#cdr_rec{media = M, summary = inprogress, timestamp = Time} <- mnesia:table(cdr_rec),
 			begin
 				N = node(),
@@ -296,7 +296,7 @@ truncate() ->
 				end
 			end,
 			Now - Time > 3600
-		])) 
+		]))
 	end),
 	[truncate(X) || X <- Deads].
 	%Handles = [gen_event:delete_handler(cdr, {cdr, Id}, truncate) || {cdr, Id} <- gen_event:which_handlers(cdr), lists:member(Deads, Id)],
@@ -318,7 +318,7 @@ truncate(Callrec) when is_record(Callrec, call) ->
 	{atomic, Raws} = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
 	end),
-	case Raws of 
+	case Raws of
 		[] ->
 			?WARNING("~p has nothing in cdr_raws (already summarized?)", [Callrec#call.id]);
 		_ ->
@@ -410,8 +410,8 @@ init([Call]) ->
 		nodes = Nodes
 	},
 	cpx_monitor:info({cdr_raw, Initraw}),
-	mnesia:transaction(fun() -> 
-		mnesia:write(Cdrrec), 
+	mnesia:transaction(fun() ->
+		mnesia:write(Cdrrec),
 		mnesia:write(Initraw)
 	end),
 	Monref = erlang:monitor(process, Call#call.source),
@@ -583,7 +583,7 @@ analyze(hangup, #call{id = Cid}, Time, _, [{inqueue, Queuename}]) ->
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonqueue, eventdata = Queuename}];
 analyze(_, _, _, _, _) ->
 	[].
-	
+
 -spec(find_untermed/3 :: (Event :: transaction_type(), Call :: #call{}, Data :: any()) -> [#cdr_raw{}]).
 find_untermed(inivr, _, _) ->
 	% Does not terminate anything
@@ -593,9 +593,9 @@ find_untermed(dialoutgoing, _, _) ->
 	[];
 find_untermed(inqueue, #call{id = Cid}, Queuename) ->
 	% queue to queue transfers, IVR time
-	QH = qlc:q([X || 
-		X <- mnesia:table(cdr_raw), 
-		X#cdr_raw.id =:= Cid, 
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
 		( X#cdr_raw.transaction =:= inqueue andalso X#cdr_raw.eventdata =/= Queuename) orelse
 		( X#cdr_raw.transaction =:= inivr),
 		X#cdr_raw.ended =:= undefined
@@ -654,7 +654,7 @@ find_untermed(warmxfer_fail, #call{id = Cid}, _) ->
 	]),
 	qlc:e(QH);
 find_untermed(warmxfer_complete, #call{id = Cid}, _) ->
-	QH = qlc:q([X || 
+	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id == Cid,
 		X#cdr_raw.transaction == warmxfer_begin,
@@ -721,7 +721,7 @@ find_untermed({media_custom, CustomName}, #call{id = Cid}, _Whatever) ->
 find_untermed(_, _, _) ->
 	%% some other event, prolly an info.  unknowns terminate nothing.
 	[].
-	
+
 build_tables(Nodes) ->
 	RecT = util:build_table(cdr_rec, [
 		{attributes, record_info(fields, cdr_rec)},
@@ -772,7 +772,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 		mnesia:transaction(F)
 	end,
 	spawn(Summarize).
-	
+
 %% Need to keep in mind that not all agents are to be billed the same,
 %% so there does need to be some form of pair checking.
 % pair checking is done as the transactions are built up.
@@ -842,7 +842,7 @@ merge(Nodes, Time, Replyto) ->
 	MergedSums = merge_sum(Sums),
 	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])},
 	ok.
-	
+
 %% @private
 get_raws(Nodes, Time) ->
 	get_raws(Nodes, Time, []).

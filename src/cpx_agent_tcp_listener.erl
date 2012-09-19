@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -35,7 +35,7 @@
 %%
 %% Json, after being turned into a binary by mochijson2:encode/1, is
 %% wrapped in a netstring:
-%% 
+%%
 %% <pre>	[len] ":" [json] ","</pre>
 %%
 %% "len" being the the stringification of the length of the protobuf.  So,
@@ -43,7 +43,7 @@
 %% For a long discussion, [http://cr.yp.to/proto/netstrings.txt].
 %%
 %% When a client first connects, they will get a message stating the agent
-%% is in the state `PRELOGIN'.  That is the signal to start the login 
+%% is in the state `PRELOGIN'.  That is the signal to start the login
 %% in ernest.  After that an agent should:
 %% <ol>
 %% <li>Verify it's version</li>
@@ -52,14 +52,14 @@
 %% </ol>
 %%
 %% The version verification will reply an error if the major version doesn't
-%% match.  If only the minor version part doesn't match, success is 
+%% match.  If only the minor version part doesn't match, success is
 %% returned, but error_message is populated with a message stating as much.
 %% A perfect match is, well, perfect.
-%% 
-%% The request for a salt gets a nonce to use for salting the password, as 
+%%
+%% The request for a salt gets a nonce to use for salting the password, as
 %% well as the E and N parts of a public key to rsa encrypt the password.
-%% 
-%% Using the information from the get salt step, encrypt the password.  
+%%
+%% Using the information from the get salt step, encrypt the password.
 %% Then send a login request.  If successful, the server will reply as such,
 %% and an event stating which state the agent is in should also arrive.
 %%
@@ -97,7 +97,7 @@
 		acceptors :: [pid()], % acceptor pool pids.
 		poolsize = 5 :: pos_integer(),
 		compression = none :: 'none' | 'zip' | 'gzip',
-		radix :: integer(), 
+		radix :: integer(),
  		% socket type:  tcp, upgrade to ssl, ssl
 		socket_type = tcp :: 'tcp' | 'ssl_upgrade' | 'ssl',
 		socket_module = gen_tcp :: 'gen_tcp' | 'ssl'
@@ -117,7 +117,7 @@
 -type(zip_mode_opt() :: 'zip' | 'gzip' | boolean()).
 -type(zip_opt() :: 'zip_json' | {'zip_json', zip_mode_opt()}).
 -type(poolsize_opt() :: {'poolsize', pos_integer()}).
--type(start_opt() :: port_opt() | radix_opt() | socket_type_opt() | 
+-type(start_opt() :: port_opt() | radix_opt() | socket_type_opt() |
 	zip_opt() | poolsize_opt()).
 -type(start_opts() :: [start_opt()]).
 %% @doc Start the listener linked to parent process.  The Options (and
@@ -132,7 +132,7 @@
 %% upgraded to ssl after the connection is established.  If `ssl', the
 %% initial connection must be over ssl.  In both ssl options, the password
 %% is not encrypted (other than what ssl does).</dd>
-%% <dt>zip_json :: boolean()</dt><dd>`false'  If present, `true', or `zip', 
+%% <dt>zip_json :: boolean()</dt><dd>`false'  If present, `true', or `zip',
 %% the json binary is put through `zlib:zip/1' before being wrapped in a
 %% netstring.  If `gzip', the binary is put through `zlib:gzip/1' instead.
 %% If missing or `false', the json is not compressed.  The client is
@@ -156,12 +156,12 @@ start(Options) ->
 %% best only for debugging or testing.
 %% @see start_link/1
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start() -> 
+start() ->
 	start([]).
 
 %% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) -> 
+stop(Pid) ->
 	gen_server:cast(Pid, stop).
 
 %% ====================================================================
@@ -355,7 +355,7 @@ acceptor(#state{socket_type = ssl} = State) ->
 % 		Ets = ets:new(cpx_agent_tcp_listener_ets, [public]),
 % 		{Host, Zombie, Ets}
 % 	end,
-% 	fun({Host, Zombie, Ets}) -> 
+% 	fun({Host, Zombie, Ets}) ->
 % 		{foreach, fun() ->
 % 			meck:new(?con_module),
 % 			ets:delete_all_objects(Ets)
@@ -363,7 +363,7 @@ acceptor(#state{socket_type = ssl} = State) ->
 % 		fun(_) ->
 % 			meck:unload(?con_module)
 % 		end, [
-		
+
 % 		fun(_) ->
 % 			{"tcp only", fun() ->
 % 				meck:expect(?con_module, start, fun(Sock, tcp, 10, none) ->

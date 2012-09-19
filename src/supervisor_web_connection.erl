@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -29,45 +29,45 @@
 
 %% @doc Helper module to represent an supervisor logged in, but not
 %% always as a routable agent.
-%% 
+%%
 %% {@web}
 %%
 %% This is similar to the {@link agent_web_connection} in that it exposes an
 %% api meant for web calls and not the shell.
-%% 
-%% The functions in this documentation will have {@web} in front of their 
+%%
+%% The functions in this documentation will have {@web} in front of their
 %% description.  You should not call these functions in the shell as they
-%% likely won't work.  They are exported only to aid documentation.  
+%% likely won't work.  They are exported only to aid documentation.
 %% To call a function is very similar to using the json_api
-%% in {@link cpx_web_management}.  A request is a json object with a 
-%% `"function"' property and an `"args"' property.  Note unlike the 
-%% json api there is no need to define a `"module"' property.  In the 
+%% in {@link cpx_web_management}.  A request is a json object with a
+%% `"function"' property and an `"args"' property.  Note unlike the
+%% json api there is no need to define a `"module"' property.  In the
 %% documentation of specific functions, references to a proplist should
-%% be sent as a json object.  The response is a json object with a 
-%% `"success"' property.  If the `"success"' property is set to true, 
-%% there may be a `"result"' property holding more data (defined in the 
-%% functions below).  If something went wrong, there will be a `"message"' 
-%% and `"errcode"' property.  Usually the `"message"' will have a human 
+%% be sent as a json object.  The response is a json object with a
+%% `"success"' property.  If the `"success"' property is set to true,
+%% there may be a `"result"' property holding more data (defined in the
+%% functions below).  If something went wrong, there will be a `"message"'
+%% and `"errcode"' property.  Usually the `"message"' will have a human
 %% readable message, while `"errcode"' could be used for translation.
-%% 
+%%
 %% The first argument in the web api functions MUST NOT be in the json
 %% request.  The {@link agent_web_listener} will be able to figure out
 %% which agent the request is meant for (assuming you logged in properly).
-%% So, the args list in your ajax request will be one shorter then the 
+%% So, the args list in your ajax request will be one shorter then the
 %% functions below.  If a function below has only `Conn' as it's arugment
 %% the `"args"' property can be omitted completely.
-%% 
-%% To make a web api call, make a post request to path "/supervisor" with 
-%% one field named `"request"'.  The value of the request field should be a 
+%%
+%% To make a web api call, make a post request to path "/supervisor" with
+%% one field named `"request"'.  The value of the request field should be a
 %% a json object:
 %% <pre> {
 %% 	"function":  string(),
 %% 	"args":      [any()]
 %% }</pre>
 %% See a function's documentation for what `"args"' should be.
-%% 
+%%
 %% A response will have 3 major forms.
-%% 
+%%
 %% A very simple success:
 %% <pre> {
 %% 	"success":  true
@@ -188,7 +188,7 @@
 %% WEB API
 %%====================================================================
 
-%% @doc {@web} Get the overall status cached in cpx_monitor; ie, a 
+%% @doc {@web} Get the overall status cached in cpx_monitor; ie, a
 %% snapshot of The system as it currently is.  Subscribes the connection to
 %% The cpx feed as well.
 -spec(status/1 :: (Conn :: pid()) -> any()).
@@ -266,7 +266,7 @@ drop_media(Conn, Queue, MediaId) ->
 	gen_server:call(Conn, {supervisor, {drop_media, Queue, MediaId}}).
 
 %% @doc {@web} Change the agent's release state.  Note when setting
-%% an agent released from oncall or wrapup, the do not go released 
+%% an agent released from oncall or wrapup, the do not go released
 %% immediately.  They are flagged to go released instead of idle once the
 %% call is completed.
 -spec(agent_release/3 :: (Conn :: pid(), Agent :: string(), Released :: 'none' | 'default' | release_code()) -> any()).
@@ -294,10 +294,10 @@ set_profile(Conn, Agent, NewProf, Permanent) ->
 -type(endpointdata_opt() :: {endpointdata, any()}).
 -type(ring_path_opt() :: {ring_path, 'inband' | 'outband'}).
 -type(suppress_poll_opt() :: 'suppress_poll').
--type(start_opt() :: 
-	login_opt() | 
-	endpoint_opt() | 
-	endpointdata_opt() | 
+-type(start_opt() ::
+	login_opt() |
+	endpoint_opt() |
+	endpointdata_opt() |
 	ring_path_opt() |
 	suppress_poll_opt()
 ).
@@ -361,8 +361,8 @@ is_web_api(Function, Arity) ->
 poll(Pid, Frompid) ->
 	gen_server:cast(Pid, {poll, Frompid}).
 
-%% @doc Extract the poll queue from a state record and 0 it out.  Used 
-%% when the supervisor is logged in as an agent rather than independent of 
+%% @doc Extract the poll queue from a state record and 0 it out.  Used
+%% when the supervisor is logged in as an agent rather than independent of
 %% routing.  The list is returned in the order the events were recieved.
 -spec(nuke_poll_queue/1 :: (State :: #state{}) -> {[any()], #state{}}).
 nuke_poll_queue(State) ->
@@ -512,7 +512,7 @@ handle_call({supervisor, {spy, Agent}}, _From, State) ->
 %					case gen_media:spy(CallRec#call.source, SpyPid, FakeAgent) of
 %						ok ->
 %							{struct, [{success, true}]};
-%						invalid -> 
+%						invalid ->
 %							{struct, [{success, false}, {<<"message">>, <<"invalid action">>}, {<<"errcode">>, <<"MEDIA_ACTION_UNSUPPORTED">>}]};
 %						{error, Err} ->
 %							{struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Error:  ~p", [Err]))}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]}
@@ -675,7 +675,7 @@ handle_call({supervisor, status}, _From, State) ->
 		]}}
 	]}),
 	{reply, {200, [], Json}, State};
-		
+
 
 
 %			case file:read_file_info("sup_test_data.js") of
@@ -718,7 +718,7 @@ handle_cast(keep_alive, #state{poll_pid = undefined} = State) ->
 handle_cast({poll, Frompid}, State) ->
 	%?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
 	case State#state.poll_pid of
-		undefined -> 
+		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
 			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}, {<<"errcode">>, <<"POLL_PID_REPLACED">>}]})}
@@ -792,7 +792,6 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Poll
 
 
 
-
 handle_info({cpx_monitor_event, {info, _, _}}, State) ->
 	% TODO fix the subscribe, or start using this.
 	{noreply, State};
@@ -800,11 +799,11 @@ handle_info({cpx_monitor_event, Message}, State) ->
 	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
 		{drop, _Timestamp, {Type, Name}} ->
-			Fixedname = if 
+			Fixedname = if
 				is_atom(Name) ->
-					 atom_to_binary(Name, latin1); 
-				 true -> 
-					 list_to_binary(Name) 
+					 atom_to_binary(Name, latin1);
+				 true ->
+					 list_to_binary(Name)
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisorDrop">>},
@@ -816,11 +815,11 @@ handle_info({cpx_monitor_event, Message}, State) ->
 			]};
 		{set, _Timestamp, {{Type, Name}, Detailprop, _Node}} ->
 			Encodeddetail = encode_proplist(Detailprop),
-			Fixedname = if 
+			Fixedname = if
 				is_atom(Name) ->
-					 atom_to_binary(Name, latin1); 
-				 true -> 
-					 list_to_binary(Name) 
+					 atom_to_binary(Name, latin1);
+				 true ->
+					 list_to_binary(Name)
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisorSet">>},
@@ -901,7 +900,7 @@ extract_groups([_Head | Tail], Acc) ->
 	extract_groups(Tail, Acc).
 
 
-		
+
 encode_stats(Stats) ->
 	encode_stats(Stats, 1, []).
 
@@ -992,7 +991,7 @@ encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
 encode_proplist(Proplist) ->
 	Struct = encode_proplist(Proplist, []),
 	{struct, Struct}.
-	
+
 encode_proplist([], Acc) ->
 	lists:reverse(Acc);
 encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
@@ -1174,8 +1173,8 @@ encode_proplist_test() ->
 %				]}}
 %			]}),
 %			{reply, {200, [], Json}, State};
-%		
-%		
+%
+%
 %%			case file:read_file_info("sup_test_data.js") of
 %%				{error, Error} ->
 %%					?WARNING("Couldn't get test data due to ~p", [Error]),

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -122,7 +122,7 @@ load_queue(Name) ->
 		_Else ->
 			noexists
 	end.
-	
+
 %% @doc Get the `pid()' of the passed queue name.  If there is no queue, returns 'undefined'.
 %% If the queue is not running, it is looked up in the config database and started
 %% if found there.  If that also fails, undefined is returned.
@@ -152,7 +152,7 @@ get_queue(Name) ->
 			end;
 		Pid ->
 			Pid
-	end.			
+	end.
 
 %% @doc `true' or `false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: string()) -> boolean()).
@@ -199,7 +199,7 @@ print() ->
 
 %% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
 -spec(get_leader/0 :: () -> {'ok', pid()}).
-get_leader() -> 
+get_leader() ->
 	gen_leader:leader_call(?MODULE, get_pid).
 
 % gen_leader stuff
@@ -214,7 +214,7 @@ init([]) ->
 	Queues = call_queue_config:get_queues(),
 	F = fun(Queuerec, Acc) ->
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, [
-			{recipe, Queuerec#call_queue.recipe}, 
+			{recipe, Queuerec#call_queue.recipe},
 			{weight, Queuerec#call_queue.weight},
 			{skills, Queuerec#call_queue.skills},
 			{group, Queuerec#call_queue.group}

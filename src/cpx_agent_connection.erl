@@ -155,6 +155,7 @@
 -include("agent.hrl").
 -include("call.hrl").
 -include("queue.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -216,6 +217,13 @@
 	get_release_opts/1
 ]).
 
+-export([
+	release_agent/3,
+	get_acd_status/1,
+	kick_agent/2,
+	set_agent_profile/3
+]).
+
 %% An easier way to do a lookup for api functions.
 -agent_api_functions([
 	{agent_transfer, 3},
@@ -240,7 +248,13 @@
 
 	{get_queue_list, 1},
 	{get_brand_list, 1},
-	{get_release_opts, 1}
+	{get_release_opts, 1},
+
+	%% SUPERVISOR!!!
+	{release_agent, 3},
+	{get_acd_status, 1},
+	{kick_agent, 2},
+	{set_agent_profile, 3}
 ]).
 
 %% =======================================================================
@@ -290,9 +304,16 @@ get_agent(State) ->
 %% called.  It will either return an error, or json to pump out to the
 %% client.
 -spec(encode_cast/2 :: (State :: #state{}, Cast :: any()) ->
-	{'error', any(), #state{}} | {'ok', json(), #state{}}).
+	{'error', any(), #state{}} | {'ok', json(), #state{}} | {error, unhandled}).
 encode_cast(State, Cast) ->
-	handle_cast(Cast, State).
+	case Cast of
+		{agent, M} ->
+			handle_cast(M, State);
+		{cpx_monitor_event, M} ->
+			handle_monitor_event(M, State);
+		_ ->
+			{error, unhandled}
+	end.
 
 %% @doc After unwrapping the binary that will hold json, and connection
 %% should call this.
@@ -316,7 +337,6 @@ handle_json(State, {struct, Json}) ->
 			{ok, FuncAtom}
 	catch
 		error:badarg ->
-			?INFO("Binary does not exists as atom", []),
 			{error, bad_function}
 	end,
 	Args = case proplists:get_value(<<"args">>, Json, []) of
@@ -325,9 +345,9 @@ handle_json(State, {struct, Json}) ->
 	end,
 	case {ModRes, FuncRes} of
 		{{error, bad_module}, _} ->
-			{error, bad_module, State};
+			{ok, ?reply_err(ReqId, <<"no such module">>, <<"MODULE_NOEXISTS">>), State};
 		{_, {error, bad_function}} ->
-			{error, bad_function, State};
+			{ok, ?reply_err(ReqId, <<"no such function">>, <<"FUNCTION_NOEXISTS">>), State};
 		{{ok, Mod}, {ok, Func}} ->
 			Attrs = Mod:module_info(attributes),
 			AgentApiFuncs = proplists:get_value(agent_api_functions, Attrs, []),
@@ -855,6 +875,88 @@ get_release_opts(_State) ->
 	{ok, Encoded}.
 
 %% =======================================================================
+%% Supervisor APIs
+%% =======================================================================
+
+-spec kick_agent/2 :: (#state{}, Agent :: binary()) -> ok | {error, binary(), binary()}.
+kick_agent(_State, Agent) ->
+	case agent_manager:query_agent(binary_to_list(Agent)) of
+		{true, Apid} ->
+			agent:stop(Apid),
+			ok;
+		false ->
+			{error, <<"AGENT_NOEXISTS">>, <<"no such agent">>}
+	end.
+
+-spec set_agent_profile/3 :: (#state{}, Agent :: binary(), Profile :: binary())
+	-> ok | {error, binary(), binary()}.
+set_agent_profile(_State, Agent, Profile) ->
+	Login = binary_to_list(Agent),
+	Newprof = binary_to_list(Profile),
+	case agent_manager:query_agent(Login) of
+		{true, Apid} ->
+			case agent:change_profile(Apid, Newprof) of
+				ok ->
+					ok;
+				{error, unknown_profile} ->
+					{error, <<"PROFILE_NOEXISTS">>, <<"unknown profile">>}
+			end;
+		false ->
+			{error, <<"AGENT_NOEXISTS">>, <<"unknown agent">>}
+	end.
+
+-spec release_agent/3 :: (#state{}, Agent :: binary(), Release :: binary())
+	-> {ok, json()}.
+release_agent(_State, Agent, Release) ->
+	case agent_manager:query_agent(binary_to_list(Agent)) of
+		{true, Apid} ->
+			RelOptKey = case Release of
+				<<"default">> ->
+					default;
+				<<"none">> ->
+					none;
+				_ ->
+					Release
+			end,
+			case agent:set_release(Apid, RelOptKey) of
+				invalid ->
+					{error, <<"INVALID_STATE_CHANGE">>, <<"invalid state change">>};
+				ok ->
+					ok;
+				queued ->
+					ok
+			end;
+		_Else ->
+			{error, <<"AGENT_NOEXISTS">>, <<"Agent not found">>}
+	end.
+
+get_acd_status(_State) ->
+	% nodes, agents, queues, media, and system.
+	cpx_monitor:subscribe(),
+	Nodestats = qlc:e(qlc:q([X || {{node, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	Agentstats = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	Queuestats = qlc:e(qlc:q([X || {{queue, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	Systemstats = qlc:e(qlc:q([X || {{system, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	Mediastats = qlc:e(qlc:q([X || {{media, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+	Groupstats = extract_groups(lists:append(Queuestats, Agentstats)),
+	Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
+	{Count, Encodedstats} = encode_stats(Stats),
+	{_Count2, Encodedgroups} = encode_groups(Groupstats, Count),
+	Encoded = lists:append(Encodedstats, Encodedgroups),
+	Systemjson = {struct, [
+		{<<"id">>, <<"system-System">>},
+		{<<"type">>, <<"system">>},
+		{<<"display">>, <<"System">>},
+		{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}}
+	]},
+	Result = {struct, [
+		{<<"identifier">>, <<"id">>},
+		{<<"label">>, <<"display">>},
+		{<<"items">>, [Systemjson | Encoded]}
+	]},
+	{ok, Result}.
+
+%% =======================================================================
 %% Internal Functions
 %% =======================================================================
 
@@ -1028,17 +1130,47 @@ handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
 handle_cast(_, State) ->
 	{ok, undefined, State}.
 
-spawn_get_tabs_menu(Conn, Apid) ->
-	Agent = agent:dump_state(Apid),
-	Admin = {<<"Dashboard">>, <<"tabs/dashboard.html">>},
-	Endpoints = {<<"Endpoints">>, <<"tabs/endpoints.html">>},
-	{ok, HookRes} = cpx_hooks:trigger_hooks(agent_web_tabs, [Agent], all),
-	Filtered = [Endpoints | [X || {B1, B2} = X <- HookRes, is_binary(B1), is_binary(B2)]],
-	TabsList = case Agent#agent.security_level of
-		agent -> Filtered;
-		Level when Level =:= admin; Level =:= supervisor ->
-			[Admin | Filtered]
+handle_monitor_event({info, _, _}, State) ->
+	% TODO fix the subscribe, or start using this.
+	{ok, undefined, State};
+handle_monitor_event(Message, State) ->
+	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
+	Json = case Message of
+		{drop, _Timestamp, {Type, Name}} ->
+			Fixedname = if
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1);
+				 true ->
+					 list_to_binary(Name)
+			end,
+			{struct, [
+				{<<"command">>, <<"supervisorDrop">>},
+				{<<"data">>, {struct, [
+					{<<"type">>, Type},
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
+					{<<"name">>, Fixedname}
+				]}}
+			]};
+		{set, _Timestamp, {{Type, Name}, Detailprop, _Node}} ->
+			Encodeddetail = encode_proplist(Detailprop),
+			Fixedname = if
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1);
+				 true ->
+					 list_to_binary(Name)
+			end,
+			{struct, [
+				{<<"command">>, <<"supervisorSet">>},
+				{<<"data">>, {struct, [
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
+					{<<"type">>, Type},
+					{<<"name">>, Fixedname},
+					{<<"display">>, Fixedname},
+					{<<"details">>, Encodeddetail}
+				]}}
+			]}
 	end,
+	{ok, Json, State}.
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 ::
@@ -1096,3 +1228,177 @@ encode_statedata(List) when is_list(List) ->
 	list_to_binary(List);
 encode_statedata({}) ->
 	false.
+
+
+extract_groups(Stats) ->
+	extract_groups(Stats, []).
+
+extract_groups([], Acc) ->
+	Acc;
+extract_groups([{{queue, _Id}, Details, _Node, _Time, _Watched, _Monref} = _Head | Tail], Acc) ->
+	Display = proplists:get_value(group, Details),
+	case lists:member({"queuegroup", Display}, Acc) of
+		true ->
+			extract_groups(Tail, Acc);
+		false ->
+			Top = {"queuegroup", Display},
+			extract_groups(Tail, [Top | Acc])
+	end;
+extract_groups([{{agent, _Id}, Details, _Node, _Time, _Watched, _Monref} = _Head | Tail], Acc) ->
+	Display = proplists:get_value(profile, Details),
+	case lists:member({"agentprofile", Display}, Acc) of
+		true ->
+			extract_groups(Tail, Acc);
+		false ->
+			Top = {"agentprofile", Display},
+			extract_groups(Tail, [Top | Acc])
+	end;
+extract_groups([_Head | Tail], Acc) ->
+	extract_groups(Tail, Acc).
+
+
+
+encode_stats(Stats) ->
+	encode_stats(Stats, 1, []).
+
+encode_stats([], Count, Acc) ->
+	{Count - 1, Acc};
+encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = _Head | Tail], Count, Acc) ->
+	Display = case {ProtoName, Type} of
+		{_Name, agent} ->
+			Login = proplists:get_value(login, Protodetails),
+			[{<<"display">>, list_to_binary(Login)}];
+		{Name, _} when is_binary(Name) ->
+			[{<<"display">>, Name}];
+		{Name, _} when is_list(Name) ->
+			[{<<"display">>, list_to_binary(Name)}];
+		{Name, _} when is_atom(Name) ->
+			[{<<"display">>, Name}]
+	end,
+	Id = case is_atom(ProtoName) of
+		true ->
+			list_to_binary(lists:flatten([atom_to_list(Type), "-", atom_to_list(ProtoName)]));
+		false ->
+			% Here's hoping it's a string or binary.
+			list_to_binary(lists:flatten([atom_to_list(Type), "-", ProtoName]))
+	end,
+	Parent = case Type of
+		system ->
+			[];
+		node ->
+			[];
+		agent ->
+			[{<<"profile">>, list_to_binary(proplists:get_value(profile, Protodetails))}];
+		queue ->
+			[{<<"group">>, list_to_binary(proplists:get_value(group, Protodetails))}];
+		media ->
+			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
+				{undefined, undefined} ->
+					?DEBUG("Ignoring ~p as it's likely in ivr (no agent/queu)", [ProtoName]),
+					[];
+				{undefined, Queue} ->
+					[{queue, list_to_binary(Queue)}];
+				{Agent, undefined} ->
+					[{agent, list_to_binary(Agent)}]
+			end
+	end,
+	Scrubbeddetails = Protodetails,
+	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
+	Encoded = lists:append([[{<<"id">>, Id}], Display, [{<<"type">>, Type}], [{node, Node}], Parent, Details]),
+	Newacc = [{struct, Encoded} | Acc],
+	encode_stats(Tail, Count + 1, Newacc).
+
+-spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
+encode_groups(Stats, Count) ->
+	%?DEBUG("Stats to encode:  ~p", [Stats]),
+	encode_groups(Stats, Count + 1, [], [], []).
+
+-spec(encode_groups/5 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()], Gotqgroup :: [string()], Gotaprof :: [string()]) -> {non_neg_integer(), [tuple()]}).
+encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
+	Qgroups = [{Qgroup, "queuegroup"} || #queue_group{name = Qgroup} <- call_queue_config:get_queue_groups(), lists:member(Qgroup, Gotqgroup) =:= false],
+	Aprofs = [{Aprof, "agentprofile"} || #agent_profile{name = Aprof} <- agent_auth:get_profiles(), lists:member(Aprof, Gotaprof) =:= false],
+	List = Qgroups ++ Aprofs,
+
+	Encode = fun({Name, Type}) ->
+		{struct, [
+			{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
+			{<<"type">>, list_to_binary(Type)},
+			{<<"display">>, list_to_binary(Name)}
+		]}
+	end,
+
+	Encoded = lists:map(Encode, List),
+	Newacc = lists:append([Acc, Encoded]),
+	{Count + length(Newacc), Newacc};
+encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
+	Out = {struct, [
+		{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
+		{<<"type">>, list_to_binary(Type)},
+		{<<"display">>, list_to_binary(Name)}
+	]},
+	{Ngotqgroup, Ngotaprof} = case Type of
+		"queuegroup" ->
+			{[Name | Gotqgroup], Gotaprof};
+		"agentprofile" ->
+			{Gotqgroup, [Name | Gotaprof]}
+	end,
+	encode_groups(Tail, Count + 1, [Out | Acc], Ngotqgroup, Ngotaprof).
+
+
+encode_proplist(Proplist) ->
+	Struct = encode_proplist(Proplist, []),
+	{struct, Struct}.
+
+encode_proplist([], Acc) ->
+	lists:reverse(Acc);
+encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
+	Newacc = [{Entry, true} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{skills, _Skills} | Tail], Acc) ->
+	encode_proplist(Tail, Acc);
+encode_proplist([{Key, {timestamp, Num}} | Tail], Acc) when is_integer(Num) ->
+	Newacc = [{Key, {struct, [{timestamp, Num}]}} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
+	Newval = list_to_binary(Value),
+	Newacc = [{Key, Newval} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} = Head | Tail], Acc) when is_atom(Value), is_atom(Key) ->
+	encode_proplist(Tail, [Head | Acc]);
+encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Value); is_integer(Value) ->
+	Newacc = [{Key, Value} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} | Tail], Acc) when is_record(Value, client) ->
+	Label = case Value#client.label of
+		undefined ->
+			undefined;
+		_ ->
+			list_to_binary(Value#client.label)
+	end,
+	encode_proplist(Tail, [{Key, Label} | Acc]);
+encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
+	CidNameBin = list_to_binary(CidName),
+	CidDAtaBin = list_to_binary(CidDAta),
+	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Media} | Tail], Acc) when is_record(Media, call) ->
+	Simple = [{callerid, Media#call.callerid},
+	{type, Media#call.type},
+	{client, Media#call.client},
+	{direction, Media#call.direction},
+	{id, Media#call.id}],
+	Json = encode_proplist(Simple),
+	encode_proplist(Tail, [{Key, Json} | Acc]);
+encode_proplist([{Key, {onhold, Media, calling, Number}} | Tail], Acc) when is_record(Media, call) ->
+	Simple = [
+		{callerid, Media#call.callerid},
+		{type, Media#call.type},
+		{client, Media#call.client},
+		{direction, Media#call.direction},
+		{id, Media#call.id},
+		{calling, list_to_binary(Number)}
+	],
+	Json = encode_proplist(Simple),
+	encode_proplist(Tail, [{Key, Json} | Acc]);
+encode_proplist([_Head | Tail], Acc) ->
+	encode_proplist(Tail, Acc).

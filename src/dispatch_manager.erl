@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -47,8 +47,8 @@
 %% API
 -export([
 	start_link/0,
-	start/0, 
-	stop/0, 
+	start/0,
+	stop/0,
 	count_dispatchers/0,
 	deep_inspect/0,
 	now_avail/2,
@@ -64,7 +64,7 @@
 	agents = dict:new() :: dict(),
 	channel_count = 0 :: non_neg_integer()
 	}).
-	
+
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
@@ -85,7 +85,7 @@ start() ->
 
 %% @doc Stop the dispatch manager with reason `normal'.
 -spec(stop/0 :: () -> any()).
-stop() -> 
+stop() ->
 	gen_server:call(?MODULE, stop).
 
 -spec(count_dispatchers/0 :: () -> non_neg_integer()).
@@ -103,7 +103,7 @@ now_avail(AgentPid, Channels) ->
 -spec(end_avail/1 :: (AgentPid :: pid()) -> 'ok').
 end_avail(AgentPid) ->
 	gen_server:cast(?MODULE, {end_avail, AgentPid}).
-	
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -116,7 +116,7 @@ init([]) ->
 			{ok, #state{}};
 		_Else ->
 			Agents = agent_manager:list(),
-			spawn(fun() -> 
+			spawn(fun() ->
 				timer:sleep(10),
 				?DEBUG("Spawn waking up with agents ~p", [Agents]),
 				[case A#agent_cache.channels of
@@ -136,7 +136,7 @@ init([]) ->
 %% @private
 handle_call(count_dispatchers, _From, State) ->
 	{reply, length(State#state.dispatchers), State};
-handle_call(stop, _From, State) -> 
+handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(dump, _From, State) ->
 	{reply, State, State};
@@ -147,7 +147,7 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({now_avail, AgentPid, Channels}, #state{channel_count = Chans} = State) -> 
+handle_cast({now_avail, AgentPid, Channels}, #state{channel_count = Chans} = State) ->
 	?DEBUG("Someone's (~p) available now.", [AgentPid]),
 	case dict:find(AgentPid, State#state.agents) of
 		{ok, {_Ref, Channels}} ->
@@ -157,14 +157,14 @@ handle_cast({now_avail, AgentPid, Channels}, #state{channel_count = Chans} = Sta
 			NewCount = Chans + Diff,
 			NewDict = dict:store(AgentPid, {Ref, Channels}, State#state.agents),
 			{noreply, balance(State#state{agents = NewDict, channel_count = NewCount})};
-		error -> 
+		error ->
 			Ref = erlang:monitor(process, AgentPid),
 			NewDict = dict:store(AgentPid, {Ref, Channels}, State#state.agents),
 			NewCount = State#state.channel_count + length(Channels),
 			State2 = State#state{agents = NewDict, channel_count = NewCount},
 			{noreply, balance(State2)}
 	end;
-handle_cast({end_avail, AgentPid}, State) -> 
+handle_cast({end_avail, AgentPid}, State) ->
 	?DEBUG("An agent (~p) is no longer available.", [AgentPid]),
 	{NewDict, NewCount} = case dict:find(AgentPid, State#state.agents) of
 		error ->
@@ -197,7 +197,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
+handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) ->
 	?DEBUG("Announcement that an agent (~p) is down, balancing in response.", [Object]),
 	case dict:find(Object, State#state.agents) of
 		error ->
@@ -240,7 +240,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-	
+
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(#state{dispatchers = Dispatchers, channel_count = NumAgents} = State) ->
@@ -259,7 +259,7 @@ balance(#state{dispatchers = Dispatchers, channel_count = NumAgents} = State) ->
 			State
 	end.
 
-%balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
+%balance(State) when length(State#state.agents) < length(State#state.dispatchers) ->
 %	%?DEBUG("Killing a dispatcher",[]),
 %	%[Pid | Dispatchers] = State#state.dispatchers,
 %	%?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
@@ -281,7 +281,7 @@ balance(#state{dispatchers = Dispatchers, channel_count = NumAgents} = State) ->
 %		_ ->
 %			State
 %	end;
-%balance(State) -> 
+%balance(State) ->
 %	?DEBUG("It is fully balanced!",[]),
 %	State.
 
@@ -429,11 +429,11 @@ external_api_test_() ->
 	{foreach, fun() ->
 			FakeDispatcher = util:zombie(),
 			FakeAgent = util:zombie(),
-			
+
 			meck:new(dispatcher),
 			meck:expect(dispatcher, start_link, fun() -> {ok, FakeDispatcher} end),
 			meck:expect(dispatcher, get_queue_info, fun(_) -> {ok, #queue_info{}} end),
-			
+
 			dispatch_manager:start(),
 			dispatch_manager:now_avail(FakeAgent, [skill]),
 

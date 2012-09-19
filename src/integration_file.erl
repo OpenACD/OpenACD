@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -102,8 +102,8 @@ start() ->
 	start([]).
 
 -type(truncate_opt() :: 'truncate').
--type(import_opts() :: 
-	file_opt() | 
+-type(import_opts() ::
+	file_opt() |
 	truncate_opt()
 ).
 %% @doc Import the information in the file into mnesia.  If `truncate' is

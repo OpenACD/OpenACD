@@ -10,7 +10,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -21,7 +21,7 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 
-%% @doc Generates an eventlog in a format approaching a legacy format used 
+%% @doc Generates an eventlog in a format approaching a legacy format used
 %% by KGB. Most of the records here are based on documentation provided by
 %% kgb.
 
@@ -91,7 +91,7 @@ start_link(Props) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Props, []).
 
 % =====
-% init 
+% init
 % =====
 init(Props) ->
 	Filename = proplists:get_value(filename, Props, "events.log"),
@@ -165,7 +165,7 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 		undefined ->
 			{noreply, State#state{file = NewFile, calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
-			log_event(NewFile, "call_enqueue", Timestamp, 
+			log_event(NewFile, "call_enqueue", Timestamp,
 					proplists:get_value(node, Details), [
 					Queue,
 					element(2, proplists:get_value(callerid, Details)),
@@ -177,7 +177,7 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 			{noreply, State#state{file = NewFile, callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls)}}
 	end;
 handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = File} = State) ->
-	% setting up a delay as there may be messages about agents that need the 
+	% setting up a delay as there may be messages about agents that need the
 	% info.
 	NewFile = check_file(File),
 	case dict:find(Key, State#state.callagentmap) of
@@ -190,7 +190,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = 
 			case dict:find(Key, State#state.calls) of
 				{ok, New} ->
 					?INFO("~p abandoned", [Key]),
-					log_event(NewFile, "call_terminate", Timestamp, 
+					log_event(NewFile, "call_terminate", Timestamp,
 							proplists:get_value(node, New), [
 							Queue,
 							"", %proplists:get_value(login, New),
@@ -281,7 +281,7 @@ agent_diff(_Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							{ok, Value} -> Value
 						end,
 
-						log_event(File, "call_terminate", Timestamp, 
+						log_event(File, "call_terminate", Timestamp,
 								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
@@ -298,7 +298,7 @@ agent_diff(_Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							error -> "Unknown Queue";
 							{ok, Value} -> Value
 						end,
-						log_event(File, "call_complete", Timestamp, 
+						log_event(File, "call_complete", Timestamp,
 								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
@@ -314,7 +314,7 @@ agent_diff(_Agent, New, Old, Timestamp, #state{file = File} = State) ->
 								[log_event(State#state.file, "agent_available", Timestamp, proplists:get_value(node, New), [proplists:get_value(login, New), AQueue]) || {'_queue', AQueue} <- proplists:get_value(skills, New)];
 							_ ->
 								ok
-						end;	
+						end;
 					{_, oncall} ->
 						Call = proplists:get_value(statedata, New),
 						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
@@ -322,7 +322,7 @@ agent_diff(_Agent, New, Old, Timestamp, #state{file = File} = State) ->
 							{ok, Value} -> Value
 						end,
 
-						log_event(File, "call_pickup", Timestamp, 
+						log_event(File, "call_pickup", Timestamp,
 								proplists:get_value(node, New), [
 								Queue,
 								proplists:get_value(login, New),
@@ -392,14 +392,14 @@ iso8601_timestamp(Now) ->
 init_call_queue_map() ->
 	Queuelist = queue_manager:queues(),
 	map_call_to_queue(Queuelist, dict:new()).
-	
+
 map_call_to_queue([], Dict) ->
 	Dict;
 map_call_to_queue([{Name, Pid} | Tail], Dict) ->
 	Calls = call_queue:get_calls(Pid),
 	Newdict = map_call_to_queue(Calls, Name, Dict),
 	map_call_to_queue(Tail, Newdict).
-	
+
 map_call_to_queue([], _Name, Dict) ->
 	Dict;
 map_call_to_queue([{_Key, #queued_call{id = Id} = _Media} | Tail], Name, Dict) ->
@@ -420,7 +420,7 @@ file_handling_test_() ->
 		file:delete(?test_filea),
 		Ets = ets:new(cpx_monitor, [named_table]),
 		{ok, Qm} = gen_leader_mock:start(queue_manager),
-		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) ->
 			{ok, [], State}
 		end),
 		{ok, EventLog} = start([{filename, ?test_filea}]),
@@ -490,7 +490,7 @@ send_media_set(Pid, InProps) ->
 % 		file:delete(?test_fileb),
 % 		Ets = ets:new(cpx_monitor, [named_table]),
 % 		{ok, Qm} = gen_leader_mock:start(queue_manager),
-% 		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+% 		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) ->
 % 			{ok, [], State}
 % 		end),
 % 		{ok, EventLog} = start([{filename, ?test_fileb}]),
@@ -517,11 +517,11 @@ send_media_set(Pid, InProps) ->
 % 		timer:sleep(100),
 % 		{ok, Bin} = file:read_file(?test_fileb),
 % 		?DEBUG("Got bin:  ~p", [Bin]),
-% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
-% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
+% 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary,
 % 		" : agentName", _:1/binary, _/binary>>, Bin),
-% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ", 
-% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary, 
+% 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
+% 		_:27/binary, " : agent_start : ", Node:NodeSize/binary,
 % 		" : agentName", _:1/binary, Rest/binary>> = Bin,
 % 		?DEBUG("Rest:  ~p", [Rest]),
 % 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
@@ -588,13 +588,13 @@ send_media_set(Pid, InProps) ->
 % 		?DEBUG("Got bin:  ~p", [Bin]),
 % 		?assertMatch(<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
 % 		_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
-% 		" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
+% 		" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080",
 % 		_:1/binary, _/binary>>, Bin),
 % 		<<_:17/binary, " : ", Lhost:LhSize/binary, " : ",
 % 			_:27/binary, " : call_enqueue : ", Node:NodeSize/binary,
-% 			" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080", 
+% 			" : Queue : from_header : media : Origin Code : CLS : Source IP : 9080",
 % 			_:1/binary, Rest/binary>> = Bin,
 % 		?assertEqual(<<>>, Rest)
 % 	end} end]}}.
-		
+
 -endif.

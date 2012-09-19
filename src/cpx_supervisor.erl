@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -29,17 +29,17 @@
 
 %% @doc The top-most supervisor of the cpx system.  This is responsible for starting and monitoring the primary supervisors
 %% as well as any additional modules that are configured.
-%% There 4 branches off of cpx_supervisor:  routing_sup, 
+%% There 4 branches off of cpx_supervisor:  routing_sup,
 %% mediamanager_sup, agent_sup, and management_sup.  They are started in
 %% that order.
-%% 
+%%
 %% routing_sup starts the following process in the listed order (they
 %% cannot be configured aside from applicatoin options):
-%% cpxlog, cpx_monitor, cpx_hooks, dispatch_manager, queue_manager, 
-%% cpx_agent_event, and cdr.  Any additions to this branch MUST NOT be 
-%% dependant on other branches running and MUST be hard-coded in a 
+%% cpxlog, cpx_monitor, cpx_hooks, dispatch_manager, queue_manager,
+%% cpx_agent_event, and cdr.  Any additions to this branch MUST NOT be
+%% dependant on other branches running and MUST be hard-coded in a
 %% specific order.
-%% 
+%%
 %% mediamanager_sup loads it's children from the cpx_conf table in mnesia.
 %% Start order is undefined.  Any of those children MAY be dependant on
 %% children in routing sup, and MUST NOT be dependant on children from
@@ -53,14 +53,14 @@
 %% dependant on children in routing_sup, MUST NOT de dependant on
 %% specific children from mediamanager_sup (ie, it should handle the
 %% possibility those process are no longer configured to run).
-%% 
-%% Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include 
+%%
+%% Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include
 %% those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table
 %% the supervisor does not start, thus halting all of cpx from starting.
 %%
 %% If the system starts without a cpx_conf table, it will build one, placing some default information there.
 %% #cpx_conf{agent_tcp_listener} is the only one.
-%% 
+%%
 %% The 2 most important function are {@link destroy/1}, {@link update_conf/4}.
 
 -module(cpx_supervisor).
@@ -86,7 +86,7 @@
 	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup},
 	#cpx_conf{id = gen_cdr_dumper, module_name = gen_cdr_dumper, start_function = start_link, start_args = [], supervisor = management_sup}
 ]).
-	
+
 %% API
 -export([start_link/1, start/1]).
 %% Conf handling
@@ -137,19 +137,19 @@
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
-	
+
 	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
 	Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Mediamanagerspec = {mediamanager_sup, {cpx_middle_supervisor, start_named, [3, 5, mediamanager_sup]}, permanent, 2000, supervisor, [?MODULE]},
 	Specs = [Routingspec, Agentspec, Managementspec, Mediamanagerspec],
 	?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
-	
+
 	%load_specs(),
 	%supervisor:start_child(management_sup, Cpxmonitorspec),
 
 	{ok, _} = supervisor:start_child(Pid, Routingspec),
-	
+
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
@@ -157,7 +157,7 @@ start_link(Nodes) ->
 	AgentStateSpec = {cpx_agent_event, {cpx_agent_event, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Hooksspec = {cpx_hooks, {cpx_hooks, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
-	
+
 	{ok, _} = supervisor:start_child(routing_sup, Cpxlogspec),
 	{ok, _} = supervisor:start_child(routing_sup, Cpxmonitorspec),
 	{ok, _} = supervisor:start_child(routing_sup, Hooksspec),
@@ -165,23 +165,23 @@ start_link(Nodes) ->
 	{ok, _} = supervisor:start_child(routing_sup, QueueManagerSpec),
 	{ok, _} = supervisor:start_child(routing_sup, AgentStateSpec),
 	{ok, _} = supervisor:start_child(routing_sup, Cdrspec),
-	
+
 	{ok, _} = supervisor:start_child(Pid, Mediamanagerspec),
-		
+
 	{ok, _} = supervisor:start_child(Pid, Agentspec),
-	
+
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
 	{ok, _} = supervisor:start_child(agent_sup, AgentManagerSpec),
 	{ok, _} = supervisor:start_child(agent_sup, Agentconnspec),
-	
+
 	{ok, _} = supervisor:start_child(Pid, Managementspec),
-	
+
 	{ok, Pid}.
-	
+
 %% @doc Start the cpx_supervisor unlinked.
 -spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
-start(Nodes) -> 
+start(Nodes) ->
 	{ok, Pid} = start_link(Nodes),
 	unlink(Pid),
 	{ok, Pid}.
@@ -270,7 +270,7 @@ drop_value(Key) ->
 			application:unset_env('OpenACD', Key)
 	end,
 	mnesia:transaction(F).
-	
+
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
@@ -288,7 +288,7 @@ init([]) ->
 
 -spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', {'ok', pid()}} | {'aborted', any()}).
 add_conf(Rec) ->
-	F = fun() -> 
+	F = fun() ->
 		mnesia:write(Rec),
 		start_spec(Rec)
 	end,
@@ -296,13 +296,13 @@ add_conf(Rec) ->
 
 %% @doc Attempts to build a valid childspec suitable for a supervisor module from the `#cpx_conf{}'.
 -spec(build_spec/1 :: (Spec :: #cpx_conf{}) -> child_spec() | {'error', any()}).
-build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args, id = Id}) -> 
+build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args, id = Id}) ->
 	Spec = {Id, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
 	?DEBUG("Building spec:  ~p", [Spec]),
 	case supervisor:check_childspecs([Spec]) of
-		ok -> 
+		ok ->
 			Spec;
-		Else -> 
+		Else ->
 			?ERROR("Spec failed check:  ~p", [Spec]),
 			Else
 	end.
@@ -317,16 +317,16 @@ build_tables() ->
 		{local_content, true}
 	]),
 	case A of
-		Result when Result =:= {atomic, ok}; Result =:= copied -> 
+		Result when Result =:= {atomic, ok}; Result =:= copied ->
 			io:format("cpx_supervisor:build tables result:  ~p~n", [Result]),
 			% create some default info so the system is at least a bit usable.
 			F = fun() ->
 				lists:foreach(fun(Rec) -> mnesia:write(Rec) end, ?DEFAULT_CONF)
 			end,
 			case mnesia:transaction(F) of
-				{atomic, ok} -> 
+				{atomic, ok} ->
 					ok;
-				Else -> 
+				Else ->
 					Else
 			end;
 		exists ->
@@ -406,7 +406,7 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Pull the `#cpx_conf{}' from the database for the given id.  Most 
+%% @doc Pull the `#cpx_conf{}' from the database for the given id.  Most
 %% times it will be the same as the module name.
 -spec(get_conf/1 :: (Name :: atom()) -> 'undefined' | #cpx_conf{}).
 get_conf(Name) ->
@@ -463,16 +463,16 @@ stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 
 %% @private
 %-spec(load_specs/0 :: () -> {'error', any()} | none()).
-%load_specs() -> 
+%load_specs() ->
 %	?DEBUG("loading specs...",[]),
-%	F = fun() -> 
+%	F = fun() ->
 %		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
 %		qlc:e(QH)
 %	end,
 %	case mnesia:transaction(F) of
-%		{atomic, Records} -> 
+%		{atomic, Records} ->
 %			lists:map(fun(I) -> start_spec(I) end, Records);
-%		Else -> 
+%		Else ->
 %			?ERROR("unable to retrieve specs:  ~p", [Else]),
 %			Else
 %	end.
@@ -532,7 +532,7 @@ get_archive_path(Call) ->
 					{"calltype", atom_to_list(Call#call.type)},
 					{"calldirection", atom_to_list(Call#call.direction)}
 			]),
-			
+
 			case filelib:ensure_dir(ExpandedPath) of
 				ok ->
 					ExpandedPath;
@@ -588,18 +588,18 @@ submit_bug_report(Options) when is_list(Options) ->
 
 -ifdef(TEST).
 
-% config_test_() -> 
+% config_test_() ->
 % 	%["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 % 	{
 % 		foreach,
-% 		fun() -> 
+% 		fun() ->
 % 			?CONSOLE("f1 ~p", [mnesia:stop()]),
 % 			?CONSOLE("f2 ~p", [mnesia:delete_schema([node()])]),
 % 			?CONSOLE("f3 ~p", [mnesia:create_schema([node()])]),
 % 			?CONSOLE("F4 ~p", [mnesia:start()]),
 % 			?CONSOLE("findme ~p", [cpx_supervisor:start([node()])])
 % 		end,
-% 		fun(_Whatever) -> 
+% 		fun(_Whatever) ->
 % 			cpx_supervisor:stop(),
 % 			mnesia:stop(),
 % 			mnesia:delete_schema([node()]),
@@ -608,12 +608,12 @@ submit_bug_report(Options) when is_list(Options) ->
 % 		[
 % 			{
 % 				"Adding a Valid Config gets it to start",
-% 				fun() -> 
+% 				fun() ->
 % 					Valid = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
 % 					Out = update_conf(gen_server_mock, Valid),
 % 					?CONSOLE("Out:  ~p", [Out]),
 % 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-% 					F = fun() -> 
+% 					F = fun() ->
 % 						qlc:e(QH)
 % 					end,
 % 					?CONSOLE("~p", [mnesia:transaction(F)]),
@@ -623,14 +623,14 @@ submit_bug_report(Options) when is_list(Options) ->
 % 			},
 % 			{
 % 				"Destroy a Config by full spec, ensure it also kills what was running.",
-% 				fun() -> 
+% 				fun() ->
 % 					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
 % 					update_conf(gen_server_mock, Spec),
 % 					?assert(is_pid(whereis(dummy_media_manager))),
 % 					destroy(Spec),
 % 					?assertEqual(undefined, whereis(dummy_media_manager)),
 % 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-% 					F = fun() -> 
+% 					F = fun() ->
 % 						qlc:e(QH)
 % 					end,
 % 					?assertMatch({atomic, []}, mnesia:transaction(F))
@@ -638,7 +638,7 @@ submit_bug_report(Options) when is_list(Options) ->
 % 			},
 % 			{
 % 				"Destroy a Config by id only",
-% 				fun() -> 
+% 				fun() ->
 % 					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
 % 					update_conf(gen_server_mock, Spec),
 % 					?assert(is_pid(whereis(dummy_media_manager))),
@@ -646,7 +646,7 @@ submit_bug_report(Options) when is_list(Options) ->
 % 					?CONSOLE("~p", [whereis(dummy_media_manager)]),
 % 					?assertEqual(undefined, whereis(dummy_media_manager)),
 % 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
-% 					F = fun() -> 
+% 					F = fun() ->
 % 						qlc:e(QH)
 % 					end,
 % 					?assertMatch({atomic, []}, mnesia:transaction(F))
@@ -654,7 +654,7 @@ submit_bug_report(Options) when is_list(Options) ->
 % 			},
 % 			{
 % 				"Update a Config",
-% 				fun() -> 
+% 				fun() ->
 % 					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
 % 					Oldrec = #cpx_conf{
 % 						id = gen_server_mock,
@@ -745,7 +745,7 @@ submit_bug_report(Options) when is_list(Options) ->
 % 			},
 % 			{
 % 				"Build a Spec from Record",
-% 				fun() -> 
+% 				fun() ->
 % 					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = []},
 % 					?assertMatch({dummy_id, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
 % 				end
@@ -763,7 +763,7 @@ murder_test_() ->
 		cpx_supervisor:start([node()]),
 		ok
 	end,
-	fun(ok) -> 
+	fun(ok) ->
 		cpx_supervisor:stop(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
@@ -835,7 +835,7 @@ mutlinode_test_d() ->
 			[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
 			Master = list_to_atom(lists:append("master@", Host)),
 			Slave = list_to_atom(lists:append("slave@", Host)),
-			
+
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 			mnesia:stop(),
@@ -843,16 +843,16 @@ mutlinode_test_d() ->
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
 			?CONSOLE("~p", [mnesia:delete_schema([node(), Master, Slave])]),
 			?CONSOLE("~p", [mnesia:create_schema([node(), Master, Slave])]),
-			
+
 			cover:start([Master, Slave]),
-			
+
 			rpc:call(Master, mnesia, start, []),
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
 
 			?CONSOLE("~p", [mnesia:change_table_copy_type(schema, Master, disc_copies)]),
 			?CONSOLE("~p", [mnesia:change_table_copy_type(schema, Slave, disc_copies)]),
-			
+
 			% nix the agent_tcp_default and web_managmeent to keep addresses from binding
 			rpc:call(Master, cpx_supervisor, build_tables, []),
 			rpc:call(Slave, cpx_supervisor, build_tables, []),
@@ -866,12 +866,12 @@ mutlinode_test_d() ->
 		end,
 		fun({Master, Slave}) ->
 			cover:stop([Master, Slave]),
-			
+
 			slave:stop(Master),
 			slave:stop(Slave),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
-			
+
 			ok
 		end,
 		[
@@ -888,5 +888,5 @@ mutlinode_test_d() ->
 			end
 		]
 	}.
-	
+
 -endif.

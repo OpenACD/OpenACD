@@ -196,7 +196,6 @@
 	get_avail_agents/1,
 	get_endpoint/2,
 	get_queue_transfer_options/2,
-	get_tabs_menu/1,
 	% TODO implement
 	%load_media/1,
 	logout/1,
@@ -798,16 +797,6 @@ set_endpoint_int(State, Type, {struct, Data}, DataToOptsFun) ->
 			end
 	end.
 
-%% @doc {@agent_api} Gathers the tabs an agent can access, and pushes the
-%% result into the command queue.
-%% {"command": "set_tabs_menu",
-%% "tabs": [
-%%     {"label":string(),"href":string()}
-%% ]}
-% TODO freaking special snowflake.
-get_tabs_menu(State) ->
-	handle_cast(get_tabs_menu, State),
-	ok.
 
 %% @doc Useful when a plugin needs to send information or results to the
 %% agent ui.
@@ -1036,12 +1025,6 @@ handle_cast({new_endpoint, _Module, _Endpoint}, State) ->
 	%% TODO should likely actually tell the agent.  Maybe.
 	{ok, undefined, State};
 
-%% this should actually be implemented as a pure call.  Ah well.
-handle_cast(get_tabs_menu, State) ->
-	#state{agent = #agent{source = Apid}, connection = Conn} = State,
-	spawn_get_tabs_menu(Conn, Apid),
-	{ok, undefined, State};
-
 handle_cast(_, State) ->
 	{ok, undefined, State}.
 
@@ -1056,9 +1039,6 @@ spawn_get_tabs_menu(Conn, Apid) ->
 		Level when Level =:= admin; Level =:= supervisor ->
 			[Admin | Filtered]
 	end,
-	Tabs = [{struct, [{<<"label">>, Label}, {<<"href">>, Href}]} ||
-		{Label, Href} <- TabsList],
-	gen_server:cast(Conn, {arbitrary_command, set_tabs_menu, [{<<"tabs">>, Tabs}]}).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 ::

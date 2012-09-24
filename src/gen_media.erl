@@ -2432,21 +2432,21 @@ init_test_() ->
 			Validator()
 		end},
 		{"call rec and queue name returned, but queue doesn't exist",
-		fun() ->
-			Qpid = dpid(),
-			meck:expect(queue_manager, get_queue, fun(Queue) -> 
-						case Queue of
-							"testqueue" ->
-								undefined;
-							"default_queue" ->
-								Qpid
-						end end),
-			meck:expect(call_queue, add, fun(_, _, _) -> ok end),
-			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
-			Res = (catch init([dummy_media, Args])),
-			?assertMatch({ok, inqueue, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, #inqueue_state{queue_pid = {"default_queue", Qpid}}}}, Res),
-			Validator()
-		end}
+			fun() ->
+				Qpid = dpid(),
+				meck:expect(queue_manager, get_queue, fun(Queue) -> 
+							case Queue of
+								"testqueue" ->
+									undefined;
+								"default_queue" ->
+									Qpid
+							end end),
+				meck:expect(call_queue, add, fun(_, _, _) -> ok end),
+				Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
+				Res = (catch init([dummy_media, Args])),
+				?assertMatch({ok, inqueue, {#base_state{callback = dummy_media, callrec = #call{id = "dummy"}}, #inqueue_state{queue_pid = {"default_queue", Qpid}}}}, Res),
+				Validator()
+			end}
 ]end}.
 
 

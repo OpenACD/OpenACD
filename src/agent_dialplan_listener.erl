@@ -10,7 +10,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright

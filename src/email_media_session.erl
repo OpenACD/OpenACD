@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -28,7 +28,7 @@
 %%
 
 %% @doc When a new email connection is made, this is resposible for handling the
-%% callbacks from gen_smtp_server.  When an email is completed / ready to be 
+%% callbacks from gen_smtp_server.  When an email is completed / ready to be
 %% queued, this gen_server:cast's back to email_media_manager to create an
 %% email_media and queue it.
 

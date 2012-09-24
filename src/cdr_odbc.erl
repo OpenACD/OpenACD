@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -101,7 +101,7 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 		(try list_to_integer(Agentstate#agent_state.id) catch error:badarg -> 0 end) + 1000,
 		agent:state_to_integer(Agentstate#agent_state.state),
 		agent:state_to_integer(Agentstate#agent_state.oldstate),
-		Agentstate#agent_state.start, 
+		Agentstate#agent_state.start,
 		Agentstate#agent_state.ended, CallID, profile_id(Agentstate#agent_state.profile)]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
@@ -314,7 +314,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) ->
 -spec(add_slashes/2 :: (String :: string(), Slashlist :: string()) -> string()).
 add_slashes(String, Slashlist) ->
 	add_slashes(String, Slashlist, []).
-		
+
 add_slashes([], _, Acc) ->
 	lists:reverse(Acc);
 add_slashes([H | Tail], Slashlist, Acc) ->

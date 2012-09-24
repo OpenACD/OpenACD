@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -28,9 +28,9 @@
 %%
 
 %% @doc Connection to the local authenication cache and integration to
-%% another module.  Authentication is first checked by the integration 
-%% module (if any).  If that fails, this module will fall back to it's 
-%% local cache in the mnesia 'agent_auth' table.  The cache table is both 
+%% another module.  Authentication is first checked by the integration
+%% module (if any).  If that fails, this module will fall back to it's
+%% local cache in the mnesia 'agent_auth' table.  The cache table is both
 %% ram and disc copies on all nodes.
 %%
 %% == Hooks ==
@@ -99,7 +99,7 @@
 %%
 %% === auth_agent_success ===
 %%
-%% Asynchronously triggers all hooks when an agent is successfully 
+%% Asynchronously triggers all hooks when an agent is successfully
 %% authenticated.
 %%
 %% Args :: [Username :: string(), Password :: string(),
@@ -172,7 +172,7 @@ start() ->
 	end,
 	Store:start().
 
-%% @doc Add `#release_opt{} Rec' to the database. 
+%% @doc Add `#release_opt{} Rec' to the database.
 -spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 new_release(Rec) when is_record(Rec, release_opt) ->
 	case cpx_hooks:trigger_hooks(new_release, [Rec], first) of
@@ -185,7 +185,7 @@ new_release(Rec) when is_record(Rec, release_opt) ->
 destroy_release(Label) when is_list(Label) ->
 	destroy_release(label, Label).
 
-%% @doc Remove the release option with the key (id, label) of value from the 
+%% @doc Remove the release option with the key (id, label) of value from the
 %% database.
 -spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy_release(Type, Val) ->
@@ -314,8 +314,8 @@ set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	],
 	set_agent(Id, Props).
 
-%% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
-%% does not change data that is not in the proplist.  The proplist's 
+%% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props';
+%% does not change data that is not in the proplist.  The proplist's
 %% `endpoints' field can also contain a partial list, preserving existing
 %% settings.
 -spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -325,7 +325,7 @@ set_agent(Id, Props) ->
 		{error, Err} -> {aborted, Err}
 	end.
 
-%% @doc Update the agent `string() Oldlogin' with a new password (as well 
+%% @doc Update the agent `string() Oldlogin' with a new password (as well
 %% as everything else).
 %% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
@@ -339,7 +339,7 @@ set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	],
 	set_agent(Id, Props).
 
-%% @doc Update the agent `string() Oldlogin' with a new password (as well 
+%% @doc Update the agent `string() Oldlogin' with a new password (as well
 %% as everything else).
 %% @deprecated Use {@link set_agent/2} instead.
 -spec(set_agent/8 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string(), Newfirstname :: string(), Newlastname :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
@@ -429,7 +429,7 @@ drop_extended_prop({_, _} = U, Prop) ->
 		{error, unhandled} -> {error, noagent}
 	end.
 
-%% @doc Get an extened property either from the database or a record 
+%% @doc Get an extened property either from the database or a record
 %% directly.
 -spec(get_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'ok', any()} | {'error', 'noagent'} | 'undefined').
 get_extended_prop({_, _} = U, Prop) ->
@@ -439,7 +439,7 @@ get_extended_prop({_, _} = U, Prop) ->
 		{error, unhandled} -> {error, noagent}
 	end.
 
-%% @doc Take the plaintext username and password and attempt to 
+%% @doc Take the plaintext username and password and attempt to
 %% authenticate the agent.
 -type(profile_name() :: string()).
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
@@ -456,12 +456,12 @@ auth(Username, Password) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-%% @doc adds a user to the local cache bypassing the integrated at check.  
-%% Note that unlike {@link cache/4} this expects the password in plain 
+%% @doc adds a user to the local cache bypassing the integrated at check.
+%% Note that unlike {@link cache/4} this expects the password in plain
 %% text!
 %% @deprecated Please use {@link add_agent/1} instead.
--spec(add_agent/5 :: 
-	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
+-spec(add_agent/5 ::
+	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
 		{'atomic', 'ok'}).
 add_agent(Username, Password, Skills, Security, Profile) ->
 	Rec = #agent_auth{
@@ -472,8 +472,8 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 		profile = Profile},
 	add_agent(Rec).
 
-%% @doc adds a user to the local cache bypassing the integrated at check.  
-%% Note that unlike {@link cache/4} this expects the password in plain 
+%% @doc adds a user to the local cache bypassing the integrated at check.
+%% Note that unlike {@link cache/4} this expects the password in plain
 %% text!
 %% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/7 ::
@@ -521,7 +521,7 @@ destroy(Key, Value) ->
 -spec(sort_profiles/1 :: (List :: [#agent_profile{}]) -> [#agent_profile{}]).
 sort_profiles(List) ->
 	lists:sort(fun comp_profiles/2, List).
-			
+
 comp_profiles(#agent_profile{name = Aname, order = S}, #agent_profile{name = Bname, order = S}) ->
 	Aname =< Bname;
 comp_profiles(#agent_profile{order = Asort}, #agent_profile{order = Bsort}) ->
@@ -597,21 +597,21 @@ encode_password(Password) ->
 %%--------------------------------------------------------------------
 %%% Test functions
 %%--------------------------------------------------------------------
-start_test_() ->
-	{setup, fun() ->
-		application:set_env('OpenACD', agent_auth_storage, somestore),
+% start_test_() ->
+% 	{setup, fun() ->
+% 		application:set_env('OpenACD', agent_auth_storage, somestore),
 
-		meck:new(somestore),
-		meck:expect(somestore, start, fun() -> ok end)
+% 		meck:new(somestore),
+% 		meck:expect(somestore, start, fun() -> ok end)
 
-	end,fun(_) -> [
-	{"normal", fun() ->
-		Release = #release_opt{label="a"},
-		meck:expect(somestore, update_release, 2, {ok, ok}),
-		?assertEqual({atomic, ok}, update_release("foo", Release)),
-		?assert(meck:called(somestore, update_release, ["foo", Release])),
-		?assert(meck:validate(somestore))
-	end}]end}.
+% 	end,fun(_) -> [
+% 	{"normal", fun() ->
+% 		Release = #release_opt{label="a"},
+% 		meck:expect(somestore, update_release, 2, {ok, ok}),
+% 		?assertEqual({atomic, ok}, update_release("foo", Release)),
+% 		?assert(meck:called(somestore, update_release, ["foo", Release])),
+% 		?assert(meck:validate(somestore))
+% 	end}]end}.
 
 auth_test_() ->
 	{foreach, fun() ->
@@ -622,7 +622,8 @@ auth_test_() ->
 		meck:new(somestore)
 	end,
 	fun(_) ->
-		meck:unload(somestore)
+		meck:unload(somestore),
+		cpx_hooks:stop()
 	end,
 	[{"unhandled", fun() ->
 		meck:expect(somestore, auth_agent, 2, none),

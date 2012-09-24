@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -49,11 +49,11 @@
 
 %% gen_cdr_dumper callbacks
 -export([
-	init/1, 
+	init/1,
 	dump/2,
 	commit/1,
 	rollback/1,
-	terminate/2, 
+	terminate/2,
 	code_change/3,
 	load_to_mnesia/1,
 	load_to_ets/1,
@@ -74,7 +74,7 @@
 -include("gen_spec.hrl").
 
 %% @doc Takes all records in the passed dets file and loads them into mnesia.
-%% This is useful if you want to migrate the records from the dets dumper to 
+%% This is useful if you want to migrate the records from the dets dumper to
 %% another dumper.  Best if used in a spawn, and when the dets dumper is not running.
 -spec(load_to_mnesia/1 :: (File :: string()) -> 'ok').
 load_to_mnesia(File) ->
@@ -105,7 +105,7 @@ load_to_ets(File) ->
 	E = ets:new(ets_cdr, [{keypos, 2}]),
 	load_to_ets(File, E).
 
-%% @doc same as above, but you provide the 
+%% @doc same as above, but you provide the
 -spec(load_to_ets/2 :: (File :: string(), Ets :: any()) -> any()).
 load_to_ets(File, Ets) ->
 	{ok, Dets} = dets:open_file(File, [{keypos, 2}]),
@@ -201,13 +201,13 @@ make_file_names(Logdir) ->
 	{{Year, Month, Day}, _} = calendar:local_time(),
 	Append = lists:append([
 		"-",
-		integer_to_list(Year), 
+		integer_to_list(Year),
 		"-",
-		integer_to_list(Month), 
+		integer_to_list(Month),
 		"-",
 		integer_to_list(Day),
 		".dets"
 	]),
-	AdetsFile = lists:append([Logdir, "agent_state", Append]), 
+	AdetsFile = lists:append([Logdir, "agent_state", Append]),
 	CdetsFile = lists:append([Logdir, "cdr", Append]),
 	{AdetsFile, CdetsFile}.

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -29,7 +29,7 @@
 
 %% @doc The media manager for handling email.  This starts the email server
 %% listener.  The listener passes off to the email_media_session callback.
-%% When the email_media_session callback is ready for an email to enter queue, 
+%% When the email_media_session callback is ready for an email to enter queue,
 %% it sends a message back here for an email_media to be created and queued.
 -module(email_media_manager).
 -author(openacd).
@@ -107,7 +107,7 @@ set_mapping(Address, Options) when is_list(Options) ->
 		skills = proplists:get_value(skills, Options, []),
 		client = proplists:get_value(client, Options)
 	},
-	set_mapping(Address, Rec);		
+	set_mapping(Address, Rec);
 set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
 	F = fun() ->
 		mnesia:delete({mail_map, Address}),
@@ -152,7 +152,7 @@ get_send_opts() ->
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
-	
+
 %-ifndef(NOWEB).
 %web_api(_Message, _Post) ->
 %	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
@@ -287,7 +287,7 @@ handle_cast({batch_queue, Dir}, State) ->
 		{ok, Files} ->
 			Fun = fun() ->
 				lists:foreach(
-					fun(Elem) -> 
+					fun(Elem) ->
 						email_media_manager:requeue(lists:append([Dir, "/", Elem]))
 					end, Files)
 			end,

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -60,7 +60,7 @@
 -define(RING_FAIL_REL, {"Ring Fail", ring_fail, -1}).
 -define(RING_LOCK_DURATION, 1000). % in ms
 -define(WRAPUP_AUTOEND_KEY, autoend_wrapup).
--define(STATE_ATOMS, ['prering', 'ringing', 'precall', 'oncall', 
+-define(STATE_ATOMS, ['prering', 'ringing', 'precall', 'oncall',
 	'warmtransfer_hold', 'warmtransfer_3rd_party', 'wrapup']).
 
 %% gen_fsm exports
@@ -100,12 +100,12 @@
 	start/4,
 	start_link/2,
 	start_link/4,
-	stop/1, 
+	stop/1,
 	get_media/1,
-	set_state/2, 
+	set_state/2,
 	set_state/3,
 	end_wrapup/1,
-	list_to_state/1, 
+	list_to_state/1,
 	set_connection/2,
 	agent_transfer/2,
 	queue_transfer/2,
@@ -141,9 +141,9 @@ start_link(AgentRec, CallRec, EndpointData, InitState) ->
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(APid) -> 
+stop(APid) ->
 	gen_fsm:sync_send_event(APid, stop).
-	
+
 %% @doc link the given agent  `Pid' to the given connection `Socket'.
 -spec(set_connection/2 :: (Pid :: pid(), Socket :: pid()) -> 'ok' | 'error').
 set_connection(Pid, Socket) ->
@@ -159,7 +159,7 @@ media_call(Apid, Request) ->
 media_cast(Apid, Request) ->
 	gen_fsm:send_event(Apid, {mediacast, Request}).
 
-%% @doc Returns the #call{} of the current state if there is on, otherwise 
+%% @doc Returns the #call{} of the current state if there is on, otherwise
 %% returns `invalid'.
 -spec(get_media/1 :: (Apid :: pid()) -> {ok, #call{}} | 'invalid').
 get_media(Apid) ->
@@ -170,7 +170,7 @@ get_media(Apid) ->
 set_state(Pid, State) ->
 	gen_fsm:sync_send_event(Pid, State, infinity).
 
-%% @doc Attempt to set the state of the agent at `Pid' to `State' with data `Data'.  `Data' is related to the `State' the agent is going into.  
+%% @doc Attempt to set the state of the agent at `Pid' to `State' with data `Data'.  `Data' is related to the `State' the agent is going into.
 %% Often `Data' will be `#call{} or a callid of type `string()'.
 -spec(set_state/3 :: (Pid :: pid(), State :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'warmtransfer' | 'wrapup', Data :: any()) -> 'ok' | 'invalid';
                      (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
@@ -305,8 +305,8 @@ init([Agent, Call, Endpoint, StateName]) ->
 			?WARNING("Failed start:  ~p", [{StateName, Call}]),
 			{stop, badstate}
 	end.
-	
-		
+
+
 % ======================================================================
 % PRERING
 % ======================================================================
@@ -582,7 +582,7 @@ handle_info({'EXIT', Pid, Why}, oncall, #state{endpoint = Pid} = State) ->
 			?WARNING("could not set gen_media to wrapup:  ~p", [Else]),
 			{next_state, oncall, State}
 	end;
-	
+
 handle_info({'EXIT', Pid, Why}, StateName, #state{endpoint = Pid} = State) ->
 	?INFO("Exit of endpoint ~p due to ~p in state ~s", [Pid, Why, StateName]),
 	{stop, Why, State};
@@ -640,7 +640,7 @@ conn_cast(Agent, Msg) when is_record(Agent, agent) ->
 conn_cast(undefined, _Msg) ->
 	ok;
 conn_cast(Conn, Msg) when is_pid(Conn) ->
-	gen_server:cast(Conn, Msg).
+	Conn ! {agent, Msg}.
 
 start_endpoint(Pid, Agent, Call) when is_pid(Pid) ->
 	link(Pid),
@@ -669,7 +669,7 @@ prep_autowrapup(#call{client = Client}) ->
 % ======================================================================
 % TESTS
 % ======================================================================
-	
+
 -ifdef(TEST).
 
 public_api_test_() ->
@@ -679,7 +679,7 @@ public_api_test_() ->
 	fun(_) ->
 		meck:unload(gen_fsm)
 	end, [
-	
+
 	fun(_) -> {"start/2, simple_sucess", fun() ->
 		meck:expect(gen_fsm, start, fun(?MODULE, [agentrecord, options], []) ->
 			?assert(true)
@@ -687,7 +687,7 @@ public_api_test_() ->
 
 		start(agentrecord, options),
 		?assertEqual(1, length(meck:history(gen_fsm))),
-		?assert(meck:validate(gen_fsm))	
+		?assert(meck:validate(gen_fsm))
 	end} end,
 
 	fun(_) -> {"start/4, simple_sucess", fun() ->
@@ -698,7 +698,7 @@ public_api_test_() ->
 
 		start(agentrecord, callrecord, endpointdata, initstate),
 		?assertEqual(1, length(meck:history(gen_fsm))),
-		?assert(meck:validate(gen_fsm))	
+		?assert(meck:validate(gen_fsm))
 	end} end,
 
 	fun(_) -> {"start_link/2, simple_sucess", fun() ->
@@ -708,7 +708,7 @@ public_api_test_() ->
 
 		start_link(agentrecord, options),
 		?assertEqual(1, length(meck:history(gen_fsm))),
-		?assert(meck:validate(gen_fsm))	
+		?assert(meck:validate(gen_fsm))
 	end} end,
 
 	fun(_) -> {"start_link/4, simple_sucess", fun() ->
@@ -719,7 +719,7 @@ public_api_test_() ->
 
 		start_link(agentrecord, callrecord, endpointdata, initstate),
 		?assertEqual(1, length(meck:history(gen_fsm))),
-		?assert(meck:validate(gen_fsm))	
+		?assert(meck:validate(gen_fsm))
 	end} end,
 
 	fun(_) -> {"stop/1, simple_sucess", fun() ->

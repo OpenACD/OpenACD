@@ -1,9 +1,9 @@
 
 ## Name of the node
--sname openacd
+-name openacd@127.0.0.1
 
 ## Cookie for distributed erlang
--setcookie ClueCon
+-setcookie openacd
 
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)

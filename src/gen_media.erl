@@ -1739,17 +1739,14 @@ handle_custom_return({queue, Queue, PCallrec, NewState}, inivr, Reply, {BaseStat
 			cdr:inqueue(Callrec, "default_queue"),
 			set_cpx_mon({BaseState#base_state{callrec = Callrec, substate = NewState}, undefined}, [{queue, "default_queue"}]),
 			{ok, {"default_queue", Qpid}};
-			%{noreply, State#base_state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
 		invalid ->
 			?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, BaseState#base_state.queue_failover]),
 			{error, {noqueue, Queue}};
-			%{noreply, State#base_state{callrec = Callrec, substate = NewState}};
 		Qpid ->
 			cdr:cdrinit(Callrec),
 			cdr:inqueue(Callrec, Queue),
 			set_cpx_mon({BaseState#base_state{callrec = Callrec, substate = NewState}, undefined}, [{queue, Queue}]),
 			{ok, {Queue, Qpid}}
-			%{noreply, State#base_state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end,
 	case {Reply, QData} of
 		{noreply, {error, _}} ->

@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# openacd - Service startup script for OpenACD
+# chkconfig: 345 97 01
+# description: OpenACD call center service
+# processname: openacd
+
+# NOTE: numbers in chkconfig line try to start after freeswitch 
+# and shutdown before freeswitch but there's no hard requirement
+
 ERL="erl"
 RUN_ERL="run_erl"
 
@@ -98,6 +106,16 @@ case "$1" in
     reboot)
         ## Restart the VM completely (uses heart to restart it)
         $NODETOOL reboot
+        ;;
+
+    status)
+        STATUS=`$NODETOOL ping`
+        PID=`$NODETOOL pid`
+        if [ "$STATUS" == "pong" ]; then
+            echo 'openacd (pid ' $PID ') is running...'
+        else
+            echo openacd is stopped
+        fi
         ;;
 
     ping)

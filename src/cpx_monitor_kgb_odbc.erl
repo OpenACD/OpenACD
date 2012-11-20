@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -217,5 +217,5 @@ build_sql_test_() ->
 		Got = build_sql(#event_log_row{id = 5, event_type = acd_start, acd_type = "openacd", source_ip = undefined}),
 		?assertEqual(Expected, Got)
 	end}].
-	
+
 -endif.

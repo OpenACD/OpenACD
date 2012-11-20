@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -29,7 +29,7 @@
 
 %% @doc Behaviour module for media types.  Gen_media uses gen_fsm as the
 %% underlying framework for what it does.  It exposes a gen_server-esque
-%% behavior for it's callback modules, however.  Any time gen_media 
+%% behavior for it's callback modules, however.  Any time gen_media
 %% recieves an event it cannot handle wholly intnerally, it will call a
 %% specific funciton of the callback module.
 %%
@@ -63,20 +63,20 @@
 %%				Route_hint = {Queue, #call{}} | undefined | #call{}
 %%					Queue = string()
 %%
-%%		When gen_media starts, this function is called.  It should 
+%%		When gen_media starts, this function is called.  It should
 %%		initialize all required data.
 %%
-%%		Some media may not be able to provide a call record on start-up, 
+%%		Some media may not be able to provide a call record on start-up,
 %%		thus allowing the media to finish prepping and then queue later.
 %%
 %%	<b>urlpop_getvars(State) -> UrlOptions</b>
 %%		types:	State = any()
 %%				UrlOptions = [{string(), string()}]
 %%
-%%		When a call rings to an agent, if a pop url is configured, get 
-%%		variables are appended to the end.  If this is set, 
-%%		get_url_getvars/1 will call it and merge the results to what will 
-%%		be used when ringing an agent.  Options set via set_url_getvars/2 
+%%		When a call rings to an agent, if a pop url is configured, get
+%%		variables are appended to the end.  If this is set,
+%%		get_url_getvars/1 will call it and merge the results to what will
+%%		be used when ringing an agent.  Options set via set_url_getvars/2
 %%		super-ceede those returned by the callback module.
 %%
 %%		At the time of this doc, the agent web interface prompts the agent
@@ -90,7 +90,7 @@
 %%					Error = any()
 %%
 %%		When an agent is given a new endpoint for the callback module, this
-%%		function is called.  If the callback module returns {error, Error} 
+%%		function is called.  If the callback module returns {error, Error}
 %% 		The agent does not store the given endpoint data.  If {ok, NewData}
 %% 		is returned, NewData is stored for the endpoint.
 %%
@@ -106,37 +106,37 @@
 %%				Agent = pid()
 %%				Call = #call{}
 %%				State = any()
-%%				Result = {ok, NewState} | {ok, UrlOptions, NewState} | 
+%%				Result = {ok, NewState} | {ok, UrlOptions, NewState} |
 %%					{invalid, NewState}
 %%					UrlOptions = [{string(), string()}]
 %%					NewState = any()
 %%
-%%		When a call must ring to an agent (either due to out of queue or 
+%%		When a call must ring to an agent (either due to out of queue or
 %%		the start of a transfer), this is called.
 %%
 %%		RingData is the data the ring channel returned when confirming it is
 %%		able to function.  Gen media does not alter or cache it.
 %%
-%%		Agent is the pid of the agent that will be set to ringing if 
+%%		Agent is the pid of the agent that will be set to ringing if
 %%		Result is {ok, NewState} or {ok, UrlOptions, NewState}.
 %%
-%%		Call is the #call{} maintained by the gen_media and passed in for 
+%%		Call is the #call{} maintained by the gen_media and passed in for
 %%		Reference.
-%%		
+%%
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState} or {ok, UrlOptions, NewState}, Agent 
-%%		is set to ringing, and execution continues with NewState.  A 
-%%		url_pop is sent to the agent is the client for the media is set to 
-%%		have one.  In the case of {ok, UrlOptions, NewState}, the 
+%%		If Result is {ok, NewState} or {ok, UrlOptions, NewState}, Agent
+%%		is set to ringing, and execution continues with NewState.  A
+%%		url_pop is sent to the agent is the client for the media is set to
+%%		have one.  In the case of {ok, UrlOptions, NewState}, the
 %%		UrlOptions are appened to the url as a query (get) string.
 %%
-%%		Note that UrlOptions can be set by the agent before a queue 
-%%		transfer occurs.  In this case, before the transfer is made, 
-%%		urlpop_getvars/1 should be used to present the agent with a chance 
+%%		Note that UrlOptions can be set by the agent before a queue
+%%		transfer occurs.  In this case, before the transfer is made,
+%%		urlpop_getvars/1 should be used to present the agent with a chance
 %%		to adjust the url pop.
 %%
-%%		If Result is {invalid, NewState}, Agent is set to idle, and 
+%%		If Result is {invalid, NewState}, Agent is set to idle, and
 %%		execution continues with NewState.
 %%
 %%	<b>handle_ring_stop(StateName, Call, Internal, State) -> Result</b>
@@ -147,7 +147,7 @@
 %%				Result = {ok, NewState}
 %%					NewState = any()
 %%
-%%		When an agent should no longer be ringing, such as due to ringout, 
+%%		When an agent should no longer be ringing, such as due to ringout,
 %%		this function is called.
 %%
 %%		State is the internal state of the gen_media callbacks.
@@ -168,20 +168,20 @@
 %%		When an agent should be placed on call after ringing, this function
 %%		is called.
 %%
-%%		Agent is the agent that will be set oncall if Result is 
+%%		Agent is the agent that will be set oncall if Result is
 %%		{ok, NewState}.
 %%
 %%		Call is the #call{} the agent will be answering.
 %%
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState} and the callpath is inband, it is 
-%%		assumed the agent has already set themselves oncall.  If it is out 
-%%		of band, the agent is set to oncall.  The callback module can 
-%%		always safely assume the agent is oncall.  Execution then 
+%%		If Result is {ok, NewState} and the callpath is inband, it is
+%%		assumed the agent has already set themselves oncall.  If it is out
+%%		of band, the agent is set to oncall.  The callback module can
+%%		always safely assume the agent is oncall.  Execution then
 %%		continues with NewState.
 %%
-%%		If Result is {error, Error, NewState}, the agent's state is not 
+%%		If Result is {error, Error, NewState}, the agent's state is not
 %%		changed and execution continues with NewState.
 %%
 %%	<b>handle_voicemail(StateName, Call, Internal, State) -> Result</b>
@@ -193,12 +193,12 @@
 %%
 %%		This is an optional callback.
 %%
-%%		When a media should be removed from queue and moved to voicemail, 
+%%		When a media should be removed from queue and moved to voicemail,
 %%		this is called.
 %%
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState}, the call is removed from queue and 
+%%		If Result is {ok, NewState}, the call is removed from queue and
 %%		execution continues with NewState.
 %%
 %%		If Result is {invalid, NewState} execution continues with NewState.
@@ -230,9 +230,9 @@
 %%					Error = any()
 %%
 %%		When a media should be transfered to another agent, this is the
-%%		first step.  The target agent is set to prering, then this 
-%%		callback is used to verify that.  If the callback returns 
-%%		{ok, NewState}, execution continues with NewState, and gen_media 
+%%		first step.  The target agent is set to prering, then this
+%%		callback is used to verify that.  If the callback returns
+%%		{ok, NewState}, execution continues with NewState, and gen_media
 %%		handles with oncall or a ringout.
 %%
 %%		In the case of an outband ring, that process will send a takeover
@@ -247,9 +247,9 @@
 %%				Internal = internal_state()
 %%				State = NewState = any()
 %%
-%%		When a media is placed back into queue from an agent, this is 
-%%		called to allow the media to do any required clean up or 
-%%		unbridging.  The Call is requeued at the priority it was initially 
+%%		When a media is placed back into queue from an agent, this is
+%%		called to allow the media to do any required clean up or
+%%		unbridging.  The Call is requeued at the priority it was initially
 %%		queued at.  Execution then continues with NewState.
 %%
 %%		Queue is the name of the queue the media will be placed in; Qpid is
@@ -265,8 +265,8 @@
 %%				Finality = ok | hangup
 %%
 %%		This callback is only used if the call record's media path is inband.
-%%		When an agent goes to wrapup, this gives the callback a chance to 
-%%		do any clean-up needed.  
+%%		When an agent goes to wrapup, this gives the callback a chance to
+%%		do any clean-up needed.
 %%
 %%		If the media determines this is a hang-up (ie, no more
 %%		can be done with the media), it can return {hangup, NewState}.  The
@@ -294,15 +294,15 @@
 %%		This signals the callback that a supervisor is attempting to observe
 %%		the agent that is oncall.  The other callbacks should take into
 %%		account the possibility of a spy if 'ok' is returned.
-%%		
-%%		Be aware that when calling this, gen_media does not have a 
-%%		reliable method to determine an agent's security level.  The agent 
+%%
+%%		Be aware that when calling this, gen_media does not have a
+%%		reliable method to determine an agent's security level.  The agent
 %%		connections, however, do.
 %%
 %%	<b>Extended gen_server Callbacks</b>
 %%
 %%	In addition to the usual replies gen_server expects from it's callback
-%%	of handle_call/3, handle_cast/2, and handle_info/2, gen_media will 
+%%	of handle_call/3, handle_cast/2, and handle_info/2, gen_media will
 %%	take some action based on the following Returns.
 %%
 %%	{queue, Queue, Callrec, NewState}
@@ -310,9 +310,9 @@
 %%				Callrec = #call{}
 %%				NewState = any()
 %%
-%%		This result is only valid if the callbacks init/1 returned 
-%%		undefined for the call record.  This sets the call record and 
-%%		queues the call.  Execution then continues on with NewState.  If 
+%%		This result is only valid if the callbacks init/1 returned
+%%		undefined for the call record.  This sets the call record and
+%%		queues the call.  Execution then continues on with NewState.  If
 %%		this is replied to a call, ok is set as the reply.
 %%
 %%	{outbound, Agent, NewState}
@@ -321,23 +321,23 @@
 %%				Call = #call{}
 %%				NewState = any()
 %%
-%%		This result is valid only if the call is not queued.  The second 
-%%		form is only valid if init/1 retuned an undefined call.  This also 
-%%		assumes the agent at pid() is already in precall state.  If The 
-%%		agent can be set to outgoing, it will be.  Execution continues on 
+%%		This result is valid only if the call is not queued.  The second
+%%		form is only valid if init/1 retuned an undefined call.  This also
+%%		assumes the agent at pid() is already in precall state.  If The
+%%		agent can be set to outgoing, it will be.  Execution continues on
 %%		with NewState.
 %%
 %%	{voicemail, NewState}
 %%		types:	NewState = any()
 %%
 %%		This result is valid only if the call is queued.  Removes the media
-%%		from queue and stops ringing to an agent it is.  Assumes the media 
-%%		has already	done what it needs to for a voicemail.  If done in a 
+%%		from queue and stops ringing to an agent it is.  Assumes the media
+%%		has already	done what it needs to for a voicemail.  If done in a
 %%		handle_call, the reply is 'ok'.
 %%
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
-%%		types:	Agentaction = stop_ring | {stop_ring, Data} | wrapup | hangup | 
+%%		types:	Agentaction = stop_ring | {stop_ring, Data} | wrapup | hangup |
 %%					{hangup, Data} | {mediapush, Data, Mode}
 %%				Reply = any()
 %%				NewState = any()
@@ -345,28 +345,28 @@
 %%				Mode = replace | append
 %%
 %%		This result is only valid if an agent has been associated with this
-%%		media by ringing.  The second form is only valid if the request 
-%%		came in	as a gen_media:call.  This attempts to take the specified 
+%%		media by ringing.  The second form is only valid if the request
+%%		came in	as a gen_media:call.  This attempts to take the specified
 %%		action on the agent, then continues execution with NewState.
 %%
-%%		{stop_ring, Data} is used to stop the gen_media from handling a 
-%%		ringout.  It does not change the agent's state.  Execution will 
-%%		continue with NewState.  This is useful if there is an error 
-%%		ringing to an agent that only becomes apparent at a later time.  A 
+%%		{stop_ring, Data} is used to stop the gen_media from handling a
+%%		ringout.  It does not change the agent's state.  Execution will
+%%		continue with NewState.  This is useful if there is an error
+%%		ringing to an agent that only becomes apparent at a later time.  A
 %%		return of `stop_ring' is Equivalent to {stop_ring, undefined}.
 %%
-%%		wrapup is only valid if there is an agent associated with a media, 
-%%		and	that agent is oncall or outgoing.  This sets the agent to 
+%%		wrapup is only valid if there is an agent associated with a media,
+%%		and	that agent is oncall or outgoing.  This sets the agent to
 %%		wrapup and continues execution with NewState.
 %%
-%%		{hangup, Data} is valid at any time.  This will unqueue the media, 
-%%		and set the appropriate state for any agents.  The cdr record will 
-%%		record Data as who hung up the call.  A return of hangup is 
-%%		equivalent to {hangup, undefined}.  Execution then coninues with 
+%%		{hangup, Data} is valid at any time.  This will unqueue the media,
+%%		and set the appropriate state for any agents.  The cdr record will
+%%		record Data as who hung up the call.  A return of hangup is
+%%		equivalent to {hangup, undefined}.  Execution then coninues with
 %%		NewState.
 %%
 %%		mediapush is only valid if there is an agent oncall with the media,
-%%		and the media is inband.  The given Data is casted to the 
+%%		and the media is inband.  The given Data is casted to the
 %%		associaed agent as a media push.
 %%
 %%	{stop, hangup, NewState}
@@ -401,7 +401,7 @@
 
 %% gen_fsm callbacks
 -export([
-	init/1,  terminate/3, code_change/4, 
+	init/1,  terminate/3, code_change/4,
 	handle_event/3, handle_sync_event/4, handle_info/3,
 	inivr/2, inivr/3,
 	inqueue/2, inqueue/3,
@@ -466,7 +466,7 @@
 	url_pop_get_vars = []
 }).
 
--spec(behaviour_info/1 :: 
+-spec(behaviour_info/1 ::
 	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
 	[
@@ -474,9 +474,9 @@ behaviour_info(callbacks) ->
 		{init, 1},
 		{handle_ring, 4},
 		{handle_ring_stop, 4},
-		{handle_answer, 5}, 
+		{handle_answer, 5},
 		%{handle_voicemail, 4},
-		%{handle_announce, 5}, 
+		%{handle_announce, 5},
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 5},
 		{handle_wrapup, 5},
@@ -623,9 +623,9 @@ agent_transfer(Genmedia, Agent, Timeout) ->
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
 queue(Genmedia, Queue) ->
 	gen_fsm:sync_send_event(Genmedia, {'$gen_media', queue, Queue}).
-	
+
 %% @doc Attempt to spy on the agent oncall with the given media.  `Spy' is
-%% the pid to send media events/load data to, and `AgentRec' is an 
+%% the pid to send media events/load data to, and `AgentRec' is an
 %% `#agent{}' used to hold the end point data.
 -spec(spy/3 :: (Genmedia :: pid(), Spy :: pid(), AgentRec :: #agent{}) -> 'ok' | 'invalid' | {'error', any()}).
 spy(Genmedia, Spy, AgentRec) ->
@@ -650,7 +650,7 @@ get_url_getvars(Genmedia) ->
 -spec(add_skills/2 :: (Genmedia :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 add_skills(Genmedia, Skills) ->
 	gen_fsm:send_all_state_event(Genmedia, {{'$gen_media', add_skills}, Skills}).
-	
+
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
@@ -860,7 +860,7 @@ inqueue({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
 			{reply, invalid, {BaseState, InqueueState}}
 	end;
 
-inqueue({{'$gen_media', set_queue}, Qpid}, _From, {BaseState, 
+inqueue({{'$gen_media', set_queue}, Qpid}, _From, {BaseState,
 		#inqueue_state{queue_pid = {Queue, _}} = Internal}) ->
 	#base_state{callrec = Call} = BaseState,
 	?NOTICE("Updating queue pid for ~p to ~p", [Call#call.id, Qpid]),
@@ -1133,8 +1133,8 @@ inqueue_ringing({{'$gen_media', end_call}, _}, {Cook, _}, {#base_state{
 inqueue_ringing({{'$gen_media', Command}, _}, _From, State) ->
 	?DEBUG("Invalid command ~s while inqueue_ringing", [Command]),
 	{reply, invalid, inqueue_ringing, State};
-	
-inqueue_ringing(Msg, From, {#base_state{callback = Callback, 
+
+inqueue_ringing(Msg, From, {#base_state{callback = Callback,
 		callrec = Call} = BaseState, Extra} = State) ->
 	Return = Callback:handle_call(Msg, From, inqueue_ringing, Call, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, inqueue_ringing, reply, State).
@@ -1176,7 +1176,7 @@ inqueue_ringing({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("Invalid command event ~s while inqueue_ringing", [Command]),
 	{next_state, inqueue_ringing, State};
 
-inqueue_ringing(Msg, {#base_state{callback = Callback, callrec = Call} = 
+inqueue_ringing(Msg, {#base_state{callback = Callback, callrec = Call} =
 		BaseState, Extra} = State) ->
 	Return = Callback:handle_cast(Msg, inqueue_ringing, Call, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, inqueue_ringing, noreply, State).
@@ -1242,7 +1242,7 @@ oncall({{'$gen_media', agent_transfer}, {{Agent, Apid}, Timeout}}, _From, {BaseS
 							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
 					end,
 					% dummy is there because the structure of internally handled
-					% messages is {{'$gen_media', command}, CommandData}.  
+					% messages is {{'$gen_media', command}, CommandData}.
 					% Even if the command doesn't take any arguments, something
 					% needs to be there to make it a 2 element tuple, thus dummy
 					% here.
@@ -1375,7 +1375,7 @@ oncall({{'$gen_media', Command}, _}, _, State) ->
 	?DEBUG("Invalid command sync event ~s while oncall", [Command]),
 	{reply, invalid, oncall, State};
 
-oncall(Request, _From, 
+oncall(Request, _From,
 		{#base_state{callback = Callback, callrec = Call},
 		#oncall_state{oncall_pid = OcPid}} = State) ->
 	?DEBUG("Forwarding request to callback", []),
@@ -1396,7 +1396,7 @@ oncall(Msg, {#base_state{callback = Callback, callrec = Call} = BaseState,
 %% oncall_ringing -> oncall (same agent), oncall (new agent)
 %%--------------------------------------------------------------------
 
-oncall_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid, _}, 
+oncall_ringing({{'$gen_media', agent_oncall}, undefined}, {Apid, _},
 		{#base_state{callrec = #call{ring_path = outband} = Call},
 		#oncall_ringing_state{ring_pid = {_, Apid}}} = State) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband for ~p", [Apid, Call#call.id]),
@@ -1475,7 +1475,7 @@ oncall_ringing({{'$gen_media', Command}, _}, State) ->
 	?DEBUG("invalid event command ~s while oncall_ringing", [Command]),
 	{next_state, oncall_ringing, State};
 
-oncall_ringing(Msg, {#base_state{callback = Callback, callrec = Call} = 
+oncall_ringing(Msg, {#base_state{callback = Callback, callrec = Call} =
 		BaseState, Extra} = State) ->
 	Return = Callback:handle_cast(Msg, oncall_ringing, Call, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, oncall_ringing, noreply, State).
@@ -1488,7 +1488,7 @@ wrapup({{'$gen_media', Command}, _}, _From, State) ->
 	?DEBUG("Invalid sync command ~p Command whiel in wrapup", [Command]),
 	{reply, invalid, wrapup, State};
 
-wrapup(Msg, From, {#base_state{callback = Callback, callrec = Call} = 
+wrapup(Msg, From, {#base_state{callback = Callback, callrec = Call} =
 		BaseState, Extra} = State) ->
 	Return = Callback:handle_call(Msg, From, wrapup, Call, Extra, BaseState#base_state.substate),
 	handle_custom_return(Return, wrapup, reply, State).
@@ -1625,7 +1625,7 @@ handle_info({'DOWN', Ref, process, Pid, _Info}, inqueue, {BaseState,
 		cook_mon = undefined
 	},
 	{next_state, inqueue, {NewBase, NewInternal}};
-	
+
 handle_info({'DOWN', Ref, process, Pid, Info}, inqueue_ringing, {BaseState,
 		#inqueue_ringing_state{ring_pid = {Aname, Pid}, ring_mon = Ref} = Internal}) ->
 	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
@@ -1663,9 +1663,9 @@ handle_info({'DOWN', Ref, process, Pid, _Info}, oncall_ringing, {BaseState,
 		queue_mon = Qmon
 	},
 	{next_state, inqueue_ringing, {NewBase, NewInternal}};
-	
+
 handle_info({'DOWN', Ref, process, Pid, _Info}, oncall_ringing, {BaseState,
-		#oncall_ringing_state{ring_pid = {Agent, Pid}, ring_mon = Ref} = 
+		#oncall_ringing_state{ring_pid = {Agent, Pid}, ring_mon = Ref} =
 		Internal}) ->
 	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
 	?WARNING("Ringing agent ~p died while oncall", [Pid]),
@@ -1675,8 +1675,8 @@ handle_info({'DOWN', Ref, process, Pid, _Info}, oncall_ringing, {BaseState,
 	NewInternal = #oncall_state{oncall_pid = Ocpid, oncall_mon = OcMon},
 	{next_state, oncall, {NewBase, NewInternal}};
 
-handle_info({'DOWN', Ref, process, Pid, Info}, oncall, {BaseState, 
-		#oncall_state{oncall_pid = {_Agent, Pid}, oncall_mon = Ref} = 
+handle_info({'DOWN', Ref, process, Pid, Info}, oncall, {BaseState,
+		#oncall_state{oncall_pid = {_Agent, Pid}, oncall_mon = Ref} =
 		Internal}) ->
 	?WARNING("Oncall agent ~p died due to ~p", [Pid, Info]),
 	#base_state{callrec = Call, callback = Callback, substate = Sub} = BaseState,
@@ -1703,7 +1703,7 @@ handle_info(Msg, StateName, {#base_state{callback = Callback,
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 
-terminate(Reason, StateName, {#base_state{callback = Callback, callrec = 
+terminate(Reason, StateName, {#base_state{callback = Callback, callrec =
 		Call} = BaseState, Extra} = State) ->
 	set_cpx_mon(State, delete),
 	Callback:terminate(Reason, StateName, Call, Extra, BaseState#base_state.substate).
@@ -1770,8 +1770,8 @@ handle_custom_return({queue, Queue, PCallrec, NewState}, inivr, Reply, {BaseStat
 			end
 	end;
 
-handle_custom_return({voicemail, NewState}, StateName, Reply, 
-		{BaseState, InternalState}) when StateName =:= inqueue; 
+handle_custom_return({voicemail, NewState}, StateName, Reply,
+		{BaseState, InternalState}) when StateName =:= inqueue;
 		StateName =:= inqueue_ringing ->
 	priv_voicemail({BaseState, InternalState}),
 	NewBase = BaseState#base_state{
@@ -1784,7 +1784,7 @@ handle_custom_return({voicemail, NewState}, StateName, Reply,
 			{next_state, wrapup, {NewBase, #wrapup_state{}}}
 	end;
 
-handle_custom_return({stop, Reason, Reply, NewState}, StateName, reply, 
+handle_custom_return({stop, Reason, Reply, NewState}, StateName, reply,
 		{BaseState, Internal}) ->
 	{NewStop, {NewBase, NewInternal}} = handle_stop(Reason, StateName, BaseState, Internal),
 	{stop, NewStop, Reply, {NewBase#base_state{substate = NewState}, NewInternal}};
@@ -1795,7 +1795,7 @@ handle_custom_return({stop, Reason, NewState}, StateName, _Reply,
 	{stop, NewStop, {NewBase#base_state{substate = NewState}, NewInternal}};
 
 handle_custom_return({outgoing, AgentChannel, NewState}, StateName, Reply,
-		{#base_state{callrec = Call} = BaseState, InternalState}) when 
+		{#base_state{callrec = Call} = BaseState, InternalState}) when
 		is_record(BaseState#base_state.callrec, call) ->
 	handle_custom_return({outgoing, AgentChannel, Call, NewState}, StateName, Reply, {BaseState, InternalState});
 
@@ -1831,7 +1831,7 @@ handle_custom_return({outgoing, {AgentName, AgentChannel}, Call, NewState}, _Sta
 			?WARNING("Could not set ~p oncall:  ~p", [AgentName, Err]),
 			{stop, Err, invalid, State0}
 	end;
-			
+
 handle_custom_return({reply, Reply, NewState}, State, reply, {BaseState, Internal}) ->
 	NewBase = BaseState#base_state{substate = NewState},
 	{reply, Reply, State, {NewBase, Internal}};
@@ -1852,7 +1852,7 @@ handle_custom_return({noreply, NewState, Timebernate}, State, _Reply, {BaseState
 handle_custom_return({hangup, NewSub}, inqueue, Reply, State) ->
 	handle_custom_return({{hangup, undefined}, NewSub}, inqueue, Reply, State);
 
-handle_custom_return({{hangup, Who}, NewSub}, inqueue, Reply, 
+handle_custom_return({{hangup, Who}, NewSub}, inqueue, Reply,
 		{#base_state{callrec = Callrec} = BaseState, Internal}) ->
 	#inqueue_state{queue_mon = Qmon, queue_pid = {_, Qpid}} = Internal,
 	?INFO("hang for ~p up when only queue is a pid", [Callrec#call.id]),
@@ -1914,14 +1914,14 @@ handle_custom_return({mutate, NewCallback, NewState}, State, noreply,
 	NewBase = BaseState#base_state{callback = NewCallback, substate = NewState},
 	{next_state, State, {NewBase, Internal}};
 
-handle_custom_return({mutate, Reply, NewCallback, NewState}, State, reply, 
+handle_custom_return({mutate, Reply, NewCallback, NewState}, State, reply,
 		{BaseState, Internal}) ->
 	?INFO("mutating to ~p from ~p", [NewCallback, BaseState#base_state.callback]),
 	NewBase = BaseState#base_state{callback = NewCallback,
 		substate = NewState},
 	{reply, Reply, State, {NewBase, Internal}};
 
-handle_custom_return({AgentInteract, Reply, NewState}, State, reply, 
+handle_custom_return({AgentInteract, Reply, NewState}, State, reply,
 		StateTuple) when State =:= oncall;
 		State =:= oncall_ringing;
 		State =:= warm_transfer_hold;
@@ -1966,7 +1966,7 @@ stop_agent_channel(Apid) ->
 			?WARNING("Agent ~p is a dead pid", [Apid]),
 			badagent
 	end.
-	
+
 
 handle_stop(hangup, StateName, BaseState, Internal) ->
 	handle_stop({hangup, undefined}, StateName, BaseState, Internal);
@@ -2004,7 +2004,7 @@ handle_stop(Reason, StateName, BaseState, Internal) ->
 	end,
 	agent_interact({hangup, Who}, StateName, {BaseState, Internal}),
 	Reason.
-	
+
 url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 	#client{options = DefaultOptions} = correct_client_sub(undefined),
 	String = case {proplists:get_value(url_pop, Client#client.options), proplists:get_value(url_pop, DefaultOptions)} of
@@ -2027,7 +2027,7 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 		_ ->
 			Words = [
 				{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
-				{"clientid", (case is_atom(Client#client.id) of true -> atom_to_list(Client#client.id); 
+				{"clientid", (case is_atom(Client#client.id) of true -> atom_to_list(Client#client.id);
 					false -> Client#client.id end)},
 				{"callerid", element(1, Call#call.callerid) ++ " " ++ element(2, Call#call.callerid)},
 				{"calleridname", element(1, Call#call.callerid)},
@@ -2065,7 +2065,7 @@ correct_client(#call{client = Client} = Callrec) ->
 			correct_client_sub({String,[]})
 	end,
 	Callrec#call{client = Newclient}.
-	
+
 correct_client_sub(undefined) ->
 	Client = try call_queue_config:get_client(id, undefined) of
 		Whatever ->
@@ -2317,7 +2317,7 @@ agent_interact({hangup, Who}, inqueue_ringing, #base_state{
 	erlang:demonitor(Qmon),
 	{wrapup, {BaseState, #wrapup_state{}}};
 
-agent_interact({hangup, Who}, oncall, #base_state{callrec = Callrec} = 
+agent_interact({hangup, Who}, oncall, #base_state{callrec = Callrec} =
 		BaseState, _Internal, {Mon, {Agent, Apid}}) ->
 	?INFO("hangup for ~p when only oncall is a pid", [Callrec#call.id]),
 	set_agent_state(Apid, [wrapup, Callrec]),
@@ -2326,7 +2326,7 @@ agent_interact({hangup, Who}, oncall, #base_state{callrec = Callrec} =
 	erlang:demonitor(Mon),
 	{wrapup, {BaseState, #wrapup_state{}}};
 
-agent_interact({hangup, _Who}, State, #base_state{callrec = Callrec} = 
+agent_interact({hangup, _Who}, State, #base_state{callrec = Callrec} =
 		BaseState, Internal, {_Mon, {_Agent, _Apid}}) when
 		is_record(Callrec, call) ->
 	?INFO("hangup for ~p while in state ~p; not taking action at this time.", [Callrec#call.id, State]),
@@ -2473,7 +2473,7 @@ handle_state_changes_test_d() ->
 		end,
 		Makestate = fun() ->
 			{ok, {#base_state{callrec = Callrec} = Out, _}} = init([dummy_media, [[{queues, none}], success]]),
-			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}), 
+			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			Out
 		end,
 		#state_changes_mocks{ queue_manager = QMmock, queue = Qpid,
@@ -2491,7 +2491,7 @@ handle_state_changes_test_d() ->
 
 
 
-		
+
 %handle_call_test_() ->
 %	util:start_testnode(),
 %	N = util:start_testnode(gen_media_handle_call_tests),
@@ -2509,7 +2509,7 @@ handle_state_changes_test_d() ->
 %		end,
 %		Makestate = fun() ->
 %			{ok, #state{callrec = Callrec} = Out} = init([dummy_media, [[{queues, none}], success]]),
-%			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}), 
+%			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 %			Out
 %		end,
 %		{Makestate, QMmock, Qpid, Ammock, Assertmocks}
@@ -2541,7 +2541,7 @@ handle_state_changes_test_d() ->
 %		end}
 %	end,
 %	fun({Makestate, _QMock, _Qpid, _Ammock, _Assertmocks}) ->
-%		{"Can't spy on yourself", 
+%		{"Can't spy on yourself",
 %		fun() ->
 %			Seedstate = Makestate(),
 %			Spy = dead_spawn(),
@@ -2575,7 +2575,7 @@ handle_state_changes_test_d() ->
 %			?assertMatch({reply, ok, _Newstate}, handle_call({'$gen_media', spy, Spy}, {Spy, "tag"}, State)),
 %			Assertmocks()
 %		end}
-%	end,	
+%	end,
 %	fun({Makestate, _, _, Ammock, Assertmocks}) ->
 %		{"oncall_pid requests wrapup",
 %		fun() ->
@@ -2690,7 +2690,7 @@ handle_state_changes_test_d() ->
 %			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 %			{ok, Agent} = agent:start(#agent{login = "testagent"}),
 %			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _State) ->
-%				Mpid = Callrec#call.source, 
+%				Mpid = Callrec#call.source,
 %				Rec = Callrec#call{priority = 35},
 %				ok
 %			end),
@@ -3162,7 +3162,7 @@ handle_state_changes_test_d() ->
 %			State = Seedstate#state{callrec = Callrec, ring_pid = {"testagent", Agent}, queue_pid = {"default_queue", Qpid}, ringout = Tref, monitors = Mons},
 %			{reply, ok, Newstate} = handle_call('$gen_media', agent_oncall, "from", State),
 %			receive
-%				timer_lives -> 
+%				timer_lives ->
 %					erlang:error(timer_lives)
 %			after 150 ->
 %				ok
@@ -3195,7 +3195,7 @@ handle_state_changes_test_d() ->
 %			State = Seedstate#state{callrec = Callrec, ring_pid = {"testagent", Agent}, ringout = Tref, queue_pid = {"default_queue", Qpid}, monitors = Mons},
 %			{reply, invalid, Newstate} = handle_call('$gen_media', agent_oncall, "from", State),
 %			receive
-%				timer_lives -> 
+%				timer_lives ->
 %					ok
 %			after 150 ->
 %				erlang:error(timer_nolives)
@@ -3541,7 +3541,7 @@ handle_state_changes_test_d() ->
 %			gen_leader_mock:stop(Mock)
 %		end}
 %	end]}}.
-%	
+%
 %agent_interact_test_() ->
 %	util:start_testnode(),
 %	N = util:start_testnode(gen_media_agent_interact_tests),

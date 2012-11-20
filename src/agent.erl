@@ -367,20 +367,24 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #state{agent_rec = #a
 		agent_channel:set_connection(ChanPid, Pid),
 		V
 	end, Agent#agent.used_channels),
+	NewAgent = Agent#agent{connection = Pid},
 	case erlang:function_exported(cpx_supervisor, get_value, 1) of
 		true ->
 			case cpx_supervisor:get_value(motd) of
 				{ok, Motd} ->
-					gen_server:cast(Pid, {blab, Motd});
+					inform_connection(NewAgent, {blab, Motd});
 				_ ->
 					ok
 			end;
 		false ->
 			ok
 	end,
-	Newagent = Agent#agent{connection = Pid},
-	inform_connection(Agent, {set_release, Agent#agent.release_data}),
-	{reply, ok, StateName, State#state{agent_rec = Newagent}};
+	R = case Agent#agent.release_data of
+		undefined -> none;
+		O -> O
+	end,
+	inform_connection(NewAgent, {set_release, R}),
+	{reply, ok, StateName, State#state{agent_rec = NewAgent}};
 
 handle_sync_event(dump_state, _From, StateName, #state{agent_rec = Agent} = State) ->
 	{reply, Agent, StateName, State};
@@ -407,7 +411,6 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 				{login, Newagent#agent.login},
 				{skills, Newagent#agent.skills}
 			],
-			gen_server:cast(Agent#agent.connection, {change_profile, Profile}),
 			cpx_agent_event:change_agent(Agent, Newagent),
 			cpx_monitor:set({agent, Agent#agent.id}, Deatils),
 			inform_connection(Agent, {change_profile, Profile}),

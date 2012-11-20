@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc The connection handler that communicates with a client UI; in this 
+%% @doc The connection handler that communicates with a client UI; in this
 %% case a tcp client using the protobufs defined in cpx_agent.proto.
 %% @see agent_tcp_listener
 
@@ -90,7 +90,7 @@
 % API
 % =====
 
-%% @doc start the conection unlinked on the given Socket to be changd or 
+%% @doc start the conection unlinked on the given Socket to be changd or
 %% not depending on SocketType.  This is usually done by agent_tcp_listener.
 -spec(start/3 :: (Socket :: port(), Radix :: integer(), SocketType :: socket_type()) -> {'ok', pid()}).
 start(Socket, Radix, SocketType) ->
@@ -102,8 +102,8 @@ start(Socket, Radix, SocketType) ->
 start_link(Socket, Radix, SocketType) ->
 	gen_server:start_link(?MODULE, [Socket, Radix, SocketType], []).
 
-%% @doc Notify the client that it should begin the login proceedure.  If 
-%% the socket is supposed to be upgraded to ssl, this is the time it is 
+%% @doc Notify the client that it should begin the login proceedure.  If
+%% the socket is supposed to be upgraded to ssl, this is the time it is
 %% done.
 -spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
@@ -247,7 +247,7 @@ handle_cast({mediapush, ChanPid, _Callrec, {mediaload, Callrec}}, State) ->
 handle_cast({mediapush, _ChanPid, Callrec, Data}, State) ->
 	Newpush = translate_media_push(Callrec, Data, State),
 	case Newpush of
-		false -> 
+		false ->
 			?INFO("Not forwarding non-protobuf-able tuple ~p", [Data]),
 			ok;
 		_ ->
@@ -447,10 +447,10 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 		{allow, Id, Skills, Security, Profile} ->
 			Username = LoginRequest#loginrequest.username,
 			Agent = #agent{
-				id = Id, 
-				login = Username, 
-				skills = Skills, 
-				profile = Profile, 
+				id = Id,
+				login = Username,
+				skills = Skills,
+				profile = Profile,
 				security_level = Security
 			},
 			case agent_manager:start_agent(Agent) of
@@ -495,10 +495,10 @@ service_request(#agentrequest{request_hint = 'LOGIN', login_request = LoginReque
 							{Reply, State};
 						{allow, Id, Skills, Security, Profile} ->
 							Agent = #agent{
-								id = Id, 
-								login = LoginRequest#loginrequest.username, 
-								skills = Skills, 
-								profile=Profile, 
+								id = Id,
+								login = LoginRequest#loginrequest.username,
+								skills = Skills,
+								profile=Profile,
 								security_level = Security
 							},
 							case agent_manager:start_agent(Agent) of
@@ -699,9 +699,9 @@ service_request(#agentrequest{request_hint = 'AGENT_CHANNEL_REQUEST',
 	is_record(ChanReq, agentchannelrequest) ->
 		service_channel_request(ChanReq, BaseReply, State);
 %service_request(
-%	#agentrequest{request_hint = 'INIT_OUTBOUND', 
-%		init_outbound_request = Request}, 
-%	BaseReply, 
+%	#agentrequest{request_hint = 'INIT_OUTBOUND',
+%		init_outbound_request = Request},
+%	BaseReply,
 %	#state{state = S} = State) when S =:= released; S =:= idle ->
 %	Reply = case Request#initoutboundrequest.media_type of
 %		"freeswitch" ->

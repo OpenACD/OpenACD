@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -82,9 +82,9 @@ code_change(_Oldvsn, State, _Extra) ->
 
 dump(Agentstate, #state{agent_states_buffer = Buf} = State) when is_record(Agentstate, agent_state) ->
 	L = io_lib:format("~s, ~w, ~B, ~B~n", [
-		Agentstate#agent_state.agent, 
-		Agentstate#agent_state.state, 
-		Agentstate#agent_state.start, 
+		Agentstate#agent_state.agent,
+		Agentstate#agent_state.state,
+		Agentstate#agent_state.start,
 		Agentstate#agent_state.ended]),
 	{ok, State#state{agent_states_buffer = [L | Buf]}};
 dump(CDR, #state{cdr_buffer = Buf} = State) when is_record(CDR, cdr_rec) ->

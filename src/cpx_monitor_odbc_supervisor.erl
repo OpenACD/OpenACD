@@ -10,7 +10,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -21,8 +21,8 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 
-%% @doc Intercepts events from cpx_monitor on behalf of an odbc connection.  
-%% The odbc connection is supervised by a proper supervisor which is 
+%% @doc Intercepts events from cpx_monitor on behalf of an odbc connection.
+%% The odbc connection is supervised by a proper supervisor which is
 %% started by this module.
 %%
 %% When an event comes in, it transforms it into a record which mirrors a
@@ -108,7 +108,7 @@
 % API
 % =====
 
-%% @doc Start the supervisor and child with default options unlinked to 
+%% @doc Start the supervisor and child with default options unlinked to
 %% calling process.
 -spec(start/1 :: (Dsn :: dsn()) -> {'ok', pid()}).
 start(Dsn) ->
@@ -126,7 +126,7 @@ start(Dsn, Opts) ->
 start_link(Dsn) ->
 	start_link(Dsn, []).
 
-%% @doc Start the supervisor and child with given options linked to the 
+%% @doc Start the supervisor and child with given options linked to the
 %% calling process.
 -spec(start_link/2 :: (Dsn :: dsn(), Opts :: start_opts()) -> {'ok', pid()}).
 start_link(Dsn, Opts) ->
@@ -149,7 +149,7 @@ status() ->
 	gen_server:call(?MODULE, status).
 
 % =====
-% init 
+% init
 % =====
 init([Dsn, Opts]) ->
 	process_flag(trap_exit, true),
@@ -310,7 +310,7 @@ handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}
 			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls), event_cache = NewCache}}
 	end;
 handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, State) ->
-	% setting up a delay as there may be messages about agents that need the 
+	% setting up a delay as there may be messages about agents that need the
 	% info.
 	NewCache = case dict:find(Key, State#state.callagentmap) of
 		error -> % An abandonment!
@@ -392,7 +392,7 @@ start_odbc_process(SupPid, _, _) ->
 			start_args = [{local, test_odbc_writer}]
 		},
 		cpx_middle_supervisor:add_directly(SupPid, Spec).
-		
+
 init_sup_pids(Maxr, Maxt, _, _) ->
 	{ok, Sup} = start_odbc_super(Maxr, Maxt),
 	{ok, Odbc} = start_odbc_process(Sup, undefined, undefined),
@@ -467,7 +467,7 @@ agent_diff(_Agent, New, Old, Timestamp, State) ->
 								[Events1 | Events2];
 							_ ->
 								[Events1]
-						end;	
+						end;
 					{_, oncall} ->
 						Call = proplists:get_value(statedata, New),
 						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
@@ -599,7 +599,7 @@ build_event_log_call_base(E, Props) ->
 		origin_code = OriginCode,
 		freeswitch_id = proplists:get_value(mediaid, Props, "")
 	}.
-	
+
 send_events(_Pid, [], Acc) ->
 	Acc;
 send_events(Pid, [Head | Tail], Acc) when is_pid(Pid) ->
@@ -607,7 +607,7 @@ send_events(Pid, [Head | Tail], Acc) when is_pid(Pid) ->
 	Pid ! {Ref, Head},
 	NewAcc = [{Ref, Head} | Acc],
 	send_events(Pid, Tail, NewAcc);
-send_events(undefined, [Head | Tail], Acc) -> 
+send_events(undefined, [Head | Tail], Acc) ->
 	NewAcc = [{make_ref(), Head} | Acc],
 	send_events(undefined, Tail, NewAcc);
 send_events(Nom, List, Acc) when is_atom(Nom)->
@@ -615,7 +615,7 @@ send_events(Nom, List, Acc) when is_atom(Nom)->
 send_events(_Pid, [Head | Tail], Acc) ->
 	NewAcc = [{make_ref(), Head} | Acc],
 	send_events(undefined, Tail, NewAcc).
-	
+
 %-spec monotonic_counter() -> float().
 %monotonic_counter() ->
 %	{MegaSeconds, Seconds, MicroSeconds} = erlang:now(),
@@ -636,14 +636,14 @@ iso8601_timestamp(Now) ->
 init_call_queue_map() ->
 	Queuelist = queue_manager:queues(),
 	map_call_to_queue(Queuelist, dict:new()).
-	
+
 map_call_to_queue([], Dict) ->
 	Dict;
 map_call_to_queue([{Name, Pid} | Tail], Dict) ->
 	Calls = call_queue:get_calls(Pid),
 	Newdict = map_call_to_queue(Calls, Name, Dict),
 	map_call_to_queue(Tail, Newdict).
-	
+
 map_call_to_queue([], _Name, Dict) ->
 	Dict;
 map_call_to_queue([{_Key, #queued_call{id = Id} = _Media} | Tail], Name, Dict) ->
@@ -679,9 +679,9 @@ transform_events_tests() ->
 	fun() ->
 		Ets = ets:new(cpx_monitor, [named_table]),
 		{ok, Qm} = gen_leader_mock:start(queue_manager),
-		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) ->
 			{ok, [], State}
-		end),	
+		end),
 		{ok, Pid} = start("fake_dsn"),
 		#test_conf{
 			ets = Ets,
@@ -715,7 +715,7 @@ transform_events_tests() ->
 	end} end,
 	fun(_Rec) -> {"stop_acd", fun() ->
 		Self = self(),
-		gen_server_mock:expect_info(test_odbc_writer, 
+		gen_server_mock:expect_info(test_odbc_writer,
 			fun({_Ref, #event_log_row{event_type = acd_stop} = In}, _State) ->
 				Fqdn = get_FQDN(),
 				Fqdn = In#event_log_row.hostname,
@@ -734,9 +734,9 @@ transform_events_tests() ->
 	end} end,
 	fun(Rec) -> {"agent_start", fun() ->
 		Self = self(),
-		% "316670"; "ca1acd05.infonxx.local"; "agent_start"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
-		% ""; "2010-12-17 08:08:27.487565-05"; ""; 
+		% "316670"; "ca1acd05.infonxx.local"; "agent_start";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; "";
+		% ""; "2010-12-17 08:08:27.487565-05"; "";
 		% "openacd : 1292591307.488780 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_start : testme@ca1acd05 : 5151";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -753,10 +753,10 @@ transform_events_tests() ->
 				ok
 			end
 		),
-		% "316671"; "ca1acd05.infonxx.local"; "agent_login"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
-		% ""; ""; ""; ""; "2010-12-17 08:08:27.487565-05"; ""; 
-		% "openacd : 1292591307.488943 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_login : testme@ca1acd05 : 5151 : SRVCC_English"; 
+		% "316671"; "ca1acd05.infonxx.local"; "agent_login";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English";
+		% ""; ""; ""; ""; "2010-12-17 08:08:27.487565-05"; "";
+		% "openacd : 1292591307.488943 : ca1acd05.infonxx.local : 2010-12-17T13:08:27.487565Z : agent_login : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
 			fun({_, In}, _State) ->
@@ -812,8 +812,8 @@ transform_events_tests() ->
 			{statedata, {}}
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 3),
-		% "316672"; "ca1acd05.infonxx.local"; "agent_available"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% "316672"; "ca1acd05.infonxx.local"; "agent_available";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English";
 		% ""; ""; ""; ""; "2010-12-17 08:14:11.402181-05"; "";
 		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_available : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
@@ -874,8 +874,8 @@ transform_events_tests() ->
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 5),
 		Self = self(),
-		% "316672"; "ca1acd05.infonxx.local"; "agent_available"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
+		% "316672"; "ca1acd05.infonxx.local"; "agent_available";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English";
 		% ""; ""; ""; ""; "2010-12-17 08:14:11.402181-05"; "";
 		% "openacd : 1292591651.402580 : ca1acd05.infonxx.local : 2010-12-17T13:14:11.402181Z : agent_unavailable : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
@@ -926,9 +926,9 @@ transform_events_tests() ->
 		cpx_monitor_odbc_supervisor ! CpxEvent,
 		Self = self(),
 		% and now tear it down.
-		% "316673"; "ca1acd05.infonxx.local"; "agent_stop"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; ""; 
-		% ""; "2010-12-17 08:39:37.656684-05"; ""; "openacd : 1292593177.657229 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_stop : testme@ca1acd05 : 5151"; 
+		% "316673"; "ca1acd05.infonxx.local"; "agent_stop";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; ""; ""; ""; "";
+		% ""; "2010-12-17 08:39:37.656684-05"; ""; "openacd : 1292593177.657229 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_stop : testme@ca1acd05 : 5151";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
 			fun({_Ref, #event_log_row{event_type = agent_stop} = In}, _) ->
@@ -947,9 +947,9 @@ transform_events_tests() ->
 				ok
 			end
 		),
-		% "316674"; "ca1acd05.infonxx.local"; "agent_logout"; 
-		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English"; 
-		% ""; ""; ""; ""; "2010-12-17 08:39:37.656684-05"; ""; 
+		% "316674"; "ca1acd05.infonxx.local"; "agent_logout";
+		% "ca1acd05.infonxx.local"; "5151"; ""; ""; ""; ""; ""; "SRVCC_English";
+		% ""; ""; ""; ""; "2010-12-17 08:39:37.656684-05"; "";
 		% "openacd : 1292593177.657609 : ca1acd05.infonxx.local : 2010-12-17T13:39:37.656684Z : agent_logout : testme@ca1acd05 : 5151 : SRVCC_English";
 		% ""; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -992,10 +992,10 @@ transform_events_tests() ->
 	end} end,
 	fun(Rec) -> {"call_enqueue", fun() ->
 		Self = self(),
-		% "316653"; "ca1acd05.infonxx.local"; "call_enqueue"; 
-		% "ca1acd05.infonxx.local"; ""; ""; "15162337*112"; "9080"; "112"; 
-		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080"; 
-		% ""; ""; "2010-12-17 07:14:03.361929-05"; ""; 
+		% "316653"; "ca1acd05.infonxx.local"; "call_enqueue";
+		% "ca1acd05.infonxx.local"; ""; ""; "15162337*112"; "9080"; "112";
+		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
+		% ""; ""; "2010-12-17 07:14:03.361929-05"; "";
 		% "openacd : 1292588043.362124 : ca1acd05.infonxx.local : 2010-12-17T12:14:03.361929Z : call_enqueue : testme@ca1acd05 : SRVCC_English : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin Code : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -1043,7 +1043,7 @@ transform_events_tests() ->
 		% "316655"; "ca1acd05.infonxx.local"; "call_terminate";
 		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
 		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
-		% ""; ""; "2010-12-17 07:24:21.30899-05"; ""; 
+		% ""; ""; "2010-12-17 07:24:21.30899-05"; "";
 		% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
 		gen_server_mock:expect_info(test_odbc_writer,
@@ -1092,13 +1092,13 @@ transform_events_tests() ->
 			{statedata, Call}
 		], "node"}}},
 		ignore_infos(test_odbc_writer, 3),
-		% "316654"; "ca1acd05.infonxx.local"; "call_answer"; 
+		% "316654"; "ca1acd05.infonxx.local"; "call_answer";
 		% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
 		% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
-		% ""; ""; "2010-12-17 07:14:08.563499-05"; ""; 
+		% ""; ""; "2010-12-17 07:14:08.563499-05"; "";
 		% "openacd : 1292588048.563678 : ca1acd05.infonxx.local : 2010-12-17T12:14:08.563499Z : call_pickup : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% "6108491500"; "openacd"
-		gen_server_mock:expect_info(test_odbc_writer, 
+		gen_server_mock:expect_info(test_odbc_writer,
 			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
@@ -1150,13 +1150,13 @@ transform_events_tests() ->
 	% 	], "node"}}},
 	% 	Self = self(),
 	% 	ignore_infos(test_odbc_writer, 4),
-	% 	% "316655"; "ca1acd05.infonxx.local"; "call_terminate"; 
+	% 	% "316655"; "ca1acd05.infonxx.local"; "call_terminate";
 	% 	% "ca1acd05.infonxx.local"; "5045"; ""; "15162337*112"; "9080"; "112";
 	% 	% "SRVCC_English"; "SRVCC_English"; ""; "6108491500*15162337*112*9080";
-	% 	% ""; ""; "2010-12-17 07:24:21.30899-05"; ""; 
+	% 	% ""; ""; "2010-12-17 07:24:21.30899-05"; "";
 	% 	% "openacd : 1292588661.309172 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.308990Z : call_terminate : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 	% 	% "6108491500"; "openacd"
-	% 	gen_server_mock:expect_info(test_odbc_writer, 
+	% 	gen_server_mock:expect_info(test_odbc_writer,
 	% 		fun({_, In}, _) ->
 	% 			Expected = #event_log_row{
 	% 				hostname = get_FQDN(),
@@ -1217,7 +1217,7 @@ transform_events_tests() ->
 		% ""; ""; ""; ""; ""; ""; ""; ""; "2010-12-17 07:24:21.836007-05"; "";
 		% "openacd : 1292588661.836533 : ca1acd05.infonxx.local : 2010-12-17T12:24:21.836007Z : call_complete : testme@ca1acd05 : SRVCC_English : 5045 : 6108491500*15162337*112*9080 : cf97c474-c691-4747-ba8f-8f05375e9a90 : Origin : CLS : Source IP : 9080";
 		% ""; "openacd"
-		gen_server_mock:expect_info(test_odbc_writer, 
+		gen_server_mock:expect_info(test_odbc_writer,
 			fun({_, In}, _) ->
 				Expected = #event_log_row{
 					hostname = get_FQDN(),
@@ -1250,7 +1250,7 @@ jack_the_ripper(Target) when is_atom(Target) ->
 
 jack_the_ripper(Target, Max) when is_atom(Target) ->
 	jack_the_ripper(Target, 0, Max).
-	
+
 jack_the_ripper(_Target, Max, Max) ->
 	ok;
 jack_the_ripper(Target, Count, Max) when Count < Max ->
@@ -1265,11 +1265,11 @@ jack_the_ripper(Target, Count, Max) when Count < Max ->
 	end.
 
 murder_tests() ->
-	{inorder, {foreach, 
+	{inorder, {foreach,
 	fun() ->
 		Ets = ets:new(cpx_monitor, [named_table]),
 		{ok, Qm} = gen_leader_mock:start(queue_manager),
-		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) -> 
+		gen_leader_mock:expect_leader_call(Qm, fun(_, _, State, _) ->
 			{ok, [], State}
 		end),
 		#test_conf{
@@ -1290,7 +1290,7 @@ murder_tests() ->
 	% [fun(_) -> {"Killing the writer is noticed", fun() ->
 	% 	{ok, #state{odbc_pid = Odbc} = State} = init(["fake_dsn", []]),
 	% 	gen_server_mock:crash(whereis(test_odbc_writer)),
-	% 	{noreply, NewState} = receive 
+	% 	{noreply, NewState} = receive
 	% 		{'EXIT', Odbc, Reason} = Msg ->
 	% 			?DEBUG("~p", [Reason]),
 	% 			handle_info(Msg, State)

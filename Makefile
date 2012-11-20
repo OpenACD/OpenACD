@@ -51,6 +51,12 @@ OALOGDIR=$(VARDIR)/log/openacd
 OADBDIR=$(OAVARDIR)/db
 OAPLUGINDIR=$(OADIR)/plugin.d
 
+ifdef PREFIX
+OPENACD_PREFIX=$(PREFIX)
+else
+OPENACD_PREFIX=/
+endif
+
 all: deps compile
 
 deps:
@@ -90,6 +96,7 @@ install: compile
 	sed \
 	-e 's|%LOG_DIR%|$(OALOGDIR)|g' \
 	-e 's|%PLUGIN_DIR%|$(PREFIX)$(OAPLUGINDIR)|g' \
+	-e 's|%KEY_DIR%|$(PREFIX)$(OACONFIGDIR)|g' \
 	./config/app.config > $(DESTDIR)$(PREFIX)$(OACONFIGDIR)/app.config
 	sed \
 	-e 's|%DB_DIR%|$(PREFIX)$(OADBDIR)|g' \
@@ -100,7 +107,7 @@ install: compile
 ## Bin
 #dont use DESTDIR in sed here;this is a hack to not get "rpmbuild found in installed files"
 	sed \
-	-e 's|%OPENACD_PREFIX%|"$(PREFIX)"|g' \
+	-e 's|%OPENACD_PREFIX%|"$(OPENACD_PREFIX)"|g' \
 	-e 's|%LIB_DIR%|$(libdir)|g' \
 	./scripts/openacd > $(DESTDIR)$(PREFIX)$(OABINDIR)/openacd
 	chmod +x $(DESTDIR)$(PREFIX)$(OABINDIR)/openacd

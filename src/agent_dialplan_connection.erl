@@ -51,8 +51,6 @@
 	 terminate/2, code_change/3]).
 
 -type(state() :: #state{}).
--define(GEN_SERVER, true).
--include("gen_spec.hrl").
 
 %% API
 -spec(start/2 :: (AgentRec :: #agent{}, SelfKillTime :: 'undefined' | non_neg_integer()) -> {'ok', pid()}).

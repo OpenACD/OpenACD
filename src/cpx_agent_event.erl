@@ -42,7 +42,7 @@ start() ->
 -spec(start/1 :: (Nodes :: [node()]) -> {'ok', pid()}).
 start(Nodes) ->
 	case build_tables(Nodes) of
-		ok -> ok; 
+		ok -> ok;
 		Else ->
 			?WARNING("Some tables didn't build, this may crash later. ~p", [Else])
 	end,
@@ -108,7 +108,7 @@ is_record(NewAgent, agent) ->
 change_agent(OldAgent, NewAgent) when is_record(OldAgent, agent),
 is_record(NewAgent, agent) ->
 	gen_event:notify(?MODULE, {change_agent, OldAgent, NewAgent}).
-	
+
 %% @doc Create a handler specifically for the given agent channel.
 -spec(agent_channel_init/4 :: (Agent :: string(), ChannelId :: pid(),
 Statename :: atom(), Statedata :: any()) -> 'ok' | {atom(), any()}).
@@ -128,14 +128,14 @@ agent_channel_init(Agent, ChannelId, Statename, Statedata) ->
 			{What, Why}
 	end.
 
-%% @doc Alert the appropriate handler that an agent channel has changed 
+%% @doc Alert the appropriate handler that an agent channel has changed
 %% in some way (usually state).
 -spec(change_agent_channel/3 :: (Chanid :: pid(), Statename :: atom(),
 Statedata :: any()) -> 'ok').
 change_agent_channel(Chanid, Statename, Statedata) ->
 	gen_event:notify(?MODULE, {change_agent_channel, Chanid, Statename, Statedata}).
 
-%% @doc Purge all state information about an agent from mnesia, both 
+%% @doc Purge all state information about an agent from mnesia, both
 %% idleness and channel data.
 -spec(truncate/1 :: (AgentId :: string()) -> 'ok').
 truncate(AgentId) ->
@@ -198,13 +198,13 @@ init(Agent) when is_record(Agent, agent) ->
 	TransactFun = fun() ->
 		Now = util:now(),
 		Login = #agent_state{
-			id = Id, 
-			agent = Agentname, 
-			oldstate = login, 
+			id = Id,
+			agent = Agentname,
+			oldstate = login,
 			state = State,
 			statedata = Skills,
-			start = Now, 
-			ended = Now, 
+			start = Now,
+			ended = Now,
 			profile= Profile
 		},
 		StateRow = #agent_state{
@@ -251,7 +251,7 @@ handle_event({change_profile, #agent{id = Id} = OldAgent, NewAgent},
 	},
 	cpx_monitor:info({agent_profile, ProfChangeRec}),
 	{ok, NewAgent};
-	
+
 handle_event({change_state, #agent{id = Id}, NewAgent},
 #agent{id = Id}) ->
 	#agent{login = Agentname, release_data = Statedata,

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -31,21 +31,21 @@
 %% queue groups.
 %%
 %% <h3>Call Queue</h3>
-%% A Call Queue has a name, weight, skills, hold_music, group, and recipe. 
-%% The name is a unique identifier of the queue.  There can be only one 
+%% A Call Queue has a name, weight, skills, hold_music, group, and recipe.
+%% The name is a unique identifier of the queue.  There can be only one
 %% queue with a given name in a cluster.
 %%
-%% The wieght is how important media in the queue are relative to other 
+%% The wieght is how important media in the queue are relative to other
 %% queues.  A higher wieght indicates more importance.
 %%
 %% Skills is a list of skills to add to media that is placed in the queue.
-%% Note that media automatically get the magic '_node' skill assigned to 
+%% Note that media automatically get the magic '_node' skill assigned to
 %% them.
 %%
-%% Hold music really only matters to freeswitch or voice media.  It is a 
+%% Hold music really only matters to freeswitch or voice media.  It is a
 %% string that defines the file the hold music is located in.
 %%
-%% Group is which Queue Group the queue is a member of.  The skills and 
+%% Group is which Queue Group the queue is a member of.  The skills and
 %% recipe of a queue is combined with it's group on start up.
 %%
 %% Finally, there is the recipe.  A reciepe is a list of recipe steps.
@@ -76,46 +76,46 @@
 %%	recipe_comment() :: binary()
 %%
 %%	recipe_step() ::
-%%		{[recipe_condition(), ...], [recipe_operation(), ...], 
+%%		{[recipe_condition(), ...], [recipe_operation(), ...],
 %%			recipe_runs(), recipe_comment()}
 %%
 %%	recipe() :: [recipe_step()]
 %%
 %% <h3>Skills</h3>
 %%
-%% A skill configuration has an atom, name, protected, description, and 
+%% A skill configuration has an atom, name, protected, description, and
 %% group.
 %%
-%% The atom is the key, and is used when routing.  Certain skills are 
+%% The atom is the key, and is used when routing.  Certain skills are
 %% 'magic' in that they expand to {atom(), string()} values under the
 %% correct conditions.  A magic skill is denoted by an atom starting with
 %% an underscore by convetion, such as '_queue'.  It is an error to assign
-%% an unexpanded magic skill under conditions when it cannot expand.  The 
+%% an unexpanded magic skill under conditions when it cannot expand.  The
 %% magic skills are:
 %% <table style="border:black solid 1px">
 %% <tr><th>Atom</th><th>Expands When</th><th>Other Notes</th></tr>
 %% <tr><td>_agent</td><td>Assigned to an agent</td>
 %% 	<td>Expands to the agent's login</td></tr>
-%% <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the 
+%% <tr><td>_profile</td><td>Assigned to an agent</td><td>Expands to the
 %% 	name of the agent's profile.</td></tr>
 %% <tr><td>_queue></td><td>Assigned to a media that is in a queue</td>
 %% 	<td>Expands to the name of the queue media is in</td></tr>
-%% <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the 
+%% <tr><td>_brand</td><td>Assigned to a media</td><td>Expands to the
 %% 	client's label.</td></tr>
-%% <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to 
+%% <tr><td>_node</td><td>Assigned to an agent or media</td><td>Expands to
 %% 	the node the agent fsm or gen_media process is running on.</td></tr>
-%% <tr><td>_all</td><td>Always</td><td>Does not actually expand, but 
+%% <tr><td>_all</td><td>Always</td><td>Does not actually expand, but
 %% 	overrides other skills, making that agent able to take any media, or
 %% 	the media answerable by any agent.</td></tr>
 %% </table>
 %%
 %% The remaining configuration options only matter to the configuration for
-%% human's sake.  The only one that's not obvious is protected.  If 
+%% human's sake.  The only one that's not obvious is protected.  If
 %% protected is set to true, the skill cannot be edited or deleted.  The
 %% magic skills are protected.
 %%
 %% <h3>Queue Group</h3>
-%% 
+%%
 %% A queue group is a recipe and list of skills that each queue in the
 %% group shares.
 %%
@@ -130,13 +130,13 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
--define(QUEUE_TABLE(Nodes), 
+-define(QUEUE_TABLE(Nodes),
 	[
 		{attributes, record_info(fields, call_queue)},
 		{disc_copies, Nodes}
 	]
 ).
--define(SKILL_TABLE(Nodes), 
+-define(SKILL_TABLE(Nodes),
 	[
 		{attributes, record_info(fields, skill_rec)},
 		{disc_copies, Nodes}
@@ -173,7 +173,7 @@
 	build_tables/0
 ]).
 -export([
-	new_queue/1, 
+	new_queue/1,
 	new_queue/5,
 	destroy_queue/1,
 	get_queue/1,
@@ -228,10 +228,10 @@ start() ->
 	end,
 	Store:start().
 
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on 
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on
 %% the local node if it does not exist.
 -spec(build_tables/0 :: () ->'ok').
-build_tables() -> 
+build_tables() ->
 	?DEFAULT_STORAGE:build_tables().
 
 %% =====
@@ -241,10 +241,10 @@ build_tables() ->
 %% @doc Attempt to remove the queue `#call_queue{}' or `string()' `Queue' from the configuration database.
 -spec(destroy_queue/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
 					(Queue :: string()) -> {atom(), any()}).
-destroy_queue(Queue) when is_record(Queue, call_queue) -> 
+destroy_queue(Queue) when is_record(Queue, call_queue) ->
 	?DEFAULT_STORAGE:destroy_queue(Queue).
 
-%% @doc Get the configuration for the passed `string()' `Queue' name.	
+%% @doc Get the configuration for the passed `string()' `Queue' name.
 -spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
 get_queue(Name) ->
 	case cpx_hooks:trigger_hooks(get_queue, [Name], first) of
@@ -275,7 +275,7 @@ get_merged_queue(Queue) ->
 -spec(get_queues/1 :: (Group :: string()) -> [#call_queue{}]).
 get_queues(Group) ->
 	[X || X <- get_queues(), X#call_queue.group =:= Group].
-	
+
 %% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_queues/0 :: () -> [#call_queue{}]).
 get_queues() ->
@@ -378,7 +378,7 @@ destroy_queue_group(Groupname) ->
 %% Skill Configs
 %% =====
 
-%% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname', 
+%% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname',
 %% `string()' `Skilldesc', `string()' `Creator'.
 %% @see new_skill
 -spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
@@ -389,7 +389,7 @@ new_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_li
 -spec(new_skill/1 :: (Rec :: #skill_rec{}) -> {'atomic', 'ok'}).
 new_skill(Rec) when is_record(Rec, skill_rec) ->
 	?DEFAULT_STORAGE:new_skill(Rec).
-	
+
 %% @doc Check if the given `string()' `Skillname' exists.
 %% Returns the `atom()' of `Skillname' or `undefined'
 -spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
@@ -453,7 +453,7 @@ get_skills() ->
 get_skills(Group) when is_list(Group) ->
 	[X || X <- get_skills(), X#skill_rec.group =:= Group].
 
-%% @doc Removes the skill named `string()' `Skillname' from the database.  The 
+%% @doc Removes the skill named `string()' `Skillname' from the database.  The
 %% atom is still in the system, so this is just for looks.
 -spec(destroy_skill/1 :: (Skillname :: string()) -> {'atomic', 'ok'} | {'error', 'protected'}).
 destroy_skill(Skillname) ->
@@ -594,7 +594,7 @@ start_test_() ->
 		call_queue_config:start(),
 		?assert(meck:called(call_queue_config_mnesia, start, [])),
 		?assert(meck:validate(call_queue_config_mnesia)),
-		meck:unload(call_queue_config_mnesia)				
+		meck:unload(call_queue_config_mnesia)
 	end}].
 
 get_queues_test_() ->
@@ -613,7 +613,7 @@ get_queues_test_() ->
 		?assertEqual([], get_queues())
 	end},
 	{"normal", fun() ->
-		meck:expect(somestore, get_queues, 0, 
+		meck:expect(somestore, get_queues, 0,
 			{ok, [#call_queue{name="ali"},
 			#call_queue{name="baba"}]}),
 
@@ -628,7 +628,7 @@ get_queues_test_() ->
 		meck:expect(somestore, get_queues, 0,
 			{ok, [Queue1ali, Queue2baba]}),
 
-		meck:expect(somestore, get_queues2, 0, 
+		meck:expect(somestore, get_queues2, 0,
 			{ok, [Queue3kazam]}),
 
 		cpx_hooks:set_hook(b, get_queues, somestore, get_queues2, [], 5),
@@ -640,10 +640,10 @@ get_queues_test_() ->
 		Queue2baba = #call_queue{name="baba"},
 		Queue3ali = #call_queue{name="ali", skills=[jumping]},
 
-		meck:expect(somestore, get_queues, 0, 
+		meck:expect(somestore, get_queues, 0,
 			{ok, [Queue1ali, Queue2baba]}),
 
-		meck:expect(somestore, get_queues2, 0, 
+		meck:expect(somestore, get_queues2, 0,
 			{ok, [Queue3ali]}),
 
 		cpx_hooks:set_hook(b, get_queues, somestore, get_queues2, [], 5),
@@ -669,8 +669,8 @@ get_queues_test_() ->
 % 	{"normal", fun() ->
 % 		Entry1 = #call_queue{name="ali", group="persia"},
 % 		Entry2 = #call_queue{name="baba", group="persia"},
-		
-% 		meck:expect(somestore, get_queues_by_group, 1, 
+
+% 		meck:expect(somestore, get_queues_by_group, 1,
 % 			{ok, [Entry1, Entry2]}),
 
 % 		?assertEqual([Entry1, Entry2], get_queues("persia"))
@@ -720,7 +720,7 @@ get_queue_groups_test_() ->
 		?assertEqual([], get_queue_groups())
 	end},
 	{"normal sorted", fun() ->
-		meck:expect(somestore, get_queue_groups, 0, 
+		meck:expect(somestore, get_queue_groups, 0,
 			{ok, [#queue_group{name="ali", sort=5},
 			#queue_group{name="baba", sort=1},
 			#queue_group{name="zeta", sort=5}]}),
@@ -737,7 +737,7 @@ get_queue_groups_test_() ->
 		meck:expect(somestore, get_queue_groups, 0,
 			{ok, [Group1ali, Group2baba]}),
 
-		meck:expect(somestore, get_queue_groups2, 0, 
+		meck:expect(somestore, get_queue_groups2, 0,
 			{ok, [Group3kazam]}),
 
 		cpx_hooks:set_hook(b, get_queue_groups, somestore, get_queue_groups2, [], 5),
@@ -749,10 +749,10 @@ get_queue_groups_test_() ->
 		Group2baba = #queue_group{name="baba"},
 		Group3ali = #queue_group{name="ali", skills=[jumping]},
 
-		meck:expect(somestore, get_queue_groups, 0, 
+		meck:expect(somestore, get_queue_groups, 0,
 			{ok, [Group1ali, Group2baba]}),
 
-		meck:expect(somestore, get_queue_groups2, 0, 
+		meck:expect(somestore, get_queue_groups2, 0,
 			{ok, [Group3ali]}),
 
 		cpx_hooks:set_hook(b, get_queue_groups, somestore, get_queue_groups2, [], 5),
@@ -804,7 +804,7 @@ get_skills_test_() ->
 		?assertEqual([], get_skills())
 	end},
 	{"normal sorted", fun() ->
-		meck:expect(somestore, get_skills, 0, 
+		meck:expect(somestore, get_skills, 0,
 			{ok, [#skill_rec{atom=ali, group="b"},
 			#skill_rec{atom=baba, group="a"},
 			#skill_rec{atom=zeta, group="b"}]}),
@@ -821,7 +821,7 @@ get_skills_test_() ->
 		meck:expect(somestore, get_skills, 0,
 			{ok, [Entry1ali, Entry2baba]}),
 
-		meck:expect(somestore, get_skills2, 0, 
+		meck:expect(somestore, get_skills2, 0,
 			{ok, [Entry3kazam]}),
 
 		cpx_hooks:set_hook(b, get_skills, somestore, get_skills2, [], 5),
@@ -833,10 +833,10 @@ get_skills_test_() ->
 		Entry2baba = #skill_rec{atom=baba},
 		Entry3ali = #skill_rec{atom=ali, group="a"},
 
-		meck:expect(somestore, get_skills, 0, 
+		meck:expect(somestore, get_skills, 0,
 			{ok, [Entry1ali, Entry2baba]}),
 
-		meck:expect(somestore, get_skills2, 0, 
+		meck:expect(somestore, get_skills2, 0,
 			{ok, [Entry3ali]}),
 
 		cpx_hooks:set_hook(b, get_skills, somestore, get_skills2, [], 5),
@@ -862,8 +862,8 @@ get_skills_by_group_test_() ->
 	% {"normal", fun() ->
 	% 	Entry1 = #skill_rec{atom=dance, group="talent"},
 	% 	Entry2 = #skill_rec{atom=sing, group="talent"},
-		
-	% 	meck:expect(somestore, get_skills_by_group, 1, 
+
+	% 	meck:expect(somestore, get_skills_by_group, 1,
 	% 		{ok, [Entry1, Entry2]}),
 
 	% 	?assertEqual([Entry1, Entry2], get_skills("talent"))
@@ -919,7 +919,7 @@ get_clients_test_() ->
 		?assertEqual([], get_clients())
 	end},
 	{"normal sorted", fun() ->
-		meck:expect(somestore, get_clients, 0, 
+		meck:expect(somestore, get_clients, 0,
 			{ok, [#client{id="1", label="ali"},
 			#client{id="2", label="baba"},
 			#client{id="3", label="zeta"}]}),
@@ -936,7 +936,7 @@ get_clients_test_() ->
 		meck:expect(somestore, get_clients, 0,
 			{ok, [Entry1ali, Entry2baba]}),
 
-		meck:expect(somestore, get_clients2, 0, 
+		meck:expect(somestore, get_clients2, 0,
 			{ok, [Entry3kazam]}),
 
 		cpx_hooks:set_hook(b, get_clients, somestore, get_clients2, [], 5),
@@ -948,10 +948,10 @@ get_clients_test_() ->
 		Entry2baba = #client{id="2", label="baba"},
 		Entry3ali = #client{id="3", label="ali"},
 
-		meck:expect(somestore, get_clients, 0, 
+		meck:expect(somestore, get_clients, 0,
 			{ok, [Entry1ali, Entry2baba]}),
 
-		meck:expect(somestore, get_clients2, 0, 
+		meck:expect(somestore, get_clients2, 0,
 			{ok, [Entry3ali]}),
 
 		cpx_hooks:set_hook(b, get_clients, somestore, get_clients2, [], 5),

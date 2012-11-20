@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Module to spit a subset of the cpx_monitor data to an json file 
+%% @doc Module to spit a subset of the cpx_monitor data to an json file
 %% periodically.
 -module(cpx_monitor_passive).
 -author(micahw).
@@ -58,11 +58,11 @@
 -type(queue_groups() :: {queue_groups, [string()]}).
 -type(agents() :: {agents, [string()]}).
 -type(agent_profiles() :: {agent_profiles, [string()]}).
--type(output_filter() :: 
-	xml_output() | 
-	queues() | 
-	queue_groups() | 
-	agents() | 
+-type(output_filter() ::
+	xml_output() |
+	queues() |
+	queue_groups() |
+	agents() |
 	agent_profiles()).
 -type(output_filters() :: [output_filter()]).
 -type(output_name() :: string()).
@@ -72,11 +72,11 @@
 -type(write_interval() :: {write_interval, pos_integer()}). % in seconds
 -type(prune_dets() :: 'prune_dets' | {'prune_dets', boolean()}).
 
--type(start_option() :: 
+-type(start_option() ::
 	outputs_option() |
-	write_interval() | 
+	write_interval() |
 	prune_dets()).
-	
+
 -type(start_options() :: [start_option()]).
 
 %% Dets data types
@@ -179,7 +179,7 @@
 	pruning_pid :: 'undefined' | pid(),
 	queue_group_cache = [] :: [{string(), string()}], %% [{queue_name, group_queue_is_in}]
 	agent_profile_cache = [] :: [{string(), string()}] %% [{agent_name, agent_profile}]
-}).	
+}).
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
@@ -290,7 +290,7 @@ handle_info(write_output, #state{filters = _Filters, write_pids = undefined, que
 			ets:delete(cached_media, Id),
 			update_queue_stats(M, null),
 			dets:delete(?DETS, Id)
-		end || 
+		end ||
 		#cached_media{id = Id} = M <- ets:table(cached_media),
 		util:now() - M#cached_media.time > 86400,
 		M#cached_media.state == ended
@@ -705,7 +705,7 @@ transform_event({set, {Megasec, Sec, _Micorsec}, {{media, _Id}, Details, _Node}}
 			OldRec#cached_media{time = Time};
 		changed ->
 			{Endstate, History} = case {OldState, NewState} of
-				{ivr, ended} -> 
+				{ivr, ended} ->
 					{ivrabandoned, OldRec#cached_media.history ++ [{Time, ended, ivrabandoned}]};
 				{ivr, queue} ->
 					{OldRec#cached_media.endstate, OldRec#cached_media.history ++ [{Time, queue, NewStateData}]};
@@ -747,7 +747,7 @@ transform_event({set, {Megasec, Sec, _Microsec}, {{agent, Id}, Details, _Node}},
 	State = proplists:get_value(state, Details),
 	StateData = proplists:get_value(statedata, Details),
 	Midrec = #cached_agent{
-		id = Id, 
+		id = Id,
 		login = proplists:get_value(login, Details, "Unknown"),
 		profile = proplists:get_value(profile, Details, "default"),
 		state = State,
@@ -826,7 +826,7 @@ agent_to_json(Rec) ->
 				{calling, list_to_binary(Calling)}
 			]};
 		{Cid, undefined, undefined, Type} ->
-			
+
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, undefined},
@@ -834,7 +834,7 @@ agent_to_json(Rec) ->
 				{type, Type}
 			]};
 		{Cid, Cliid, Clilab, Type} ->
-			
+
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, list_to_binary(Cliid)},
@@ -917,10 +917,10 @@ write_output(Interval, _QueueCache, _AgentCache) ->
 	end,
 	{ok, File} = file:open(Dynamic ++ "/all.json", [write, binary]),
 	file:write(File, mochijson2:encode(Json)).
-	
+
 get_clients_json() ->
 	qlc:e(qlc:q([get_client_json(Id, Label, Stats) || {{client, Id, Label}, Stats} <- ets:table(stats_cache)])).
-	
+
 get_client_json(Id, Label, Stats) ->
 	JMedias = qlc:e(qlc:q([list_to_binary(Callid) || #cached_media{id = Callid, client_id = ClientId} <- ets:table(cached_media), ClientId =:= Id])),
 	JStats = stats_to_proplist(Stats),
@@ -1019,7 +1019,7 @@ cache_event_test_() ->
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
 			?assertMatch({inbound, [{queued, 1337}]}, element(5, Obj))
 		end},
-		{"setting a new outbound media", 
+		{"setting a new outbound media",
 		fun() ->
 			cache_event({set, {{media, "media"}, [], [{direction, outbound}], 120}}),
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
@@ -1232,7 +1232,7 @@ sort_medias_test_() ->
 			?assertEqual(Expected, Map(sort_medias(Medias)))
 		end}]
 	end}.
-				
+
 
 filter_row_test_() ->
 	{setup,
@@ -1380,15 +1380,15 @@ filter_row_test_() ->
 				agent_profiles = all
 			},
 			Expected = lists:sort([
-				{media, "media-c1-q1"}, 
-				{media, "media-c1-q2"}, 
-				{media, "media-c1-q3"}, 
-				{media, "media-c1-q4"}, 
-				{media, "media-c2-q1"}, 
-				{media, "media-c2-q2"}, 
-				{media, "media-c2-q3"}, 
-				{media, "media-c2-q4"}, 
-				{media, "media-c1-a1"}, 
+				{media, "media-c1-q1"},
+				{media, "media-c1-q2"},
+				{media, "media-c1-q3"},
+				{media, "media-c1-q4"},
+				{media, "media-c2-q1"},
+				{media, "media-c2-q2"},
+				{media, "media-c2-q3"},
+				{media, "media-c2-q4"},
+				{media, "media-c1-a1"},
 				{agent, "agent1"}
 			]),
 			Filtered = DoFilter(Filter),
@@ -1405,15 +1405,15 @@ filter_row_test_() ->
 				agent_profiles = ["profile2"]
 			},
 			Expected = lists:sort([
-				{media, "media-c1-q1"}, 
-				{media, "media-c1-q2"}, 
-				{media, "media-c1-q3"}, 
-				{media, "media-c1-q4"}, 
-				{media, "media-c2-q1"}, 
-				{media, "media-c2-q2"}, 
-				{media, "media-c2-q3"}, 
-				{media, "media-c2-q4"}, 
-				{media, "media-c2-a2"}, 
+				{media, "media-c1-q1"},
+				{media, "media-c1-q2"},
+				{media, "media-c1-q3"},
+				{media, "media-c1-q4"},
+				{media, "media-c2-q1"},
+				{media, "media-c2-q2"},
+				{media, "media-c2-q3"},
+				{media, "media-c2-q4"},
+				{media, "media-c2-a2"},
 				{agent, "agent2"}
 			]),
 			Filtered = DoFilter(Filter),
@@ -1430,8 +1430,8 @@ filter_row_test_() ->
 				agent_profiles = all
 			},
 			Expected = lists:sort([
-				{media, "media-c1-q1"}, 
-				{media, "media-c1-a1"}, 
+				{media, "media-c1-q1"},
+				{media, "media-c1-a1"},
 				{agent, "agent1"},
 				{agent, "agent2"}
 			]),
@@ -1449,8 +1449,8 @@ filter_row_test_() ->
 				agent_profiles = all
 			},
 			Expected = lists:sort([
-				{media, "media-c1-q1"}, 
-				{media, "media-c1-a1"}, 
+				{media, "media-c1-q1"},
+				{media, "media-c1-a1"},
 				{agent, "agent1"}
 			]),
 			Filtered = DoFilter(Filter),
@@ -1491,7 +1491,7 @@ filter_row_test_() ->
 				{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}
 			],
 			Expected = [{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}],
-			Fun = fun(R, Acc) -> 
+			Fun = fun(R, Acc) ->
 				case filter_row(TheFilter, R, [], []) of
 					true ->
 						[R | Acc];
@@ -1524,7 +1524,7 @@ filter_row_test_() ->
 				{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}
 			],
 			Expected = [{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}],
-			Fun = fun(R, Acc) -> 
+			Fun = fun(R, Acc) ->
 				case filter_row(TheFilter, R, [], []) of
 					true ->
 						[R | Acc];
@@ -1797,6 +1797,6 @@ init_test_() ->
 %		timer:sleep(10)
 %	end,
 %	{generator, fun() -> [Fun, goober_gen(Tail)] end}.
-	
+
 
 -endif.

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A simple one for one supervisor to act as a middle man.  This 
+%% @doc A simple one for one supervisor to act as a middle man.  This
 %% is to allow a process to fail without bringing down the rest of the
 %% system.
 -module(cpx_middle_supervisor).
@@ -118,8 +118,8 @@ startup_test_() ->
 	[{"start as an anonymous direct supervisor with one spec.",
 	fun() ->
 		Dummyspec = #cpx_conf{
-			id = gen_server_mock, 
-			module_name = gen_server_mock, 
+			id = gen_server_mock,
+			module_name = gen_server_mock,
 			start_function = named,
 			start_args = [{local, dummy_media_manager}]
 		},
@@ -147,8 +147,8 @@ startup_test_() ->
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
 		Dummyspec = #cpx_conf{
-			id = gen_server_mock, 
-			module_name = gen_server_mock, 
+			id = gen_server_mock,
+			module_name = gen_server_mock,
 			start_function = named,
 			start_args = [{local, dummy_media_manager}]
 		},
@@ -165,8 +165,8 @@ startup_test_() ->
 	{"Stop a child that has a middleman.",
 	fun() ->
 		Dummyspec = #cpx_conf{
-			id = gen_server_mock, 
-			module_name = gen_server_mock, 
+			id = gen_server_mock,
+			module_name = gen_server_mock,
 			start_function = named,
 			start_args = [{local, dummy_media_manager}]
 		},
@@ -177,7 +177,7 @@ startup_test_() ->
 		?assertEqual(undefined, whereis(dummy_media_manager)),
 		?assertNot(is_process_alive(Middle))
 	end}].
-	
-	
+
+
 
 -endif.

@@ -26,6 +26,11 @@ OpenACD is a skills-based, Call Center software based on FreeSWITCH and built in
 %setup -n OpenACD
 
 %build
+
+# avoids build error about missing compile_flags.hrl and package
+# is not needed for runtime anyway, it's tester tool
+rm -r deps/proper
+
 make compile
 
 %install

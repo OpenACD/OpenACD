@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -142,7 +142,7 @@ handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = Stat
 		{"util-1h", "1 hour trend", "now-2h", 3600},
 		{"util-8h", "8 hour trend", "now-16h", 28800}
 	],
-	
+
 	[do_graph(RRD, Dir, Imagedir, X) || X <- Graphs],
 	{noreply, State};
 handle_info(update, State) ->

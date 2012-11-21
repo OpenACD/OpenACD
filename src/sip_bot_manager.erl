@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -32,18 +32,18 @@
 %% from OpenACD, paired with it's own freeswitch instance.  Obviously,
 %% separate hardware is preffered.
 %%
-%% Starts a given number of dummy agents, and then creates a config for 
+%% Starts a given number of dummy agents, and then creates a config for
 %% freeswitch with attempts to do a sip registration to OpenACD's freeswitch.
 %%
 %% Setting up for a test is rather involved, but there are a couple of example
 %% files to help.  tests/sip_bot_config_example.hrl is a basic file for starting
-%% this.  tests/sip_bot_manager_dialplan_example.xml provides a simple 
-%% FreeSWITCH config for the bot setting.  
+%% this.  tests/sip_bot_manager_dialplan_example.xml provides a simple
+%% FreeSWITCH config for the bot setting.
 %%
 %% A full test will involve having OpenACD running on one machine with an
-%% instance of FreeSWITCH, and sip_bot_manager running on another machine with 
+%% instance of FreeSWITCH, and sip_bot_manager running on another machine with
 %% a separate instance of FreeSWITCH.  Ensure the two nodes OpenACD and sip_bot's
-%% can talk to each other, otherwise sip_bot will not be able to start the 
+%% can talk to each other, otherwise sip_bot will not be able to start the
 %% agents it needs to.
 
 -module(sip_bot_manager).
@@ -133,21 +133,21 @@
 	{'wrapup', pos_integer()} |
 	{'maxcalls', pos_integer()} |
 	{'scale', pos_integer()}
-).	
+).
 -type(agent_options() :: {'agent_options', [agent_option()]}).
 -type(agents() :: {'agents', [agent_tuple()]}).
 -type(gateway() :: {'gateway', string()}).
 -type(realm() :: {'realm', string()}).
 -type(profiles() :: {'profiles', [string()]}).
--type(sip_bot_option() :: 
+-type(sip_bot_option() ::
 	{'playback_file', string()}
 ).
 -type(sip_bots() :: {'sip_bots', [sip_bot_option]}).
--type(start_option() :: 
+-type(start_option() ::
 	gateway() |
 	agents() |
 	acd_node() |
-	realm() | 
+	realm() |
 	profiles() |
 	sip_bots() |
 	agent_options()
@@ -245,12 +245,12 @@ originate(X, [], Acc) ->
 originate(X, [H | T], Acc) ->
 	originate(H),
 	originate(X - 1, T, [H | Acc]).
-	
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 %% @private
-init([Nodename, Options]) -> 
+init([Nodename, Options]) ->
 	?DEBUG("starting...", []),
 	Acd = proplists:get_value(acd_node, Options),
 	true = erlang:monitor_node(Acd, true),
@@ -266,7 +266,7 @@ init([Nodename, Options]) ->
 	ConfOpts = [{agents, Agents} | proplists:delete(agents, Options)],
 	process_flag(trap_exit, true),
 	monitor_node(Nodename, true),
-	spawn(fun() -> 
+	spawn(fun() ->
 		kill_agents(Agents, Acd),
 		launch_agents(Agents, Profiles, DummyAgentOpts, Acd, proplists:get_value(gateway, Options))
 	end),
@@ -283,11 +283,11 @@ init([Nodename, Options]) ->
 			{undefined, undefined}
 	end,
 	{ok, #state{
-		nodename=Nodename, 
-		acd_node = Acd, 
-		eventserver = Listenpid, 
-		xmlserver = DomainPid, 
-		xmlserver_opts = ConfOpts, 
+		nodename=Nodename,
+		acd_node = Acd,
+		eventserver = Listenpid,
+		xmlserver = DomainPid,
+		xmlserver_opts = ConfOpts,
 		freeswitch_up = true,
 		bot_opts = Botopts
 	}}.
@@ -341,7 +341,7 @@ handle_info({'EXIT', Pid, _Reason}, #state{xmlserver = Pid} = State) ->
 	{noreply, State#state{xmlserver = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{bot_dict = Dict} = State) ->
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
-	F = fun(Key, Value, Acc) -> 
+	F = fun(Key, Value, Acc) ->
 		case Value of
 			Pid ->
 				Acc;
@@ -489,9 +489,9 @@ start_listener(Nodename) ->
 				ok ->
 					Self ! {register_event_handler, {ok, self()}},
 					listener(Nodename);
-				{error, Reason} -> 
+				{error, Reason} ->
 					Self ! {register_event_handler, {error, Reason}}
-			after ?TIMEOUT -> 
+			after ?TIMEOUT ->
 					Self ! {register_event_handler, timeout}
 			end
 	end).
@@ -510,16 +510,16 @@ listener(Node) ->
 %					ok
 %			end,
 			?MODULE:listener(Node);
-		{nodedown, Node} -> 
+		{nodedown, Node} ->
 			gen_server:cast(?MODULE, nodedown);
-		 Otherwise -> 
+		 Otherwise ->
 			 ?INFO("Uncertain reply received by the fmm listener:  ~p", [Otherwise]),
 			 ?MODULE:listener(Node)
 	end.
 
 make_gateway_conf(Proxy, User, Pass, Realm) when is_list(Proxy), is_list(User), is_list(Pass), is_list(Realm) ->
 	make_gateway_conf(Proxy, list_to_binary([Proxy, "-", User]), list_to_binary(User), list_to_binary(Pass), list_to_binary(Realm)).
-	
+
 make_gateway_conf(Proxy, Proxyname, User, Pass, Realm) ->
 	?DEBUG("making gw conf:  ~p", [{Proxy, Proxyname, User, Pass, Realm}]),
 	{<<"gateway">>, [
@@ -542,7 +542,7 @@ make_gateway_conf(Proxy, Proxyname, User, Pass, Realm) ->
 			{<<"value">>, Pass}
 		]},
 		{<<"param">>, [
-			{<<"name">>, <<"proxy">>}, 
+			{<<"name">>, <<"proxy">>},
 			{<<"value">>, Proxy}
 		]},
 		{<<"param">>, [

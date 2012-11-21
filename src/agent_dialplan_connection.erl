@@ -10,7 +10,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -51,8 +51,6 @@
 	 terminate/2, code_change/3]).
 
 -type(state() :: #state{}).
--define(GEN_SERVER, true).
--include("gen_spec.hrl").
 
 %% API
 -spec(start/2 :: (AgentRec :: #agent{}, SelfKillTime :: 'undefined' | non_neg_integer()) -> {'ok', pid()}).
@@ -115,7 +113,7 @@ handle_call(Request, From, State) ->
 	?DEBUG("Call from ~p:  ~p", [From, Request]),
 	{reply, {unknown_call, Request}, State}.
 
-handle_cast({change_state, StateName, _}, State) -> 
+handle_cast({change_state, StateName, _}, State) ->
 	handle_cast({change_state, StateName}, State);
 
 handle_cast({change_state, StateName}, State) when StateName =:= released; StateName =:= wrapup ->

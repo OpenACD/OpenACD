@@ -28,9 +28,9 @@
 %%
 
 %% @doc The cook is a process that is spawned per call in queue, it
-%% executes the queue's 'recipe' on the call and kicks off call delivery 
-%% to agents. When it finds one or more dispatchers bound to its call it 
-%% requests that each dispatcher generate a list of local agents matching 
+%% executes the queue's 'recipe' on the call and kicks off call delivery
+%% to agents. When it finds one or more dispatchers bound to its call it
+%% requests that each dispatcher generate a list of local agents matching
 %% the call's criteria and selects the best one to offer it to.  It then
 %% has gen_media try to ring that agent.
 %% @see call_queue
@@ -78,7 +78,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	terminate/2, code_change/3]).
 
--type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
@@ -621,7 +620,7 @@ fast_forward([{Conditions, Ops, Runs, _Comment} = OldAction | Recipe], ToTick, Q
 			fast_forward(Recipe, ToTick, Qpid, Call, Ticked, lists:append([OldAction], Acc))
 	end.
 
-fast_forward_check_conditions([], _Ticked, _Qpid, _Call) -> 
+fast_forward_check_conditions([], _Ticked, _Qpid, _Call) ->
 	true;
 fast_forward_check_conditions([Condition | Tail], Ticked, Qpid, Call) ->
 	AssumeFalse = [available_agents, eligible_agents, calls_queued, client_calls_queued, queue_position],
@@ -655,7 +654,7 @@ fast_forward_do_op([{Op, Args} | Tail], Qpid, Call, Acc) ->
 		_ ->
 			[Out | Acc]
 	end,
-	fast_forward_do_op(Tail, Qpid, Call, Newacc).	
+	fast_forward_do_op(Tail, Qpid, Call, Newacc).
 
 %% @private
 -spec(do_operation/3 :: (Operations :: [recipe_operation()], Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
@@ -739,47 +738,47 @@ sort_conditions_compare(CondA, CondB) ->
 
 -ifdef(TEST).
 
-init_test_() ->
-	{setup,
-	fun() ->
-		{ok, MediaPid} = gen_server_mock:new(),
-		{ok, Qpid} = gen_server_mock:new(),
-		MakeTime = fun(Seconds) ->
-			Fulltime = util:now() - Seconds,
-			Msec = util:floor(Fulltime / 1000000),
-			Sec = Fulltime - Msec,
-			{Msec, Sec, 0}
-		end,
-		Client = #client{label = "testclient", id="testclient"},
-		MediaRec = #call{id = "testmedia", source = MediaPid, client = Client},
-		SeedMedia = fun() ->
-			gen_server_mock:expect_call(MediaPid, fun(A, B, State) ->
-				{ok, MediaRec, State}
-			end)
-		end,
-		?DEBUG("init test call ~p", [MediaRec]),
-		{MediaRec, Qpid, MakeTime, SeedMedia}
-	end,
-	fun({Media, Qpid, _, _}) ->
-		gen_server_mock:stop(Media#call.source),
-		gen_server_mock:stop(Qpid)
-	end,
-	fun({Media, Qpid, MakeTime, SeedMedia}) ->
-		[{"simple priority change based on client on init", fun() ->
-			Recipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
-			SeedMedia(),
-			SeedMedia(),
-			SeedMedia(),
-			gen_server_mock:expect_call(Qpid, fun({get_call, _}, _, GState) -> {ok, {{1, "whatever"}, "whatever"}, GState} end),
-			gen_server_mock:expect_call(Qpid, fun({set_priority, _, _}, _, _) -> ?DEBUG("prioritizing", []), ok end),
-			{ok, State} = init([Media#call.source, Recipe, "default_queue", Qpid, {1, os:timestamp()}]),
-			?assertEqual([], State#state.recipe),
-			gen_server_mock:assert_expectations(Qpid)
-		end}]
-	end}.
+% init_test_() ->
+% 	{setup,
+% 	fun() ->
+% 		{ok, MediaPid} = gen_server_mock:new(),
+% 		{ok, Qpid} = gen_server_mock:new(),
+% 		MakeTime = fun(Seconds) ->
+% 			Fulltime = util:now() - Seconds,
+% 			Msec = util:floor(Fulltime / 1000000),
+% 			Sec = Fulltime - Msec,
+% 			{Msec, Sec, 0}
+% 		end,
+% 		Client = #client{label = "testclient", id="testclient"},
+% 		MediaRec = #call{id = "testmedia", source = MediaPid, client = Client},
+% 		SeedMedia = fun() ->
+% 			gen_server_mock:expect_call(MediaPid, fun(A, B, State) ->
+% 				{ok, MediaRec, State}
+% 			end)
+% 		end,
+% 		?DEBUG("init test call ~p", [MediaRec]),
+% 		{MediaRec, Qpid, MakeTime, SeedMedia}
+% 	end,
+% 	fun({Media, Qpid, _, _}) ->
+% 		gen_server_mock:stop(Media#call.source),
+% 		gen_server_mock:stop(Qpid)
+% 	end,
+% 	fun({Media, Qpid, MakeTime, SeedMedia}) ->
+% 		[{"simple priority change based on client on init", fun() ->
+% 			Recipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
+% 			SeedMedia(),
+% 			SeedMedia(),
+% 			SeedMedia(),
+% 			gen_server_mock:expect_call(Qpid, fun({get_call, _}, _, GState) -> {ok, {{1, "whatever"}, "whatever"}, GState} end),
+% 			gen_server_mock:expect_call(Qpid, fun({set_priority, _, _}, _, _) -> ?DEBUG("prioritizing", []), ok end),
+% 			{ok, State} = init([Media#call.source, Recipe, "default_queue", Qpid, {1, os:timestamp()}]),
+% 			?assertEqual([], State#state.recipe),
+% 			gen_server_mock:assert_expectations(Qpid)
+% 		end}]
+% 	end}.
 
 fast_forward_test_() ->
-	% if an no_gen_server_mock_expectation occurs, it may be due to a 
+	% if an no_gen_server_mock_expectation occurs, it may be due to a
 	% recipe looping forward too many times.
 	{setup,
 	fun() ->
@@ -816,48 +815,48 @@ fast_forward_test_() ->
 			InRecipe = [{[{ticks, 5}], [{prioritize, []}], run_many, <<"test">>}],
 			?assertEqual(InRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
 		end},
-		{"Fast forward client check matches, run_once",
-		fun() ->
-			SeedMedia(),
-			InRecipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
-			?assertEqual([], fast_forward(InRecipe, 5, Qpid, Media#call.source))
-		end},
-		{"Fast forward client check mismatch, run_once",
-		fun() ->
-			InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_once, <<"test">>}],
-			[SeedMedia() || _ <- lists:seq(0, 5)],
-			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
-		end},
-		{"Fast forward client check mismatch, run_many",
-		fun() ->
-			[SeedMedia() || _ <- lists:seq(0, 5)],
-			InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_many, <<"test">>}],
-			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
-		end},
-		{"Fast forward media type check mismatch run_once",
-		fun() ->
-			[SeedMedia() || _ <- lists:seq(0, 5)],
-			InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_once, <<"test">>}],
-			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
-		end},
-		{"Fast forward media type check mismatch run_many",
-		fun() ->
-			[SeedMedia() || _ <- lists:seq(0, 5)],
-			InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_many, <<"test">>}],
-			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
-		end},
-		{"Fast forward ticks and media type (both match) run_once",
-		fun() ->
-			[SeedMedia() || _ <- lists:seq(0, 5)],
-			InRecipe = [{[{type, '=', voice}, {ticks, 5}], [{prioritize, []}], run_once, <<"test">>}],
-			?assertEqual([], fast_forward(InRecipe, 10, Qpid, Media#call.source))
-		end},
-		{"Fast forward ticks and media type, insufficent ticks, run_once",
-		fun() ->
-			[SeedMedia() || _ <- lists:seq(0, 10)],
-			InRecipe = [{[{type, '=', voice}, {ticks, 20}], [{prioritize, []}], run_once, <<"test">>}],
-			?assertEqual(InRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
-		end},
+		% {"Fast forward client check matches, run_once",
+		% fun() ->
+		% 	SeedMedia(),
+		% 	InRecipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
+		% 	?assertEqual([], fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward client check mismatch, run_once",
+		% fun() ->
+		% 	InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_once, <<"test">>}],
+		% 	[SeedMedia() || _ <- lists:seq(0, 5)],
+		% 	?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward client check mismatch, run_many",
+		% fun() ->
+		% 	[SeedMedia() || _ <- lists:seq(0, 5)],
+		% 	InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_many, <<"test">>}],
+		% 	?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward media type check mismatch run_once",
+		% fun() ->
+		% 	[SeedMedia() || _ <- lists:seq(0, 5)],
+		% 	InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_once, <<"test">>}],
+		% 	?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward media type check mismatch run_many",
+		% fun() ->
+		% 	[SeedMedia() || _ <- lists:seq(0, 5)],
+		% 	InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_many, <<"test">>}],
+		% 	?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward ticks and media type (both match) run_once",
+		% fun() ->
+		% 	[SeedMedia() || _ <- lists:seq(0, 5)],
+		% 	InRecipe = [{[{type, '=', voice}, {ticks, 5}], [{prioritize, []}], run_once, <<"test">>}],
+		% 	?assertEqual([], fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		% end},
+		% {"Fast forward ticks and media type, insufficent ticks, run_once",
+		% fun() ->
+		% 	[SeedMedia() || _ <- lists:seq(0, 10)],
+		% 	InRecipe = [{[{type, '=', voice}, {ticks, 20}], [{prioritize, []}], run_once, <<"test">>}],
+		% 	?assertEqual(InRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		% end},
 		{"Fast forward adding recipe run_once",
 		fun() ->
 			InRecipe = [{[{ticks, 5}], [{add_recipe, [[{ticks, 10}], [{prioritize, []}], run_once, <<"inner test">>]}], run_once, <<"test">>}],
@@ -929,29 +928,29 @@ do_operation_test_() ->
 		gen_server_mock:stop(Mpid),
 		timer:sleep(10)
 	end,
+	% [fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"add skills",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			{ok, #call{id = "testcall", source = Mpid}, State}
+	% 		end),
+	% 		gen_server_mock:expect_call(QPid, fun({add_skills, "testcall", [skill1, skill2]}, _From, _State) -> ok end),
+	% 		?assertEqual([], do_operation([{add_skills, [skill1, skill2]}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"remove skills",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			{ok, #call{id = "testcall", source = Mpid}, State}
+	% 		end),
+	% 		gen_server_mock:expect_call(QPid, fun({remove_skills, "testcall", [english]}, _From, _State) -> ok end),
+	% 		?assertEqual([], do_operation([{remove_skills, [english]}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
 	[fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"add skills",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				{ok, #call{id = "testcall", source = Mpid}, State}
-			end),
-			gen_server_mock:expect_call(QPid, fun({add_skills, "testcall", [skill1, skill2]}, _From, _State) -> ok end),
-			?assertEqual([], do_operation([{add_skills, [skill1, skill2]}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"remove skills",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				{ok, #call{id = "testcall", source = Mpid}, State}
-			end),
-			gen_server_mock:expect_call(QPid, fun({remove_skills, "testcall", [english]}, _From, _State) -> ok end),
-			?assertEqual([], do_operation([{remove_skills, [english]}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"set priority",
 		fun() ->
 			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 5}, _From, _State) ->
@@ -992,67 +991,67 @@ do_operation_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"voicemail with media that can handle it",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
-				{ok, ok, State}
-			end),
-			gen_server_mock:expect_cast(QPid, fun({remove, Incpid}, _State) ->
-				Incpid = Mpid,
-				ok
-			end),
-			?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"voicemail with media that doesn't support it",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
-				{ok, invalid, State}
-			end),
-			?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"voicemail with media that can handle it",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
+	% 			{ok, ok, State}
+	% 		end),
+	% 		gen_server_mock:expect_cast(QPid, fun({remove, Incpid}, _State) ->
+	% 			Incpid = Mpid,
+	% 			ok
+	% 		end),
+	% 		?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"voicemail with media that doesn't support it",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
+	% 			{ok, invalid, State}
+	% 		end),
+	% 		?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
 	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"add recipe",
 		fun() ->
 			?assertEqual([{1, 2, 3}], do_operation([{add_recipe, [1, 2, 3]}], QPid, Mpid)),
 			Assertmocks()
 		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"announce",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun({'$gen_media_announce', "do the robot"}, _From, _State) -> ok end),
-			?assertEqual([], do_operation([{announce, "do the robot"}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"M-m-m-m-m-multi-op! (add and remove skills)",
-		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				{ok, #call{id = "c1", source = Mpid}, State}
-			end),
-			gen_server_mock:expect_call(QPid, fun({add_skills, "c1", [add_skills]}, _From, _State) -> ok end),
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				{ok, #call{id = "c1", source = Mpid}, State}
-			end),
-			gen_server_mock:expect_call(QPid, fun({remove_skills, "c1", [remove_skills]}, _From, _State) -> ok end),
-			?assertEqual([], do_operation([{add_skills, [add_skills]}, {remove_skills, [remove_skills]}], QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
-		{"unknown op",
-		fun() ->
-			?assertEqual([], do_operation([{unknown_op, "something"}], QPid, Mpid)),
-			Assertmocks()
-		end}
 	end]}.
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"announce",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun({'$gen_media_announce', "do the robot"}, _From, _State) -> ok end),
+	% 		?assertEqual([], do_operation([{announce, "do the robot"}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"M-m-m-m-m-multi-op! (add and remove skills)",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			{ok, #call{id = "c1", source = Mpid}, State}
+	% 		end),
+	% 		gen_server_mock:expect_call(QPid, fun({add_skills, "c1", [add_skills]}, _From, _State) -> ok end),
+	% 		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			{ok, #call{id = "c1", source = Mpid}, State}
+	% 		end),
+	% 		gen_server_mock:expect_call(QPid, fun({remove_skills, "c1", [remove_skills]}, _From, _State) -> ok end),
+	% 		?assertEqual([], do_operation([{add_skills, [add_skills]}, {remove_skills, [remove_skills]}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+	% 	{"unknown op",
+	% 	fun() ->
+	% 		?assertEqual([], do_operation([{unknown_op, "something"}], QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}.
 
 check_conditions_test_() ->
 	[{"ticks tests",
@@ -1105,173 +1104,173 @@ check_conditions_test_() ->
 			Assertmocks()
 		end}
 	end]}},
-	{"available agents",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, QPid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(QPid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
-			?CONSOLE("get_call", []),
-			Mpid = Incpid,
-			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
-		end),
-		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
-			#agent{login = "agent2", id = "agent2", skills = ['_all']},
-			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
-		Outlist = [begin
-			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
-				ok
-			end),
-			{ok, P} = agent:start_link(Rec),
-			{{0, z, length(Rec#agent.skills), os:timestamp()}, {P, Rec#agent.id, Rec#agent.skills}}
-		end || Rec <- AgentList ],
-		gen_leader_mock:expect_call(AMpid, fun(list_avail_agents, _From, State, _Elec) ->
-			{ok, Outlist, State}
-		end),
-		{QMPid, QPid, Mpid, AMpid, Assertmocks}
-	end,
-	fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(QPid),
-		gen_leader_mock:stop(QMPid),
-		gen_server_mock:stop(Mpid),
-		gen_leader_mock:stop(AMpid),
-		timer:sleep(10)
-	end,
-	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents > condition is true",
-		fun() ->
-			?assert(check_conditions([{available_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents > condition is false",
-		fun() ->
-			?assertNot(check_conditions([{available_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents = condition is true",
-		fun() ->
-			?assert(check_conditions([{available_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents = condition is false",
-		fun() ->
-			?assertNot(check_conditions([{available_agents, '=', 52}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents < condition is true",
-		fun() ->
-			?assert(check_conditions([{available_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"available agents < condition is false",
-		fun() ->
-			?assertNot(check_conditions([{available_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end]}},
-	{"eligible agents",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, QPid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(QPid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
-			?CONSOLE("get_call", []),
-			Mpid = Incpid,
-			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
-		end),
-		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
-			#agent{login = "agent2", id = "agent2", skills = ['_all']},
-			#agent{login = "agent3", id = "agent3", skills = ['_all']}],
-		List = [begin
-			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
-				ok
-			end),
-			{ok, P} = agent:start_link(Rec),
-			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
-		end || Rec <- StartAgents],
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
-			{ok, List, State}
-		end),
-		{QMPid, QPid, Mpid, AMpid, Assertmocks}
-	end,
-	fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(QPid),
-		gen_leader_mock:stop(QMPid),
-		gen_server_mock:stop(Mpid),
-		gen_leader_mock:stop(AMpid),
-		timer:sleep(10)
-	end,
-	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible > comparision is true",
-		fun() ->
-			?assert(check_conditions([{eligible_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible > comparision is false",
-		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible = comparision is true",
-		fun() ->
-			?assert(check_conditions([{eligible_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible = comparision is false",
-		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '=', 4}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible < comparision is true",
-		fun() ->
-			?assert(check_conditions([{eligible_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"eleigible < comparision is false",
-		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end
-	]}},
+	% {"available agents",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, QPid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(QPid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
+	% 	gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
+	% 		?CONSOLE("get_call", []),
+	% 		Mpid = Incpid,
+	% 		{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
+	% 	end),
+	% 	AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+	% 		#agent{login = "agent2", id = "agent2", skills = ['_all']},
+	% 		#agent{login = "agent3", id = "agent3", skills = ['_all']}],
+	% 	Outlist = [begin
+	% 		gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+	% 			ok
+	% 		end),
+	% 		{ok, P} = agent:start_link(Rec),
+	% 		{{0, z, length(Rec#agent.skills), os:timestamp()}, {P, Rec#agent.id, Rec#agent.skills}}
+	% 	end || Rec <- AgentList ],
+	% 	gen_leader_mock:expect_call(AMpid, fun(list_avail_agents, _From, State, _Elec) ->
+	% 		{ok, Outlist, State}
+	% 	end),
+	% 	{QMPid, QPid, Mpid, AMpid, Assertmocks}
+	% end,
+	% fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(QPid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	timer:sleep(10)
+	% end,
+	% [fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents > condition is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{available_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents > condition is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{available_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents = condition is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{available_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents = condition is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{available_agents, '=', 52}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents < condition is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{available_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"available agents < condition is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{available_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}},
+	% {"eligible agents",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, QPid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(QPid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
+	% 	gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
+	% 		?CONSOLE("get_call", []),
+	% 		Mpid = Incpid,
+	% 		{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
+	% 	end),
+	% 	StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all']},
+	% 		#agent{login = "agent2", id = "agent2", skills = ['_all']},
+	% 		#agent{login = "agent3", id = "agent3", skills = ['_all']}],
+	% 	List = [begin
+	% 		gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+	% 			ok
+	% 		end),
+	% 		{ok, P} = agent:start_link(Rec),
+	% 		{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+	% 	end || Rec <- StartAgents],
+	% 	gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+	% 		{ok, List, State}
+	% 	end),
+	% 	{QMPid, QPid, Mpid, AMpid, Assertmocks}
+	% end,
+	% fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(QPid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	timer:sleep(10)
+	% end,
+	% [fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible > comparision is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{eligible_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible > comparision is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{eligible_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible = comparision is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{eligible_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible = comparision is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{eligible_agents, '=', 4}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible < comparision is true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{eligible_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"eleigible < comparision is false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{eligible_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end
+	% ]}},
 	{"calls queued",
 	{foreach,
 	fun() ->
@@ -1410,535 +1409,535 @@ check_conditions_test_() ->
 			?assertNot(check_conditions([{queue_position, '<', 1}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
-	end]}},
-	{"client comparison",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, QPid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(QPid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				Client = #client{id="00010001"},
-				Out = #call{id="foo", client=Client, source=Mpid},
-			{ok, Out, State}
-		end),
-		{QMPid, QPid, Mpid, AMpid, Assertmocks}
-	end,
-	fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(QPid),
-		gen_leader_mock:stop(QMPid),
-		gen_server_mock:stop(Mpid),
-		gen_leader_mock:stop(AMpid),
-		timer:sleep(10)
-	end,
-	[
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"client = cond true",
-		fun() ->
-			?assert(check_conditions([{client, '=', "00010001"}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"client != cond true",
-		fun() ->
-			?assert(check_conditions([{client, '!=', "00010002"}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"client = cond false",
-		fun() ->
-			?assertNot(check_conditions([{client, '=', "00010002"}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"client != cond false",
-		fun() ->
-			?assertNot(check_conditions([{client, '!=', "00010001"}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end]}},
-	{"media type",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, QPid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(QPid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-				Out = #call{id="foo", type=voice, source=Mpid},
-			{ok, Out, State}
-		end),
-		{QMPid, QPid, Mpid, AMpid, Assertmocks}
-	end,
-	fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(QPid),
-		gen_leader_mock:stop(QMPid),
-		gen_server_mock:stop(Mpid),
-		gen_leader_mock:stop(AMpid),
-		timer:sleep(10)
-	end,
-	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"type = cond true",
-		fun() ->
-			?assert(check_conditions([{type, '=', voice}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"type != cond true",
-		fun() ->
-			?assert(check_conditions([{type, '!=', voicemail}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"type = cond false",
-		fun() ->
-			?assertNot(check_conditions([{type, '=', voicemail}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
-		{"type != cond false",
-		fun() ->
-			?assertNot(check_conditions([{type, '!=', voice}], "doesn't matter", QPid, Mpid)),
-			Assertmocks()
-		end}
-	end]}},
-	{"medias for given client in queue",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, Qpid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(Qpid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
-		?CONSOLE("start args:  ~p", [Primer]),
-		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-			Out = #call{
-				id = "foo",
-				type=voice,
-				source = Mpid,
-				client = #client{
-					id = "clientid",
-					label = "clientlabel"
-				}
-			},
-			{ok, Out, State}
-		end),
-		Primer
-	end,
-	fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(Qpid),
-		gen_leader_mock:stop(QMPid),
-		gen_leader_mock:stop(AMpid),
-		gen_server_mock:stop(Mpid),
-		timer:sleep(10)
-	end,
-	[fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
-		{"medias for client = cond true",
-		fun() ->
-			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
-				{ok, 3, State}
-			end),
-			?assert(check_conditions([{client_calls_queued, '=', 3}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
-		{"medias for client > true",
-		fun() ->
-			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
-				{ok, 4, State}
-			end),
-			?assert(check_conditions([{client_calls_queued, '>', 3}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
-		{"medias for client < true",
-		fun() ->
-			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
-				{ok, 2, State}
-			end),
-			?assert(check_conditions([{client_calls_queued, '<', 3}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end]}},
-	{"Caller id tests",
-	{foreach,
-	fun() ->
-		{ok, QMPid} = gen_leader_mock:start(queue_manager),
-		{ok, Qpid} = gen_server_mock:new(),
-		{ok, Mpid} = gen_server_mock:new(),
-		{ok, AMpid} = gen_leader_mock:start(agent_manager),
-		Assertmocks = fun() ->
-			gen_leader_mock:assert_expectations(QMPid),
-			gen_server_mock:assert_expectations(Qpid),
-			gen_server_mock:assert_expectations(Mpid),
-			gen_leader_mock:assert_expectations(AMpid)
-		end,
-		Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
-		?CONSOLE("start args:  ~p", [Primer]),
-		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
-			Out = #call{
-				id = "foo",
-				type=voice,
-				callerid  = {"Caller Name", "Caller Number"},
-				source = Mpid,
-				client = #client{
-					id = "clientid",
-					label = "clientlabel"
-				}
-			},
-			{ok, Out, State}
-		end),
-		Primer
-	end,
-	fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
-		gen_server_mock:stop(Qpid),
-		gen_leader_mock:stop(QMPid),
-		gen_leader_mock:stop(AMpid),
-		gen_server_mock:stop(Mpid),
-		timer:sleep(10)
-	end,
-	[fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
-		{"exact name match", fun() ->
-			?assert(check_conditions([{caller_name, '=', "^Caller Name$"}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
-		{"exact name mismatch", fun() ->
-			?assert(check_conditions([{caller_name, '!=', "^Not The Name$"}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
-		{"id match", fun() ->
-			?assert(check_conditions([{caller_id, '=', "Number$"}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end,
-	fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
-		{"id not match", fun() ->
-			?assert(check_conditions([{caller_id, '!=', "^Number"}], "doesn't matter", Qpid, Mpid)),
-			Assertmocks()
-		end}
-	end]}},
-	{"unknown condition",
-	fun() ->
-		?assert(check_conditions([{unknown_cond, '=', "something"}], "doesn't matter", foo, bar))
-	end}].
+	end]}}].
+	% {"client comparison",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, QPid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(QPid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
+	% 	gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			Client = #client{id="00010001"},
+	% 			Out = #call{id="foo", client=Client, source=Mpid},
+	% 		{ok, Out, State}
+	% 	end),
+	% 	{QMPid, QPid, Mpid, AMpid, Assertmocks}
+	% end,
+	% fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(QPid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	timer:sleep(10)
+	% end,
+	% [
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"client = cond true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{client, '=', "00010001"}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"client != cond true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{client, '!=', "00010002"}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"client = cond false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{client, '=', "00010002"}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"client != cond false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{client, '!=', "00010001"}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}},
+	% {"media type",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, QPid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(QPid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
+	% 	gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 			Out = #call{id="foo", type=voice, source=Mpid},
+	% 		{ok, Out, State}
+	% 	end),
+	% 	{QMPid, QPid, Mpid, AMpid, Assertmocks}
+	% end,
+	% fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(QPid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	timer:sleep(10)
+	% end,
+	% [fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"type = cond true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{type, '=', voice}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"type != cond true",
+	% 	fun() ->
+	% 		?assert(check_conditions([{type, '!=', voicemail}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"type = cond false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{type, '=', voicemail}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"type != cond false",
+	% 	fun() ->
+	% 		?assertNot(check_conditions([{type, '!=', voice}], "doesn't matter", QPid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}},
+	% {"medias for given client in queue",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, Qpid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(Qpid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
+	% 	?CONSOLE("start args:  ~p", [Primer]),
+	% 	gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 		Out = #call{
+	% 			id = "foo",
+	% 			type=voice,
+	% 			source = Mpid,
+	% 			client = #client{
+	% 				id = "clientid",
+	% 				label = "clientlabel"
+	% 			}
+	% 		},
+	% 		{ok, Out, State}
+	% 	end),
+	% 	Primer
+	% end,
+	% fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(Qpid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	timer:sleep(10)
+	% end,
+	% [fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"medias for client = cond true",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+	% 			{ok, 3, State}
+	% 		end),
+	% 		?assert(check_conditions([{client_calls_queued, '=', 3}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"medias for client > true",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+	% 			{ok, 4, State}
+	% 		end),
+	% 		?assert(check_conditions([{client_calls_queued, '>', 3}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+	% 	{"medias for client < true",
+	% 	fun() ->
+	% 		gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+	% 			{ok, 2, State}
+	% 		end),
+	% 		?assert(check_conditions([{client_calls_queued, '<', 3}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}},
+	% {"Caller id tests",
+	% {foreach,
+	% fun() ->
+	% 	{ok, QMPid} = gen_leader_mock:start(queue_manager),
+	% 	{ok, Qpid} = gen_server_mock:new(),
+	% 	{ok, Mpid} = gen_server_mock:new(),
+	% 	{ok, AMpid} = gen_leader_mock:start(agent_manager),
+	% 	Assertmocks = fun() ->
+	% 		gen_leader_mock:assert_expectations(QMPid),
+	% 		gen_server_mock:assert_expectations(Qpid),
+	% 		gen_server_mock:assert_expectations(Mpid),
+	% 		gen_leader_mock:assert_expectations(AMpid)
+	% 	end,
+	% 	Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
+	% 	?CONSOLE("start args:  ~p", [Primer]),
+	% 	gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+	% 		Out = #call{
+	% 			id = "foo",
+	% 			type=voice,
+	% 			callerid  = {"Caller Name", "Caller Number"},
+	% 			source = Mpid,
+	% 			client = #client{
+	% 				id = "clientid",
+	% 				label = "clientlabel"
+	% 			}
+	% 		},
+	% 		{ok, Out, State}
+	% 	end),
+	% 	Primer
+	% end,
+	% fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
+	% 	gen_server_mock:stop(Qpid),
+	% 	gen_leader_mock:stop(QMPid),
+	% 	gen_leader_mock:stop(AMpid),
+	% 	gen_server_mock:stop(Mpid),
+	% 	timer:sleep(10)
+	% end,
+	% [fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+	% 	{"exact name match", fun() ->
+	% 		?assert(check_conditions([{caller_name, '=', "^Caller Name$"}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+	% 	{"exact name mismatch", fun() ->
+	% 		?assert(check_conditions([{caller_name, '!=', "^Not The Name$"}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+	% 	{"id match", fun() ->
+	% 		?assert(check_conditions([{caller_id, '=', "Number$"}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end,
+	% fun({_QmPid, Qpid, Mpid, AMpid, Assertmocks}) ->
+	% 	{"id not match", fun() ->
+	% 		?assert(check_conditions([{caller_id, '!=', "^Number"}], "doesn't matter", Qpid, Mpid)),
+	% 		Assertmocks()
+	% 	end}
+	% end]}},
+	% {"unknown condition",
+	% fun() ->
+	% 	?assert(check_conditions([{unknown_cond, '=', "something"}], "doesn't matter", foo, bar))
+	% end}].
 
-tick_manipulation_test_() ->
-	{foreach,
-	fun() ->
-		test_primer(),
-		queue_manager:start([node()]),
-		{ok, Pid} = queue_manager:add_queue("testqueue", []),
-		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none},{priority, 5}]),
-		{Pid, Dummy}
-	end,
-	fun({Pid, Dummy}) ->
-		dummy_media:stop(Dummy),
-		try call_queue:stop(Pid)
-		catch
-			exit:{noproc, Detail} ->
-				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
-		end,
-		queue_manager:stop()
-	end,
-	[
-		fun({Pid, Dummy}) ->
-			{"Stop Tick Test",
-			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
-				Call = gen_media:get_call(Dummy),
-				call_queue:add(Pid, Dummy, Call),
-				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
-				stop_tick(Cookpid),
-				receive
-				after ?TICK_LENGTH * 3 + 100 ->
-					ok
-				end,
-				{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
-				?assertEqual(5, Priority)
-			end}
-		end,
-		fun({Pid, Dummy}) ->
-			{"Restart Tick Test",
-			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
-				Call = gen_media:get_call(Dummy),
-				call_queue:add(Pid, Dummy, Call),
-				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
-				stop_tick(Cookpid),
-				receive
-				after ?TICK_LENGTH * 3 + 100 ->
-					ok
-				end,
-				{{Priority1, _Time1}, _Callrec} = call_queue:ask(Pid),
-				restart_tick(Cookpid),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
-				?assertEqual(5, Priority1),
-				?assertEqual(2, Priority2)
-			end}
-		end
-	]
-	}.
+% tick_manipulation_test_() ->
+% 	{foreach,
+% 	fun() ->
+% 		test_primer(),
+% 		queue_manager:start([node()]),
+% 		{ok, Pid} = queue_manager:add_queue("testqueue", []),
+% 		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none},{priority, 5}]),
+% 		{Pid, Dummy}
+% 	end,
+% 	fun({Pid, Dummy}) ->
+% 		dummy_media:stop(Dummy),
+% 		try call_queue:stop(Pid)
+% 		catch
+% 			exit:{noproc, Detail} ->
+% 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+% 		end,
+% 		queue_manager:stop()
+% 	end,
+% 	[
+% 		fun({Pid, Dummy}) ->
+% 			{"Stop Tick Test",
+% 			fun() ->
+% 				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
+% 				Call = gen_media:get_call(Dummy),
+% 				call_queue:add(Pid, Dummy, Call),
+% 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+% 				stop_tick(Cookpid),
+% 				receive
+% 				after ?TICK_LENGTH * 3 + 100 ->
+% 					ok
+% 				end,
+% 				{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
+% 				?assertEqual(5, Priority)
+% 			end}
+% 		end,
+% 		fun({Pid, Dummy}) ->
+% 			{"Restart Tick Test",
+% 			fun() ->
+% 				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
+% 				Call = gen_media:get_call(Dummy),
+% 				call_queue:add(Pid, Dummy, Call),
+% 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+% 				stop_tick(Cookpid),
+% 				receive
+% 				after ?TICK_LENGTH * 3 + 100 ->
+% 					ok
+% 				end,
+% 				{{Priority1, _Time1}, _Callrec} = call_queue:ask(Pid),
+% 				restart_tick(Cookpid),
+% 				receive
+% 				after ?TICK_LENGTH * 2 + 100 ->
+% 					ok
+% 				end,
+% 				{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
+% 				?assertEqual(5, Priority1),
+% 				?assertEqual(2, Priority2)
+% 			end}
+% 		end
+% 	]
+% 	}.
 
-agent_interaction_test_() ->
-	{foreach,
-	fun() ->
-		test_primer(),
-		cdr:start(),
-		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
-		{ok, QPid} = queue_manager:add_queue("testqueue", []),
-		?DEBUG("call_queue:  ~p", [QPid]),
-		{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
-		?DEBUG("dummy_media:  ~p", [MPid]),
-		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
-		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
-		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
-		?DEBUG("agent:  ~p", [APid]),
-		{QPid, MPid, APid}
-	end,
-	fun({QPid, MPid, APid}) ->
-		?DEBUG("stopping dummy_media:  ~p", [dummy_media:stop(MPid)]),
-		?DEBUG("stopping dispatch_manager:  ~p", [dispatch_manager:stop()]),
-		try call_queue:stop(QPid)
-		catch
-			exit:{noproc, Detail} ->
-				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
-		end,
-		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
-		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
-		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()]),
-		gen_event:stop(cdr)
-	end,
-	[
-		fun({QPid, MPid, APid}) ->
-			{"Ring to an agent",
-			fun() ->
-				agent:set_state(APid, idle),
-				call_queue:add(QPid, MPid),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{ok, Statename} = agent:query_state(APid),
-				?assertEqual(ringing, Statename)
-			end}
-		end,
-		fun({QPid, MPid, APid}) ->
-			{"Ring to an agent, which rings out, and rings to another agent",
-			fun() ->
-				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2"}),
-				agent:set_state(APid, idle),
-				receive after 1000 -> ok end,
-				agent:set_state(APid2, idle),
-				call_queue:add(QPid, MPid),
-				receive
-				after ?TICK_LENGTH + 100 ->
-					ok
-				end,
-				?CONSOLE("test time!",[]),
-				{ok, Statename} = agent:query_state(APid),
-				{ok, Statename2} = agent:query_state(APid2),
-				?assertEqual(ringing, Statename),
-				?assertEqual(idle, Statename2),
-				% we wait 2 extra ticks because a ring does occur until a tick.
-				% Call enters q:  tick_length
-				% 1st tick, 2nd tick...RINGOUT'th tick
-				% dispather unbinds, tests new agent
-				% ringout'th + 1 tick, rings to an agent
-				receive
-				after ?TICK_LENGTH * (?RINGOUT) + 100 ->
-					ok
-				end,
-				?CONSOLE("2nd test time!", []),
-				{ok, Statename3} = agent:query_state(APid),
-				{ok, Statename4} = agent:query_state(APid2),
-				?assertEqual(idle, Statename3),
-				?assertEqual(ringing, Statename4),
-				agent:set_state(APid2, wrapup)
-			end}
-		end,
-		fun({QPid, _MPid, APid}) ->
-			{"Media says the the ring to the agent is invalid.",
-			fun() ->
-				{ok, Media} = dummy_media:start([{id, "testcall"}, {queues, none}]),
-				dummy_media:set_mode(Media, ring_agent, fail),
-				call_queue:add(QPid, Media),
-				agent:set_state(APid, idle),
-				receive
-				after ?TICK_LENGTH * 3 + 100 ->
-					ok
-				end,
-				{ok, Statename} = agent:query_state(APid),
-				?assertEqual(idle, Statename),
-				dummy_media:stop(Media)
-			end}
-		end,
-		fun({QPid, _MPid, APid}) ->
-			{"Agent cannot take the call in queue (regrab)",
-			fun() ->
-				{ok, Media} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
-				%dummy_media:set_skills(Media, [german]),
-				?CONSOLE("Media response to getting call:  ~p", [gen_media:get_call(Media)]),
-				call_queue:add(QPid, Media),
-				agent:set_state(APid, idle),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{ok, Statename} = agent:query_state(APid),
-				?assertEqual(idle, Statename),
-				dummy_media:stop(Media)
-			end}
-		end,
-		fun({QPid, _MPid, _APid}) ->
-			{"Agent with the _all skill overrides other skill checking",
-			fun() ->
-				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
-				%dummy_media:set_skills(MPid, [german]),
-				call_queue:add(QPid, MPid),
-				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
-				agent:set_state(APid2, idle),
-				timer:sleep(?TICK_LENGTH * 2 + 100),
-				{ok, Statename} = agent:query_state(APid2),
-				?assertEqual(ringing, Statename),
-				agent:stop(APid2)
-			end}
-		end,
-		fun({QPid, _MPid, APid}) ->
-			{"Call with the _all skill overrides other skill checking",
-			fun() ->
-				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german, '_all']}, {queues, none}]),
-				%dummy_media:set_skills(MPid, [german, '_all']),
-				call_queue:add(QPid, MPid),
-				agent:set_state(APid, idle),
-				timer:sleep(?TICK_LENGTH * 2 + 100),
-				{ok, Statename} = agent:query_state(APid),
-				?assertEqual(ringing, Statename)
-			end}
-		end
+% agent_interaction_test_() ->
+% 	{foreach,
+% 	fun() ->
+% 		test_primer(),
+% 		cdr:start(),
+% 		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
+% 		{ok, QPid} = queue_manager:add_queue("testqueue", []),
+% 		?DEBUG("call_queue:  ~p", [QPid]),
+% 		{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
+% 		?DEBUG("dummy_media:  ~p", [MPid]),
+% 		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
+% 		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
+% 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
+% 		?DEBUG("agent:  ~p", [APid]),
+% 		{QPid, MPid, APid}
+% 	end,
+% 	fun({QPid, MPid, APid}) ->
+% 		?DEBUG("stopping dummy_media:  ~p", [dummy_media:stop(MPid)]),
+% 		?DEBUG("stopping dispatch_manager:  ~p", [dispatch_manager:stop()]),
+% 		try call_queue:stop(QPid)
+% 		catch
+% 			exit:{noproc, Detail} ->
+% 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+% 		end,
+% 		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
+% 		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
+% 		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()]),
+% 		gen_event:stop(cdr)
+% 	end,
+% 	[
+% 		fun({QPid, MPid, APid}) ->
+% 			{"Ring to an agent",
+% 			fun() ->
+% 				agent:set_state(APid, idle),
+% 				call_queue:add(QPid, MPid),
+% 				receive
+% 				after ?TICK_LENGTH * 2 + 100 ->
+% 					ok
+% 				end,
+% 				{ok, Statename} = agent:query_state(APid),
+% 				?assertEqual(ringing, Statename)
+% 			end}
+% 		end,
+% 		fun({QPid, MPid, APid}) ->
+% 			{"Ring to an agent, which rings out, and rings to another agent",
+% 			fun() ->
+% 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2"}),
+% 				agent:set_state(APid, idle),
+% 				receive after 1000 -> ok end,
+% 				agent:set_state(APid2, idle),
+% 				call_queue:add(QPid, MPid),
+% 				receive
+% 				after ?TICK_LENGTH + 100 ->
+% 					ok
+% 				end,
+% 				?CONSOLE("test time!",[]),
+% 				{ok, Statename} = agent:query_state(APid),
+% 				{ok, Statename2} = agent:query_state(APid2),
+% 				?assertEqual(ringing, Statename),
+% 				?assertEqual(idle, Statename2),
+% 				% we wait 2 extra ticks because a ring does occur until a tick.
+% 				% Call enters q:  tick_length
+% 				% 1st tick, 2nd tick...RINGOUT'th tick
+% 				% dispather unbinds, tests new agent
+% 				% ringout'th + 1 tick, rings to an agent
+% 				receive
+% 				after ?TICK_LENGTH * (?RINGOUT) + 100 ->
+% 					ok
+% 				end,
+% 				?CONSOLE("2nd test time!", []),
+% 				{ok, Statename3} = agent:query_state(APid),
+% 				{ok, Statename4} = agent:query_state(APid2),
+% 				?assertEqual(idle, Statename3),
+% 				?assertEqual(ringing, Statename4),
+% 				agent:set_state(APid2, wrapup)
+% 			end}
+% 		end,
+% 		fun({QPid, _MPid, APid}) ->
+% 			{"Media says the the ring to the agent is invalid.",
+% 			fun() ->
+% 				{ok, Media} = dummy_media:start([{id, "testcall"}, {queues, none}]),
+% 				dummy_media:set_mode(Media, ring_agent, fail),
+% 				call_queue:add(QPid, Media),
+% 				agent:set_state(APid, idle),
+% 				receive
+% 				after ?TICK_LENGTH * 3 + 100 ->
+% 					ok
+% 				end,
+% 				{ok, Statename} = agent:query_state(APid),
+% 				?assertEqual(idle, Statename),
+% 				dummy_media:stop(Media)
+% 			end}
+% 		end,
+% 		fun({QPid, _MPid, APid}) ->
+% 			{"Agent cannot take the call in queue (regrab)",
+% 			fun() ->
+% 				{ok, Media} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
+% 				%dummy_media:set_skills(Media, [german]),
+% 				?CONSOLE("Media response to getting call:  ~p", [gen_media:get_call(Media)]),
+% 				call_queue:add(QPid, Media),
+% 				agent:set_state(APid, idle),
+% 				receive
+% 				after ?TICK_LENGTH * 2 + 100 ->
+% 					ok
+% 				end,
+% 				{ok, Statename} = agent:query_state(APid),
+% 				?assertEqual(idle, Statename),
+% 				dummy_media:stop(Media)
+% 			end}
+% 		end,
+% 		fun({QPid, _MPid, _APid}) ->
+% 			{"Agent with the _all skill overrides other skill checking",
+% 			fun() ->
+% 				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
+% 				%dummy_media:set_skills(MPid, [german]),
+% 				call_queue:add(QPid, MPid),
+% 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
+% 				agent:set_state(APid2, idle),
+% 				timer:sleep(?TICK_LENGTH * 2 + 100),
+% 				{ok, Statename} = agent:query_state(APid2),
+% 				?assertEqual(ringing, Statename),
+% 				agent:stop(APid2)
+% 			end}
+% 		end,
+% 		fun({QPid, _MPid, APid}) ->
+% 			{"Call with the _all skill overrides other skill checking",
+% 			fun() ->
+% 				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german, '_all']}, {queues, none}]),
+% 				%dummy_media:set_skills(MPid, [german, '_all']),
+% 				call_queue:add(QPid, MPid),
+% 				agent:set_state(APid, idle),
+% 				timer:sleep(?TICK_LENGTH * 2 + 100),
+% 				{ok, Statename} = agent:query_state(APid),
+% 				?assertEqual(ringing, Statename)
+% 			end}
+% 		end
 
-	]
-	}.
+% 	]
+% 	}.
 
-% TODO re-enabled when rebar can handle running eunit with a node 
-% (distrubutued).  Or these can be re-written to not require a live node.
-multinode_test_d() ->
-	{
-		foreach,
-		fun() ->
-			["testpx", Host] = string:tokens(atom_to_list(node()), "@"),
-			Master = list_to_atom(lists:append("master@", Host)),
-			Slave = list_to_atom(lists:append("slave@", Host)),
-			M = slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-			S = slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-			?CONSOLE("M start:  ~p;  S start:  ~p", [M, S]),
-			mnesia:stop(),
+% % TODO re-enabled when rebar can handle running eunit with a node
+% % (distrubutued).  Or these can be re-written to not require a live node.
+% multinode_test_d() ->
+% 	{
+% 		foreach,
+% 		fun() ->
+% 			["testpx", Host] = string:tokens(atom_to_list(node()), "@"),
+% 			Master = list_to_atom(lists:append("master@", Host)),
+% 			Slave = list_to_atom(lists:append("slave@", Host)),
+% 			M = slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+% 			S = slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+% 			?CONSOLE("M start:  ~p;  S start:  ~p", [M, S]),
+% 			mnesia:stop(),
 
-			mnesia:change_config(extra_db_nodes, [Master, Slave]),
-			mnesia:delete_schema([node(), Master, Slave]),
-			mnesia:create_schema([node(), Master, Slave]),
+% 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+% 			mnesia:delete_schema([node(), Master, Slave]),
+% 			mnesia:create_schema([node(), Master, Slave]),
 
-			cover:start([Master, Slave]),
+% 			cover:start([Master, Slave]),
 
-			rpc:call(Master, mnesia, start, []),
-			rpc:call(Slave, mnesia, start, []),
-			mnesia:start(),
+% 			rpc:call(Master, mnesia, start, []),
+% 			rpc:call(Slave, mnesia, start, []),
+% 			mnesia:start(),
 
-			mnesia:change_table_copy_type(schema, Master, disc_copies),
-			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Master, disc_copies),
+% 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
 
-			rpc:call(Master, queue_manager, start, [[Master, Slave]]),
-			rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
+% 			rpc:call(Master, queue_manager, start, [[Master, Slave]]),
+% 			rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
 
-			{Master, Slave}
-		end,
-		fun({Master, Slave}) ->
-			cover:stop([Master, Slave]),
+% 			{Master, Slave}
+% 		end,
+% 		fun({Master, Slave}) ->
+% 			cover:stop([Master, Slave]),
 
-			slave:stop(Master),
-			slave:stop(Slave),
-			mnesia:stop(),
-			mnesia:delete_schema([node(), Master, Slave]),
-			ok
-		end,
-		[
-			fun({Master, Slave}) ->
-				{"Media goes into a queue on a different node",
-				fun() ->
-					?CONSOLE("cook multi 1", []),
-					{ok, Media} = rpc:call(Slave, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					?assert(node(Media) =:= Slave),
-					QPid = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
-					?CONSOLE("das pid:  ~p", [QPid]),
-					?assert(is_pid(QPid)),
-					%QPid = queue_manager:get_queue("default_queue"),
-					call_queue:set_recipe(QPid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
-					call_queue:add(QPid, Media),
-					receive
-					after ?TICK_LENGTH * 2 + 100 ->
-						ok
-					end,
-					{{Priority, _Time}, _Mediarec} = call_queue:get_call(QPid, Media),
-					?assertEqual(3, Priority)
-				end}
-			end,
-			fun({Master, Slave}) ->
-				{"Cook is on master, queue is on slave, the slave dies, cook re-inserts",
-				fun() ->
-					call_queue_config:new_queue(#call_queue{name = "testqueue"}),
-					{ok, Qpid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
-					{ok, Media} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
-					call_queue:add(Qpid, Media),
-					slave:stop(Slave),
-					timer:sleep(1000),
-					Newpid = rpc:call(Master, queue_manager, get_queue, ["testqueue"]),
-					?assertNot(undefined =:= Newpid),
-					?assertNot(Qpid =:= Newpid),
-					?assertMatch({{_Priority, _Time}, _Mediarec}, call_queue:get_call(Newpid, Media))
-				end}
-			end
-		]
-	}.
+% 			slave:stop(Master),
+% 			slave:stop(Slave),
+% 			mnesia:stop(),
+% 			mnesia:delete_schema([node(), Master, Slave]),
+% 			ok
+% 		end,
+% 		[
+% 			fun({Master, Slave}) ->
+% 				{"Media goes into a queue on a different node",
+% 				fun() ->
+% 					?CONSOLE("cook multi 1", []),
+% 					{ok, Media} = rpc:call(Slave, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					?assert(node(Media) =:= Slave),
+% 					QPid = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+% 					?CONSOLE("das pid:  ~p", [QPid]),
+% 					?assert(is_pid(QPid)),
+% 					%QPid = queue_manager:get_queue("default_queue"),
+% 					call_queue:set_recipe(QPid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
+% 					call_queue:add(QPid, Media),
+% 					receive
+% 					after ?TICK_LENGTH * 2 + 100 ->
+% 						ok
+% 					end,
+% 					{{Priority, _Time}, _Mediarec} = call_queue:get_call(QPid, Media),
+% 					?assertEqual(3, Priority)
+% 				end}
+% 			end,
+% 			fun({Master, Slave}) ->
+% 				{"Cook is on master, queue is on slave, the slave dies, cook re-inserts",
+% 				fun() ->
+% 					call_queue_config:new_queue(#call_queue{name = "testqueue"}),
+% 					{ok, Qpid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
+% 					{ok, Media} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
+% 					call_queue:add(Qpid, Media),
+% 					slave:stop(Slave),
+% 					timer:sleep(1000),
+% 					Newpid = rpc:call(Master, queue_manager, get_queue, ["testqueue"]),
+% 					?assertNot(undefined =:= Newpid),
+% 					?assertNot(Qpid =:= Newpid),
+% 					?assertMatch({{_Priority, _Time}, _Mediarec}, call_queue:get_call(Newpid, Media))
+% 				end}
+% 			end
+% 		]
+% 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], [{set_priority, 5}], run_once, "Comment"}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
+% -define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], [{set_priority, 5}], run_once, "Comment"}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
--include("gen_server_test.hrl").
+% -include("gen_server_test.hrl").
 
 
 -endif.

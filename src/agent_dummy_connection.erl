@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -86,7 +86,7 @@
 -type(maxcalls() :: {'maxcalls', pos_integer()}).
 -type(scale() :: {'scale', pos_integer()}).
 -type(remote_node() :: {'remote_node', atom()}).
--type(start_option() :: 
+-type(start_option() ::
 	login_option() |
 	password_option() |
 	endpoint_type() |
@@ -94,7 +94,7 @@
 	id_option() |
 	profile() |
 	skills_option() |
-	max_life() | 
+	max_life() |
 	release_frequency() |
 	release_percent() |
 	ringing() |
@@ -120,7 +120,7 @@ start_x(N, Args) ->
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start([]).
-	
+
 -spec(start/1 :: (Args :: start_options()) -> {'ok', pid()}).
 start(Args) ->
 	gen_server:start(?MODULE, [Args], []).

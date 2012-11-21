@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -29,7 +29,7 @@
 
 %% @doc Helper module to facilitate speaking to an integration gen_server.  The
 %% integration server is assumed to have already been started with the name of
-%% `integration'.  If it has not, the functions will return 
+%% `integration'.  If it has not, the functions will return
 %% `{error, nointegration}'.
 %%
 %% This tries to enforce valid returns from the integration server.  If it
@@ -418,5 +418,5 @@ good_integration_test_() ->
 			?assertEqual(none, get_profile(profile))
 		end}
 	end
-	]}.	
+	]}.
 -endif.

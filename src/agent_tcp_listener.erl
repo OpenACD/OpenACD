@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,18 +27,18 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc A non-blocking tcp listener for agent tcp clients.  Based on the 
+%% @doc A non-blocking tcp listener for agent tcp clients.  Based on the
 %% tcp_listener module by %% Serge Aleynikov [http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles].
 %% Similar in concept to {@link agent_web_listener}.  Advantage over web is
 %% the ability for the server to push to the client without a messy poll.
-%% However, this is still not as feature complete as the web interface, 
+%% However, this is still not as feature complete as the web interface,
 %% primarily due to lack of an official client.  {@link agent_tcp_client} is
 %% a reference implementation built in erlang.
-%% 
+%%
 %% To create a client cablable of logging in, use the cpx_base.proto and
-%% cpx_agent.proto files (found in src/).  Communication is done by 
+%% cpx_agent.proto files (found in src/).  Communication is done by
 %% placing a protobuf message in a netstring.  A netstring is a binary:
-%% 
+%%
 %% <pre>	[len]":"[protobuf]","</pre>
 %%
 %% "len" being the the stringification of the length of the protobuf.  So,
@@ -46,7 +46,7 @@
 %% For a long discussion, [http://cr.yp.to/proto/netstrings.txt].
 %%
 %% When a client first connects, they will get a message stating the agent
-%% is in the state `PRELOGIN'.  That is the signal to start the login 
+%% is in the state `PRELOGIN'.  That is the signal to start the login
 %% in ernest.  After that an agent should:
 %% <ol>
 %% <li>Verify it's version</li>
@@ -55,14 +55,14 @@
 %% </ol>
 %%
 %% The version verification will reply an error if the major version doesn't
-%% match.  If only the minor version part doesn't match, success is 
+%% match.  If only the minor version part doesn't match, success is
 %% returned, but error_message is populated with a message stating as much.
 %% A perfect match is, well, perfect.
-%% 
-%% The request for a salt gets a nonce to use for salting the password, as 
+%%
+%% The request for a salt gets a nonce to use for salting the password, as
 %% well as the E and N parts of a public key to rsa encrypt the password.
-%% 
-%% Using the information from the get salt step, encrypt the password.  
+%%
+%% Using the information from the get salt step, encrypt the password.
 %% Then send a login request.  If successful, the server will reply as such,
 %% and an event stating which state the agent is in should also arrive.
 
@@ -94,7 +94,7 @@
 -record(state, {
 		listener :: port(), % Listening socket
 		acceptor :: any(), % Asynchronous acceptor's internal reference
-		radix :: integer(), 
+		radix :: integer(),
  		% socket type:  tcp, upgrade to ssl, ssl
 		socket_type = tcp :: 'tcp' | 'ssl_upgrade' | 'ssl',
 		socket_module = gen_tcp :: 'gen_tcp' | 'ssl'
@@ -109,13 +109,13 @@
 -type(socket_type_opt() :: {'socket_type', 'tcp' | 'ssl_upgrade' | 'ssl'}).
 -type(start_opt() :: port_opt() | radix_opt() | socket_type_opt()).
 -type(start_opts() :: [start_opt()]).
-%% @doc Start the listener linked to parent process.  If `Options' is an 
-%% integer, start the listener on the given port.  Otherwise, it uses start 
-%% options.  Defaults are to start on port 337, with a radix of 10, and to 
-%% just use straing tcp.  The socket options are `tcp', `ssl_upgrade', and 
+%% @doc Start the listener linked to parent process.  If `Options' is an
+%% integer, start the listener on the given port.  Otherwise, it uses start
+%% options.  Defaults are to start on port 337, with a radix of 10, and to
+%% just use straing tcp.  The socket options are `tcp', `ssl_upgrade', and
 %% `ssl'.  `tcp' indicates tcp always, with the password being sent in an
-%% rsa form.  `ssl' means the client must connect with ssl initially.  
-%% Password does not need special encryption in this case.  `ssl_upgrade' 
+%% rsa form.  `ssl' means the client must connect with ssl initially.
+%% Password does not need special encryption in this case.  `ssl_upgrade'
 %% means the listener/conneciton will request to upgrade to ssl asap.
 -spec(start_link/1 :: (Port :: integer() | start_opts()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->
@@ -135,12 +135,12 @@ start(Options) ->
 
 %% @doc Start the listener on the default port of 1337 linked to no process.
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start() -> 
+start() ->
 	start([]).
 
 %% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) -> 
+stop(Pid) ->
 	gen_server:cast(Pid, stop).
 
 %% @hidden
@@ -196,7 +196,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		{ok, Pid} = agent_tcp_connection:start(CliSocket, State#state.radix, State#state.socket_type),
 		Mod:controlling_process(CliSocket, Pid),
 		agent_tcp_connection:negotiate(Pid),
-	
+
 		%% Signal the network driver that we are ready to accept another connection
 		case prim_inet:async_accept(ListSock, -1) of
 			{ok, NewRef} ->
@@ -245,16 +245,16 @@ set_sockopt(ListSock, CliSocket, SocketMod) ->
 
 -ifdef(TEST).
 
-start_test() -> 
+start_test() ->
 	{ok, Pid} = start(6666),
 	stop(Pid).
 
-double_start_test() -> 
+double_start_test() ->
 	{ok, Pid} = start(6666),
 	?assertMatch({error, eaddrinuse}, start(6666)),
 	stop(Pid).
-	
-async_listsock_test() -> 
+
+async_listsock_test() ->
 	{timeout, 10, fun() -> {ok, Pid} = start(6666),
 	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [list]),
 	gen_tcp:send(Socket, "test/r/n"),
@@ -262,10 +262,10 @@ async_listsock_test() ->
 	gen_tcp:close(Socket) end}.
 
 
--define(MYSERVERFUNC, 
-	fun() -> 
-		{ok, Pid} = start_link(?PORT), 
-		{Pid, fun() -> stop(Pid),timer:sleep(10) end} 
+-define(MYSERVERFUNC,
+	fun() ->
+		{ok, Pid} = start_link(?PORT),
+		{Pid, fun() -> stop(Pid),timer:sleep(10) end}
 	end).
 
 -include("gen_server_test.hrl").

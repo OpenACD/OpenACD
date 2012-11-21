@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -85,7 +85,7 @@
 	load_plugin_env/1,
 	load_plugin_envs/1,
 	save_plugin_env/2,
-	call_state/1,	
+	call_state/1,
 	get_queue/1,
 	get_agent/1,
 	get_agents/0,
@@ -676,7 +676,7 @@ agent_states(RawProfiles) ->
 		end
 	end,
 	lists:foldl(Fold, [], Agentlist).
-	
+
 in_list(_Value, any) ->
 	true;
 in_list(Value, List) when is_list(List) ->
@@ -691,7 +691,7 @@ agent_state(Agent) ->
 		Pid ->
 			State = agent:dump_state(Pid),
 			Print = [
-				{"Id", State#agent.id}, 
+				{"Id", State#agent.id},
 				{"Pid", Pid},
 				{"Profile", State#agent.profile},
 				{"Release", case State#agent.release_data of
@@ -709,13 +709,13 @@ agent_state(Agent) ->
 
 pretty_print(List) ->
 	FindLongest = fun({K, _}, Length) ->
-		ListK = if 
+		ListK = if
 			is_atom(K) ->
 				atom_to_list(K);
 			is_binary(K) ->
 				binary_to_list(K);
-			true -> 
-				K 
+			true ->
+				K
 		end,
 		case length(ListK) > Length of
 			true ->
@@ -731,13 +731,13 @@ pretty_print(List) ->
 build_io_and_params([], _, Io, Params) ->
 	{Io, lists:reverse(Params)};
 build_io_and_params([{K, Value} | Tail], Length, Io, Params) ->
-	ListK = if 
+	ListK = if
 		is_atom(K) ->
 			atom_to_list(K);
 		is_binary(K) ->
 			binary_to_list(K);
-		true -> 
-			K 
+		true ->
+			K
 	end,
 	Newio = lists:append([Io, string:right(ListK, Length), ":  ~p~n"]),
 	Newparams = [Value | Params],
@@ -788,7 +788,7 @@ uptime(Fallback) ->
 	Fun = fun({'OpenACD', _, _}) -> true; (_) -> false end,
 	Running = lists:any(Fun, Apps),
 	case Running of
-		false -> 
+		false ->
 			stopped;
 		true ->
 			case {application:get_env('OpenACD', uptime), Fallback} of
@@ -849,8 +849,8 @@ print_raws(#cdr_rec{media = Call, transactions = Trans}) ->
 	io:format("Id:  ~s~n", [Call#call.id]),
 	pretty_print_raws(Trans);
 print_raws(Id) ->
-	Recres = mnesia:transaction(fun() -> 
-		qlc:e(qlc:q([X || 
+	Recres = mnesia:transaction(fun() ->
+		qlc:e(qlc:q([X ||
 			#cdr_rec{media = Call, transactions = Trans} = X <- mnesia:table(cdr_rec),
 			Trans =/= inprogress,
 			Call#call.id =:= Id
@@ -1201,7 +1201,7 @@ add_plugin_paths(PluginDir) ->
 %			AccApps
 %	end,
 %	start_plugin_apps(Tail, Dir, NewAcc).
-	
+
 -ifdef(TEST).
 
 pretty_print_time_test_() ->

@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -28,7 +28,7 @@
 %%
 
 %% @doc Connection to the local authenication cache and integration to another module.
-%% Authentication is first checked by the integration module (if any).  If that fails, 
+%% Authentication is first checked by the integration module (if any).  If that fails,
 %% this module will fall back to it's local cache in the mnesia 'agent_auth' table.
 %% the cache table is both ram and disc copies on all nodes.
 
@@ -126,7 +126,7 @@ start() ->
 
 	build_tables().
 
-%% @doc Add `#release_opt{} Rec' to the database. 
+%% @doc Add `#release_opt{} Rec' to the database.
 -spec(new_release/1 :: (Rec :: #release_opt{}) -> {'ok', any()} | {'aborted', any()}).
 new_release(Rec) when is_record(Rec, release_opt) ->
 	F = fun() ->
@@ -139,7 +139,7 @@ new_release(Rec) when is_record(Rec, release_opt) ->
 destroy_release(Label) when is_list(Label) ->
 	destroy_release(label, Label).
 
-%% @doc Remove the release option with the key (id, label) of value from the 
+%% @doc Remove the release option with the key (id, label) of value from the
 %% database.
 -spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'ok', any()} | {'error', any()}).
 destroy_release(id, Id) ->
@@ -260,7 +260,7 @@ give_profile_id(Rec) ->
 	end,
 	Id = integer_to_list(lists:foldl(Fold, 0, Ids) + 1),
 	Rec#agent_profile{id = Id}.
-	
+
 
 %% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
 -spec(destroy_profile/1 :: (Name :: string()) -> {'atomic', 'ok'} | {error, any()}).
@@ -302,7 +302,7 @@ get_profile(Profile) ->
 
 			F = fun() -> mnesia:write(Rec) end,
 			{atomic, ok} = mnesia:transaction(F),
-			
+
 			local_get_profile(Profile);
 		{error, nointegration} ->
 			?DEBUG("No integration, falling back for ~p", [Profile]),
@@ -351,8 +351,8 @@ get_profiles() ->
 	{ok, sort_profiles(Profiles)}.
 
 
-%% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
-%% does not change data that is not in the proplist.  The proplist's 
+%% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props';
+%% does not change data that is not in the proplist.  The proplist's
 %% `endpoints' field can also contain a partial list, preserving existing
 %% settings.
 -spec(set_agent/2 :: (Id :: string(), Props :: [{atom(), any()}]) -> {'ok', any()} | {'error', any()}).
@@ -480,7 +480,7 @@ drop_extended_prop({Type, Aval}, Prop) ->
 			{error, noagent}
 	end.
 
-%% @doc Get an extened property either from the database or a record 
+%% @doc Get an extened property either from the database or a record
 %% directly.
 -spec(get_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'ok', any()} | {'error', 'noagent'} | 'undefined').
 get_extended_prop({Type, Aval}, Prop) ->
@@ -496,8 +496,8 @@ get_extended_prop(#agent_auth{extended_props = Props}, Prop) ->
 		Else -> {ok, Else}
 	end.
 
-%% @doc Utility function to handle merging data after a net split.  Takes the 
-%% given nodes, selects all records with a timestamp greater than the given 
+%% @doc Utility function to handle merging data after a net split.  Takes the
+%% given nodes, selects all records with a timestamp greater than the given
 %% time, merges them, and passes the resulting list back to Pid.  Best if used
 %% inside a spawn.
 -spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok' | {'error', any()}).
@@ -605,7 +605,7 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 %	end,
 %	query_nodes(Tail, Fun, Newacc).
 
-%% @doc Take the plaintext username and password and attempt to 
+%% @doc Take the plaintext username and password and attempt to
 %% authenticate the agent.
 -type(profile_name() :: string()).
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> {ok, 'deny'} | {ok, {'allow', string(), skill_list(), security_level(), profile_name()}} | pass).
@@ -638,7 +638,7 @@ auth(Username, Password) ->
 	end.
 
 %% @doc Starts mnesia and creates the tables.  If the tables already exist,
-%% returns `ok'.  Otherwise, a default username of `"agent"' is stored 
+%% returns `ok'.  Otherwise, a default username of `"agent"' is stored
 %% with password `"Password123"' and skill `[english]'.
 -spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
@@ -653,7 +653,7 @@ build_tables() ->
 			write_default_agents();
 		_Else when A =:= copied; A =:= exists ->
 			ok;
-		_Else -> 
+		_Else ->
 			A
 	end,
 	B = util:build_table(release_opt, [
@@ -685,14 +685,14 @@ build_tables() ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-%% @doc Caches the passed `Username', `Password', `Skills', and `Security' 
-%% type.  to the mnesia database.  `Username' is the plaintext name and 
-%% used as the key.  `Password' is assumed to be plaintext; will be 
+%% @doc Caches the passed `Username', `Password', `Skills', and `Security'
+%% type.  to the mnesia database.  `Username' is the plaintext name and
+%% used as the key.  `Password' is assumed to be plaintext; will be
 %% erlang:md5'ed.  `Security' is either `agent', `supervisor', or `admin'.
 %% @deprecated Use {@link cache/2} instead.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
--spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
+-spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) ->
 						{'atomic', 'ok'} | {'aborted', any()}).
 cache(Id, Username, Password, {Profile, Skills}, Security, Extended) ->
 	cache(Id, [
@@ -730,13 +730,13 @@ cache(Id, Props) ->
 	Out = mnesia:transaction(F),
 	?DEBUG("Cache username result:  ~p", [Out]),
 	Out.
-	
-%% @doc adds a user to the local cache bypassing the integrated at check.  
-%% Note that unlike {@link cache/4} this expects the password in plain 
+
+%% @doc adds a user to the local cache bypassing the integrated at check.
+%% Note that unlike {@link cache/4} this expects the password in plain
 %% text!
 %% @deprecated Please use {@link add_agent/1} instead.
--spec(add_agent/5 :: 
-	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
+-spec(add_agent/5 ::
+	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) ->
 		{'atomic', 'ok'}).
 add_agent(Username, Password, Skills, Security, Profile) ->
 	Rec = #agent_auth{
@@ -747,8 +747,8 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 		profile = Profile},
 	add_agent(Rec).
 
-%% @doc adds a user to the local cache bypassing the integrated at check.  
-%% Note that unlike {@link cache/4} this expects the password in plain 
+%% @doc adds a user to the local cache bypassing the integrated at check.
+%% Note that unlike {@link cache/4} this expects the password in plain
 %% text!
 %% @deprecated Please use {@link add_agent/1} instead.
 -spec(add_agent/7 ::
@@ -799,7 +799,7 @@ make_id() ->
 		end
 	end,
 	lists:reverse(lists:foldl(F, [], FixedRef)).
-	
+
 -spec(destroy/1 :: (Username :: string()) -> {'ok', any()} | {'error', any()}).
 destroy(Username) ->
 	destroy(login, Username).
@@ -807,7 +807,7 @@ destroy(Username) ->
 %% @doc Destory either by id or login.
 -spec(destroy/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'ok', any()} | {'error', any()}).
 destroy(id, Value) ->
-	F = fun() -> 
+	F = fun() ->
 		mnesia:delete({agent_auth, Value})
 	end,
 	case mnesia:transaction(F) of
@@ -825,11 +825,11 @@ destroy(login, Value) ->
 		Err -> Err
 	end.
 
-%% @private 
+%% @private
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
 % internally called by the auth callback; there should be no need to call this directly (aside from tests).
 -spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'ok', {'allow', string(), skill_list(), security_level(), profile_name()}} | {'ok', 'deny'} | pass).
-local_auth(Username, BasePassword) -> 
+local_auth(Username, BasePassword) ->
 	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
@@ -854,7 +854,7 @@ local_auth(Username, BasePassword) ->
 -spec(sort_profiles/1 :: (List :: [#agent_profile{}]) -> [#agent_profile{}]).
 sort_profiles(List) ->
 	lists:sort(fun comp_profiles/2, List).
-			
+
 comp_profiles(#agent_profile{name = Aname, order = S}, #agent_profile{name = Bname, order = S}) ->
 	Aname =< Bname;
 comp_profiles(#agent_profile{order = Asort}, #agent_profile{order = Bsort}) ->
@@ -947,14 +947,14 @@ diff_recs_loop([Lhead | LTail] = Left, [Rhead | Rtail] = Right, Acc) ->
 					diff_recs_loop(Left, Rtail, [Rhead | Acc])
 			end
 	end.
-	
+
 nom_equal(A, B) when is_record(A, agent_auth) ->
 	A#agent_auth.id =:= B#agent_auth.id;
 nom_equal(A, B) when is_record(A, release_opt) ->
 	B#release_opt.label =:= A#release_opt.label;
 nom_equal(A, B) when is_record(A, agent_profile) ->
 	A#agent_profile.name =:= B#agent_profile.name.
-	
+
 nom_comp(A, B) when is_record(A, agent_auth) ->
 	A#agent_auth.id < B#agent_auth.id;
 nom_comp(A, B) when is_record(A, release_opt) ->
@@ -993,9 +993,9 @@ write_default_profile() ->
 		mnesia:write(?DEFAULT_PROFILE)
 	end,
 	case mnesia:transaction(G) of
-		{atomic, ok} -> 
+		{atomic, ok} ->
 			ok;
-		Else2 -> 
+		Else2 ->
 			Else2
 	end.
 
@@ -1073,14 +1073,14 @@ auth_no_integration_test_() ->
 	util:start_testnode(),
 	N = util:start_testnode(agent_auth_auth_no_integration),
 	{spawn, N, {setup,
-	fun() -> 
+	fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		build_tables()
 	end,
-	fun(_) -> 
+	fun(_) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()])
 	end,
@@ -1095,7 +1095,7 @@ auth_no_integration_test_() ->
 	{"deny auth with wrong pass",
 	fun() ->
 		?assertEqual({ok, deny}, auth("agent", "badpass"))
-	end},	
+	end},
 	{"extended prop test",
 	fun() ->
 		?assertEqual(undefined, get_extended_prop({id, "1"}, agent)),
@@ -1118,7 +1118,7 @@ auth_integration_test_() ->
 		{ok, Mock} = gen_server_mock:named({local, integration}),
 		Mock
 	end,
-	fun(Mock) -> 
+	fun(Mock) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		unregister(integration),
@@ -1191,7 +1191,7 @@ release_opt_test_() ->
 		mnesia:start(),
 		build_tables()
 	end,
-	fun(_) -> 
+	fun(_) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()])
 	end,
@@ -1251,7 +1251,7 @@ profile_test_() ->
 		mnesia:start(),
 		build_tables()
 	end,
-	fun(_) -> 
+	fun(_) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()])
 	end,
@@ -1298,7 +1298,7 @@ profile_test_() ->
 		new_profile("test profile", [testskill]),
 		?assertEqual({ok, #agent_profile{name = "test profile", id = "1", skills = [testskill]}}, get_profile("test profile"))
 	end},
-	
+
 	{"Get all profiles", fun() ->
 		new_profile("B", [german]),
 		new_profile("A", [english]),
@@ -1311,7 +1311,7 @@ profile_test_() ->
 		?assertMatch({ok, [
 			#agent_profile{name = "A", skills = [english]},
 			#agent_profile{name = "B", skills = [german]},
-			#agent_profile{name = "C", skills = [testskill]}]}, 
+			#agent_profile{name = "C", skills = [testskill]}]},
 			get_profiles())
 	end}]}}.
 
@@ -1328,7 +1328,7 @@ profile_integration_test_() ->
 		{ok, Mock} = gen_server_mock:named({local, integration}),
 		Mock
 	end,
-	fun(Mock) -> 
+	fun(Mock) ->
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		unregister(integration),
@@ -1352,7 +1352,7 @@ profile_integration_test_() ->
 			?assertEqual(undefined, get_profile("test profile"))
 		end}
 	end
-	]}}.	
+	]}}.
 
 diff_recs_test_() ->
 	[{"agent_auth records",

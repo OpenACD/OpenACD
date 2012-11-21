@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,7 +27,7 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Common protobuf conversion functions.  Most take an internal data 
+%% @doc Common protobuf conversion functions.  Most take an internal data
 %% structure and return a record used by the protobufs.
 
 -module(protobuf_util).
@@ -59,7 +59,7 @@
 	netstring_to_bins/2
 ]).
 
-%% @doc Turn a non protobuf `#call{}' into a protobuf friendly 
+%% @doc Turn a non protobuf `#call{}' into a protobuf friendly
 %% `#callrecord{}'.
 -spec(call_to_protobuf/1 :: (Call :: #call{}) -> #callrecord{}).
 call_to_protobuf(Call) ->
@@ -187,7 +187,7 @@ enum_to_statename(Enum) ->
 	{'PRECALL', 'precall'}, {'ONCALL', 'oncall'}, {'WRAPUP', 'wrapup'},
 	{'INIT', 'init'}, {'EXIT', 'exit'}]).
 
-%% @doc Turns a protobuf enum to an agnet channel statename into the 
+%% @doc Turns a protobuf enum to an agnet channel statename into the
 %% internal atom.
 -spec(enum_to_channel_statename/1 :: (Enum :: atom()) -> atom()).
 enum_to_channel_statename(Enum) ->
@@ -203,7 +203,7 @@ channel_statename_to_enum(State) ->
 	end.
 
 %% @doc Turn a skill tuple or atom into a protobuf friendly `#skill{}'.
--spec(skill_to_protobuf/1 :: 
+-spec(skill_to_protobuf/1 ::
 	({Atom :: atom(), Expanded :: string()}) -> #skill{};
 	(Atom :: atom()) -> #skill{}).
 skill_to_protobuf({Atom, Expanded}) when is_list(Expanded) ->
@@ -224,13 +224,13 @@ bin_to_netstring(Bin, Radix) ->
 	Size = list_to_binary(erlang:integer_to_list(size(Bin), Radix)),
 	<<Size/binary, $:, Bin/binary, $,>>.
 
-%% @doc Produces a series of netstrings in one big bin using the default 
+%% @doc Produces a series of netstrings in one big bin using the default
 %% radix of 10.
 -spec(bins_to_netstring/1 :: (Bins :: binary()) -> binary()).
 bins_to_netstring(Bins) ->
 	bins_to_netstring(Bins, 10).
 
-%% @doc Produces a series of netstrings in one big bin using the given 
+%% @doc Produces a series of netstrings in one big bin using the given
 %% radix.
 bins_to_netstring(Bins, Radix) ->
 	list_to_binary([bin_to_netstring(X, Radix) || X <- Bins]).
@@ -264,7 +264,7 @@ netstring_to_bins(<<N/integer, Rest/binary>>, Radix, NumAcc, Acc) ->
 -ifdef(TEST).
 bin_to_netstring_test_() ->
 	[?_assertEqual(<<"3:hi!,">>, bin_to_netstring(<<"hi!">>)),
-	?_assertEqual(<<"6:3:hi!,,">>, bin_to_netstring(<<"3:hi!,">>)), 
+	?_assertEqual(<<"6:3:hi!,,">>, bin_to_netstring(<<"3:hi!,">>)),
 	?_assertEqual(<<"G:this is the life,">>, bin_to_netstring(<<"this is the life">>, 36))].
 
 bins_to_netstring_test_() ->
@@ -312,13 +312,13 @@ skill_to_protobuf_test_() ->
 statename_enum_translates_test_() ->
 	TransTable = [
 		{idle, 'IDLE'},
-		{ringing, 'RINGING'},
-		{precall, 'PRECALL'},
-		{oncall, 'ONCALL'},
-		{outgoing, 'OUTGOING'},
-		{released, 'RELEASED'},
-		{warmtransfer, 'WARMTRANSFER'},
-		{wrapup, 'WRAPUP'}
+		% {ringing, 'RINGING'},
+		% {precall, 'PRECALL'},
+		% {oncall, 'ONCALL'},
+		% {outgoing, 'OUTGOING'},
+		{released, 'RELEASED'}
+		% {warmtransfer, 'WARMTRANSFER'},
+		% {wrapup, 'WRAPUP'}
 	],
 	Tests1 = [[?_assertEqual(A, enum_to_statename(B)),
 	?_assertEqual(B, statename_to_enum(A))] ||

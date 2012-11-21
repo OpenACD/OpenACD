@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -27,8 +27,8 @@
 %%	Micah Warren <micahw at lordnull dot com>
 %%
 
-%% @doc Companion to sip_bot_manager.  When a new call comes into the 
-%% sip_bot, this is supposed to act like the phone for a dummy agent.  
+%% @doc Companion to sip_bot_manager.  When a new call comes into the
+%% sip_bot, this is supposed to act like the phone for a dummy agent.
 %% @see sip_bot_manager
 -module(sip_bot).
 -author(micahw).
@@ -77,7 +77,7 @@
 
 -type(uuid_option() :: {'uuid', string()}).
 -type(playback_file() :: {'playback_file', string()}).
--type(start_option() :: 
+-type(start_option() ::
 	uuid_option() |
 	playback_file()
 ).
@@ -212,10 +212,10 @@ case_event_name([UUID | Rawcall], State) ->
 %12:25:00 [DEBUG] <0.61.0>@sip_bot:163 Event:  "CHANNEL_DESTROY";  UUID:  "31e5569e-0428-4230-a327-fd531e0ebecf"
 %12:25:00 [DEBUG] <0.61.0>@sip_bot:163 Event:  "CHANNEL_STATE";  UUID:  "31e5569e-0428-4230-a327-fd531e0ebecf"
 
-	
-	
-	
-	
-	
-	
-	
+
+
+
+
+
+
+

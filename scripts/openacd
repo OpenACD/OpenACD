@@ -35,6 +35,12 @@ export OPENACD_ETC_DIR="$OAETCDIR"
 # Erlang crash dump
 export ERL_CRASH_DUMP="$OALOGDIR/log/erlang_crash.dump"
 
+# HOME is not defined if "service" command is used to start/stop/status openacd
+if [ -z "$HOME" ]; then
+ USERNAME=`id -u -n`
+ export HOME=`grep "^$USERNAME:" /etc/passwd | cut -d ':' -f6`
+fi
+
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
     exec sudo -u $RUNNER_USER -i $0 $@
